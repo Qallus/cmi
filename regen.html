@@ -1,0 +1,1068 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>ReGen Total Wellness — Strategy Deck · 4.8.2026</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --black:#000000;
+  --off-black:#0a0a0a;
+  --surface:#111111;
+  --surface2:#181818;
+  --surface3:#1e1e1e;
+  --border:#2a2a2a;
+  --border-light:#383838;
+  --white:#ffffff;
+  --off-white:#ececec;
+  --muted:#888888;
+  --dim:#444444;
+  --ice:#7dd3f0;
+  --ice-dim:rgba(125,211,240,0.08);
+  --ice-border:rgba(125,211,240,0.22);
+  --gold:#c9a84c;
+  --gold-dim:rgba(201,168,76,0.08);
+  --gold-border:rgba(201,168,76,0.28);
+  --green:#3ec98a;
+  --green-dim:rgba(62,201,138,0.08);
+  --green-border:rgba(62,201,138,0.28);
+  --font-d:'Bebas Neue',sans-serif;
+  --font-b:'Inter',sans-serif;
+  --w:1000px;--h:590px;--r:5px;
+}
+html{height:100%;overflow:hidden;}
+body{height:100%;background:#030303;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:var(--font-b);color:var(--white);overflow:hidden;gap:14px;}
+
+#deck{position:relative;width:var(--w);height:var(--h);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;background:var(--black);}
+
+.slide{position:absolute;inset:0;display:flex;flex-direction:column;opacity:0;pointer-events:none;transform:translateX(28px);transition:opacity .38s ease,transform .38s ease;overflow:hidden;}
+.slide.active{opacity:1;pointer-events:all;transform:translateX(0);}
+.slide.exit{opacity:0;transform:translateX(-28px);transition:opacity .25s ease,transform .25s ease;}
+
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:11px 26px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--off-black);}
+.tb-brand{font-family:var(--font-d);font-size:16px;letter-spacing:.14em;color:var(--white);}
+.tb-brand em{color:var(--ice);font-style:normal;}
+.tb-mid{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);}
+.tb-tag{font-size:9px;letter-spacing:.14em;text-transform:uppercase;background:var(--ice-dim);color:var(--ice);border:1px solid var(--ice-border);border-radius:2px;padding:3px 10px;}
+
+.slide-body{flex:1;display:flex;flex-direction:column;padding:24px 32px 18px;overflow:hidden;position:relative;z-index:0;}
+
+.btmbar{display:flex;align-items:center;justify-content:space-between;padding:7px 26px;border-top:1px solid var(--border);flex-shrink:0;background:var(--off-black);}
+.btm-l{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);}
+.btm-r{font-size:9px;color:var(--dim);}
+
+.eyebrow{font-size:9px;letter-spacing:.24em;text-transform:uppercase;color:var(--ice);margin-bottom:8px;display:flex;align-items:center;gap:10px;}
+.eyebrow::before{content:'';display:block;width:18px;height:1px;background:var(--ice);}
+h1{font-family:var(--font-d);font-size:80px;line-height:.92;letter-spacing:.04em;}
+h2{font-family:var(--font-d);font-size:46px;line-height:.98;letter-spacing:.05em;margin-bottom:16px;}
+h3{font-size:9px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-bottom:7px;}
+p{font-size:12px;color:var(--muted);line-height:1.55;font-weight:300;}
+
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px;flex:1;}
+.three-col{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+.col{display:flex;flex-direction:column;gap:10px;}
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:3px;padding:15px 18px;display:flex;flex-direction:column;gap:5px;}
+.card.ice{border-color:var(--ice-border);background:#0d1e25;}
+.card.gold{border-color:var(--gold-border);background:#1e1a0d;}
+.card.green{border-color:var(--green-border);background:#0d1e16;}
+
+.pills{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;}
+.pill{font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:2px 9px;border-radius:2px;border:1px solid var(--border-light);color:var(--muted);background:var(--surface2);}
+.pill.ice{border-color:var(--ice-border);color:var(--ice);background:var(--ice-dim);}
+.pill.gold{border-color:var(--gold-border);color:var(--gold);background:var(--gold-dim);}
+.pill.green{border-color:var(--green-border);color:var(--green);background:var(--green-dim);}
+
+hr{border:none;border-top:1px solid var(--border);margin:10px 0;}
+
+.blist{display:flex;flex-direction:column;gap:6px;}
+.bitem{display:flex;align-items:flex-start;gap:7px;font-size:12px;color:var(--off-white);line-height:1.4;font-weight:300;}
+.bitem::before{content:'—';color:var(--ice);flex-shrink:0;font-size:10px;margin-top:1px;}
+
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:3px;padding:12px 14px;display:flex;flex-direction:column;gap:2px;}
+.stat-val{font-family:var(--font-d);font-size:28px;letter-spacing:.03em;color:var(--ice);line-height:1;}
+.stat-val.gold{color:var(--gold);}
+.stat-val.green{color:var(--green);}
+.stat-label{font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);}
+
+.badge{display:inline-block;font-size:8px;letter-spacing:.1em;text-transform:uppercase;padding:2px 7px;border-radius:2px;border:1px solid;}
+.badge.high{color:var(--green);border-color:var(--green-border);background:var(--green-dim);}
+.badge.mid{color:var(--gold);border-color:var(--gold-border);background:var(--gold-dim);}
+.badge.grow{color:var(--ice);border-color:var(--ice-border);background:var(--ice-dim);}
+
+.chip{font-size:11px;font-weight:500;letter-spacing:.05em;padding:6px 14px;border:1px solid var(--border-light);border-radius:3px;color:var(--off-white);background:var(--surface2);}
+
+/* segment overview grid */
+.seg-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;flex:1;}
+.seg-card{background:var(--surface);border:1px solid var(--border);border-radius:3px;padding:13px 12px;display:flex;flex-direction:column;gap:5px;transition:border-color .2s;}
+.seg-card:hover{border-color:var(--border-light);}
+.seg-title{font-family:var(--font-d);font-size:17px;letter-spacing:.06em;color:var(--white);line-height:1;}
+.seg-opp{font-family:var(--font-d);font-size:22px;letter-spacing:.04em;margin-top:auto;padding-top:6px;}
+.seg-opp.ice{color:var(--ice);}
+.seg-opp.gold{color:var(--gold);}
+.seg-opp.green{color:var(--green);}
+.seg-sublabel{font-size:8px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);}
+.seg-desc{font-size:10px;color:var(--muted);line-height:1.45;font-weight:300;}
+
+/* cover */
+.cover-bg-text{font-family:var(--font-d);font-size:220px;color:var(--surface);position:absolute;right:-16px;bottom:-36px;line-height:1;letter-spacing:-.02em;pointer-events:none;user-select:none;}
+.construction-grid{
+  position:absolute;inset:0;pointer-events:none;z-index:-1;
+  background-image:
+    linear-gradient(rgba(125,211,240,.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(125,211,240,.07) 1px, transparent 1px),
+    linear-gradient(rgba(125,211,240,.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(125,211,240,.028) 1px, transparent 1px);
+  background-size:40px 40px, 40px 40px, 10px 10px, 10px 10px;
+  -webkit-mask-image:
+    linear-gradient(to right, transparent 0%, black 14%, black 86%, transparent 100%),
+    linear-gradient(to bottom, transparent 0%, black 12%, black 88%, transparent 100%);
+  -webkit-mask-composite:destination-in;
+  mask-image:
+    linear-gradient(to right, transparent 0%, black 14%, black 86%, transparent 100%),
+    linear-gradient(to bottom, transparent 0%, black 12%, black 88%, transparent 100%);
+  mask-composite:intersect;
+}
+
+/* light mode */
+body.light{background:#e8e8e8;}
+body.light #deck{background:#f5f5f5;border-color:#d0d0d0;}
+body.light .topbar,body.light .btmbar{background:#ebebeb;border-color:#d0d0d0;}
+body.light .tb-brand{color:#111;}
+body.light .tb-mid{color:#888;}
+body.light .btm-l,body.light .btm-r{color:#aaa;}
+body.light .slide-body{background:#f5f5f5;}
+body.light .slide{background:#f5f5f5;}
+body.light h1,body.light h2{color:#111;}
+body.light h3{color:#999;}
+body.light p{color:#666;}
+body.light .eyebrow{color:var(--ice-mid,#3ba8d4);}
+body.light .eyebrow::before{background:#3ba8d4;}
+body.light .card{background:#fff;border-color:#e0e0e0;}
+body.light .card.ice{background:#edf5fb;border-color:rgba(59,168,212,0.35);}
+body.light .card.gold{background:#f8f5e9;border-color:rgba(180,140,40,0.35);}
+body.light .card.green{background:#edf7f2;border-color:rgba(40,170,100,0.35);}
+body.light .bitem{color:#333;}
+body.light .bitem::before{color:#3ba8d4;}
+body.light .stat-card{background:#fff;border-color:#e0e0e0;}
+body.light .stat-label{color:#aaa;}
+body.light .seg-card{background:#fff;border-color:#e0e0e0;}
+body.light .seg-title{color:#111;}
+body.light .seg-desc{color:#777;}
+body.light .seg-sublabel{color:#bbb;}
+body.light .chip{background:#efefef;border-color:#d8d8d8;color:#333;}
+body.light .pill{background:#efefef;border-color:#d8d8d8;color:#888;}
+body.light .pill.ice{background:rgba(59,168,212,0.08);border-color:rgba(59,168,212,0.25);color:#1a7fa8;}
+body.light .pill.gold{background:rgba(180,140,40,0.08);border-color:rgba(180,140,40,0.25);color:#9a6e10;}
+body.light .pill.green{background:rgba(40,170,100,0.08);border-color:rgba(40,170,100,0.25);color:#1a7a48;}
+body.light .tb-tag{background:rgba(59,168,212,0.08);color:#1a7fa8;border-color:rgba(59,168,212,0.25);}
+body.light .off-white{color:#111;}
+body.light [style*="color:var(--off-white)"]{color:#222 !important;}
+body.light [style*="color:var(--muted)"]{color:#666 !important;}
+body.light [style*="color:var(--dim)"]{color:#aaa !important;}
+body.light [style*="color:var(--white)"]{color:#111 !important;}
+body.light [style*="color:var(--ice)"]{color:#1a7fa8 !important;}
+body.light [style*="color:var(--gold)"]{color:#8a5e0a !important;}
+body.light [style*="color:var(--green)"]{color:#1a6e40 !important;}
+body.light [style*="background:var(--surface)"]{background:#fff !important;}
+body.light [style*="background:var(--surface2)"]{background:#f0f0f0 !important;}
+body.light [style*="background:var(--off-black)"]{background:#ebebeb !important;}
+body.light [style*="background:var(--ice-dim)"]{background:rgba(59,168,212,0.07) !important;}
+body.light [style*="background:var(--gold-dim)"]{background:rgba(180,140,40,0.07) !important;}
+body.light [style*="background:var(--green-dim)"]{background:rgba(40,170,100,0.07) !important;}
+body.light [style*="border-color:var(--border-light)"]{border-color:#ddd !important;}
+body.light [style*="border-color:var(--ice-border)"]{border-color:rgba(59,168,212,0.3) !important;}
+body.light [style*="border-color:var(--gold-border)"]{border-color:rgba(180,140,40,0.3) !important;}
+body.light [style*="border-color:var(--green-border)"]{border-color:rgba(40,170,100,0.3) !important;}
+body.light .cover-bg-text{color:#e8e8e8;}
+body.light .construction-grid{
+  background-image:
+    linear-gradient(rgba(59,168,212,.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(59,168,212,.07) 1px, transparent 1px),
+    linear-gradient(rgba(59,168,212,.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(59,168,212,.028) 1px, transparent 1px);
+  background-size:40px 40px, 40px 40px, 10px 10px, 10px 10px;
+}
+body.light .badge.high{color:#1a6e40;border-color:rgba(40,170,100,0.3);background:rgba(40,170,100,0.08);}
+body.light .badge.mid{color:#8a5e0a;border-color:rgba(180,140,40,0.3);background:rgba(180,140,40,0.08);}
+body.light .badge.grow{color:#1a7fa8;border-color:rgba(59,168,212,0.3);background:rgba(59,168,212,0.08);}
+body.light .nbtn{background:#efefef;border-color:#d0d0d0;color:#333;}
+body.light .nbtn:hover{background:#e4e4e4;border-color:rgba(59,168,212,0.4);}
+body.light .dot{background:#ccc;}
+body.light .dot.active{background:#3ba8d4;}
+body.light #counter{color:#bbb;}
+/* toggle btn */
+#toggle{
+  background:var(--surface);border:1px solid var(--border-light);border-radius:3px;
+  color:var(--off-white);font-family:var(--font-b);font-size:11px;padding:7px 14px;
+  cursor:pointer;letter-spacing:.08em;transition:background .2s,border-color .2s;
+  display:flex;align-items:center;gap:6px;
+}
+#toggle:hover{background:var(--surface2);border-color:var(--ice-border);}
+body.light #toggle{background:#efefef;border-color:#d0d0d0;color:#333;}
+body.light #toggle:hover{background:#e4e4e4;border-color:rgba(59,168,212,0.4);}
+/* nav */
+#nav{display:flex;align-items:center;gap:12px;}
+.nbtn{background:var(--surface);border:1px solid var(--border-light);border-radius:3px;color:var(--off-white);font-family:var(--font-b);font-size:11px;padding:7px 16px;cursor:pointer;letter-spacing:.08em;transition:background .2s,border-color .2s;}
+.nbtn:hover{background:var(--surface2);border-color:var(--ice-border);}
+.nbtn:disabled{opacity:.22;cursor:default;}
+#counter{font-size:10px;color:var(--dim);min-width:48px;text-align:center;letter-spacing:.1em;}
+#dots{display:flex;gap:5px;}
+.dot{width:5px;height:5px;border-radius:50%;background:var(--dim);cursor:pointer;transition:background .2s,transform .2s;}
+.dot.active{background:var(--ice);transform:scale(1.4);}
+</style>
+</head>
+<body>
+<div id="deck">
+
+<!-- S1: COVER -->
+<div class="slide active" id="s1">
+  <div class="topbar">
+    <div class="tb-brand">RE<em>GEN</em> TOTAL WELLNESS</div>
+    <div class="tb-mid">Strategy Deck · April 8, 2026</div>
+    <div class="tb-tag">Confidential</div>
+  </div>
+  <div class="slide-body" style="justify-content:flex-end;">
+    <div class="cover-bg-text">B2B</div>
+    <div class="eyebrow">Commercial · Multi-Family · Government</div>
+    <h1>MARKET<br/>STRATEGY</h1>
+    <p style="margin-top:12px;max-width:400px;font-size:13px;color:#666;">Cold plunge, red light therapy, and total wellness solutions for commercial, residential, and institutional markets.</p>
+    <div style="margin-top:20px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+      <span style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);">regentotalwellness.com</span>
+      <span style="color:var(--border);">|</span>
+      <span style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);">Made in Arizona</span>
+      <span style="color:var(--border);">|</span>
+      <span style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ice);">Your Endorphin Dealer™</span>
+    </div>
+  </div>
+  <div class="btmbar"><div class="btm-l">Internal Use Only</div><div class="btm-r">01 / 11</div></div>
+</div>
+
+<!-- S2: PRODUCTS -->
+<div class="slide" id="s2">
+  <div class="topbar"><div class="tb-brand">RE<em>GEN</em> TOTAL WELLNESS</div><div class="tb-mid">Product Portfolio</div><div class="tb-tag">Products</div></div>
+  <div class="slide-body">
+    <div class="eyebrow">01 — Products</div>
+    <h2>PRODUCT LINE</h2>
+    <div class="three-col" style="flex:none;margin-bottom:12px;">
+      <div class="card ice">
+        <h3>Cold Plunge</h3>
+        <div style="font-family:var(--font-d);font-size:20px;color:var(--ice);letter-spacing:.06em;margin-bottom:4px;">THE BLAST · THE OG</div>
+        <p>High-flow, patent-pending chiller systems. Commercial-grade cold immersion. USA-made, 2-year warranty, HSA/FSA eligible.</p>
+        <div class="pills"><span class="pill ice">Blast</span><span class="pill ice">Blast Pro</span><span class="pill ice">The OG</span><span class="pill ice">White Label</span></div>
+      </div>
+      <div class="card">
+        <h3>Heat Recovery</h3>
+        <div style="font-family:var(--font-d);font-size:20px;color:var(--off-white);letter-spacing:.06em;margin-bottom:4px;">SAUNAS · HOT TUBS · O2</div>
+        <p>Full contrast therapy suite. Oxygen-infused soak, REGEN Heat hot tub, and complete sauna lineup from 1 to 6 person.</p>
+        <div class="pills"><span class="pill">Sweat Box</span><span class="pill">Sweat Pod</span><span class="pill">Sweat Barrel</span><span class="pill">Sweat Cabin</span></div>
+      </div>
+      <div class="card">
+        <h3>Red Light Therapy</h3>
+        <div style="font-family:var(--font-d);font-size:20px;color:var(--gold);letter-spacing:.06em;margin-bottom:4px;">RED ELITE RTW</div>
+        <p>Photobiomodulation panels for cellular recovery, skin health, and inflammation. Commercial and residential configurations.</p>
+        <div class="pills"><span class="pill gold">Red Elite RTW</span><span class="pill gold">Commercial Panels</span></div>
+      </div>
+    </div>
+    <hr/>
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+      <h3 style="margin:0;white-space:nowrap;">KNOWN CLIENTS</h3>
+      <div style="display:flex;gap:7px;flex-wrap:wrap;">
+        <div class="chip">Detroit Tigers</div><div class="chip">MLB</div><div class="chip">Luke AFB</div><div class="chip">Santa Cruz Athletic Club</div><div class="chip">The Hive</div><div class="chip">Bodi</div>
+      </div>
+    </div>
+  </div>
+  <div class="btmbar"><div class="btm-l">Product Portfolio</div><div class="btm-r">02 / 11</div></div>
+</div>
+
+<!-- S3: MARKETING -->
+<div class="slide" id="s3">
+  <div class="topbar"><div class="tb-brand">RE<em>GEN</em> TOTAL WELLNESS</div><div class="tb-mid">Marketing Strategy</div><div class="tb-tag">Marketing</div></div>
+  <div class="slide-body">
+    <div class="eyebrow">02 — Marketing</div>
+    <h2>CHANNELS &amp; REACH</h2>
+    <div class="two-col">
+      <div class="col">
+        <div class="card">
+          <h3>Paid Digital</h3>
+          <div class="blist" style="margin-top:4px;">
+            <div class="bitem">Meta Ads — primary paid channel (Instagram + Facebook)</div>
+            <div class="bitem">Conversion-optimized creative at top of funnel</div>
+            <div class="bitem">LinkedIn tested — not primary fit for current stage</div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Organic Social</h3>
+          <div class="blist" style="margin-top:4px;">
+            <div class="bitem">Instagram — product showcases, lifestyle content, athlete posts</div>
+            <div class="bitem">Facebook — community building and retargeting audience</div>
+            <div class="bitem">Reddit — niche wellness communities, organic trust building</div>
+          </div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="card">
+          <h3>Web Optimization</h3>
+          <div class="blist" style="margin-top:4px;">
+            <div class="bitem">SEO content strategy centered on regentotalwellness.com</div>
+            <div class="bitem">CRO — HSA/FSA financing and 0% offers prominently surfaced</div>
+            <div class="bitem">Free shipping + 2-year warranty as conversion anchors</div>
+          </div>
+        </div>
+        <div class="card ice">
+          <h3>B2B Strategy Gap</h3>
+          <p>Commercial opportunity requires a parallel outbound strategy: direct sales outreach, trade partnerships, and multi-unit proposal flow alongside the existing DTC paid media model.</p>
+          <div class="pills" style="margin-top:8px;"><span class="pill ice">Direct Outreach</span><span class="pill ice">Trade Partnerships</span><span class="pill ice">RFP Responses</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="btmbar"><div class="btm-l">Marketing Strategy</div><div class="btm-r">03 / 11</div></div>
+</div>
+
+<!-- S4: MARKET OVERVIEW -->
+<div class="slide" id="s4">
+  <div class="topbar"><div class="tb-brand">RE<em>GEN</em> TOTAL WELLNESS</div><div class="tb-mid">Market Overview</div><div class="tb-tag">Markets</div></div>
+  <div class="slide-body" style="gap:12px;">
+    <div class="eyebrow">03 — Markets</div>
+    <h2 style="margin-bottom:2px;">SALES OPPORTUNITY MAP</h2>
+    <p style="margin-bottom:10px;font-size:11px;">Eight verticals — differentiated deal size, sales cycle, and product fit.</p>
+    <div class="seg-grid">
+      <div class="seg-card">
+        <h3>Gyms &amp; Fitness</h3>
+        <div class="seg-title">Athletic Clubs</div>
+        <div class="seg-desc">Performance recovery. Multi-unit. Member retention driver.</div>
+        <div class="seg-opp ice">$25–80K</div>
+        <div class="seg-sublabel">avg install</div>
+        <div style="margin-top:3px;"><span class="badge high">High Volume</span></div>
+      </div>
+      <div class="seg-card">
+        <h3>Hotels &amp; Spas</h3>
+        <div class="seg-title">Hospitality</div>
+        <div class="seg-desc">Luxury amenity arms race. ADR uplift. Spa revenue add.</div>
+        <div class="seg-opp gold">$40–150K</div>
+        <div class="seg-sublabel">avg install</div>
+        <div style="margin-top:3px;"><span class="badge mid">High Ticket</span></div>
+      </div>
+      <div class="seg-card">
+        <h3>Luxury Homes</h3>
+        <div class="seg-title">Large Estates</div>
+        <div class="seg-desc">Biohacker culture. HSA/FSA eligible. Fast cycle, high referral.</div>
+        <div class="seg-opp ice">$8–30K</div>
+        <div class="seg-sublabel">avg install</div>
+        <div style="margin-top:3px;"><span class="badge grow">Fastest Growth</span></div>
+      </div>
+      <div class="seg-card" style="border-color:var(--ice-border);background:var(--ice-dim);">
+        <h3>Multi-Family</h3>
+        <div class="seg-title">Apartments</div>
+        <div class="seg-desc">ConAm, Greystar. Amenity-led leasing. Multi-site scale.</div>
+        <div class="seg-opp green">$50–200K</div>
+        <div class="seg-sublabel">avg install</div>
+        <div style="margin-top:3px;"><span class="badge high">Strategic</span></div>
+      </div>
+      <div class="seg-card">
+        <h3>HOAs</h3>
+        <div class="seg-title">Rec Centers</div>
+        <div class="seg-desc">Community facility upgrades. Board-driven. Reserve budget funded.</div>
+        <div class="seg-opp gold">$20–60K</div>
+        <div class="seg-sublabel">avg install</div>
+        <div style="margin-top:3px;"><span class="badge mid">Emerging</span></div>
+      </div>
+      <div class="seg-card">
+        <h3>Local Cities</h3>
+        <div class="seg-title">Municipalities</div>
+        <div class="seg-desc">Parks &amp; rec. First responder wellness. Public facilities.</div>
+        <div class="seg-opp ice">$30–120K</div>
+        <div class="seg-sublabel">avg install</div>
+        <div style="margin-top:3px;"><span class="badge grow">Long Cycle</span></div>
+      </div>
+      <div class="seg-card">
+        <h3>Counties</h3>
+        <div class="seg-title">Gov't Facilities</div>
+        <div class="seg-desc">Sheriff, fire, public health. Compliance-heavy. Sister co. play.</div>
+        <div class="seg-opp gold">$50–250K</div>
+        <div class="seg-sublabel">avg install</div>
+        <div style="margin-top:3px;"><span class="badge mid">High Value</span></div>
+      </div>
+      <div class="seg-card">
+        <h3>Wellness Centers</h3>
+        <div class="seg-title">B2B Core</div>
+        <div class="seg-desc">Primary vertical. Highest repeat purchase. Full product cross-sell.</div>
+        <div class="seg-opp ice">$30–100K</div>
+        <div class="seg-sublabel">avg install</div>
+        <div style="margin-top:3px;"><span class="badge grow">Core Market</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="btmbar"><div class="btm-l">Market Overview</div><div class="btm-r">04 / 11</div></div>
+</div>
+
+<!-- S5: GYMS -->
+<div class="slide" id="s5">
+  <div class="topbar"><div class="tb-brand">RE<em>GEN</em> TOTAL WELLNESS</div><div class="tb-mid">Segment Deep Dive</div><div class="tb-tag">Gyms</div></div>
+  <div class="slide-body">
+    <div class="eyebrow">04 — Gyms &amp; Fitness</div>
+    <h2>GYMS &amp; ATHLETIC CLUBS</h2>
+    <div class="two-col">
+      <div class="col">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <div class="stat-card"><div class="stat-val">$25–80K</div><div class="stat-label">Install Value</div></div>
+          <div class="stat-card"><div class="stat-val green">High</div><div class="stat-label">Lead Volume</div></div>
+          <div class="stat-card"><div class="stat-val">2–4</div><div class="stat-label">Units / Site</div></div>
+          <div class="stat-card"><div class="stat-val">30–60</div><div class="stat-label">Day Cycle</div></div>
+        </div>
+        <div class="card ice">
+          <h3>Opportunity Signal</h3>
+          <p>Cold plunge is rapidly becoming a standard amenity expectation at premium fitness clubs. Members actively seek recovery modalities. Gyms with plunge tubs report measurably higher membership retention and premium tier conversions.</p>
+        </div>
+      </div>
+      <div class="col">
+        <div class="card">
+          <h3>Key Buyer Drivers</h3>
+          <div class="blist">
+            <div class="bitem">Member retention and premium membership tier upsell</div>
+            <div class="bitem">Differentiation from big-box gyms</div>
+            <div class="bitem">Recovery revenue — paid cold plunge sessions</div>
+            <div class="bitem">Athlete and influencer partnership leverage</div>
+            <div class="bitem">Commercial durability — daily multi-user volume</div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Target Profiles</h3>
+          <div class="pills"><span class="pill">Boutique Fitness Studios</span><span class="pill">Athletic Clubs</span><span class="pill">CrossFit / Functional Fitness</span><span class="pill">Martial Arts</span><span class="pill">Recovery Centers</span></div>
+        </div>
+        <div class="card"><h3>Lead Products</h3>
+          <div class="pills"><span class="pill ice">Blast Pro (Commercial)</span><span class="pill ice">Red Light Panels</span><span class="pill ice">Sauna Package</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="btmbar"><div class="btm-l">Gyms &amp; Athletic Clubs</div><div class="btm-r">05 / 11</div></div>
+</div>
+
+<!-- S6: HOTELS -->
+<div class="slide" id="s6">
+  <div class="topbar"><div class="tb-brand">RE<em>GEN</em> TOTAL WELLNESS</div><div class="tb-mid">Segment Deep Dive</div><div class="tb-tag">Hotels</div></div>
+  <div class="slide-body">
+    <div class="eyebrow">05 — Hotels &amp; Hospitality</div>
+    <h2>HOTELS, RESORTS &amp; SPAS</h2>
+    <div class="two-col">
+      <div class="col">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <div class="stat-card"><div class="stat-val gold">$40–150K</div><div class="stat-label">Install Value</div></div>
+          <div class="stat-card"><div class="stat-val gold">Premium</div><div class="stat-label">Deal Quality</div></div>
+          <div class="stat-card"><div class="stat-val">Multi</div><div class="stat-label">Property Scale</div></div>
+          <div class="stat-card"><div class="stat-val">60–120</div><div class="stat-label">Day Cycle</div></div>
+        </div>
+        <div class="card gold">
+          <h3>Revenue Play</h3>
+          <p>Hotels are integrating cold plunge and red light therapy into spa menus as premium paid sessions ($30–$75/session). A full wellness suite install commands top-tier rate premiums and builds entirely new revenue streams beyond room nights.</p>
+        </div>
+      </div>
+      <div class="col">
+        <div class="card">
+          <h3>Key Buyer Drivers</h3>
+          <div class="blist">
+            <div class="bitem">ADR uplift — wellness amenities command rate premiums</div>
+            <div class="bitem">Spa revenue diversification beyond massage services</div>
+            <div class="bitem">TripAdvisor / Google review differentiation</div>
+            <div class="bitem">Corporate wellness retreat and group buyout packages</div>
+            <div class="bitem">Brand flag requirements at 4- and 5-star properties</div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Target Profiles</h3>
+          <div class="pills"><span class="pill gold">Boutique Hotels</span><span class="pill gold">Resort Spas</span><span class="pill gold">Wellness Retreats</span><span class="pill gold">Corporate Hotels</span></div>
+        </div>
+        <div class="card"><h3>Lead Products</h3>
+          <div class="pills"><span class="pill ice">Recharge Room™</span><span class="pill ice">Blast + Red Light</span><span class="pill ice">Sauna Suite</span><span class="pill ice">White Label</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="btmbar"><div class="btm-l">Hotels &amp; Hospitality</div><div class="btm-r">06 / 11</div></div>
+</div>
+
+<!-- S7: LUXURY HOMES -->
+<div class="slide" id="s7">
+  <div class="topbar"><div class="tb-brand">RE<em>GEN</em> TOTAL WELLNESS</div><div class="tb-mid">Segment Deep Dive</div><div class="tb-tag">Luxury Homes</div></div>
+  <div class="slide-body">
+    <div class="eyebrow">06 — Luxury Residential</div>
+    <h2>LARGE HOMES &amp; ESTATES</h2>
+    <div class="two-col">
+      <div class="col">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <div class="stat-card"><div class="stat-val">$8–30K</div><div class="stat-label">Install Value</div></div>
+          <div class="stat-card"><div class="stat-val green">Fast</div><div class="stat-label">Sales Cycle</div></div>
+          <div class="stat-card"><div class="stat-val">HSA/FSA</div><div class="stat-label">Finance Option</div></div>
+          <div class="stat-card"><div class="stat-val">High</div><div class="stat-label">Referral Rate</div></div>
+        </div>
+        <div class="card ice">
+          <h3>Fastest Growing Segment</h3>
+          <p>Affluent homeowners investing in backyard wellness are the fastest-growing cold plunge buyer segment. Celebrity visibility, biohacker culture, and HSA/FSA eligibility are driving rapid adoption among $500K+ home buyers nationally.</p>
+        </div>
+      </div>
+      <div class="col">
+        <div class="card">
+          <h3>Key Buyer Drivers</h3>
+          <div class="blist">
+            <div class="bitem">Biohacker and longevity lifestyle alignment (Huberman, Attia)</div>
+            <div class="bitem">Celebrity and podcast culture driving mainstream awareness</div>
+            <div class="bitem">HSA/FSA tax-advantaged purchasing path available</div>
+            <div class="bitem">0% financing for 12 months removes major friction</div>
+            <div class="bitem">Neighbor social proof and referral loop is strong</div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Channel Approach</h3>
+          <div class="blist">
+            <div class="bitem">Instagram + Meta DTC funnel — current strength</div>
+            <div class="bitem">Pool/spa contractor and luxury builder partnerships</div>
+            <div class="bitem">High-end home show and wellness expo presence</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="btmbar"><div class="btm-l">Luxury Residential</div><div class="btm-r">07 / 11</div></div>
+</div>
+
+<!-- S8: MULTI-FAMILY + HOA -->
+<div class="slide" id="s8">
+  <div class="topbar"><div class="tb-brand">RE<em>GEN</em> TOTAL WELLNESS</div><div class="tb-mid">Segment Deep Dive</div><div class="tb-tag">Multi-Family &amp; HOA</div></div>
+  <div class="slide-body">
+    <div class="eyebrow">07 — Multi-Family &amp; HOA</div>
+    <h2>APARTMENTS, COMMUNITIES &amp; HOAs</h2>
+    <div class="two-col">
+      <div class="col">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <div class="stat-card"><div class="stat-val green">$50–200K</div><div class="stat-label">Multi-Family</div></div>
+          <div class="stat-card"><div class="stat-val gold">$20–60K</div><div class="stat-label">HOA</div></div>
+          <div class="stat-card"><div class="stat-val">Multi-Site</div><div class="stat-label">Scale Potential</div></div>
+          <div class="stat-card"><div class="stat-val">60–90</div><div class="stat-label">Day Cycle</div></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:7px;margin-top:2px;">
+          <h3>NAMED ACCOUNTS</h3>
+          <div style="display:flex;gap:7px;"><div class="chip">ConAm Group</div><div class="chip">Greystar</div></div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="card">
+          <h3>Multi-Family Drivers</h3>
+          <div class="blist">
+            <div class="bitem">Amenity arms race — cold plunge as a lease conversion tool</div>
+            <div class="bitem">Resident retention reduces costly unit turnover</div>
+            <div class="bitem">Premium buildings charging $200–500+/mo amenity fees</div>
+            <div class="bitem">Multi-site REIT agreements unlock scale deals</div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>HOA Drivers</h3>
+          <div class="blist">
+            <div class="bitem">Rec center upgrades funded through reserve studies</div>
+            <div class="bitem">Board vote process — longer cycle, strong close rate</div>
+            <div class="bitem">Property value halo effect for all homeowners</div>
+            <div class="bitem">Sister co. handles ADA and compliance requirements</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="btmbar"><div class="btm-l">Multi-Family &amp; HOA</div><div class="btm-r">08 / 11</div></div>
+</div>
+
+<!-- S9: CITIES + COUNTIES -->
+<div class="slide" id="s9">
+  <div class="topbar"><div class="tb-brand">RE<em>GEN</em> TOTAL WELLNESS</div><div class="tb-mid">Segment Deep Dive</div><div class="tb-tag">Government</div></div>
+  <div class="slide-body">
+    <div class="eyebrow">08 — Cities &amp; Counties</div>
+    <h2>MUNICIPAL &amp; GOVERNMENT</h2>
+    <div class="two-col">
+      <div class="col">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <div class="stat-card"><div class="stat-val">$30–120K</div><div class="stat-label">City Install</div></div>
+          <div class="stat-card"><div class="stat-val gold">$50–250K</div><div class="stat-label">County Deal</div></div>
+          <div class="stat-card"><div class="stat-val">90–180</div><div class="stat-label">Day Cycle</div></div>
+          <div class="stat-card"><div class="stat-val green">Recurring</div><div class="stat-label">Maintenance Rev</div></div>
+        </div>
+        <div class="card gold">
+          <h3>Sister Company Unlock</h3>
+          <p>The consulting arm — Dept. of Health relationships, ADA compliance, and risk mitigation — is the key differentiator for government accounts. No competitor offers a vertically integrated compliance-and-install solution.</p>
+        </div>
+      </div>
+      <div class="col">
+        <div class="card">
+          <h3>City-Level Targets</h3>
+          <div class="blist">
+            <div class="bitem">Public parks &amp; rec wellness facilities</div>
+            <div class="bitem">Fire station recovery rooms — first responder wellness</div>
+            <div class="bitem">Police department recovery and mental wellness programs</div>
+            <div class="bitem">City-run community centers and aquatic facilities</div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>County-Level Targets</h3>
+          <div class="blist">
+            <div class="bitem">Sheriff and county law enforcement wellness programs</div>
+            <div class="bitem">County health department facilities — Dept. of Health tie-in</div>
+            <div class="bitem">Public hospital and behavioral health adjacent programs</div>
+            <div class="bitem">Veteran services and county-run rehabilitation programs</div>
+          </div>
+        </div>
+        <div class="card"><h3>Procurement Path</h3>
+          <div class="pills"><span class="pill gold">RFP / Bid Process</span><span class="pill gold">Sole Source</span><span class="pill gold">GSA Schedule</span><span class="pill gold">Pilot Program</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="btmbar"><div class="btm-l">Municipal &amp; Government</div><div class="btm-r">09 / 11</div></div>
+</div>
+
+<!-- S10: CONSULTING -->
+<div class="slide" id="s10">
+  <div class="topbar"><div class="tb-brand">RE<em>GEN</em> TOTAL WELLNESS</div><div class="tb-mid">Consulting Division</div><div class="tb-tag">Sister Co.</div></div>
+  <div class="slide-body">
+    <div class="eyebrow">09 — Consulting &amp; Design</div>
+    <h2>SISTER COMPANY SERVICES</h2>
+    <div class="two-col">
+      <div class="col">
+        <div class="card">
+          <h3>Compliance &amp; Regulatory</h3>
+          <div class="blist">
+            <div class="bitem">ADA compliance documentation and design review</div>
+            <div class="bitem">Department of Health relationship and advisory</div>
+            <div class="bitem">Risk mitigation assessments for commercial installs</div>
+            <div class="bitem">Liability framework for public-use wellness equipment</div>
+          </div>
+        </div>
+        <div class="card ice">
+          <h3>Competitive Moat</h3>
+          <p>No other cold plunge manufacturer offers integrated compliance consulting. This positions Regen to win government, HOA, and multi-family deals where compliance complexity eliminates all other competitors.</p>
+        </div>
+      </div>
+      <div class="col">
+        <div class="card">
+          <h3>Design &amp; Build-Out</h3>
+          <div class="blist">
+            <div class="bitem">Electrical load planning for chiller and panel systems</div>
+            <div class="bitem">Space planning and wellness room layout design</div>
+            <div class="bitem">Controlled access — keycard, app-based, and hybrid models</div>
+            <div class="bitem">Full turnkey from concept to installation</div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>The Recharge Room™</h3>
+          <p>Fully packaged wellness room concept. Turnkey delivery: cold plunge, red light, sauna, compliance, and access control. Targeted at hotels, multi-family, and institutional buyers wanting a one-stop solution.</p>
+          <div class="pills" style="margin-top:8px;"><span class="pill ice">Recharge Room™</span><span class="pill ice">Turnkey Package</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="btmbar"><div class="btm-l">Consulting &amp; Design Division</div><div class="btm-r">10 / 11</div></div>
+</div>
+
+<!-- S11: SUMMARY -->
+<div class="slide" id="s11">
+  <div class="topbar"><div class="tb-brand">RE<em>GEN</em> TOTAL WELLNESS</div><div class="tb-mid">Summary &amp; Next Steps</div><div class="tb-tag">Action Plan</div></div>
+  <div class="slide-body" style="gap:14px;">
+    <div class="eyebrow">10 — Summary</div>
+    <h2 style="margin-bottom:2px;">PIPELINE PRIORITIES</h2>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;flex-shrink:0;">
+      <div class="stat-card"><div class="stat-val">8</div><div class="stat-label">Market Segments</div></div>
+      <div class="stat-card"><div class="stat-val green">$8–250K</div><div class="stat-label">Deal Range</div></div>
+      <div class="stat-card"><div class="stat-val">3</div><div class="stat-label">Product Lines</div></div>
+      <div class="stat-card"><div class="stat-val gold">Consulting</div><div class="stat-label">Competitive Moat</div></div>
+    </div>
+    <div class="two-col" style="flex:1;">
+      <div class="col">
+        <div class="card ice">
+          <h3>Now — Highest Priority</h3>
+          <div class="blist">
+            <div class="bitem">Close ConAm Group &amp; Greystar multi-family proposals</div>
+            <div class="bitem">Build gym outreach campaign — Blast Pro lead offer</div>
+            <div class="bitem">Hotel spa vertical — Recharge Room as flagship pitch</div>
+            <div class="bitem">Scale Meta ad spend with existing conversion data</div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>90 Days</h3>
+          <div class="blist">
+            <div class="bitem">HOA board presentation deck + referral program launch</div>
+            <div class="bitem">Formalize consulting sister company structure and brand</div>
+            <div class="bitem">First responder pilot — city fire or police department</div>
+          </div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="card">
+          <h3>6–12 Months</h3>
+          <div class="blist">
+            <div class="bitem">County government and Dept. of Health pipeline development</div>
+            <div class="bitem">GSA schedule registration for federal procurement eligibility</div>
+            <div class="bitem">White label expansion to hotel and hospitality brands</div>
+            <div class="bitem">Luxury home builder partnership program launch</div>
+          </div>
+        </div>
+        <div class="card gold">
+          <h3>Key Differentiators</h3>
+          <div class="blist">
+            <div class="bitem">Made in Arizona — USA-built commercial durability</div>
+            <div class="bitem">Integrated compliance &amp; design consulting division</div>
+            <div class="bitem">Turnkey Recharge Room™ solution</div>
+            <div class="bitem">HSA/FSA + 0% financing — broadest buyer access</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="btmbar"><div class="btm-l">regentotalwellness.com</div><div class="btm-r">11 / 15</div></div>
+</div>
+
+<!-- S12: THREE PILLARS OVERVIEW -->
+<div class="slide" id="s12">
+  <div class="topbar"><div class="tb-brand">RE<em>GEN</em> TOTAL WELLNESS</div><div class="tb-mid">Business Architecture</div><div class="tb-tag">Three Pillars</div></div>
+  <div class="slide-body" style="gap:14px;">
+    <div class="eyebrow">11 — Business Architecture</div>
+    <h2 style="margin-bottom:4px;">THE THREE PILLARS</h2>
+    <p style="margin-bottom:14px;font-size:11px;">Regen's competitive advantage is built on five integrated pillars — no single competitor covers all five.</p>
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;flex:1;">
+
+      <div class="card ice" style="border-width:1px;">
+        <div style="font-family:var(--font-d);font-size:11px;letter-spacing:.2em;color:var(--ice);margin-bottom:4px;">PILLAR 01</div>
+        <div style="font-family:var(--font-d);font-size:26px;letter-spacing:.04em;color:var(--white);line-height:1.05;margin-bottom:8px;">PRODUCT</div>
+        <div class="blist">
+          <div class="bitem" style="font-size:11px;">Cold Plunge — Blast, OG</div>
+          <div class="bitem" style="font-size:11px;">Red Light Therapy</div>
+          <div class="bitem" style="font-size:11px;">Heat Recovery Suite</div>
+          <div class="bitem" style="font-size:11px;">White Label Program</div>
+        </div>
+        <div style="margin-top:auto;padding-top:10px;"><span class="badge grow">Core Revenue</span></div>
+      </div>
+
+      <div class="card" style="border-color:var(--border-light);">
+        <div style="font-family:var(--font-d);font-size:11px;letter-spacing:.2em;color:var(--muted);margin-bottom:4px;">PILLAR 02</div>
+        <div style="font-family:var(--font-d);font-size:26px;letter-spacing:.04em;color:var(--white);line-height:1.05;margin-bottom:8px;">DESIGN</div>
+        <div class="blist">
+          <div class="bitem" style="font-size:11px;">Electrical planning</div>
+          <div class="bitem" style="font-size:11px;">Space layout design</div>
+          <div class="bitem" style="font-size:11px;">Access &amp; entry systems</div>
+          <div class="bitem" style="font-size:11px;">Recharge Room™ build-out</div>
+        </div>
+        <div style="margin-top:auto;padding-top:10px;"><span class="badge mid">Turnkey</span></div>
+      </div>
+
+      <div class="card" style="border-color:var(--ice-border);background:rgba(125,211,240,0.05);">
+        <div style="font-family:var(--font-d);font-size:11px;letter-spacing:.2em;color:var(--ice);margin-bottom:4px;">PILLAR 03</div>
+        <div style="font-family:var(--font-d);font-size:26px;letter-spacing:.04em;color:var(--white);line-height:1.05;margin-bottom:8px;">SOFTWARE</div>
+        <div class="blist">
+          <div class="bitem" style="font-size:11px;">Controlled access (FOB/NFC)</div>
+          <div class="bitem" style="font-size:11px;">Booking &amp; scheduling</div>
+          <div class="bitem" style="font-size:11px;">AI Voice Solution</div>
+          <div class="bitem" style="font-size:11px;">Vector DB — compliance AI</div>
+        </div>
+        <div style="margin-top:auto;padding-top:10px;"><span class="badge grow">Differentiator</span></div>
+      </div>
+
+      <div class="card" style="border-color:var(--gold-border);background:var(--gold-dim);">
+        <div style="font-family:var(--font-d);font-size:11px;letter-spacing:.2em;color:var(--gold);margin-bottom:4px;">PILLAR 04</div>
+        <div style="font-family:var(--font-d);font-size:26px;letter-spacing:.04em;color:var(--white);line-height:1.05;margin-bottom:8px;">COMPLIANCE</div>
+        <div class="blist">
+          <div class="bitem" style="font-size:11px;">ADA certification</div>
+          <div class="bitem" style="font-size:11px;">Dept. of Health alignment</div>
+          <div class="bitem" style="font-size:11px;">County &amp; city standards</div>
+          <div class="bitem" style="font-size:11px;">Risk mitigation framework</div>
+        </div>
+        <div style="margin-top:auto;padding-top:10px;"><span class="badge mid">Gov't Unlock</span></div>
+      </div>
+
+      <div class="card" style="border-color:var(--green-border);background:var(--green-dim);">
+        <div style="font-family:var(--font-d);font-size:11px;letter-spacing:.2em;color:var(--green);margin-bottom:4px;">PILLAR 05</div>
+        <div style="font-family:var(--font-d);font-size:26px;letter-spacing:.04em;color:var(--white);line-height:1.05;margin-bottom:8px;">INSURANCE</div>
+        <div class="blist">
+          <div class="bitem" style="font-size:11px;">Commercial liability coverage</div>
+          <div class="bitem" style="font-size:11px;">Product liability program</div>
+          <div class="bitem" style="font-size:11px;">Operator risk framework</div>
+          <div class="bitem" style="font-size:11px;">HOA &amp; gov't requirements</div>
+        </div>
+        <div style="margin-top:auto;padding-top:10px;"><span class="badge high">Close Deals</span></div>
+      </div>
+
+    </div>
+  </div>
+  <div class="btmbar"><div class="btm-l">Business Architecture</div><div class="btm-r">12 / 15</div></div>
+</div>
+
+<!-- S13: SOFTWARE PILLAR -->
+<div class="slide" id="s13">
+  <div class="topbar"><div class="tb-brand">RE<em>GEN</em> TOTAL WELLNESS</div><div class="tb-mid">Pillar 03 — Software</div><div class="tb-tag">System Management</div></div>
+  <div class="slide-body" style="gap:14px;">
+    <div class="eyebrow">12 — Software &amp; System Management</div>
+    <h2 style="margin-bottom:4px;">SOFTWARE PLATFORM</h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;flex:1;">
+
+      <div class="col">
+        <div class="card ice">
+          <h3>Controlled Access</h3>
+          <div style="font-family:var(--font-d);font-size:18px;color:var(--ice);letter-spacing:.06em;margin-bottom:6px;">FOB · NFC · APP</div>
+          <div class="blist">
+            <div class="bitem" style="font-size:11px;"><strong style="color:var(--off-white);font-weight:500;">FOBs</strong> — Physical keyfob entry, tamper-resistant, reprogrammable per location</div>
+            <div class="bitem" style="font-size:11px;"><strong style="color:var(--off-white);font-weight:500;">NFC</strong> — Tap-to-enter via smartphone, Apple/Google Wallet compatible</div>
+            <div class="bitem" style="font-size:11px;"><strong style="color:var(--off-white);font-weight:500;">Access Types</strong> — Member, guest, staff, timed, and usage-limited credentials</div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Scheduling Types</h3>
+          <div class="blist">
+            <div class="bitem" style="font-size:11px;">Open access — no reservation required, flow-based</div>
+            <div class="bitem" style="font-size:11px;">Timed sessions — 10, 20, 30-min auto-release slots</div>
+            <div class="bitem" style="font-size:11px;">Membership tiers — different access windows per plan</div>
+            <div class="bitem" style="font-size:11px;">Waitlist + overflow management for peak hours</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col">
+        <div class="card">
+          <h3>Booking System</h3>
+          <div style="font-family:var(--font-d);font-size:18px;color:var(--off-white);letter-spacing:.06em;margin-bottom:6px;">COLD PLUNGE ACCESS</div>
+          <div class="blist">
+            <div class="bitem" style="font-size:11px;">Per-product booking — reserve specific plunge, sauna, or red light unit</div>
+            <div class="bitem" style="font-size:11px;">Recurring reservations for members on a schedule</div>
+            <div class="bitem" style="font-size:11px;">SMS + email confirmation and reminder workflows</div>
+            <div class="bitem" style="font-size:11px;">Cancellation and no-show policies per location config</div>
+          </div>
+        </div>
+        <div class="card ice">
+          <h3>White Label</h3>
+          <div class="blist">
+            <div class="bitem" style="font-size:11px;">Fully branded for the host location — logo, colors, name</div>
+            <div class="bitem" style="font-size:11px;">Custom domain or subdomain per property</div>
+            <div class="bitem" style="font-size:11px;">Hotel, gym, apartment — each gets own instance</div>
+            <div class="bitem" style="font-size:11px;">Regen platform powers it, invisible to end user</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col">
+        <div class="card" style="border-color:var(--gold-border);background:var(--gold-dim);">
+          <h3>Vector Database</h3>
+          <div style="font-family:var(--font-d);font-size:18px;color:var(--gold);letter-spacing:.06em;margin-bottom:6px;">COUNTY COMPLIANCE AI</div>
+          <div class="blist">
+            <div class="bitem" style="font-size:11px;">Indexed database of county and state wellness facility regulations</div>
+            <div class="bitem" style="font-size:11px;">AI-queryable — instant answers to compliance questions per jurisdiction</div>
+            <div class="bitem" style="font-size:11px;">Updated as regulations change — living compliance reference</div>
+            <div class="bitem" style="font-size:11px;">Powers consultant workflows and pre-sales due diligence</div>
+          </div>
+        </div>
+        <div class="card" style="border-color:var(--ice-border);background:var(--ice-dim);">
+          <h3>AI Voice Solution</h3>
+          <div class="blist">
+            <div class="bitem" style="font-size:11px;">Inbound AI voice agent — answers location-specific booking and access questions</div>
+            <div class="bitem" style="font-size:11px;">Outbound reminder and confirmation calls for scheduled sessions</div>
+            <div class="bitem" style="font-size:11px;">Compliance FAQ handling — ADA, waiver, and safety inquiries</div>
+            <div class="bitem" style="font-size:11px;">White labeled per property, 24/7 availability</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+  <div class="btmbar"><div class="btm-l">Software &amp; System Management</div><div class="btm-r">13 / 15</div></div>
+</div>
+
+<!-- S14: COMPLIANCE + INSURANCE -->
+<div class="slide" id="s14">
+  <div class="topbar"><div class="tb-brand">RE<em>GEN</em> TOTAL WELLNESS</div><div class="tb-mid">Pillars 04 &amp; 05</div><div class="tb-tag">Compliance &amp; Insurance</div></div>
+  <div class="slide-body" style="gap:14px;">
+    <div class="eyebrow">13 — Compliance &amp; Insurance Pillars</div>
+    <h2 style="margin-bottom:4px;">COMPLIANCE &amp; INSURANCE</h2>
+    <div class="two-col" style="flex:1;">
+
+      <div class="col">
+        <div class="card gold" style="flex:none;">
+          <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px;">
+            <div style="font-family:var(--font-d);font-size:10px;letter-spacing:.2em;color:var(--gold);">PILLAR 04</div>
+            <div style="font-family:var(--font-d);font-size:28px;color:var(--white);letter-spacing:.05em;">COMPLIANCE</div>
+          </div>
+          <div class="blist">
+            <div class="bitem">ADA compliance review and certification documentation for every install</div>
+            <div class="bitem">Department of Health facility standards alignment and pre-approval support</div>
+            <div class="bitem">County-level regulatory mapping via vector database AI</div>
+            <div class="bitem">Risk mitigation assessment — operational and liability exposure review</div>
+            <div class="bitem">Ongoing compliance monitoring as regulations evolve</div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Why Compliance Wins Deals</h3>
+          <div class="blist">
+            <div class="bitem">HOAs and municipalities cannot install without compliance sign-off</div>
+            <div class="bitem">Hotels require ADA documentation for flag brand approval</div>
+            <div class="bitem">Multi-family REITs standardize on compliant vendors only</div>
+            <div class="bitem">Gov't procurement requires compliance documentation upfront</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col">
+        <div class="card green" style="flex:none;">
+          <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px;">
+            <div style="font-family:var(--font-d);font-size:10px;letter-spacing:.2em;color:var(--green);">PILLAR 05</div>
+            <div style="font-family:var(--font-d);font-size:28px;color:var(--white);letter-spacing:.05em;">INSURANCE</div>
+          </div>
+          <div class="blist">
+            <div class="bitem">Commercial general liability program for cold plunge and wellness installs</div>
+            <div class="bitem">Product liability coverage — manufacturer and operator layers</div>
+            <div class="bitem">Operator risk framework — waiver systems, incident protocols</div>
+            <div class="bitem">Tailored certificates of insurance per installation type</div>
+            <div class="bitem">HOA and government-specific coverage structures available</div>
+          </div>
+        </div>
+        <div class="card ice">
+          <h3>The Full Stack Advantage</h3>
+          <p style="font-size:12px;">Product + Design + Software + Compliance + Insurance is a complete vertical stack. A buyer signs one agreement and gets everything — hardware, installation design, access management software, compliance certification, and insurance coverage. No competitor offers this.</p>
+          <div class="pills" style="margin-top:8px;">
+            <span class="pill ice">One Vendor</span>
+            <span class="pill ice">Full Coverage</span>
+            <span class="pill ice">Turnkey Close</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+  <div class="btmbar"><div class="btm-l">Compliance &amp; Insurance Pillars</div><div class="btm-r">14 / 15</div></div>
+</div>
+
+<!-- S15: FINAL SUMMARY -->
+<div class="slide" id="s15">
+  <div class="topbar"><div class="tb-brand">RE<em>GEN</em> TOTAL WELLNESS</div><div class="tb-mid">Summary &amp; Action Plan</div><div class="tb-tag">Next Steps</div></div>
+  <div class="slide-body" style="gap:12px;">
+    <div class="eyebrow">14 — Summary</div>
+    <h2 style="margin-bottom:4px;">THE FULL PICTURE</h2>
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;flex-shrink:0;">
+      <div class="stat-card"><div class="stat-val">8</div><div class="stat-label">Markets</div></div>
+      <div class="stat-card"><div class="stat-val">5</div><div class="stat-label">Pillars</div></div>
+      <div class="stat-card"><div class="stat-val green">$8–250K</div><div class="stat-label">Deal Range</div></div>
+      <div class="stat-card"><div class="stat-val gold">AI</div><div class="stat-label">Compliance Engine</div></div>
+      <div class="stat-card"><div class="stat-val ice" style="color:var(--ice);">WL</div><div class="stat-label">White Label SW</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;flex:1;">
+      <div class="col">
+        <div class="card ice">
+          <h3>Now</h3>
+          <div class="blist">
+            <div class="bitem" style="font-size:11px;">Close ConAm &amp; Greystar proposals</div>
+            <div class="bitem" style="font-size:11px;">Gym Blast Pro outreach campaign</div>
+            <div class="bitem" style="font-size:11px;">Hotel Recharge Room™ pitch deck</div>
+            <div class="bitem" style="font-size:11px;">Begin software platform scoping</div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>5 Pillars</h3>
+          <div class="pills" style="flex-direction:column;align-items:flex-start;">
+            <span class="pill ice">01 — Product</span>
+            <span class="pill">02 — Design</span>
+            <span class="pill ice">03 — Software</span>
+            <span class="pill gold">04 — Compliance</span>
+            <span class="pill green">05 — Insurance</span>
+          </div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="card">
+          <h3>90 Days</h3>
+          <div class="blist">
+            <div class="bitem" style="font-size:11px;">HOA board deck + referral launch</div>
+            <div class="bitem" style="font-size:11px;">Formalize sister co. brand + structure</div>
+            <div class="bitem" style="font-size:11px;">First responder pilot — fire or police</div>
+            <div class="bitem" style="font-size:11px;">Vector DB v1 — county compliance index</div>
+            <div class="bitem" style="font-size:11px;">AI Voice agent pilot for one location</div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Software Roadmap</h3>
+          <div class="blist">
+            <div class="bitem" style="font-size:11px;">Controlled access — FOB + NFC launch</div>
+            <div class="bitem" style="font-size:11px;">White label booking system per property</div>
+            <div class="bitem" style="font-size:11px;">Scheduling types configured per market</div>
+          </div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="card gold">
+          <h3>6–12 Months</h3>
+          <div class="blist">
+            <div class="bitem" style="font-size:11px;">County + Dept. of Health pipeline</div>
+            <div class="bitem" style="font-size:11px;">GSA schedule registration</div>
+            <div class="bitem" style="font-size:11px;">White label hotel brand expansion</div>
+            <div class="bitem" style="font-size:11px;">Luxury builder partnership program</div>
+            <div class="bitem" style="font-size:11px;">Insurance program launch</div>
+          </div>
+        </div>
+        <div class="card" style="border-color:var(--ice-border);">
+          <h3>Competitive Moat</h3>
+          <p style="font-size:11px;">No competitor offers all five pillars. The software + compliance + insurance stack eliminates objections that kill deals for every other hardware vendor in the space.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="btmbar"><div class="btm-l">regentotalwellness.com</div><div class="btm-r">15 / 15</div></div>
+</div>
+
+</div><!-- /deck -->
+
+<div id="nav">
+  <button class="nbtn" id="btnPrev" onclick="go(-1)" disabled>← PREV</button>
+  <div id="dots"></div>
+  <span id="counter">1 / 15</span>
+  <button class="nbtn" id="btnNext" onclick="go(1)">NEXT →</button>
+  <button id="toggle" onclick="toggleMode()"><span id="toggle-icon">☀</span> LIGHT</button>
+</div>
+
+<script>
+const slides=document.querySelectorAll('.slide');
+const total=slides.length;
+let cur=0;
+const dotsEl=document.getElementById('dots');
+const dots=[];
+slides.forEach((_,i)=>{
+  const d=document.createElement('div');
+  d.className='dot'+(i===0?' active':'');
+  d.onclick=()=>goTo(i);
+  dotsEl.appendChild(d);
+  dots.push(d);
+});
+function goTo(n){
+  if(n===cur)return;
+  slides[cur].classList.add('exit');
+  const old=cur;
+  cur=n;
+  setTimeout(()=>{slides[old].classList.remove('active');slides[old].classList.remove('exit');},300);
+  slides[cur].classList.add('active');
+  dots.forEach((d,i)=>d.classList.toggle('active',i===cur));
+  document.getElementById('counter').textContent=(cur+1)+' / '+total;
+  document.getElementById('btnPrev').disabled=cur===0;
+  document.getElementById('btnNext').disabled=cur===total-1;
+}
+function toggleMode(){
+  const light=document.body.classList.toggle('light');
+  const btn=document.getElementById('toggle');
+  if(light){btn.innerHTML='<span>☽</span> DARK';}
+  else{btn.innerHTML='<span>☀</span> LIGHT';}
+}
+function go(d){goTo(Math.max(0,Math.min(total-1,cur+d)));}
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight'||e.key==='ArrowDown')go(1);
+  if(e.key==='ArrowLeft'||e.key==='ArrowUp')go(-1);
+});
+// inject construction grid into every slide-body
+document.querySelectorAll('.slide-body').forEach(function(el){
+  var g=document.createElement('div');
+  g.className='construction-grid';
+  el.insertBefore(g,el.firstChild);
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Our Team — Constructed Matter</title>
+  <link rel="icon" type="image/png" href="https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/cmi_favicon_black.png" id="faviconEl" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Roboto:ital,wght@0,300;0,400;0,500;0,700;1,300;1,400&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            cmi: {
+              dark: '#0f0f0f', 'dark-light': '#161616', light: '#F7F5F2',
+              'gold-dark': '#C9A46E', 'gold-light': '#9E6F2E',
+            }
+          },
+          fontFamily: {
+            display: ['"DM Serif Display"', 'Georgia', 'serif'],
+            body: ['Roboto', 'system-ui', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Roboto', system-ui, sans-serif; }
+    html, body, header, nav, a, button, div, span, p, svg, section, footer, h1, h2, h3, h4 {
+      transition: background-color 0.35s ease, color 0.35s ease, border-color 0.35s ease;
+    }
+    .mega-trigger { position: relative; }
+    .mega-menu { position: absolute; top: 100%; left: 50%; transform: translateX(-50%) translateY(8px); opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.25s ease, transform 0.25s ease; z-index: 100; }
+    .mega-trigger:hover .mega-menu, .mega-trigger:focus-within .mega-menu { opacity: 1; visibility: visible; pointer-events: auto; transform: translateX(-50%) translateY(0); }
+    .mega-menu.left-aligned { left: 0; transform: translateX(0) translateY(8px); }
+    .mega-trigger:hover .mega-menu.left-aligned, .mega-trigger:focus-within .mega-menu.left-aligned { transform: translateX(0) translateY(0); }
+    .mobile-overlay { opacity: 0; visibility: hidden; transition: opacity 0.3s ease, visibility 0.3s ease; }
+    .mobile-overlay.open { opacity: 1; visibility: visible; }
+    .mobile-panel { transform: translateX(100%); transition: transform 0.35s cubic-bezier(0.4,0,0.2,1); }
+    .mobile-overlay.open .mobile-panel { transform: translateX(0); }
+    .mobile-sub { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; }
+    .mobile-sub.expanded { max-height: 400px; }
+    .nav-link::after { content: ''; position: absolute; bottom: -2px; left: 0; width: 0; height: 1px; transition: width 0.3s ease; }
+    .light .nav-link::after { background-color: #9E6F2E; }
+    .dark .nav-link::after { background-color: #C9A46E; }
+    .nav-link:hover::after { width: 100%; }
+    header.scrolled { box-shadow: 0 1px 12px rgba(0,0,0,0.06); }
+    .dark header.scrolled { box-shadow: 0 1px 12px rgba(0,0,0,0.4); }
+
+    /* Team card — photo swap on hover */
+    .team-card { position: relative; transition: box-shadow 0.3s ease, transform 0.3s ease; }
+    .team-card:hover { box-shadow: 0 10px 36px rgba(0,0,0,0.1); transform: translateY(-3px); }
+    .dark .team-card:hover { box-shadow: 0 10px 36px rgba(0,0,0,0.45); }
+    .team-card .photo-primary { transition: opacity 0.4s ease; }
+    .team-card .photo-secondary { position: absolute; inset: 0; opacity: 0; transition: opacity 0.4s ease; object-fit: cover; width: 100%; height: 100%; filter: grayscale(100%); }
+    .team-card:hover .photo-primary { opacity: 0; }
+    .team-card:hover .photo-secondary { opacity: 1; }
+    /* Stretch link — fills entire card; action row sits above it */
+    .team-card-link { position: absolute; inset: 0; z-index: 0; }
+    .team-card .card-actions { position: relative; z-index: 1; }
+
+    /* Chips */
+    .attr-chip {
+      display: inline-block; padding: 0.25rem 0.75rem; border-radius: 100px; font-size: 0.75rem; font-weight: 500;
+    }
+    .light .attr-chip { background: rgba(158,111,46,0.08); color: #9E6F2E; }
+    .dark .attr-chip { background: rgba(201,164,110,0.1); color: #C9A46E; }
+
+    .fade-up { opacity: 0; transform: translateY(24px); transition: opacity 0.6s ease, transform 0.6s ease; }
+    .fade-up.visible { opacity: 1; transform: translateY(0); }
+  </style>
+</head>
+
+<body class="bg-cmi-light dark:bg-cmi-dark text-neutral-900 dark:text-neutral-100 font-body">
+
+<!-- ── HEADER ── -->
+<header id="siteHeader" class="fixed top-0 left-0 right-0 z-50 bg-cmi-light/90 dark:bg-cmi-dark/90 backdrop-blur-md border-b border-neutral-200/60 dark:border-neutral-800/60">
+  <div class="max-w-[1400px] mx-auto px-6 lg:px-10">
+    <nav class="flex items-center justify-between h-[72px]">
+      <a href="index.html" class="flex items-center" aria-label="Constructed Matter Home">
+        <img src="https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/CMI_Logo.svg" alt="Constructed Matter" class="block dark:hidden h-9 w-auto" />
+        <img src="https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/CMI_Logo_White.svg" alt="Constructed Matter" class="hidden dark:block h-9 w-auto" />
+      </a>
+      <div class="hidden lg:flex items-center gap-1">
+        <div class="mega-trigger">
+          <button class="nav-link relative px-4 py-2 text-[13px] font-medium tracking-wide uppercase text-cmi-gold-light dark:text-cmi-gold-dark flex items-center gap-1.5">Discover <svg class="w-3.5 h-3.5 opacity-50" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+          <div class="mega-menu left-aligned w-[220px] pt-3">
+            <div class="bg-white dark:bg-cmi-dark-light rounded-xl border border-neutral-200/80 dark:border-neutral-800/80 shadow-xl p-2">
+              <a href="about.html" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 hover:text-cmi-gold-light dark:hover:text-cmi-gold-dark transition-colors">About Us</a>
+              <a href="team.html" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium text-cmi-gold-light dark:text-cmi-gold-dark bg-neutral-50 dark:bg-neutral-800/50 transition-colors">Our Team</a>
+              <a href="resources.html" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 hover:text-cmi-gold-light dark:hover:text-cmi-gold-dark transition-colors">Resources</a>
+              <a href="contact.html" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 hover:text-cmi-gold-light dark:hover:text-cmi-gold-dark transition-colors">Contact</a>
+            </div>
+          </div>
+        </div>
+        <div class="mega-trigger">
+          <button class="nav-link relative px-4 py-2 text-[13px] font-medium tracking-wide uppercase text-neutral-700 dark:text-neutral-300 hover:text-cmi-gold-light dark:hover:text-cmi-gold-dark flex items-center gap-1.5">Services <svg class="w-3.5 h-3.5 opacity-50" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+          <div class="mega-menu w-[580px] pt-3">
+            <div class="bg-white dark:bg-cmi-dark-light rounded-xl border border-neutral-200/80 dark:border-neutral-800/80 shadow-xl p-6">
+              <div class="grid grid-cols-3 gap-3">
+                <a href="services/residential.html" class="flex flex-col gap-1.5 p-4 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors"><span class="text-sm font-medium">Residential</span></a>
+                <a href="services/commercial.html" class="flex flex-col gap-1.5 p-4 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors"><span class="text-sm font-medium">Commercial</span></a>
+                <a href="services/adu.html" class="flex flex-col gap-1.5 p-4 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors"><span class="text-sm font-medium">ADU</span></a>
+                <a href="services/project-management.html" class="flex flex-col gap-1.5 p-4 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors"><span class="text-sm font-medium">Project Management</span></a>
+                <a href="services/interior-design.html" class="flex flex-col gap-1.5 p-4 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors"><span class="text-sm font-medium">Interior Design</span></a>
+                <a href="services/new-construction.html" class="flex flex-col gap-1.5 p-4 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors"><span class="text-sm font-medium">New Construction</span></a>
+              </div>
+            </div>
+          </div>
+        </div>
+        <a href="portfolio.html" class="nav-link relative px-4 py-2 text-[13px] font-medium tracking-wide uppercase text-neutral-700 dark:text-neutral-300 hover:text-cmi-gold-light dark:hover:text-cmi-gold-dark">Portfolio</a>
+        <a href="contact.html" class="nav-link relative px-4 py-2 text-[13px] font-medium tracking-wide uppercase text-neutral-700 dark:text-neutral-300 hover:text-cmi-gold-light dark:hover:text-cmi-gold-dark">Contact</a>
+      </div>
+      <div class="flex items-center gap-3">
+        <a href="quote.html" class="hidden lg:inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-[13px] font-medium tracking-wide bg-cmi-gold-light dark:bg-cmi-gold-dark text-white hover:opacity-90 transition-opacity">Get a Quote</a>
+        <button id="themeToggle" aria-label="Toggle theme" class="relative w-10 h-10 rounded-lg flex items-center justify-center text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors">
+          <svg class="w-[18px] h-[18px] hidden dark:block" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+          <svg class="w-[18px] h-[18px] block dark:hidden" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+        </button>
+        <button id="mobileMenuBtn" aria-label="Open menu" class="lg:hidden w-10 h-10 rounded-lg flex flex-col items-center justify-center gap-[5px] text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors">
+          <span class="block w-5 h-[1.5px] bg-current"></span>
+          <span class="block w-5 h-[1.5px] bg-current"></span>
+          <span class="block w-5 h-[1.5px] bg-current"></span>
+        </button>
+      </div>
+    </nav>
+  </div>
+</header>
+
+<!-- Mobile Menu -->
+<div id="mobileOverlay" class="mobile-overlay fixed inset-0 z-[60] lg:hidden">
+  <div class="absolute inset-0 bg-black/40 dark:bg-black/60" id="mobileBackdrop"></div>
+  <div class="mobile-panel absolute top-0 right-0 w-[85%] max-w-[380px] h-full bg-cmi-light dark:bg-cmi-dark border-l border-neutral-200/60 dark:border-neutral-800/60 flex flex-col">
+    <div class="flex items-center justify-between px-6 h-[72px] border-b border-neutral-200/60 dark:border-neutral-800/60">
+      <img src="https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/CMI_Logo.svg" alt="CMI" class="block dark:hidden h-8 w-auto" />
+      <img src="https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/CMI_Logo_White.svg" alt="CMI" class="hidden dark:block h-8 w-auto" />
+      <button id="mobileCloseBtn" class="w-10 h-10 rounded-lg flex items-center justify-center hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors">
+        <svg class="w-5 h-5 text-neutral-600 dark:text-neutral-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="flex-1 overflow-y-auto px-6 py-6">
+      <div class="flex flex-col gap-1">
+        <div>
+          <button id="mobileDiscoverToggle" class="flex items-center justify-between w-full py-3 text-[15px] font-medium text-neutral-800 dark:text-neutral-200 border-b border-neutral-100 dark:border-neutral-800/60">Discover <svg class="w-4 h-4 opacity-40 transition-transform" id="mobileDiscoverChevron" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+          <div id="mobileDiscoverSub" class="mobile-sub"><div class="flex flex-col gap-0.5 py-2 pl-4">
+            <a href="about.html" class="py-2.5 text-[14px] text-neutral-600 dark:text-neutral-400">About Us</a>
+            <a href="team.html" class="py-2.5 text-[14px] text-cmi-gold-light dark:text-cmi-gold-dark font-medium">Our Team</a>
+            <a href="resources.html" class="py-2.5 text-[14px] text-neutral-600 dark:text-neutral-400">Resources</a>
+            <a href="contact.html" class="py-2.5 text-[14px] text-neutral-600 dark:text-neutral-400">Contact</a>
+          </div></div>
+        </div>
+        <div>
+          <button id="mobileServicesToggle" class="flex items-center justify-between w-full py-3 text-[15px] font-medium text-neutral-800 dark:text-neutral-200 border-b border-neutral-100 dark:border-neutral-800/60">Services <svg class="w-4 h-4 opacity-40 transition-transform" id="mobileServicesChevron" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+          <div id="mobileServicesSub" class="mobile-sub"><div class="flex flex-col gap-0.5 py-2 pl-4">
+            <a href="services/residential.html" class="py-2.5 text-[14px] text-neutral-600 dark:text-neutral-400">Residential</a>
+            <a href="services/commercial.html" class="py-2.5 text-[14px] text-neutral-600 dark:text-neutral-400">Commercial</a>
+            <a href="services/adu.html" class="py-2.5 text-[14px] text-neutral-600 dark:text-neutral-400">ADU</a>
+            <a href="services/project-management.html" class="py-2.5 text-[14px] text-neutral-600 dark:text-neutral-400">Project Management</a>
+            <a href="services/interior-design.html" class="py-2.5 text-[14px] text-neutral-600 dark:text-neutral-400">Interior Design</a>
+            <a href="services/new-construction.html" class="py-2.5 text-[14px] text-neutral-600 dark:text-neutral-400">New Construction</a>
+          </div></div>
+        </div>
+        <a href="portfolio.html" class="block py-3 text-[15px] font-medium text-neutral-800 dark:text-neutral-200 border-b border-neutral-100 dark:border-neutral-800/60">Portfolio</a><a href="contact.html" class="block py-3 text-[15px] font-medium text-neutral-800 dark:text-neutral-200 border-b border-neutral-100 dark:border-neutral-800/60">Contact</a>
+        <div>
+          <button id="mobileAccountToggle" class="flex items-center justify-between w-full py-3 text-[15px] font-medium text-neutral-800 dark:text-neutral-200 border-b border-neutral-100 dark:border-neutral-800/60">Account <svg class="w-4 h-4 opacity-40 transition-transform" id="mobileAccountChevron" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+          <div id="mobileAccountSub" class="mobile-sub"><div class="flex flex-col gap-0.5 py-2 pl-4">
+            <a href="register.html" class="py-2.5 text-[14px] text-neutral-600 dark:text-neutral-400 hover:text-cmi-gold-light dark:hover:text-cmi-gold-dark transition-colors">Register</a>
+            <a href="login.html" class="py-2.5 text-[14px] text-neutral-600 dark:text-neutral-400 hover:text-cmi-gold-light dark:hover:text-cmi-gold-dark transition-colors">Log In</a>
+            <a href="dashboard.html" class="py-2.5 text-[14px] text-neutral-600 dark:text-neutral-400 hover:text-cmi-gold-light dark:hover:text-cmi-gold-dark transition-colors">Dashboard</a>
+            <a href="reset-password.html" class="py-2.5 text-[14px] text-neutral-600 dark:text-neutral-400 hover:text-cmi-gold-light dark:hover:text-cmi-gold-dark transition-colors">Reset Password</a>
+            <a href="forgot-password.html" class="py-2.5 text-[14px] text-neutral-600 dark:text-neutral-400 hover:text-cmi-gold-light dark:hover:text-cmi-gold-dark transition-colors">Forgot Password</a>
+            <a href="logout.html" class="py-2.5 text-[14px] text-neutral-600 dark:text-neutral-400 hover:text-cmi-gold-light dark:hover:text-cmi-gold-dark transition-colors">Log Out</a>
+          </div></div>
+        </div>
+      </div>
+      <div class="mt-8"><a href="quote.html" class="flex items-center justify-center w-full py-3.5 rounded-lg text-[14px] font-medium bg-cmi-gold-light dark:bg-cmi-gold-dark text-white hover:opacity-90">Get a Free Quote</a></div>
+      <div class="mt-6 flex items-center justify-between py-3 border-t border-neutral-100 dark:border-neutral-800/60">
+        <span class="text-[13px] text-neutral-500">Appearance</span>
+        <button id="mobileThemeToggle" class="flex items-center gap-2 px-3 py-1.5 rounded-md text-[13px] font-medium bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors">
+          <svg class="w-4 h-4 hidden dark:block" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+          <svg class="w-4 h-4 block dark:hidden" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          <span class="dark:hidden">Dark</span><span class="hidden dark:inline">Light</span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════════════════════════════
+     PAGE HEADER
+     ════════════════════════════════════════════════════════════════════ -->
+<section class="pt-[72px] bg-white dark:bg-cmi-dark-light border-b border-neutral-200/60 dark:border-neutral-800/60">
+  <div class="max-w-[1400px] mx-auto px-6 lg:px-10 py-16 lg:py-20">
+    <div class="max-w-xl fade-up">
+      <p class="text-[12px] uppercase tracking-[0.25em] text-cmi-gold-light dark:text-cmi-gold-dark font-medium mb-4">The People Behind the Projects</p>
+      <h1 class="font-display text-4xl lg:text-6xl text-neutral-900 dark:text-neutral-100 leading-[1.1] mb-5">Meet Our Team</h1>
+      <p class="text-base text-neutral-500 dark:text-neutral-400 leading-relaxed">
+        Our strength is our people. From project managers and architects to skilled tradespeople — every member of the CMI team brings expertise, passion, and a deep commitment to doing the job right.
+      </p>
+      <p class="text-xs text-neutral-400 dark:text-neutral-500 mt-4 italic">Hover over a team member's photo to see a different side of them.</p>
+    </div>
+  </div>
+</section>
+
+
+<!-- ════════════════════════════════════════════════════════════════════
+     LEADERSHIP
+     ════════════════════════════════════════════════════════════════════ -->
+<section class="py-20 lg:py-28 bg-cmi-light dark:bg-cmi-dark">
+  <div class="max-w-[1400px] mx-auto px-6 lg:px-10">
+    <div class="mb-14 fade-up">
+      <p class="text-[12px] uppercase tracking-[0.2em] text-cmi-gold-light dark:text-cmi-gold-dark font-medium mb-2">Leadership</p>
+      <h2 class="font-display text-3xl lg:text-4xl text-neutral-900 dark:text-neutral-100">Our Leadership Team</h2>
+    </div>
+
+    <!-- Leadership Grid -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+
+      <!-- Joseph Ballard -->
+      <div class="fade-up team-card group rounded-2xl overflow-hidden border border-neutral-200/60 dark:border-neutral-800/60 bg-white dark:bg-cmi-dark-light">
+        <a href="team/joseph-ballard.html" class="team-card-link" aria-label="View Joseph Ballard's profile"></a>
+        <div class="relative aspect-[3/4] overflow-hidden">
+          <img src="https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/11e8879b-0a8a-43df-8fa4-9ffb548f8e93/ConstructedMatter-LHP-26.jpg?format=1000w"
+               alt="Joseph Ballard" class="photo-primary w-full h-full object-cover object-top" />
+          <img src="https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/04/joe_ballard_2-scaled.jpg" alt="Joseph Ballard — alternate" class="photo-secondary object-top" />
+          <div class="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+        </div>
+        <div class="p-6">
+          <p class="text-[11px] uppercase tracking-widest text-cmi-gold-light dark:text-cmi-gold-dark font-medium mb-1">Principal / Construction Manager</p>
+          <h3 class="font-display text-xl text-neutral-900 dark:text-neutral-100 mb-1">Joseph Ballard</h3>
+          <p class="text-xs text-neutral-400 dark:text-neutral-500 italic mb-3">Founder, designer, and deep thinker. Chronic mumbler, detail-obsessed visionary. Husband and father.</p>
+          <p class="text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed mb-4">
+            With over 20 years in the construction industry, Joe brings a rare combination of design sensibility, technical expertise, and boots-on-the-ground experience — managing high-end custom homes and commercial tenant improvement projects across the country. At CMI, Joe leads construction operations in the field: hands-on, solution-driven, and committed to getting every detail right.
+          </p>
+          <div class="flex flex-wrap gap-2 mb-5">
+            <span class="attr-chip">Construction Management</span>
+            <span class="attr-chip">Custom Homes</span>
+            <span class="attr-chip">Commercial TI</span>
+            <span class="attr-chip">Field Operations</span>
+          </div>
+          <div class="card-actions flex items-center gap-3 pt-4 border-t border-neutral-100 dark:border-neutral-800">
+            <a href="mailto:hello@constructedmatter.com" class="w-8 h-8 rounded-lg flex items-center justify-center text-neutral-400 dark:text-neutral-500 hover:text-cmi-gold-light dark:hover:text-cmi-gold-dark hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors" aria-label="Email">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+            </a>
+            <a href="tel:+14806284458" class="w-8 h-8 rounded-lg flex items-center justify-center text-neutral-400 dark:text-neutral-500 hover:text-cmi-gold-light dark:hover:text-cmi-gold-dark hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors" aria-label="Phone">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
+            </a>
+            <a href="team/joseph-ballard.html" class="ml-auto text-[12px] font-medium text-cmi-gold-light dark:text-cmi-gold-dark hover:opacity-70 transition-opacity">View Profile →</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Brandon Fadden -->
+      <div class="fade-up team-card group rounded-2xl overflow-hidden border border-neutral-200/60 dark:border-neutral-800/60 bg-white dark:bg-cmi-dark-light">
+        <a href="team/brandon-fadden.html" class="team-card-link" aria-label="View Brandon Fadden's profile"></a>
+        <div class="relative aspect-[3/4] overflow-hidden">
+          <img src="https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/2530d377-8386-4e19-98cc-bbf72a56ad5d/ConstructedMatter-LHP-34.jpg?format=1000w"
+               alt="Brandon Fadden" class="photo-primary w-full h-full object-cover object-top" />
+          <img src="https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/04/brandon_fadden_2.jpg" alt="Brandon Fadden — alternate" class="photo-secondary object-top" />
+          <div class="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+        </div>
+        <div class="p-6">
+          <p class="text-[11px] uppercase tracking-widest text-cmi-gold-light dark:text-cmi-gold-dark font-medium mb-1">Principal / President</p>
+          <h3 class="font-display text-xl text-neutral-900 dark:text-neutral-100 mb-1">Brandon Fadden</h3>
+          <p class="text-xs text-neutral-400 dark:text-neutral-500 italic mb-3">Builder, leader, and big-picture thinker. Unshakable under pressure, driven by integrity. Husband, father and outdoorsman.</p>
+          <p class="text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed mb-4">
+            With over two decades of construction experience and a degree in Construction Management from NAU, Brandon has overseen more than $200 million in construction — spanning multifamily, mixed-use, healthcare, retail, and industrial. As President of CMI, he leads with steady conviction, building strong teams and delivering spaces that are functional and lasting.
+          </p>
+          <div class="flex flex-wrap gap-2 mb-5">
+            <span class="attr-chip">Leadership</span>
+            <span class="attr-chip">Commercial</span>
+            <span class="attr-chip">Multifamily</span>
+            <span class="attr-chip">Construction Mgmt</span>
+          </div>
+          <div class="card-actions flex items-center gap-3 pt-4 border-t border-neutral-100 dark:border-neutral-800">
+            <a href="mailto:hello@constructedmatter.com" class="w-8 h-8 rounded-lg flex items-center justify-center text-neutral-400 dark:text-neutral-500 hover:text-cmi-gold-light dark:hover:text-cmi-gold-dark hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors" aria-label="Email">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+            </a>
+            <a href="tel:+14806284458" class="w-8 h-8 rounded-lg flex items-center justify-center text-neutral-400 dark:text-neutral-500 hover:text-cmi-gold-light dark:hover:text-cmi-gold-dark hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors" aria-label="Phone">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
+            </a>
+            <a href="team/brandon-fadden.html" class="ml-auto text-[12px] font-medium text-cmi-gold-light dark:text-cmi-gold-dark hover:opacity-70 transition-opacity">View Profile →</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Ben Peck -->
+      <div class="fade-up team-card group rounded-2xl overflow-hidden border border-neutral-200/60 dark:border-neutral-800/60 bg-white dark:bg-cmi-dark-light">
+        <a href="team/ben-peck.html" class="team-card-link" aria-label="View Ben Peck's profile"></a>
+        <div class="relative aspect-[3/4] overflow-hidden">
+          <img src="https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/04/ben_peck.webp"
+               alt="Ben Peck" class="photo-primary w-full h-full object-cover object-top" />
+          <img src="https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/04/ben_peck_2.png" alt="Ben Peck — alternate" class="photo-secondary object-top" />
+          <div class="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+        </div>
+        <div class="p-6">
+          <p class="text-[11px] uppercase tracking-widest text-cmi-gold-light dark:text-cmi-gold-dark font-medium mb-1">Project Manager</p>
+          <h3 class="font-display text-xl text-neutral-900 dark:text-neutral-100 mb-1">Ben Peck</h3>
+          <p class="text-xs text-neutral-400 dark:text-neutral-500 italic mb-3">Detail-oriented, quietly determined, and always thinking three steps ahead. Husband and father of two.</p>
+          <p class="text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed mb-4">
+            Ben's background spans both architecture and construction, giving him a rare dual lens on how ideas become buildings. His experience covers custom homes, tenant improvements, and multifamily — along with design coordination, permitting, zoning, entitlements, and on-site construction management.
+          </p>
+          <div class="flex flex-wrap gap-2 mb-5">
+            <span class="attr-chip">Project Management</span>
+            <span class="attr-chip">Architecture</span>
+            <span class="attr-chip">Permitting</span>
+            <span class="attr-chip">Design Coordination</span>
+          </div>
+          <div class="card-actions flex items-center gap-3 pt-4 border-t border-neutral-100 dark:border-neutral-800">
+            <a href="mailto:hello@constructedmatter.com" class="w-8 h-8 rounded-lg flex items-center justify-center text-neutral-400 dark:text-neutral-500 hover:text-cmi-gold-light dark:hover:text-cmi-gold-dark hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors" aria-label="Email">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+            </a>
+            <a href="team/ben-peck.html" class="ml-auto text-[12px] font-medium text-cmi-gold-light dark:text-cmi-gold-dark hover:opacity-70 transition-opacity">View Profile →</a>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ── Additional Team Members ── -->
+    <div class="mt-16 mb-14 fade-up">
+      <p class="text-[12px] uppercase tracking-[0.2em] text-cmi-gold-light dark:text-cmi-gold-dark font-medium mb-2">The Team</p>
+      <h2 class="font-display text-3xl lg:text-4xl text-neutral-900 dark:text-neutral-100">Supporting Staff</h2>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+
+      <!-- Angel Gutierrez -->
+      <div class="fade-up team-card group rounded-2xl overflow-hidden border border-neutral-200/60 dark:border-neutral-800/60 bg-white dark:bg-cmi-dark-light">
+        <a href="team/angel-gutierrez.html" class="team-card-link" aria-label="View Angel Gutierrez's profile"></a>
+        <div class="relative aspect-[3/4] overflow-hidden">
+          <img src="https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/04/angel_gutierrez.webp" alt="Angel Gutierrez" class="photo-primary w-full h-full object-cover object-top" />
+          <img src="https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/04/552aef38-63f0-4d7e-b0ac-1ede2cb13a2a.jpeg" alt="Angel Gutierrez — alternate" class="photo-secondary object-top" />
+          <div class="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+        </div>
+        <div class="p-6">
+          <p class="text-[11px] uppercase tracking-widest text-cmi-gold-light dark:text-cmi-gold-dark font-medium mb-1">Field Operations Coordinator</p>
+          <h3 class="font-display text-xl text-neutral-900 dark:text-neutral-100 mb-3">Angel Gutierrez</h3>
+          <div class="flex flex-wrap gap-2 mb-5">
+            <span class="attr-chip">Field Operations</span>
+            <span class="attr-chip">Trade Coordination</span>
+          </div>
+          <div class="card-actions flex items-center gap-3 pt-4 border-t border-neutral-100 dark:border-neutral-800">
+            <a href="mailto:hello@constructedmatter.com" class="w-8 h-8 rounded-lg flex items-center justify-center text-neutral-400 dark:text-neutral-500 hover:text-cmi-gold-light dark:hover:text-cmi-gold-dark hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors" aria-label="Email">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+            </a>
+            <a href="team/angel-gutierrez.html" class="ml-auto text-[12px] font-medium text-cmi-gold-light dark:text-cmi-gold-dark hover:opacity-70 transition-opacity">View Profile →</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Yovana Hernandez -->
+      <div class="fade-up team-card group rounded-2xl overflow-hidden border border-neutral-200/60 dark:border-neutral-800/60 bg-white dark:bg-cmi-dark-light">
+        <a href="team/yovana-hernandez.html" class="team-card-link" aria-label="View Yovana Hernandez's profile"></a>
+        <div class="relative aspect-[3/4] overflow-hidden">
+          <img src="https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/04/yovana_hernandez.webp" alt="Yovana Hernandez" class="photo-primary w-full h-full object-cover object-top" />
+          <img src="https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/04/IMG_7145-scaled-e1776128272358.png" alt="Yovana Hernandez — alternate" class="photo-secondary object-top" />
+          <div class="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+        </div>
+        <div class="p-6">
+          <p class="text-[11px] uppercase tracking-widest text-cmi-gold-light dark:text-cmi-gold-dark font-medium mb-1">Executive Operations & Project Coordinator</p>
+          <h3 class="font-display text-xl text-neutral-900 dark:text-neutral-100 mb-3">Yovana Hernandez</h3>
+          <div class="flex flex-wrap gap-2 mb-5">
+            <span class="attr-chip">Operations</span>
+            <span class="attr-chip">Project Coordination</span>
+            <span class="attr-chip">Executive Support</span>
+          </div>
+          <div class="card-actions flex items-center gap-3 pt-4 border-t border-neutral-100 dark:border-neutral-800">
+            <a href="mailto:hello@constructedmatter.com" class="w-8 h-8 rounded-lg flex items-center justify-center text-neutral-400 dark:text-neutral-500 hover:text-cmi-gold-light dark:hover:text-cmi-gold-dark hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors" aria-label="Email">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+            </a>
+            <a href="team/yovana-hernandez.html" class="ml-auto text-[12px] font-medium text-cmi-gold-light dark:text-cmi-gold-dark hover:opacity-70 transition-opacity">View Profile →</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Jeremy Waters -->
+      <div class="fade-up team-card group rounded-2xl overflow-hidden border border-neutral-200/60 dark:border-neutral-800/60 bg-white dark:bg-cmi-dark-light">
+        <a href="team/jeremy-waters.html" class="team-card-link" aria-label="View Jeremy Waters's profile"></a>
+        <div class="relative aspect-[3/4] overflow-hidden bg-neutral-100 dark:bg-neutral-800/60 flex flex-col items-center justify-center">
+          <div class="w-24 h-24 rounded-full bg-cmi-gold-light/10 dark:bg-cmi-gold-dark/10 border-2 border-cmi-gold-light/20 dark:border-cmi-gold-dark/20 flex items-center justify-center mb-4">
+            <span class="font-display text-3xl text-cmi-gold-light dark:text-cmi-gold-dark">JW</span>
+          </div>
+          <p class="text-xs text-neutral-400 dark:text-neutral-500">Photo Coming Soon</p>
+        </div>
+        <div class="p-6">
+          <p class="text-[11px] uppercase tracking-widest text-cmi-gold-light dark:text-cmi-gold-dark font-medium mb-1">Channel Development</p>
+          <h3 class="font-display text-xl text-neutral-900 dark:text-neutral-100 mb-3">Jeremy Waters</h3>
+          <div class="flex flex-wrap gap-2 mb-5">
+            <span class="attr-chip">Creative Strategy</span>
+            <span class="attr-chip">Branding & Design</span>
+            <span class="attr-chip">Systems & Automation</span>
+          </div>
+          <div class="card-actions flex items-center gap-3 pt-4 border-t border-neutral-100 dark:border-neutral-800">
+            <a href="mailto:hello@constructedmatter.com" class="w-8 h-8 rounded-lg flex items-center justify-center text-neutral-400 dark:text-neutral-500 hover:text-cmi-gold-light dark:hover:text-cmi-gold-dark hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors" aria-label="Email">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+            </a>
+            <a href="team/jeremy-waters.html" class="ml-auto text-[12px] font-medium text-cmi-gold-light dark:text-cmi-gold-dark hover:opacity-70 transition-opacity">View Profile →</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Justin Linder -->
+      <div class="fade-up team-card group rounded-2xl overflow-hidden border border-neutral-200/60 dark:border-neutral-800/60 bg-white dark:bg-cmi-dark-light">
+        <a href="team/justin-linder.html" class="team-card-link" aria-label="View Justin Linder's profile"></a>
+        <div class="relative aspect-[3/4] overflow-hidden bg-neutral-100 dark:bg-neutral-800/60 flex flex-col items-center justify-center">
+          <div class="w-24 h-24 rounded-full bg-cmi-gold-light/10 dark:bg-cmi-gold-dark/10 border-2 border-cmi-gold-light/20 dark:border-cmi-gold-dark/20 flex items-center justify-center mb-4">
+            <span class="font-display text-3xl text-cmi-gold-light dark:text-cmi-gold-dark">JL</span>
+          </div>
+          <p class="text-xs text-neutral-400 dark:text-neutral-500">Photo Coming Soon</p>
+        </div>
+        <div class="p-6">
+          <p class="text-[11px] uppercase tracking-widest text-cmi-gold-light dark:text-cmi-gold-dark font-medium mb-1">3D Scan Tech</p>
+          <h3 class="font-display text-xl text-neutral-900 dark:text-neutral-100 mb-3">Justin Linder</h3>
+          <div class="flex flex-wrap gap-2 mb-5">
+            <span class="attr-chip">3D Scanning</span>
+            <span class="attr-chip">Technology</span>
+            <span class="attr-chip">Documentation</span>
+          </div>
+          <div class="card-actions flex items-center gap-3 pt-4 border-t border-neutral-100 dark:border-neutral-800">
+            <a href="mailto:hello@constructedmatter.com" class="w-8 h-8 rounded-lg flex items-center justify-center text-neutral-400 dark:text-neutral-500 hover:text-cmi-gold-light dark:hover:text-cmi-gold-dark hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors" aria-label="Email">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+            </a>
+            <a href="team/justin-linder.html" class="ml-auto text-[12px] font-medium text-cmi-gold-light dark:text-cmi-gold-dark hover:opacity-70 transition-opacity">View Profile →</a>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+
+<!-- Join the Team CTA -->
+<section class="py-20 bg-white dark:bg-cmi-dark-light border-t border-b border-neutral-200/60 dark:border-neutral-800/60">
+  <div class="max-w-[1400px] mx-auto px-6 lg:px-10">
+    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8 fade-up">
+      <div class="max-w-lg">
+        <p class="text-[12px] uppercase tracking-[0.2em] text-cmi-gold-light dark:text-cmi-gold-dark font-medium mb-3">Join the CMI Family</p>
+        <h2 class="font-display text-3xl lg:text-4xl text-neutral-900 dark:text-neutral-100 mb-4">We're Growing. Are You Ready?</h2>
+        <p class="text-neutral-500 dark:text-neutral-400 leading-relaxed">
+          We're always looking for skilled, passionate people to join our team. Whether you're a project manager, tradesperson, designer, or admin professional — there may be a home for you at Constructed Matter.
+        </p>
+      </div>
+      <div class="flex flex-col sm:flex-row gap-4 shrink-0">
+        <a href="/register?type=team-member" class="inline-flex items-center gap-2 px-7 py-3.5 rounded-lg text-[14px] font-medium bg-cmi-gold-light dark:bg-cmi-gold-dark text-white hover:opacity-90 transition-opacity">
+          Apply to Join
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14m-7-7l7 7-7 7"/></svg>
+        </a>
+        <a href="contact.html" class="inline-flex items-center gap-2 px-7 py-3.5 rounded-lg text-[14px] font-medium border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:border-cmi-gold-light dark:hover:border-cmi-gold-dark transition-colors">Contact HR</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- Footer -->
+<footer class="bg-cmi-dark text-neutral-400 pt-16 pb-8">
+  <div class="max-w-[1400px] mx-auto px-6 lg:px-10">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-12 lg:gap-8 pb-12 border-b border-neutral-800">
+      <div class="lg:col-span-1">
+        <div class="mb-5"><img src="https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/CMI_Logo_White.svg" alt="Constructed Matter" class="h-9 w-auto" /></div>
+        <p class="text-sm leading-relaxed mb-6 max-w-xs">Arizona's premier construction and design firm. Building spaces that endure, inspire, and reflect the people who live and work in them.</p>
+      </div>
+      <div>
+        <h4 class="text-sm font-medium text-neutral-100 mb-5 uppercase tracking-wider">Services</h4>
+        <ul class="space-y-3 text-sm">
+          <li><a href="services/residential.html" class="hover:text-cmi-gold-dark transition-colors">Residential</a></li>
+          <li><a href="services/commercial.html" class="hover:text-cmi-gold-dark transition-colors">Commercial</a></li>
+          <li><a href="services/adu.html" class="hover:text-cmi-gold-dark transition-colors">ADU</a></li>
+          <li><a href="services/project-management.html" class="hover:text-cmi-gold-dark transition-colors">Project Management</a></li>
+          <li><a href="services/interior-design.html" class="hover:text-cmi-gold-dark transition-colors">Interior Design</a></li>
+          <li><a href="services/new-construction.html" class="hover:text-cmi-gold-dark transition-colors">New Construction</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4 class="text-sm font-medium text-neutral-100 mb-5 uppercase tracking-wider">Company</h4>
+        <ul class="space-y-3 text-sm">
+          <li><a href="about.html" class="hover:text-cmi-gold-dark transition-colors">About Us</a></li>
+          <li><a href="team.html" class="hover:text-cmi-gold-dark transition-colors">Our Team</a></li>
+          <li><a href="portfolio.html" class="hover:text-cmi-gold-dark transition-colors">Portfolio</a></li>
+          <li><a href="resources.html" class="hover:text-cmi-gold-dark transition-colors">Resources</a></li>
+          <li><a href="contact.html" class="hover:text-cmi-gold-dark transition-colors">Contact</a></li>
+        </ul>
+      </div>
+      <!-- Account Column -->
+      <div>
+        <h4 class="text-sm font-medium text-neutral-100 mb-5 uppercase tracking-wider">Account</h4>
+        <ul class="space-y-3 text-sm">
+          <li><a href="register.html" class="hover:text-cmi-gold-dark transition-colors">Register</a></li>
+          <li><a href="login.html" class="hover:text-cmi-gold-dark transition-colors">Login</a></li>
+          <li><a href="dashboard.html" class="hover:text-cmi-gold-dark transition-colors">Dashboard</a></li>
+          <li><a href="reset-password.html" class="hover:text-cmi-gold-dark transition-colors">Reset Password</a></li>
+          <li><a href="forgot-password.html" class="hover:text-cmi-gold-dark transition-colors">Forgot Password</a></li>
+          <li><a href="logout.html" class="hover:text-cmi-gold-dark transition-colors">Logout</a></li>
+        </ul>
+      </div>
+            <div>
+        <h4 class="text-sm font-medium text-neutral-100 mb-5 uppercase tracking-wider">Get in Touch</h4>
+        <ul class="space-y-4 text-sm">
+          <li class="flex items-start gap-3"><svg class="w-4 h-4 mt-0.5 text-cmi-gold-dark shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3"/></svg><a href="https://www.google.com/maps/place/Constructed+Matter,+Inc/@33.4870402,-111.924356,17z" target="_blank" rel="noopener" class="hover:text-cmi-gold-dark transition-colors">7314 E Osborn Dr Suite A, Scottsdale, AZ 85251</a></li>
+          <li class="flex items-start gap-3"><svg class="w-4 h-4 mt-0.5 text-cmi-gold-dark shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg><a href="tel:+14806284458" class="hover:text-cmi-gold-dark transition-colors">(480) 628-4458</a></li>
+          <li class="flex items-start gap-3"><svg class="w-4 h-4 mt-0.5 text-cmi-gold-dark shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg><a href="mailto:hello@constructedmatter.com" class="hover:text-cmi-gold-dark transition-colors">hello@constructedmatter.com</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="flex flex-col md:flex-row items-center justify-between gap-4 pt-8 text-xs text-neutral-500">
+      <p>&copy; 2026 Constructed Matter Inc. All rights reserved.</p>
+      <div class="flex items-center gap-6">
+        <a href="/privacy" class="hover:text-cmi-gold-dark transition-colors">Privacy Policy</a>
+        <a href="/terms" class="hover:text-cmi-gold-dark transition-colors">Terms of Service</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+
+<script>
+  const html = document.documentElement;
+  const faviconEl = document.getElementById('faviconEl');
+  function applyTheme(isDark) {
+    html.classList.toggle('dark', isDark); html.classList.toggle('light', !isDark);
+    if (faviconEl) faviconEl.href = isDark ? 'https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/cmi_favicon_white.png' : 'https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/cmi_favicon_black.png';
+  }
+  const stored = localStorage.getItem('cmi-theme');
+  applyTheme(stored === 'dark' || (!stored && window.matchMedia('(prefers-color-scheme: dark)').matches));
+  function toggleTheme() { const nd = !html.classList.contains('dark'); applyTheme(nd); localStorage.setItem('cmi-theme', nd ? 'dark' : 'light'); }
+  document.getElementById('themeToggle').addEventListener('click', toggleTheme);
+  document.getElementById('mobileThemeToggle').addEventListener('click', toggleTheme);
+  const header = document.getElementById('siteHeader');
+  window.addEventListener('scroll', () => header.classList.toggle('scrolled', window.scrollY > 10));
+  const overlay = document.getElementById('mobileOverlay');
+  document.getElementById('mobileMenuBtn').addEventListener('click', () => { overlay.classList.add('open'); document.body.style.overflow = 'hidden'; });
+  document.getElementById('mobileCloseBtn').addEventListener('click', () => { overlay.classList.remove('open'); document.body.style.overflow = ''; });
+  document.getElementById('mobileBackdrop').addEventListener('click', () => { overlay.classList.remove('open'); document.body.style.overflow = ''; });
+  function setupAccordion(t, s, c) {
+    const toggle = document.getElementById(t), sub = document.getElementById(s), chevron = document.getElementById(c);
+    toggle.addEventListener('click', () => { sub.classList.toggle('expanded'); chevron.style.transform = sub.classList.contains('expanded') ? 'rotate(180deg)' : ''; });
+  }
+  setupAccordion('mobileDiscoverToggle', 'mobileDiscoverSub', 'mobileDiscoverChevron');
+  setupAccordion('mobileServicesToggle', 'mobileServicesSub', 'mobileServicesChevron');
+  setupAccordion('mobileAccountToggle', 'mobileAccountSub', 'mobileAccountChevron');
+  const obs = new IntersectionObserver(entries => {
+    entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); obs.unobserve(e.target); } });
+  }, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
+  document.querySelectorAll('.fade-up').forEach(el => obs.observe(el));
+</script>
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     FAB — SUPPORT WIDGET
+     ═══════════════════════════════════════════════════════════ -->
+<style>
+  #fabCard {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+    pointer-events: none;
+    transition: opacity .22s ease, transform .22s ease;
+  }
+  #fabCard.fab-open {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    pointer-events: auto;
+  }
+</style>
+
+<div id="fabSupport" class="fixed bottom-6 right-6 z-[9999] flex flex-col items-end gap-3">
+
+  <!-- Expandable card -->
+  <div id="fabCard" class="w-[300px] bg-white dark:bg-cmi-dark-light rounded-2xl shadow-2xl border border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden">
+    <div class="px-5 py-4 border-b border-neutral-100 dark:border-neutral-800">
+      <p class="font-semibold text-neutral-900 dark:text-neutral-100 text-[15px]">Constructed Matter Support</p>
+      <p class="text-[12px] text-neutral-500 dark:text-neutral-400 mt-0.5 leading-snug">We're open Monday – Friday 8:00 am to 5:00 pm.</p>
+    </div>
+    <div class="divide-y divide-neutral-100 dark:divide-neutral-800">
+      <a href="tel:+14806284458"
+         class="flex items-center gap-3 px-5 py-3.5 text-[13px] text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 transition-colors">
+        <svg class="w-4 h-4 text-neutral-400 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+          <rect x="5" y="2" width="14" height="20" rx="2"/>
+          <circle cx="12" cy="17" r="1"/>
+        </svg>
+        (480) 628-4458
+      </a>
+      <a href="mailto:hello@constructedmatter.com"
+         class="flex items-center gap-3 px-5 py-3.5 text-[13px] text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 transition-colors">
+        <svg class="w-4 h-4 text-neutral-400 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+          <rect x="2" y="4" width="20" height="16" rx="2"/>
+          <path d="m2 7 10 7 10-7"/>
+        </svg>
+        hello@constructedmatter.com
+      </a>
+      <a href="quote.html"
+         class="flex items-center gap-3 px-5 py-3.5 text-[13px] text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 transition-colors">
+        <svg class="w-4 h-4 text-neutral-400 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+          <rect x="3" y="4" width="18" height="18" rx="2"/>
+          <path d="M16 2v4M8 2v4M3 10h18"/>
+        </svg>
+        Book Appointment
+      </a>
+    </div>
+    <!-- Close row -->
+    <div class="flex justify-end px-4 py-3 border-t border-neutral-100 dark:border-neutral-800">
+      <button id="fabClose" aria-label="Close" class="w-9 h-9 rounded-full bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 flex items-center justify-center hover:opacity-80 transition-opacity">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+          <path d="M18 6 6 18M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Trigger row -->
+  <div class="flex items-center gap-2">
+    <button id="fabTrigger"
+            aria-expanded="false"
+            class="flex items-center gap-1.5 bg-white dark:bg-cmi-dark-light text-neutral-800 dark:text-neutral-200 text-[13px] font-medium pl-4 pr-4 py-2.5 rounded-full shadow-lg border border-neutral-200/60 dark:border-neutral-800/60 hover:shadow-xl transition-shadow whitespace-nowrap">
+      Need Help?&nbsp;<span class="font-semibold text-cmi-gold-light dark:text-cmi-gold-dark">Contact us</span>
+    </button>
+    <button id="fabIconBtn" aria-label="Support"
+            class="w-11 h-11 rounded-full bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 flex items-center justify-center shadow-lg hover:shadow-xl transition-shadow shrink-0">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+        <path d="M3 11a9 9 0 0 1 18 0"/>
+        <path d="M3 11v3a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-2a2 2 0 0 0-2-2H3z"/>
+        <path d="M21 11v3a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-2a2 2 0 0 1 2-2h3z"/>
+      </svg>
+    </button>
+  </div>
+</div>
+
+<script>
+(function () {
+  var card    = document.getElementById('fabCard');
+  var trigger = document.getElementById('fabTrigger');
+  var icon    = document.getElementById('fabIconBtn');
+  var close   = document.getElementById('fabClose');
+  var open    = false;
+
+  function toggle() {
+    open = !open;
+    card.classList.toggle('fab-open', open);
+    trigger.setAttribute('aria-expanded', open);
+  }
+
+  function closeCard(e) {
+    if (open && !document.getElementById('fabSupport').contains(e.target)) {
+      open = false;
+      card.classList.remove('fab-open');
+      trigger.setAttribute('aria-expanded', 'false');
+    }
+  }
+
+  trigger.addEventListener('click', toggle);
+  icon.addEventListener('click', toggle);
+  close.addEventListener('click', toggle);
+  document.addEventListener('click', closeCard);
+})();
+</script>
+
+</body>
+</html>

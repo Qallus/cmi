@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Boulders — Constructed Matter</title>
+  <link rel="icon" type="image/png" href="https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/cmi_favicon_black.png" id="faviconEl" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Roboto:ital,wght@0,300;0,400;0,500;0,700;1,300;1,400&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: { extend: { colors: { cmi: { dark: '#0f0f0f', 'dark-light': '#161616', light: '#F7F5F2', 'gold-dark': '#C9A46E', 'gold-light': '#9E6F2E' } }, fontFamily: { display: ['"DM Serif Display"', 'Georgia', 'serif'], body: ['Roboto', 'system-ui', 'sans-serif'] } } }
+    }
+  </script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Roboto',system-ui,sans-serif; }
+    html,body,header,nav,a,button,div,span,p,svg,section,footer,h1,h2,h3,h4 { transition:background-color .35s ease,color .35s ease,border-color .35s ease; }
+    :root { --cmi-bg:#F7F5F2; --cmi-surface:#fff; --cmi-gold:#9E6F2E; --cmi-text:#1a1a1a; --cmi-muted:#6E6A66; }
+    .dark { --cmi-bg:#0f0f0f; --cmi-surface:#161616; --cmi-gold:#C9A46E; --cmi-text:#F0EDEA; --cmi-muted:#9E9A96; }
+
+    /* Nav */
+    .mega-trigger { position:relative; }
+    .mega-menu { position:absolute; top:100%; left:50%; transform:translateX(-50%) translateY(8px); opacity:0; visibility:hidden; pointer-events:none; transition:opacity .25s,transform .25s; z-index:100; }
+    .mega-trigger:hover .mega-menu,.mega-trigger:focus-within .mega-menu { opacity:1; visibility:visible; pointer-events:auto; transform:translateX(-50%) translateY(0); }
+    .mega-menu.left-aligned { left:0; transform:translateX(0) translateY(8px); }
+    .mega-trigger:hover .mega-menu.left-aligned,.mega-trigger:focus-within .mega-menu.left-aligned { transform:translateX(0) translateY(0); }
+    .mobile-overlay { opacity:0; visibility:hidden; transition:opacity .3s,visibility .3s; }
+    .mobile-overlay.open { opacity:1; visibility:visible; }
+    .mobile-panel { transform:translateX(100%); transition:transform .35s cubic-bezier(.4,0,.2,1); }
+    .mobile-overlay.open .mobile-panel { transform:translateX(0); }
+    .mobile-sub { max-height:0; overflow:hidden; transition:max-height .3s; }
+    .mobile-sub.expanded { max-height:400px; }
+    .nav-link::after { content:''; position:absolute; bottom:-2px; left:0; width:0; height:1px; transition:width .3s; }
+    .light .nav-link::after { background:#9E6F2E; }
+    .dark .nav-link::after { background:#C9A46E; }
+    .nav-link:hover::after { width:100%; }
+    header.scrolled { box-shadow:0 1px 12px rgba(0,0,0,.06); }
+    .dark header.scrolled { box-shadow:0 1px 12px rgba(0,0,0,.4); }
+
+    /* Hero image */
+    #heroImg { width:100%; height:100%; object-fit:cover; }
+
+    /* Thumbnail strip */
+    .thumb-strip { display:flex; gap:10px; overflow-x:auto; padding:16px 24px; scrollbar-width:none; -ms-overflow-style:none; }
+    .thumb-strip::-webkit-scrollbar { display:none; }
+    .thumb { flex-shrink:0; border-radius:10px; overflow:hidden; cursor:pointer; border:2px solid transparent; transition:transform .25s ease, box-shadow .2s ease; }
+    .thumb:hover { transform:scale(1.1); box-shadow:0 6px 20px rgba(0,0,0,.25); }
+    .thumb img { width:100%; height:100%; object-fit:cover; display:block; pointer-events:none; }
+
+    /* Lightbox */
+    .lb-overlay { position:fixed; inset:0; z-index:1000; background:rgba(0,0,0,.92); display:flex; align-items:center; justify-content:center; opacity:0; visibility:hidden; transition:opacity .25s ease,visibility .25s ease; }
+    .lb-overlay.open { opacity:1; visibility:visible; }
+    .lb-img-wrap { position:relative; display:flex; flex-direction:column; align-items:center; max-width:90vw; max-height:85vh; }
+    .lb-img-wrap img { max-width:90vw; max-height:80vh; width:auto; height:auto; object-fit:contain; border-radius:4px; transition:opacity .18s ease; }
+    .lb-img-wrap img.fading { opacity:0; }
+    .lb-counter { margin-top:10px; color:rgba(255,255,255,.45); font-size:11px; letter-spacing:.12em; font-family:'Roboto',sans-serif; }
+    .lb-close { position:fixed; top:20px; right:20px; width:44px; height:44px; border-radius:50%; background:rgba(255,255,255,.12); border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; color:#fff; transition:background .2s; z-index:10; }
+    .lb-close:hover { background:rgba(255,255,255,.22); }
+    .lb-arrow { position:fixed; top:50%; transform:translateY(-50%); width:52px; height:52px; border-radius:50%; background:rgba(255,255,255,.12); border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; color:#fff; transition:background .2s; z-index:10; }
+    .lb-arrow:hover { background:rgba(255,255,255,.22); }
+    .lb-arrow-prev { left:20px; }
+    .lb-arrow-next { right:20px; }
+    .lb-share-bar { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); display:flex; gap:8px; align-items:center; background:rgba(0,0,0,.55); backdrop-filter:blur(10px); padding:8px 16px; border-radius:50px; z-index:10; }
+    .lb-share-btn { position:relative; width:36px; height:36px; border-radius:50%; background:rgba(255,255,255,.12); border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; color:#fff; transition:background .2s; }
+    .lb-share-btn:hover { background:rgba(255,255,255,.22); }
+    .lb-share-label { font-size:11px; color:rgba(255,255,255,.55); font-family:'Roboto',sans-serif; margin-right:4px; letter-spacing:.06em; }
+    .lb-copy-tip { position:absolute; bottom:calc(100% + 8px); left:50%; transform:translateX(-50%); white-space:nowrap; font-size:11px; color:#fff; background:rgba(0,0,0,.8); padding:4px 8px; border-radius:4px; pointer-events:none; opacity:0; transition:opacity .2s; }
+    .lb-copy-tip.visible { opacity:1; }
+
+    /* Content */
+    .fade-up { opacity:0; transform:translateY(24px); transition:opacity .6s ease,transform .6s ease; }
+    .fade-up.visible { opacity:1; transform:translateY(0); }
+
+    @media (min-width:1024px) {
+      .thumb-strip { padding:20px 40px; }
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+</head>
+<body class="bg-cmi-light dark:bg-cmi-dark text-neutral-900 dark:text-neutral-100">
+
+<!-- ── Header ── -->
+<header id="siteHeader" class="fixed top-0 left-0 right-0 z-50 bg-cmi-light/90 dark:bg-cmi-dark/90 backdrop-blur-md border-b border-neutral-200/60 dark:border-neutral-800/50 transition-all">
+  <div class="max-w-[1400px] mx-auto px-6 lg:px-10">
+    <div class="flex items-center justify-between h-[72px]">
+      <a href="../index.html" class="flex items-center" aria-label="Constructed Matter Home">
+        <img src="https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/CMI_Logo_Black.svg" alt="Constructed Matter" class="h-8 w-auto block dark:hidden" />
+        <img src="https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/CMI_Logo_White.svg" alt="Constructed Matter" class="h-8 w-auto hidden dark:block" />
+      </a>
+      <nav class="hidden lg:flex items-center gap-1">
+        <div class="mega-trigger">
+          <button class="nav-link relative px-4 py-2 text-[13px] font-medium tracking-wide uppercase text-neutral-700 dark:text-neutral-300 hover:text-cmi-gold-light dark:hover:text-cmi-gold-dark flex items-center gap-1.5">Discover<svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7"/></svg></button>
+          <div class="mega-menu left-aligned w-64 bg-white dark:bg-cmi-dark-light border border-neutral-200/60 dark:border-neutral-800/60 rounded-xl shadow-xl p-2">
+            <a href="../about.html" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 hover:text-cmi-gold-light dark:hover:text-cmi-gold-dark transition-colors">About Us</a>
+            <a href="../team.html" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 hover:text-cmi-gold-light dark:hover:text-cmi-gold-dark transition-colors">Our Team</a>
+            <a href="../resources.html" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 hover:text-cmi-gold-light dark:hover:text-cmi-gold-dark transition-colors">Resources</a>
+            <a href="../contact.html" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 hover:text-cmi-gold-light dark:hover:text-cmi-gold-dark transition-colors">Contact</a>
+          </div>
+        </div>
+        <div class="mega-trigger">
+          <button class="nav-link relative px-4 py-2 text-[13px] font-medium tracking-wide uppercase text-neutral-700 dark:text-neutral-300 hover:text-cmi-gold-light dark:hover:text-cmi-gold-dark flex items-center gap-1.5">Services<svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7"/></svg></button>
+          <div class="mega-menu w-[520px] bg-white dark:bg-cmi-dark-light border border-neutral-200/60 dark:border-neutral-800/60 rounded-xl shadow-xl p-4">
+            <div class="grid grid-cols-2 gap-1">
+              <a href="../services/residential.html" class="flex flex-col gap-1 p-3 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors"><span class="text-[13px] font-medium text-neutral-800 dark:text-neutral-200">Residential</span><span class="text-xs text-neutral-500">Custom homes &amp; renovations</span></a>
+              <a href="../services/commercial.html" class="flex flex-col gap-1 p-3 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors"><span class="text-[13px] font-medium text-neutral-800 dark:text-neutral-200">Commercial</span><span class="text-xs text-neutral-500">Offices, retail &amp; industrial</span></a>
+              <a href="../services/adu.html" class="flex flex-col gap-1 p-3 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors"><span class="text-[13px] font-medium text-neutral-800 dark:text-neutral-200">ADU</span><span class="text-xs text-neutral-500">Accessory dwelling units</span></a>
+              <a href="../services/project-management.html" class="flex flex-col gap-1 p-3 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors"><span class="text-[13px] font-medium text-neutral-800 dark:text-neutral-200">Project Management</span><span class="text-xs text-neutral-500">End-to-end oversight</span></a>
+              <a href="../services/interior-design.html" class="flex flex-col gap-1 p-3 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors"><span class="text-[13px] font-medium text-neutral-800 dark:text-neutral-200">Interior Design</span><span class="text-xs text-neutral-500">Spaces that reflect you</span></a>
+              <a href="../services/new-construction.html" class="flex flex-col gap-1 p-3 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors"><span class="text-[13px] font-medium text-neutral-800 dark:text-neutral-200">New Construction</span><span class="text-xs text-neutral-500">Built from the ground up</span></a>
+            </div>
+          </div>
+        </div>
+        <a href="../portfolio.html" class="nav-link relative px-4 py-2 text-[13px] font-medium tracking-wide uppercase text-cmi-gold-light dark:text-cmi-gold-dark">Portfolio</a>
+        <a href="../contact.html" class="nav-link relative px-4 py-2 text-[13px] font-medium tracking-wide uppercase text-neutral-700 dark:text-neutral-300 hover:text-cmi-gold-light dark:hover:text-cmi-gold-dark">Contact</a>
+        <button id="themeToggle" class="ml-2 w-9 h-9 rounded-lg flex items-center justify-center text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors" aria-label="Toggle theme">
+          <svg class="w-4 h-4 block dark:hidden" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          <svg class="w-4 h-4 hidden dark:block" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+        </button>
+        <a href="../quote.html" class="ml-1 inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-[13px] font-medium bg-cmi-gold-light dark:bg-cmi-gold-dark text-white hover:opacity-90 transition-opacity">Get a Free Quote</a>
+      </nav>
+      <div class="flex items-center gap-3 lg:hidden">
+        <button id="mobileThemeToggle" class="w-9 h-9 rounded-lg flex items-center justify-center text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors">
+          <svg class="w-4 h-4 block dark:hidden" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          <svg class="w-4 h-4 hidden dark:block" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+        </button>
+        <button id="mobileMenuBtn" class="w-9 h-9 rounded-lg flex items-center justify-center text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- Mobile Menu -->
+<div id="mobileOverlay" class="mobile-overlay fixed inset-0 z-[200] lg:hidden">
+  <div id="mobileBackdrop" class="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
+  <div class="mobile-panel absolute top-0 right-0 bottom-0 w-[300px] bg-white dark:bg-cmi-dark-light shadow-2xl overflow-y-auto">
+    <div class="flex items-center justify-between p-5 border-b border-neutral-100 dark:border-neutral-800">
+      <img src="https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/CMI_Logo_Black.svg" alt="CMI" class="h-7 w-auto block dark:hidden" />
+      <img src="https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/CMI_Logo_White.svg" alt="CMI" class="h-7 w-auto hidden dark:block" />
+      <button id="mobileCloseBtn" class="w-8 h-8 rounded-lg flex items-center justify-center text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <nav class="p-5 space-y-1">
+      <div>
+        <button id="mobileDiscoverToggle" class="flex items-center justify-between w-full py-3 text-[15px] font-medium text-neutral-800 dark:text-neutral-200 border-b border-neutral-100 dark:border-neutral-800/60">Discover<svg id="mobileDiscoverChevron" class="w-4 h-4 text-neutral-400 transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7"/></svg></button>
+        <div id="mobileDiscoverSub" class="mobile-sub pl-4 space-y-1">
+          <a href="../about.html" class="py-2.5 block text-[14px] text-neutral-600 dark:text-neutral-400">About Us</a>
+          <a href="../team.html" class="py-2.5 block text-[14px] text-neutral-600 dark:text-neutral-400">Our Team</a>
+          <a href="../resources.html" class="py-2.5 block text-[14px] text-neutral-600 dark:text-neutral-400">Resources</a>
+          <a href="../contact.html" class="py-2.5 block text-[14px] text-neutral-600 dark:text-neutral-400">Contact</a>
+        </div>
+      </div>
+      <div>
+        <button id="mobileServicesToggle" class="flex items-center justify-between w-full py-3 text-[15px] font-medium text-neutral-800 dark:text-neutral-200 border-b border-neutral-100 dark:border-neutral-800/60">Services<svg id="mobileServicesChevron" class="w-4 h-4 text-neutral-400 transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7"/></svg></button>
+        <div id="mobileServicesSub" class="mobile-sub pl-4 space-y-1">
+          <a href="../services/residential.html" class="py-2.5 block text-[14px] text-neutral-600 dark:text-neutral-400">Residential</a>
+          <a href="../services/commercial.html" class="py-2.5 block text-[14px] text-neutral-600 dark:text-neutral-400">Commercial</a>
+          <a href="../services/adu.html" class="py-2.5 block text-[14px] text-neutral-600 dark:text-neutral-400">ADU</a>
+          <a href="../services/project-management.html" class="py-2.5 block text-[14px] text-neutral-600 dark:text-neutral-400">Project Management</a>
+          <a href="../services/interior-design.html" class="py-2.5 block text-[14px] text-neutral-600 dark:text-neutral-400">Interior Design</a>
+          <a href="../services/new-construction.html" class="py-2.5 block text-[14px] text-neutral-600 dark:text-neutral-400">New Construction</a>
+        </div>
+      </div>
+      <a href="../portfolio.html" class="block py-3 text-[15px] font-medium text-cmi-gold-light dark:text-cmi-gold-dark border-b border-neutral-100 dark:border-neutral-800/60">Portfolio</a><a href="../contact.html" class="block py-3 text-[15px] font-medium text-neutral-800 dark:text-neutral-200 border-b border-neutral-100 dark:border-neutral-800/60">Contact</a>
+      <a href="../quote.html" class="flex items-center justify-center w-full py-3.5 mt-4 rounded-lg text-[14px] font-medium bg-cmi-gold-light dark:bg-cmi-gold-dark text-white hover:opacity-90 transition-opacity">Get a Free Quote</a>
+
+    </nav>
+  </div>
+</div>
+
+<!-- ── Hero ── -->
+<div style="margin-top:72px; height:62vh; min-height:440px;" class="relative bg-neutral-900">
+  <div class="w-full" style="height:62vh; min-height:440px; position:relative; overflow:hidden;">
+    <img id="heroImg" src="https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/Peffer-Pitt+Residence-1.jpg" alt="Boulders" />
+    <div class="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent pointer-events-none"></div>
+    <div class="absolute inset-0 flex flex-col justify-end pointer-events-none">
+      <div class="max-w-[1400px] mx-auto px-6 lg:px-10 pb-10 w-full">
+        <p class="text-[11px] uppercase tracking-[0.25em] text-cmi-gold-dark font-medium mb-2 pointer-events-auto">
+          <a href="../portfolio.html" class="hover:text-white transition-colors inline-flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 12H5m7-7l-7 7 7 7"/></svg>
+            Portfolio
+          </a>
+          <span class="mx-2 opacity-40">/</span>Residential &middot; Scottsdale, AZ
+        </p>
+        <h1 class="font-display text-4xl lg:text-6xl text-white leading-tight">Boulders</h1>
+        <p class="text-white/50 text-sm mt-1.5">2023</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Thumbnail Strip ── -->
+<div class="bg-neutral-900 border-b border-neutral-800">
+  <div class="max-w-[1400px] mx-auto">
+    <div class="thumb-strip" id="thumbStrip">
+        <button class="thumb active flex-shrink-0 h-[88px] w-[132px] rounded-xl overflow-hidden focus:outline-none" data-src="https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/Peffer-Pitt+Residence-1.jpg" aria-label="View image 1">
+          <img src="https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/Peffer-Pitt+Residence-1.jpg" alt="Boulders photo 1" class="w-full h-full object-cover" loading="lazy" />
+        </button>
+        <button class="thumb flex-shrink-0 h-[88px] w-[132px] rounded-xl overflow-hidden focus:outline-none" data-src="https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/Brandons+House-1.jpg" aria-label="View image 2">
+          <img src="https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/Brandons+House-1.jpg" alt="Boulders photo 2" class="w-full h-full object-cover" loading="lazy" />
+        </button>
+        <button class="thumb flex-shrink-0 h-[88px] w-[132px] rounded-xl overflow-hidden focus:outline-none" data-src="https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/Parco+Residence-12.jpg" aria-label="View image 3">
+          <img src="https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/Parco+Residence-12.jpg" alt="Boulders photo 3" class="w-full h-full object-cover" loading="lazy" />
+        </button>
+        <button class="thumb flex-shrink-0 h-[88px] w-[132px] rounded-xl overflow-hidden focus:outline-none" data-src="https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/1738363725187-C9L2JWZOXXQT2M517PCG/Keim-10.jpg" aria-label="View image 4">
+          <img src="https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/1738363725187-C9L2JWZOXXQT2M517PCG/Keim-10.jpg" alt="Boulders photo 4" class="w-full h-full object-cover" loading="lazy" />
+        </button>
+        <button class="thumb flex-shrink-0 h-[88px] w-[132px] rounded-xl overflow-hidden focus:outline-none" data-src="https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/ConstructedMatter-LHP-26.jpg?format=1000w" aria-label="View image 5">
+          <img src="https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/ConstructedMatter-LHP-26.jpg?format=1000w" alt="Boulders photo 5" class="w-full h-full object-cover" loading="lazy" />
+        </button>
+        <button class="thumb flex-shrink-0 h-[88px] w-[132px] rounded-xl overflow-hidden focus:outline-none" data-src="https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/Trinity+Church-14.jpg" aria-label="View image 6">
+          <img src="https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/Trinity+Church-14.jpg" alt="Boulders photo 6" class="w-full h-full object-cover" loading="lazy" />
+        </button>
+
+    </div>
+  </div>
+</div>
+
+<!-- ── Main Content ── -->
+<section class="py-16 lg:py-24 bg-white dark:bg-cmi-dark-light">
+  <div class="max-w-[1400px] mx-auto px-6 lg:px-10">
+    <div class="grid grid-cols-1 lg:grid-cols-[1fr_300px] xl:grid-cols-[1fr_340px] gap-12 lg:gap-20">
+
+      <!-- Description -->
+      <div class="fade-up">
+        <p class="text-[11px] uppercase tracking-[0.2em] text-cmi-gold-light dark:text-cmi-gold-dark font-medium mb-3">Project Overview</p>
+        <h2 class="font-display text-3xl lg:text-4xl text-neutral-900 dark:text-neutral-100 mb-8">About This Project</h2>
+        <p class="text-[15px] text-neutral-600 dark:text-neutral-400 leading-relaxed mb-5">Boulders is a custom residential build in north Scottsdale — a home designed in dialogue with its natural desert setting, integrating the existing boulder formations of the site into the architecture rather than working around them.</p>
+        <p class="text-[15px] text-neutral-600 dark:text-neutral-400 leading-relaxed mb-5">The project required significant site development work, including custom foundation engineering to accommodate the native rock formations, and careful landscape design that preserved the mature saguaro and palo verde on the property.</p>
+        <p class="text-[15px] text-neutral-600 dark:text-neutral-400 leading-relaxed mb-5">The home's exterior palette — sand-textured stucco, oxidized steel accents, and ipe wood — weathers naturally over time, intended to patina into its surroundings rather than contrast with them.</p>
+        <div class="mt-8 pt-8 border-t border-neutral-200/60 dark:border-neutral-800/60">
+          <p class="text-[11px] uppercase tracking-[0.18em] text-neutral-400 dark:text-neutral-500 font-medium mb-4">Scope of Work</p>
+          <div class="flex flex-wrap gap-2">
+          <span class="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300">Custom Home</span>
+          <span class="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300">New Construction</span>
+          <span class="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300">Site Development</span>
+          <span class="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300">Desert Landscape</span>
+          <span class="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300">Pool & Spa</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sidebar -->
+      <aside class="fade-up">
+        <div class="sticky top-[100px] rounded-2xl border border-neutral-200/60 dark:border-neutral-800/60 bg-cmi-light dark:bg-cmi-dark p-7 space-y-6">
+          <div>
+            <p class="text-[10px] uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-500 font-medium mb-1">Category</p>
+            <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">Residential</p>
+          </div>
+          <div>
+            <p class="text-[10px] uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-500 font-medium mb-1">Location</p>
+            <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">Scottsdale, AZ</p>
+          </div>
+          <div>
+            <p class="text-[10px] uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-500 font-medium mb-1">Year Completed</p>
+            <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">2023</p>
+          </div>
+          <div>
+            <p class="text-[10px] uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-500 font-medium mb-1">Square Footage</p>
+            <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">4,800 sq ft</p>
+          </div>
+          <div class="pt-2 border-t border-neutral-200/60 dark:border-neutral-800/60">
+            <a href="../quote.html" class="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-cmi-gold-light dark:bg-cmi-gold-dark text-white text-sm font-medium hover:opacity-90 transition-opacity">
+              Start Your Project
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14m-7-7l7 7-7 7"/></svg>
+            </a>
+          </div>
+        </div>
+      </aside>
+
+    </div>
+  </div>
+</section>
+
+<!-- ── CTA ── -->
+<section class="py-20 bg-cmi-light dark:bg-cmi-dark border-t border-neutral-200/60 dark:border-neutral-800/60">
+  <div class="max-w-[1400px] mx-auto px-6 lg:px-10 text-center fade-up">
+    <p class="text-[12px] uppercase tracking-[0.25em] text-cmi-gold-light dark:text-cmi-gold-dark font-medium mb-4">Work With Us</p>
+    <h2 class="font-display text-3xl lg:text-4xl text-neutral-900 dark:text-neutral-100 mb-5">Ready to Start Your Project?</h2>
+    <p class="text-neutral-500 dark:text-neutral-400 max-w-lg mx-auto mb-8 leading-relaxed">Whether you have detailed plans or just a vision, our team is ready to help you build something lasting.</p>
+    <div class="flex flex-wrap justify-center gap-4">
+      <a href="../quote.html" class="inline-flex items-center gap-2 px-8 py-4 rounded-lg text-[14px] font-medium bg-cmi-gold-light dark:bg-cmi-gold-dark text-white hover:opacity-90 transition-opacity">Get a Free Quote<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14m-7-7l7 7-7 7"/></svg></a>
+      <a href="../portfolio.html" class="inline-flex items-center gap-2 px-8 py-4 rounded-lg text-[14px] font-medium border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:border-cmi-gold-light dark:hover:border-cmi-gold-dark transition-colors">View All Projects</a>
+    </div>
+  </div>
+</section>
+
+<!-- ── Footer ── -->
+<footer class="bg-cmi-dark border-t border-neutral-800/60">
+  <div class="max-w-[1400px] mx-auto px-6 lg:px-10 py-16">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-10">
+      <div>
+        <img src="https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/CMI_Logo_White.svg" alt="Constructed Matter" class="h-8 w-auto mb-4" />
+        <p class="text-sm text-neutral-500 leading-relaxed">Building with intention. Delivering with precision.</p>
+      </div>
+      <div>
+        <p class="text-xs uppercase tracking-widest text-neutral-500 mb-4 font-medium">Discover</p>
+        <ul class="space-y-3">
+          <li><a href="../about.html" class="text-sm text-neutral-400 hover:text-cmi-gold-dark transition-colors">About Us</a></li>
+          <li><a href="../team.html" class="text-sm text-neutral-400 hover:text-cmi-gold-dark transition-colors">Our Team</a></li>
+          <li><a href="../resources.html" class="text-sm text-neutral-400 hover:text-cmi-gold-dark transition-colors">Resources</a></li>
+          <li><a href="../contact.html" class="text-sm text-neutral-400 hover:text-cmi-gold-dark transition-colors">Contact</a></li>
+        </ul>
+      </div>
+      <div>
+        <p class="text-xs uppercase tracking-widest text-neutral-500 mb-4 font-medium">Services</p>
+        <ul class="space-y-3">
+          <li><a href="../services/residential.html" class="text-sm text-neutral-400 hover:text-cmi-gold-dark transition-colors">Residential</a></li>
+          <li><a href="../services/commercial.html" class="text-sm text-neutral-400 hover:text-cmi-gold-dark transition-colors">Commercial</a></li>
+          <li><a href="../services/adu.html" class="text-sm text-neutral-400 hover:text-cmi-gold-dark transition-colors">ADU</a></li>
+          <li><a href="../services/interior-design.html" class="text-sm text-neutral-400 hover:text-cmi-gold-dark transition-colors">Interior Design</a></li>
+          <li><a href="../services/new-construction.html" class="text-sm text-neutral-400 hover:text-cmi-gold-dark transition-colors">New Construction</a></li>
+        </ul>
+      </div>
+      <div>
+        <p class="text-xs uppercase tracking-widest text-neutral-500 mb-4 font-medium">Work With Us</p>
+        <ul class="space-y-3">
+          <li><a href="../portfolio.html" class="text-sm text-neutral-400 hover:text-cmi-gold-dark transition-colors">Portfolio</a></li>
+          <li><a href="../quote.html" class="text-sm text-neutral-400 hover:text-cmi-gold-dark transition-colors">Get a Free Quote</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="mt-14 pt-8 border-t border-neutral-800/60 flex flex-col sm:flex-row justify-between items-center gap-4">
+      <p class="text-xs text-neutral-600">&copy; 2026 Constructed Matter Inc. All rights reserved.</p>
+      <p class="text-xs text-neutral-600">Arizona Licensed General Contractor &middot; ROC #000000</p>
+    </div>
+  </div>
+</footer>
+
+<!-- ── Lightbox ── -->
+<div id="lbOverlay" class="lb-overlay" role="dialog" aria-modal="true" aria-label="Image lightbox">
+  <button id="lbClose" class="lb-close" aria-label="Close lightbox">
+    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
+  </button>
+  <button id="lbPrevBtn" class="lb-arrow lb-arrow-prev" aria-label="Previous image">
+    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+  </button>
+  <div class="lb-img-wrap">
+    <img id="lbImg" src="" alt="Project photo" />
+    <p id="lbCounter" class="lb-counter">1 / 14</p>
+  </div>
+  <button id="lbNextBtn" class="lb-arrow lb-arrow-next" aria-label="Next image">
+    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+  </button>
+  <div class="lb-share-bar">
+    <span class="lb-share-label">Share</span>
+    <button id="lbShareEmail" class="lb-share-btn" aria-label="Share via email">
+      <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+    </button>
+    <button id="lbShareTwitter" class="lb-share-btn" aria-label="Share on X / Twitter">
+      <svg width="15" height="15" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+    </button>
+    <button id="lbShareFacebook" class="lb-share-btn" aria-label="Share on Facebook">
+      <svg width="15" height="15" fill="currentColor" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+    </button>
+    <button id="lbCopyLink" class="lb-share-btn" aria-label="Copy link">
+      <span class="lb-copy-tip" id="lbCopyTip">Copied!</span>
+      <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
+    </button>
+  </div>
+</div>
+
+<script>
+  // Theme
+  const html = document.documentElement;
+  const faviconEl = document.getElementById('faviconEl');
+  function applyTheme(isDark) {
+    html.classList.toggle('dark', isDark); html.classList.toggle('light', !isDark);
+    if (faviconEl) faviconEl.href = isDark
+      ? 'https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/cmi_favicon_white.png'
+      : 'https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/cmi_favicon_black.png';
+  }
+  const stored = localStorage.getItem('cmi-theme');
+  applyTheme(stored === 'dark' || (!stored && window.matchMedia('(prefers-color-scheme: dark)').matches));
+  function toggleTheme() { const nd = !html.classList.contains('dark'); applyTheme(nd); localStorage.setItem('cmi-theme', nd ? 'dark' : 'light'); }
+  document.getElementById('themeToggle').addEventListener('click', toggleTheme);
+  document.getElementById('mobileThemeToggle').addEventListener('click', toggleTheme);
+
+  // Header scroll shadow
+  const header = document.getElementById('siteHeader');
+  window.addEventListener('scroll', () => header.classList.toggle('scrolled', window.scrollY > 10));
+
+  // Mobile menu
+  const overlay = document.getElementById('mobileOverlay');
+  document.getElementById('mobileMenuBtn').addEventListener('click', () => { overlay.classList.add('open'); document.body.style.overflow = 'hidden'; });
+  document.getElementById('mobileCloseBtn').addEventListener('click', () => { overlay.classList.remove('open'); document.body.style.overflow = ''; });
+  document.getElementById('mobileBackdrop').addEventListener('click', () => { overlay.classList.remove('open'); document.body.style.overflow = ''; });
+  function acc(t,s,c){ const tog=document.getElementById(t),sub=document.getElementById(s),chev=document.getElementById(c); if(!tog||!sub||!chev) return; tog.addEventListener('click',()=>{ sub.classList.toggle('expanded'); chev.style.transform=sub.classList.contains('expanded')?'rotate(180deg)':''; }); }
+  acc('mobileDiscoverToggle','mobileDiscoverSub','mobileDiscoverChevron');
+  acc('mobileServicesToggle','mobileServicesSub','mobileServicesChevron');
+
+  // Fade-up on scroll
+  document.querySelectorAll('.fade-up').forEach(el => {
+    new IntersectionObserver(entries => { entries.forEach(e => { if(e.isIntersecting) e.target.classList.add('visible'); }); }, {threshold:0.08}).observe(el);
+  });
+
+  // ── Lightbox ──
+  const lbOverlay = document.getElementById('lbOverlay');
+  const lbImg     = document.getElementById('lbImg');
+  const lbCounter = document.getElementById('lbCounter');
+  const thumbBtns = document.querySelectorAll('#thumbStrip .thumb');
+  window.lbSrcs   = Array.from(thumbBtns).map(b => b.dataset.src);
+  let lbIdx = 0;
+
+  function openLightbox(idx) {
+    lbIdx = ((idx % lbSrcs.length) + lbSrcs.length) % lbSrcs.length;
+    lbImg.src = lbSrcs[lbIdx];
+    lbCounter.textContent = (lbIdx + 1) + ' / ' + lbSrcs.length;
+    lbOverlay.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeLightbox() {
+    lbOverlay.classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
+  function lbPrev() {
+    lbImg.classList.add('fading');
+    setTimeout(() => {
+      lbIdx = (lbIdx - 1 + lbSrcs.length) % lbSrcs.length;
+      lbImg.src = lbSrcs[lbIdx];
+      lbCounter.textContent = (lbIdx + 1) + ' / ' + lbSrcs.length;
+      lbImg.onload = () => lbImg.classList.remove('fading');
+      if (lbImg.complete) lbImg.classList.remove('fading');
+    }, 150);
+  }
+
+  function lbNext() {
+    lbImg.classList.add('fading');
+    setTimeout(() => {
+      lbIdx = (lbIdx + 1) % lbSrcs.length;
+      lbImg.src = lbSrcs[lbIdx];
+      lbCounter.textContent = (lbIdx + 1) + ' / ' + lbSrcs.length;
+      lbImg.onload = () => lbImg.classList.remove('fading');
+      if (lbImg.complete) lbImg.classList.remove('fading');
+    }, 150);
+  }
+
+  document.getElementById('lbClose').addEventListener('click', closeLightbox);
+  document.getElementById('lbPrevBtn').addEventListener('click', lbPrev);
+  document.getElementById('lbNextBtn').addEventListener('click', lbNext);
+  lbOverlay.addEventListener('click', e => { if (e.target === lbOverlay) closeLightbox(); });
+
+  document.addEventListener('keydown', e => {
+    if (!lbOverlay.classList.contains('open')) return;
+    if (e.key === 'Escape') closeLightbox();
+    if (e.key === 'ArrowLeft') lbPrev();
+    if (e.key === 'ArrowRight') lbNext();
+  });
+
+  document.getElementById('lbShareEmail').addEventListener('click', () => {
+    const url = encodeURIComponent(window.location.href);
+    window.open('mailto:?subject=' + encodeURIComponent('Boulders — Constructed Matter') + '&body=' + url);
+  });
+  document.getElementById('lbShareTwitter').addEventListener('click', () => {
+    window.open('https://twitter.com/intent/tweet?url=' + encodeURIComponent(window.location.href) + '&text=' + encodeURIComponent('Boulders — Constructed Matter'));
+  });
+  document.getElementById('lbShareFacebook').addEventListener('click', () => {
+    window.open('https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(window.location.href));
+  });
+
+  const copyBtn = document.getElementById('lbCopyLink');
+  const copyTip = document.getElementById('lbCopyTip');
+  copyBtn.addEventListener('click', () => {
+    navigator.clipboard.writeText(window.location.href).then(() => {
+      copyTip.classList.add('visible');
+      setTimeout(() => copyTip.classList.remove('visible'), 1800);
+    });
+  });
+
+  thumbBtns.forEach((btn, i) => {
+    btn.addEventListener('click', () => openLightbox(i));
+  });
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════
+     FAB — SUPPORT WIDGET
+     ═══════════════════════════════════════════════════════════ -->
+<style>
+  #fabCard {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+    pointer-events: none;
+    transition: opacity .22s ease, transform .22s ease;
+  }
+  #fabCard.fab-open {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    pointer-events: auto;
+  }
+</style>
+
+<div id="fabSupport" class="fixed bottom-6 right-6 z-[9999] flex flex-col items-end gap-3">
+
+  <!-- Expandable card -->
+  <div id="fabCard" class="w-[300px] bg-white dark:bg-cmi-dark-light rounded-2xl shadow-2xl border border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden">
+    <div class="px-5 py-4 border-b border-neutral-100 dark:border-neutral-800">
+      <p class="font-semibold text-neutral-900 dark:text-neutral-100 text-[15px]">Constructed Matter Support</p>
+      <p class="text-[12px] text-neutral-500 dark:text-neutral-400 mt-0.5 leading-snug">We're open Monday – Friday 8:00 am to 5:00 pm.</p>
+    </div>
+    <div class="divide-y divide-neutral-100 dark:divide-neutral-800">
+      <a href="tel:+14806284458"
+         class="flex items-center gap-3 px-5 py-3.5 text-[13px] text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 transition-colors">
+        <svg class="w-4 h-4 text-neutral-400 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+          <rect x="5" y="2" width="14" height="20" rx="2"/>
+          <circle cx="12" cy="17" r="1"/>
+        </svg>
+        (480) 628-4458
+      </a>
+      <a href="mailto:hello@constructedmatter.com"
+         class="flex items-center gap-3 px-5 py-3.5 text-[13px] text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 transition-colors">
+        <svg class="w-4 h-4 text-neutral-400 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+          <rect x="2" y="4" width="20" height="16" rx="2"/>
+          <path d="m2 7 10 7 10-7"/>
+        </svg>
+        hello@constructedmatter.com
+      </a>
+      <a href="../quote.html"
+         class="flex items-center gap-3 px-5 py-3.5 text-[13px] text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 transition-colors">
+        <svg class="w-4 h-4 text-neutral-400 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+          <rect x="3" y="4" width="18" height="18" rx="2"/>
+          <path d="M16 2v4M8 2v4M3 10h18"/>
+        </svg>
+        Book Appointment
+      </a>
+    </div>
+    <!-- Close row -->
+    <div class="flex justify-end px-4 py-3 border-t border-neutral-100 dark:border-neutral-800">
+      <button id="fabClose" aria-label="Close" class="w-9 h-9 rounded-full bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 flex items-center justify-center hover:opacity-80 transition-opacity">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+          <path d="M18 6 6 18M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Trigger row -->
+  <div class="flex items-center gap-2">
+    <button id="fabTrigger"
+            aria-expanded="false"
+            class="flex items-center gap-1.5 bg-white dark:bg-cmi-dark-light text-neutral-800 dark:text-neutral-200 text-[13px] font-medium pl-4 pr-4 py-2.5 rounded-full shadow-lg border border-neutral-200/60 dark:border-neutral-800/60 hover:shadow-xl transition-shadow whitespace-nowrap">
+      Need Help?&nbsp;<span class="font-semibold text-cmi-gold-light dark:text-cmi-gold-dark">Contact us</span>
+    </button>
+    <button id="fabIconBtn" aria-label="Support"
+            class="w-11 h-11 rounded-full bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 flex items-center justify-center shadow-lg hover:shadow-xl transition-shadow shrink-0">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+        <path d="M3 11a9 9 0 0 1 18 0"/>
+        <path d="M3 11v3a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-2a2 2 0 0 0-2-2H3z"/>
+        <path d="M21 11v3a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-2a2 2 0 0 1 2-2h3z"/>
+      </svg>
+    </button>
+  </div>
+</div>
+
+<script>
+(function () {
+  var card    = document.getElementById('fabCard');
+  var trigger = document.getElementById('fabTrigger');
+  var icon    = document.getElementById('fabIconBtn');
+  var close   = document.getElementById('fabClose');
+  var open    = false;
+
+  function toggle() {
+    open = !open;
+    card.classList.toggle('fab-open', open);
+    trigger.setAttribute('aria-expanded', open);
+  }
+
+  function closeCard(e) {
+    if (open && !document.getElementById('fabSupport').contains(e.target)) {
+      open = false;
+      card.classList.remove('fab-open');
+      trigger.setAttribute('aria-expanded', 'false');
+    }
+  }
+
+  trigger.addEventListener('click', toggle);
+  icon.addEventListener('click', toggle);
+  close.addEventListener('click', toggle);
+  document.addEventListener('click', closeCard);
+})();
+</script>
+
+  <script>
+  (async () => {
+    try {
+      if (!window.supabase) return;
+      const sb = window.supabase.createClient('https://uoerzrmeibavqgisfzso.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVvZXJ6cm1laWJhdnFnaXNmenNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY4NzY2MzAsImV4cCI6MjA5MjQ1MjYzMH0.b8b2ZFSWMzT7-IR-h7eKbunbdfKPxSI9hvn9Bs0vs4A');
+      const { data } = await sb.from('portfolio').select('*').eq('slug', 'boulders').single();
+      if (!data) return;
+      // Title
+      const h1 = document.querySelector('h1.font-display');
+      if (h1 && data.title) h1.textContent = data.title;
+      // Year
+      const yearEl = document.querySelector('p.text-white\/50');
+      if (yearEl && data.year) yearEl.textContent = data.year;
+      // Description paragraphs
+      const descContainer = document.querySelector('.fade-up p.text-\\[15px\\]')?.parentElement;
+      if (descContainer && data.description) {
+        const existing = descContainer.querySelectorAll('p.text-\\[15px\\]');
+        const paras = data.description.split('\n\n').filter(Boolean);
+        existing.forEach((el, i) => { if (paras[i]) el.textContent = paras[i]; });
+      }
+      // Sidebar fields
+      function setSidebar(label, val) {
+        if (!val) return;
+        const labels = document.querySelectorAll('.sticky p.text-\\[10px\\]');
+        labels.forEach(lEl => {
+          if (lEl.textContent.trim().toLowerCase() === label.toLowerCase()) {
+            const vEl = lEl.nextElementSibling;
+            if (vEl) vEl.textContent = String(val);
+          }
+        });
+      }
+      setSidebar('Category', data.category);
+      setSidebar('Location', data.location);
+      setSidebar('Year Completed', data.year);
+      if (data.square_feet) setSidebar('Square Footage', data.square_feet.toLocaleString() + ' sq ft');
+      if (data.timeline) setSidebar('Timeline', data.timeline);
+      // Scope chips
+      if (data.tags && data.tags.length) {
+        const scopeWrap = document.querySelector('.flex.flex-wrap.gap-2');
+        if (scopeWrap) {
+          scopeWrap.innerHTML = data.tags.map(t =>
+            '<span class="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300">' + t + '</span>'
+          ).join('');
+        }
+      }
+      // Hero image
+      if (data.featured_image) {
+        const heroImg = document.getElementById('heroImg');
+        if (heroImg) heroImg.src = data.featured_image;
+      }
+      // Gallery thumbnails + lightbox sources
+      if (data.gallery_images && data.gallery_images.length) {
+        const strip = document.getElementById('thumbStrip');
+        if (strip) {
+          strip.innerHTML = data.gallery_images.map((url, i) =>
+            '<button class="thumb' + (i === 0 ? ' active' : '') +
+            ' flex-shrink-0 h-[88px] w-[132px] rounded-xl overflow-hidden focus:outline-none"' +
+            ' data-src="' + url + '" aria-label="View image ' + (i + 1) + '">' +
+            '<img src="' + url + '" alt="Photo ' + (i + 1) + '" class="w-full h-full object-cover pointer-events-none" />' +
+            '</button>'
+          ).join('');
+          window.lbSrcs = data.gallery_images.slice();
+          strip.querySelectorAll('.thumb').forEach((btn, i) => {
+            btn.addEventListener('click', () => openLightbox(i));
+          });
+        }
+      }
+    } catch(e) { /* fail silently */ }
+  })();
+  </script>
+</body>
+</html>

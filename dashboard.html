@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<script>
+  (function(){
+    var t=localStorage.getItem('cmi-theme')||'dark';
+    document.documentElement.className=t;
+    // Already logged in? Route immediately
+    var role=localStorage.getItem('cmi-user-role');
+    if(role==='staff'){window.location.replace('staff-dashboard.html');}
+  })();
+</script>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign In — Constructed Matter</title>
+  <link id="favicon" rel="icon" type="image/png" href="https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/cmi_favicon_white.png" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: { cmi: { dark:'#0f0f0f','dark-light':'#161616','dark-2':'#1e1e1e', light:'#F7F5F2','gold-dark':'#C9A46E','gold-light':'#9E6F2E' } },
+          fontFamily: { display:['"DM Serif Display"','Georgia','serif'], body:['Roboto','system-ui','sans-serif'] }
+        }
+      }
+    }
+  </script>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{font-family:'Roboto',system-ui,sans-serif;}
+
+    :root{
+      --bg:#0f0f0f;--surface:#161616;--surface-2:#1e1e1e;
+      --gold:#C9A46E;--gold-alpha:rgba(201,164,110,0.12);
+      --border:rgba(255,255,255,0.06);--border-card:rgba(255,255,255,0.07);
+      --border-md:rgba(255,255,255,0.08);--border-lg:rgba(255,255,255,0.10);
+      --text:#F0EDEA;--text-sub:rgba(255,255,255,0.65);
+      --text-muted:rgba(255,255,255,0.38);--text-dim:rgba(255,255,255,0.45);
+      --text-weak:rgba(255,255,255,0.22);
+      --hover-bg:rgba(255,255,255,0.05);
+    }
+    html.light{
+      --bg:#F7F5F2;--surface:#ffffff;--surface-2:#f0ece6;
+      --gold:#9E6F2E;--gold-alpha:rgba(158,111,46,0.10);
+      --border:rgba(0,0,0,0.06);--border-card:rgba(0,0,0,0.08);
+      --border-md:rgba(0,0,0,0.09);--border-lg:rgba(0,0,0,0.10);
+      --text:#1a1a1a;--text-sub:rgba(0,0,0,0.65);
+      --text-muted:rgba(0,0,0,0.40);--text-dim:rgba(0,0,0,0.50);
+      --text-weak:rgba(0,0,0,0.30);
+      --hover-bg:rgba(0,0,0,0.04);
+    }
+    html.light body{background:var(--bg);color:var(--text);}
+    html.dark body{background:var(--bg);color:var(--text);}
+    html.dark .logo-light,html.light .logo-dark{display:none;}
+    html.dark .logo-dark,html.light .logo-light{display:block;}
+    html.light .text-neutral-100{color:#1a1a1a !important;}
+    html.light .text-neutral-200{color:#2a2a2a !important;}
+    html.light .text-neutral-400{color:rgba(0,0,0,0.55) !important;}
+    html.light .text-neutral-500{color:rgba(0,0,0,0.45) !important;}
+    html.light .text-neutral-600{color:rgba(0,0,0,0.35) !important;}
+
+    .card{background:var(--surface);border:1px solid var(--border-card);border-radius:16px;}
+    .form-label{display:block;font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);margin-bottom:7px;}
+    .form-input{width:100%;background:var(--surface-2);border:1px solid var(--border-lg);border-radius:8px;padding:11px 14px;font-size:14px;color:var(--text);font-family:'Roboto',sans-serif;outline:none;transition:border-color .2s;}
+    .form-input:focus{border-color:var(--gold);}
+    .form-input::placeholder{color:var(--text-weak);}
+    .btn-gold{width:100%;padding:13px;border-radius:10px;background:var(--gold);color:white;font-size:14px;font-weight:500;border:none;cursor:pointer;transition:opacity .2s;font-family:'Roboto',sans-serif;}
+    .btn-gold:hover{opacity:.88;}
+    .btn-gold:disabled{opacity:.5;cursor:default;}
+    .btn-outline{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 20px;border-radius:9px;border:1px solid var(--border-lg);color:var(--text-dim);font-size:13px;font-weight:500;cursor:pointer;background:transparent;font-family:'Roboto',sans-serif;text-decoration:none;transition:all .2s;}
+    .btn-outline:hover{background:var(--hover-bg);color:var(--text);}
+    .theme-btn{width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center;border-radius:9px;border:1px solid var(--border-md);color:var(--text-dim);background:transparent;cursor:pointer;transition:all .2s;}
+    .theme-btn:hover{background:var(--hover-bg);color:var(--text);}
+    .badge{display:inline-flex;align-items:center;padding:4px 12px;border-radius:9999px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;background:var(--gold-alpha);color:var(--gold);}
+    .feature-card{background:var(--surface-2);border:1px solid var(--border-card);border-radius:12px;padding:18px;}
+    .error-box{display:none;font-size:13px;padding:11px 14px;border-radius:8px;background:rgba(239,68,68,0.1);color:#f87171;border:1px solid rgba(239,68,68,0.2);}
+    .divider{height:1px;background:var(--border);margin:20px 0;}
+
+    /* Background texture */
+    body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 80% 50% at 50% -10%,rgba(201,164,110,0.07),transparent);pointer-events:none;z-index:0;}
+    .page-wrap{position:relative;z-index:1;}
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+<div class="page-wrap flex-1 flex flex-col items-center justify-center p-6 min-h-screen">
+
+  <!-- Theme toggle — top right -->
+  <div class="fixed top-5 right-5">
+    <button onclick="toggleTheme()" class="theme-btn" id="themeBtn" title="Toggle theme">
+      <svg id="themeIcon" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+      </svg>
+    </button>
+  </div>
+
+  <div class="w-full max-w-[420px]">
+
+    <!-- Logo -->
+    <div class="text-center mb-8">
+      <img src="https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/CMI_Logo_White.svg" alt="Constructed Matter" class="logo-dark h-8 mx-auto" />
+      <img src="https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/CMI_Logo.svg" alt="Constructed Matter" class="logo-light h-8 mx-auto" />
+    </div>
+
+    <!-- ── LOGIN PANEL ── -->
+    <div id="loginPanel" class="card p-8">
+      <div class="mb-6">
+        <h1 class="font-display text-[26px] text-neutral-100 leading-tight">Welcome back</h1>
+        <p class="text-sm text-neutral-500 mt-1">Sign in to your CMI portal</p>
+      </div>
+
+      <div class="space-y-4">
+        <div>
+          <label class="form-label">Email Address</label>
+          <input id="emailInput" type="email" class="form-input" placeholder="your@email.com" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('passwordInput').focus()" />
+        </div>
+        <div>
+          <label class="form-label" style="display:flex;align-items:center;justify-content:space-between">
+            <span>Password</span>
+            <span id="pwHint" class="normal-case font-normal" style="color:var(--text-muted);font-size:10px;letter-spacing:0">Staff password</span>
+          </label>
+          <input id="passwordInput" type="password" class="form-input" placeholder="Enter your password" autocomplete="current-password" onkeydown="if(event.key==='Enter')handleLogin()" />
+        </div>
+        <div id="errorBox" class="error-box"></div>
+        <button id="signInBtn" onclick="handleLogin()" class="btn-gold">Sign In</button>
+      </div>
+
+      <div class="divider"></div>
+
+      <p class="text-xs text-center" style="color:var(--text-muted)">
+        Sign in with your CMI staff email and password.<br />
+        Contact <a href="mailto:mike@constructedmatter.com" style="color:var(--gold);text-decoration:none">mike@constructedmatter.com</a> if you need access.
+      </p>
+    </div>
+
+    <!-- ── CLIENT / VENDOR COMING SOON PANEL ── -->
+    <div id="clientPanel" class="card p-8 text-center hidden">
+      <div class="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center" style="background:var(--gold-alpha)">
+        <svg class="w-7 h-7" style="color:var(--gold)" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+          <path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+        </svg>
+      </div>
+      <span class="badge mb-4">Coming Soon</span>
+      <h2 class="font-display text-2xl text-neutral-100 mb-2">Client Dashboard</h2>
+      <p class="text-sm text-neutral-500 mb-1">Welcome, <strong id="clientName" class="text-neutral-300"></strong></p>
+      <p class="text-sm text-neutral-500 mb-6">Your project dashboard is on the way. You'll be able to track progress, review documents, and communicate with the CMI team — all in one place.</p>
+
+      <div class="grid grid-cols-3 gap-3 mb-6 text-left">
+        <div class="feature-card">
+          <svg class="w-5 h-5 mb-2" style="color:var(--gold)" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+          <p class="text-xs font-medium text-neutral-200">Project Tracking</p>
+          <p class="text-[11px] text-neutral-500 mt-0.5">Real-time progress on your active builds.</p>
+        </div>
+        <div class="feature-card">
+          <svg class="w-5 h-5 mb-2" style="color:var(--gold)" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          <p class="text-xs font-medium text-neutral-200">Documents</p>
+          <p class="text-[11px] text-neutral-500 mt-0.5">Contracts, permits, and plans in one place.</p>
+        </div>
+        <div class="feature-card">
+          <svg class="w-5 h-5 mb-2" style="color:var(--gold)" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+          <p class="text-xs font-medium text-neutral-200">Messaging</p>
+          <p class="text-[11px] text-neutral-500 mt-0.5">Direct communication with your project team.</p>
+        </div>
+      </div>
+
+      <div class="flex gap-3 justify-center">
+        <a href="index.html" class="btn-outline">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+          Return to Home
+        </a>
+        <a href="contact.html" class="btn-outline">Contact Your Team</a>
+      </div>
+
+      <button onclick="signOut()" class="mt-5 text-xs" style="color:var(--text-muted);background:none;border:none;cursor:pointer;font-family:'Roboto',sans-serif">
+        Sign out
+      </button>
+    </div>
+
+    <!-- Back to site link -->
+    <div class="text-center mt-5">
+      <a href="index.html" class="text-xs" style="color:var(--text-muted);text-decoration:none">
+        ← Back to constructedmatter.com
+      </a>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ─── Staff credentials ────────────────────────────────────────
+// Per-user passwords. Users without an explicit password fall back to STAFF_CODE.
+const STAFF = {
+  'jw@channelcast.io':             { name: 'J. Waters',      password: null },
+  'jwaters@qallus.co':             { name: 'J. Waters',      password: null },
+  'mike@constructedmatter.com':    { name: 'Mike Fadden',    password: null },
+  'brandon@constructedmatter.com': { name: 'Brandon Fadden', password: 'CMI-Brandon-2026' },
+  'joe@constructedmatter.com':     { name: 'Joe Ballard',    password: 'CMI-Joe-2026' },
+};
+// Shared fallback access code (used when password: null above)
+const STAFF_CODE = 'qafn SAYK VJlm zRYt WuWG HOxk';
+
+// ─── Theme ────────────────────────────────────────────────────
+const FAVICON_DARK  = 'https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/cmi_favicon_white.png';
+const FAVICON_LIGHT = 'https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/cmi_favicon_black.png';
+
+function applyTheme(theme) {
+  document.documentElement.className = theme;
+  localStorage.setItem('cmi-theme', theme);
+  document.getElementById('favicon').href = theme === 'light' ? FAVICON_LIGHT : FAVICON_DARK;
+  const icon = document.getElementById('themeIcon');
+  if (!icon) return;
+  icon.innerHTML = theme === 'light'
+    ? '<path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>'
+    : '<circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>';
+}
+function toggleTheme() { applyTheme(document.documentElement.className === 'light' ? 'dark' : 'light'); }
+applyTheme(localStorage.getItem('cmi-theme') || 'dark');
+
+// ─── Helpers ──────────────────────────────────────────────────
+function showError(msg) {
+  const box = document.getElementById('errorBox');
+  box.textContent = msg;
+  box.style.display = 'block';
+}
+function clearError() { document.getElementById('errorBox').style.display = 'none'; }
+
+// ─── Login ────────────────────────────────────────────────────
+function handleLogin() {
+  clearError();
+  const email    = document.getElementById('emailInput').value.trim().toLowerCase();
+  const password = document.getElementById('passwordInput').value.trim();
+
+  if (!email)    { showError('Please enter your email address.'); return; }
+  if (!password) { showError('Please enter your password.'); return; }
+
+  const staffEntry = STAFF[email];
+
+  if (staffEntry) {
+    // Determine which password to check against
+    const expected = (staffEntry.password || STAFF_CODE).replace(/\s+/g,' ').trim();
+    const entered  = password.replace(/\s+/g,' ').trim();
+
+    if (entered === expected) {
+      localStorage.setItem('cmi-auth-token', 'staff-session');
+      localStorage.setItem('cmi-user-name',  staffEntry.name);
+      localStorage.setItem('cmi-user-role',  'staff');
+      localStorage.setItem('cmi-user-email', email);
+      window.location.href = 'staff-dashboard.html';
+    } else {
+      showError('Incorrect password. Please try again.');
+    }
+  } else {
+    // Unknown email → client/vendor placeholder
+    const name = formatName(email);
+    localStorage.setItem('cmi-auth-token', 'client-session');
+    localStorage.setItem('cmi-user-name',  name);
+    localStorage.setItem('cmi-user-role',  'client');
+    localStorage.setItem('cmi-user-email', email);
+    showClientPanel(name);
+  }
+}
+
+function formatName(email) {
+  const local = email.split('@')[0].replace(/[._-]/g,' ');
+  return local.replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function showClientPanel(name) {
+  document.getElementById('loginPanel').classList.add('hidden');
+  const cp = document.getElementById('clientPanel');
+  cp.classList.remove('hidden');
+  document.getElementById('clientName').textContent = name;
+}
+
+function signOut() {
+  ['cmi-auth-token','cmi-user-name','cmi-user-role','cmi-user-email'].forEach(k => localStorage.removeItem(k));
+  document.getElementById('clientPanel').classList.add('hidden');
+  document.getElementById('loginPanel').classList.remove('hidden');
+  document.getElementById('emailInput').value = '';
+  document.getElementById('passwordInput').value = '';
+}
+</script>
+</body>
+</html>
