@@ -1,12 +1,12 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en" class="light">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Constructed Matter — Building What Matters</title>
+  <title>Constructed Matter � Building What Matters</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Favicon -->
-  <link rel="icon" type="image/png" href="https://wp.constructedmatter.com/wp-content/uploads/2026/03/cmi_favicon_black.png" id="faviconEl" />
+  <link rel="icon" type="image/png" href="https://wp-constructedmatter-com-985548.hostingersite.com/wp-content/uploads/2026/03/cmi_favicon_black.png" id="faviconEl" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Roboto:ital,wght@0,300;0,400;0,500;0,700;1,300;1,400&display=swap" rel="stylesheet" />
@@ -33,7 +33,7 @@
     }
   </script>
   <style>
-    /* ── CMI Design Tokens ── */
+    /* -- CMI Design Tokens -- */
     :root {
       --cmi-bg: #F7F5F2;
       --cmi-surface: #ffffff;
@@ -66,16 +66,16 @@
       --cmi-muted-lt: #9E9A96;
     }
 
-    /* ── Base ── */
+    /* -- Base -- */
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: 'Roboto', system-ui, sans-serif; }
 
-    /* ── Theme transitions ── */
+    /* -- Theme transitions -- */
     html, body, header, nav, a, button, div, span, p, svg, section, footer, h1, h2, h3, h4 {
       transition: background-color 0.35s ease, color 0.35s ease, border-color 0.35s ease;
     }
 
-    /* ── Mega Menu ── */
+    /* -- Mega Menu -- */
     .mega-trigger { position: relative; }
     .mega-menu {
       position: absolute;
@@ -104,7 +104,7 @@
       transform: translateX(0) translateY(0);
     }
 
-    /* ── Mobile menu ── */
+    /* -- Mobile menu -- */
     .mobile-overlay {
       opacity: 0; visibility: hidden;
       transition: opacity 0.3s ease, visibility 0.3s ease;
@@ -116,11 +116,11 @@
     }
     .mobile-overlay.open .mobile-panel { transform: translateX(0); }
 
-    /* ── Mobile accordion ── */
+    /* -- Mobile accordion -- */
     .mobile-sub { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; }
     .mobile-sub.expanded { max-height: 400px; }
 
-    /* ── Nav link underline ── */
+    /* -- Nav link underline -- */
     .nav-link::after {
       content: ''; position: absolute; bottom: -2px; left: 0;
       width: 0; height: 1px; transition: width 0.3s ease;
@@ -129,11 +129,11 @@
     .dark .nav-link::after { background-color: #C9A46E; }
     .nav-link:hover::after { width: 100%; }
 
-    /* ── Scrolled header shadow ── */
+    /* -- Scrolled header shadow -- */
     header.scrolled { box-shadow: 0 1px 12px rgba(0,0,0,0.06); }
     .dark header.scrolled { box-shadow: 0 1px 12px rgba(0,0,0,0.4); }
 
-    /* ── Fade-in on scroll ── */
+    /* -- Fade-in on scroll -- */
     .fade-up {
       opacity: 0;
       transform: translateY(30px);
@@ -144,16 +144,16 @@
       transform: translateY(0);
     }
 
-    /* ── Hero — random image on load ── */
+    /* -- Hero � random image on load -- */
     .hero-slide { position: absolute; inset: 0; opacity: 0; }
     .hero-slide.active { opacity: 1; }
 
-    /* ── Hero parallax-like overlay ── */
+    /* -- Hero parallax-like overlay -- */
     .hero-gradient {
       background: linear-gradient(to right, rgba(15,15,15,0.82) 0%, rgba(15,15,15,0.5) 50%, rgba(15,15,15,0.15) 100%);
     }
 
-    /* ── Project card hover ── */
+    /* -- Project card hover -- */
     .project-card img {
       transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
     }
@@ -168,7 +168,7 @@
       opacity: 1;
     }
 
-    /* ── Project Modal ── */
+    /* -- Project Modal -- */
     #projectModal {
       position: fixed; inset: 0; z-index: 1000;
       display: flex; align-items: center; justify-content: center;
@@ -291,7 +291,7 @@
     }
     .modal-btn-quote:hover { opacity: 0.88; }
 
-    /* ── Service card hover line ── */
+    /* -- Service card hover line -- */
     .service-card::after {
       content: '';
       position: absolute;
@@ -308,16 +308,16 @@
       left: 0;
     }
 
-    /* ── Testimonial quote mark ── */
+    /* -- Testimonial quote mark -- */
     .quote-mark {
       font-family: 'DM Serif Display', serif;
       line-height: 1;
     }
 
-    /* ── Hide scrollbar on project carousel ── */
+    /* -- Hide scrollbar on project carousel -- */
     #projectScroll::-webkit-scrollbar { display: none; }
 
-    /* ── Featured Projects: mobile slider ── */
+    /* -- Featured Projects: mobile slider -- */
     @media (max-width: 1023px) {
       #projectsWrapper { height: auto !important; }
       #projectsSticky {
@@ -343,7 +343,7 @@
       }
     }
 
-    /* ── Mobile slider dots / arrows ── */
+    /* -- Mobile slider dots / arrows -- */
     .proj-slider-controls { display: none; }
     @media (max-width: 1023px) {
       .proj-slider-controls { display: flex; }
@@ -363,19 +363,19 @@
 
 <body class="bg-cmi-light dark:bg-cmi-dark text-neutral-900 dark:text-neutral-100 font-body">
 
-<!-- ════════════════════════════════════════════════════════════════════
+<!-- --------------------------------------------------------------------
      HEADER
-     ════════════════════════════════════════════════════════════════════ -->
+     -------------------------------------------------------------------- -->
 <header id="siteHeader" class="fixed top-0 left-0 right-0 z-50 bg-cmi-light/90 dark:bg-cmi-dark/90 backdrop-blur-md border-b border-neutral-200/60 dark:border-neutral-800/60">
   <div class="max-w-[1400px] mx-auto px-6 lg:px-10">
     <nav class="flex items-center justify-between h-[72px]">
 
       <!-- Logo -->
       <a href="index.html" class="flex items-center" aria-label="Constructed Matter Home">
-        <img src="https://wp.constructedmatter.com/wp-content/uploads/2026/03/CMI_Logo.svg"
+        <img src="https://wp-constructedmatter-com-985548.hostingersite.com/wp-content/uploads/2026/03/CMI_Logo.svg"
              alt="Constructed Matter"
              class="block dark:hidden h-9 w-auto" />
-        <img src="https://wp.constructedmatter.com/wp-content/uploads/2026/03/CMI_Logo_White.svg"
+        <img src="https://wp-constructedmatter-com-985548.hostingersite.com/wp-content/uploads/2026/03/CMI_Logo_White.svg"
              alt="Constructed Matter"
              class="hidden dark:block h-9 w-auto" />
       </a>
@@ -466,7 +466,7 @@
               </div>
               <div class="mt-5 pt-4 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-between">
                 <p class="text-xs text-neutral-400 dark:text-neutral-500">Not sure where to start?</p>
-                <a href="quote.html" class="text-xs font-medium text-cmi-gold-light dark:text-cmi-gold-dark hover:underline underline-offset-2">Get a Free Quote →</a>
+                <a href="quote.html" class="text-xs font-medium text-cmi-gold-light dark:text-cmi-gold-dark hover:underline underline-offset-2">Get a Free Quote ?</a>
               </div>
             </div>
           </div>
@@ -502,10 +502,10 @@
   <div class="absolute inset-0 bg-black/40 dark:bg-black/60" id="mobileBackdrop"></div>
   <div class="mobile-panel absolute top-0 right-0 w-[85%] max-w-[380px] h-full bg-cmi-light dark:bg-cmi-dark border-l border-neutral-200/60 dark:border-neutral-800/60 flex flex-col">
     <div class="flex items-center justify-between px-6 h-[72px] border-b border-neutral-200/60 dark:border-neutral-800/60">
-      <img src="https://wp.constructedmatter.com/wp-content/uploads/2026/03/CMI_Logo.svg"
+      <img src="https://wp-constructedmatter-com-985548.hostingersite.com/wp-content/uploads/2026/03/CMI_Logo.svg"
            alt="Constructed Matter"
            class="block dark:hidden h-8 w-auto" />
-      <img src="https://wp.constructedmatter.com/wp-content/uploads/2026/03/CMI_Logo_White.svg"
+      <img src="https://wp-constructedmatter-com-985548.hostingersite.com/wp-content/uploads/2026/03/CMI_Logo_White.svg"
            alt="Constructed Matter"
            class="hidden dark:block h-8 w-auto" />
       <button id="mobileCloseBtn" aria-label="Close menu" class="w-10 h-10 rounded-lg flex items-center justify-center hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors">
@@ -575,19 +575,19 @@
 </div>
 
 
-<!-- ════════════════════════════════════════════════════════════════════
+<!-- --------------------------------------------------------------------
      1. HERO
-     ════════════════════════════════════════════════════════════════════ -->
+     -------------------------------------------------------------------- -->
 <section class="relative h-[92vh] min-h-[600px] overflow-hidden">
   <!-- Background Images (crossfade slideshow) -->
   <div class="hero-slide active">
-    <img src="https://wp.constructedmatter.com/wp-content/uploads/2026/04/VW-Garage-1-scaled.jpg" alt="VW Garage Project" class="absolute inset-0 w-full h-full object-cover" />
+    <img src="https://wp-constructedmatter-com-985548.hostingersite.com/wp-content/uploads/2026/04/VW-Garage-1-scaled.jpg" alt="VW Garage Project" class="absolute inset-0 w-full h-full object-cover" />
   </div>
   <div class="hero-slide">
-    <img src="https://wp.constructedmatter.com/wp-content/uploads/2026/04/1_LorschKit3.jpg" alt="Lorsch Kitchen" class="absolute inset-0 w-full h-full object-cover" />
+    <img src="https://wp-constructedmatter-com-985548.hostingersite.com/wp-content/uploads/2026/04/1_LorschKit3.jpg" alt="Lorsch Kitchen" class="absolute inset-0 w-full h-full object-cover" />
   </div>
   <div class="hero-slide">
-    <img src="https://wp.constructedmatter.com/wp-content/uploads/2026/04/Trinity-Church-Office-4.jpg" alt="Trinity Church Office" class="absolute inset-0 w-full h-full object-cover" />
+    <img src="https://wp-constructedmatter-com-985548.hostingersite.com/wp-content/uploads/2026/04/Trinity-Church-Office-4.jpg" alt="Trinity Church Office" class="absolute inset-0 w-full h-full object-cover" />
   </div>
   <!-- Overlay -->
   <div class="hero-gradient absolute inset-0" style="z-index:1"></div>
@@ -615,9 +615,9 @@
 </section>
 
 
-<!-- ════════════════════════════════════════════════════════════════════
+<!-- --------------------------------------------------------------------
      2. SERVICES
-     ════════════════════════════════════════════════════════════════════ -->
+     -------------------------------------------------------------------- -->
 <section class="py-24 lg:py-32 bg-white dark:bg-cmi-dark-light">
   <div class="max-w-[1400px] mx-auto px-6 lg:px-10">
 
@@ -627,7 +627,7 @@
         <h2 class="font-display text-3xl lg:text-5xl text-neutral-900 dark:text-neutral-100">Services Built on <br class="hidden lg:block"/>Expertise</h2>
       </div>
       <a href="services/index.html" class="text-[13px] font-medium text-cmi-gold-light dark:text-cmi-gold-dark hover:underline underline-offset-4">
-        View all services →
+        View all services ?
       </a>
     </div>
 
@@ -667,7 +667,7 @@
       <a href="services/project-management.html" class="fade-up service-card relative group p-8 rounded-xl border border-neutral-200/80 dark:border-neutral-800/60 hover:border-cmi-gold-light/30 dark:hover:border-cmi-gold-dark/30 bg-cmi-light dark:bg-cmi-dark transition-all overflow-hidden">
         <svg class="w-6 h-6 text-cmi-gold-light dark:text-cmi-gold-dark mb-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 012-2h2a2 2 0 012 2M9 5h6m-3 7h3m-6 4h6"/></svg>
         <h3 class="font-display text-xl text-neutral-900 dark:text-neutral-100 mb-2">Project Management</h3>
-        <p class="text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed">Full oversight from permits to punch list — on time, on budget, and aligned with your vision.</p>
+        <p class="text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed">Full oversight from permits to punch list � on time, on budget, and aligned with your vision.</p>
         <span class="inline-flex items-center gap-1 mt-5 text-xs font-medium text-cmi-gold-light dark:text-cmi-gold-dark opacity-0 group-hover:opacity-100 transition-opacity">
           Learn more <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14m-7-7l7 7-7 7"/></svg>
         </span>
@@ -687,7 +687,7 @@
       <a href="services/new-construction.html" class="fade-up service-card relative group p-8 rounded-xl border border-neutral-200/80 dark:border-neutral-800/60 hover:border-cmi-gold-light/30 dark:hover:border-cmi-gold-dark/30 bg-cmi-light dark:bg-cmi-dark transition-all overflow-hidden">
         <svg class="w-6 h-6 text-cmi-gold-light dark:text-cmi-gold-dark mb-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0H5m14 0h2M5 21H3m4-10h2m4 0h2m-6 4h2m4 0h2"/></svg>
         <h3 class="font-display text-xl text-neutral-900 dark:text-neutral-100 mb-2">New Construction</h3>
-        <p class="text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed">Ground-up builds from foundation to finish — we handle every phase with uncompromising standards.</p>
+        <p class="text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed">Ground-up builds from foundation to finish � we handle every phase with uncompromising standards.</p>
         <span class="inline-flex items-center gap-1 mt-5 text-xs font-medium text-cmi-gold-light dark:text-cmi-gold-dark opacity-0 group-hover:opacity-100 transition-opacity">
           Learn more <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14m-7-7l7 7-7 7"/></svg>
         </span>
@@ -698,9 +698,9 @@
 </section>
 
 
-<!-- ════════════════════════════════════════════════════════════════════
+<!-- --------------------------------------------------------------------
      3. FEATURED PROJECTS (Scroll-driven horizontal slide)
-     ════════════════════════════════════════════════════════════════════ -->
+     -------------------------------------------------------------------- -->
 <div id="projectsWrapper" class="relative bg-cmi-light dark:bg-cmi-dark grid-paper">
   <section id="projectsSticky" class="sticky top-0 h-screen overflow-hidden flex flex-col justify-center">
 
@@ -712,7 +712,7 @@
           <h2 class="font-display text-3xl lg:text-5xl text-neutral-900 dark:text-neutral-100">Featured Projects</h2>
         </div>
         <a href="portfolio.html" class="text-[13px] font-medium text-cmi-gold-light dark:text-cmi-gold-dark hover:underline underline-offset-4">
-          View full portfolio →
+          View full portfolio ?
         </a>
       </div>
     </div>
@@ -721,14 +721,14 @@
     <div class="relative w-full overflow-hidden">
       <div id="projectTrack" class="flex gap-5 pl-6 lg:pl-[max(24px,calc((100vw-1400px)/2+40px))] pr-[30vw] will-change-transform">
 
-        <!-- Project 1 — Ambassador ADU -->
+        <!-- Project 1 � Ambassador ADU -->
         <div class="project-card relative rounded-2xl overflow-hidden flex-shrink-0 w-[340px] sm:w-[420px] lg:w-[500px] aspect-[3/4] group cursor-pointer"
              data-title="Ambassador ADU"
              data-category="ADU"
              data-location="Arcadia / Scottsdale"
              data-year="2024"
-             data-sqft="—"
-             data-timeline="—"
+             data-sqft="�"
+             data-timeline="�"
              data-slug="portfolio/ambassador-adu.html"
              data-image="https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/f8d1c98a-e6b7-4b1d-ab9e-3ce111e9b817/Kit+Detail+2.jpg"
              data-description="A fully designed and furnished accessory dwelling unit in Arcadia/Scottsdale, complete with a full kitchen, private bath, and custom interior detailing from the ground up. CMI handled construction and full interior design and furnishing.">
@@ -743,19 +743,19 @@
             </span>
           </div>
           <div class="absolute bottom-0 left-0 right-0 p-7">
-            <p class="text-[11px] uppercase tracking-widest text-cmi-gold-dark mb-2 font-medium">ADU · Arcadia / Scottsdale</p>
+            <p class="text-[11px] uppercase tracking-widest text-cmi-gold-dark mb-2 font-medium">ADU � Arcadia / Scottsdale</p>
             <h3 class="font-display text-xl lg:text-2xl text-white">Ambassador ADU</h3>
           </div>
         </div>
 
-        <!-- Project 2 — Conrad Interior -->
+        <!-- Project 2 � Conrad Interior -->
         <div class="project-card relative rounded-2xl overflow-hidden flex-shrink-0 w-[340px] sm:w-[420px] lg:w-[500px] aspect-[3/4] group cursor-pointer"
              data-title="Conrad Interior"
              data-category="Interior Design"
              data-location="Scottsdale"
              data-year="2024"
-             data-sqft="—"
-             data-timeline="—"
+             data-sqft="�"
+             data-timeline="�"
              data-slug="portfolio/conrad-interior.html"
              data-image="https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/a5134c71-2845-460c-98cc-a897b612b5d5/Conrad+Residence-13.jpg"
              data-description="A thoughtful interior design transformation for the Conrad Residence, featuring a warm, curated material palette, custom millwork, and layered lighting designed to complement Arizona living while feeling distinctly personal.">
@@ -769,19 +769,19 @@
             </span>
           </div>
           <div class="absolute bottom-0 left-0 right-0 p-7">
-            <p class="text-[11px] uppercase tracking-widest text-cmi-gold-dark mb-2 font-medium">Interior Design · Scottsdale</p>
+            <p class="text-[11px] uppercase tracking-widest text-cmi-gold-dark mb-2 font-medium">Interior Design � Scottsdale</p>
             <h3 class="font-display text-xl lg:text-2xl text-white">Conrad Interior</h3>
           </div>
         </div>
 
-        <!-- Project 3 — Ply Place -->
+        <!-- Project 3 � Ply Place -->
         <div class="project-card relative rounded-2xl overflow-hidden flex-shrink-0 w-[340px] sm:w-[420px] lg:w-[500px] aspect-[3/4] group cursor-pointer"
              data-title="Ply Place"
              data-category="Residential"
              data-location="Scottsdale"
              data-year="2024"
-             data-sqft="—"
-             data-timeline="—"
+             data-sqft="�"
+             data-timeline="�"
              data-slug="portfolio/ply-place.html"
              data-image="https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/1738363725187-C9L2JWZOXXQT2M517PCG/Keim-10.jpg"
              data-description="A residential project where thoughtful design meets precise construction. Ply Place showcases CMI's ability to execute complex custom residential builds with clean finishes, refined detailing, and a strong sense of architectural intention.">
@@ -795,19 +795,19 @@
             </span>
           </div>
           <div class="absolute bottom-0 left-0 right-0 p-7">
-            <p class="text-[11px] uppercase tracking-widest text-cmi-gold-dark mb-2 font-medium">Residential · Scottsdale</p>
+            <p class="text-[11px] uppercase tracking-widest text-cmi-gold-dark mb-2 font-medium">Residential � Scottsdale</p>
             <h3 class="font-display text-xl lg:text-2xl text-white">Ply Place</h3>
           </div>
         </div>
 
-        <!-- Project 4 — Garden Plaza -->
+        <!-- Project 4 � Garden Plaza -->
         <div class="project-card relative rounded-2xl overflow-hidden flex-shrink-0 w-[340px] sm:w-[420px] lg:w-[500px] aspect-[3/4] group cursor-pointer"
              data-title="Garden Plaza"
              data-category="Commercial"
              data-location="Scottsdale"
              data-year="2023"
-             data-sqft="—"
-             data-timeline="—"
+             data-sqft="�"
+             data-timeline="�"
              data-slug="portfolio/garden-plaza.html"
              data-image="https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/1712244593060-S7HC61T66LQH3IRBMVR9/Trinity+Church-14.jpg"
              data-description="A commercial tenant improvement project delivering a polished, functional space that serves its occupants and elevates the surrounding plaza environment. CMI managed permitting, MEP coordination, and full interior build-out.">
@@ -821,19 +821,19 @@
             </span>
           </div>
           <div class="absolute bottom-0 left-0 right-0 p-7">
-            <p class="text-[11px] uppercase tracking-widest text-cmi-gold-dark mb-2 font-medium">Commercial · Scottsdale</p>
+            <p class="text-[11px] uppercase tracking-widest text-cmi-gold-dark mb-2 font-medium">Commercial � Scottsdale</p>
             <h3 class="font-display text-xl lg:text-2xl text-white">Garden Plaza</h3>
           </div>
         </div>
 
-        <!-- Project 5 — Parco -->
+        <!-- Project 5 � Parco -->
         <div class="project-card relative rounded-2xl overflow-hidden flex-shrink-0 w-[340px] sm:w-[420px] lg:w-[500px] aspect-[3/4] group cursor-pointer"
              data-title="Parco"
              data-category="Residential"
              data-location="Scottsdale"
              data-year="2023"
-             data-sqft="—"
-             data-timeline="—"
+             data-sqft="�"
+             data-timeline="�"
              data-slug="portfolio/parco.html"
              data-image="https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/c1b7f55a-c05b-415d-9dd4-8bdffe9f2949/Parco+Residence-12.jpg"
              data-description="The Parco Residence is a high-end custom home build where every material decision, structural detail, and finish was selected with precision. CMI delivered a turnkey home that reflects its owners' lifestyle and Arizona's distinct character.">
@@ -847,12 +847,12 @@
             </span>
           </div>
           <div class="absolute bottom-0 left-0 right-0 p-7">
-            <p class="text-[11px] uppercase tracking-widest text-cmi-gold-dark mb-2 font-medium">Residential · Scottsdale</p>
+            <p class="text-[11px] uppercase tracking-widest text-cmi-gold-dark mb-2 font-medium">Residential � Scottsdale</p>
             <h3 class="font-display text-xl lg:text-2xl text-white">Parco</h3>
           </div>
         </div>
 
-                <!-- Project 6 — Res. Inn -->
+                <!-- Project 6 � Res. Inn -->
         <div class="project-card relative rounded-2xl overflow-hidden flex-shrink-0 w-[340px] sm:w-[420px] lg:w-[500px] aspect-[3/4] group cursor-pointer"
              data-title="Res. Inn"
              data-category="Commercial"
@@ -873,12 +873,12 @@
             </span>
           </div>
           <div class="absolute bottom-0 left-0 right-0 p-7">
-            <p class="text-[11px] uppercase tracking-widest text-cmi-gold-dark mb-2 font-medium">Commercial · Scottsdale</p>
+            <p class="text-[11px] uppercase tracking-widest text-cmi-gold-dark mb-2 font-medium">Commercial � Scottsdale</p>
             <h3 class="font-display text-xl lg:text-2xl text-white">Res. Inn</h3>
           </div>
         </div>
 
-                        <!-- Project 7 — Real Faith Studio -->
+                        <!-- Project 7 � Real Faith Studio -->
         <div class="project-card relative rounded-2xl overflow-hidden flex-shrink-0 w-[340px] sm:w-[420px] lg:w-[500px] aspect-[3/4] group cursor-pointer"
              data-title="Real Faith Studio"
              data-category="Commercial"
@@ -899,12 +899,12 @@
             </span>
           </div>
           <div class="absolute bottom-0 left-0 right-0 p-7">
-            <p class="text-[11px] uppercase tracking-widest text-cmi-gold-dark mb-2 font-medium">Commercial · Scottsdale</p>
+            <p class="text-[11px] uppercase tracking-widest text-cmi-gold-dark mb-2 font-medium">Commercial � Scottsdale</p>
             <h3 class="font-display text-xl lg:text-2xl text-white">Real Faith Studio</h3>
           </div>
         </div>
 
-                                        <!-- Project 8 — VW Garage -->
+                                        <!-- Project 8 � VW Garage -->
         <div class="project-card relative rounded-2xl overflow-hidden flex-shrink-0 w-[340px] sm:w-[420px] lg:w-[500px] aspect-[3/4] group cursor-pointer"
              data-title="VW Garage"
              data-category="Residential"
@@ -913,9 +913,9 @@
              data-sqft="1,500"
              data-timeline="2-months"
              data-slug="portfolio/vw-garage.html"
-             data-image="https://wp.constructedmatter.com/wp-content/uploads/2026/04/VW-Garage-1-50-scaled.jpg"
-             data-description="VW Garage is a standout Constructed Matter project that blends function, craftsmanship, and clean design into one refined space. Thoughtfully built with attention to detail, this project transforms the garage into more than just storage—it becomes an extension of the home, designed to feel polished, purposeful, and elevated.">
-          <img src="https://wp.constructedmatter.com/wp-content/uploads/2026/04/VW-Garage-1-50-scaled.jpg"
+             data-image="https://wp-constructedmatter-com-985548.hostingersite.com/wp-content/uploads/2026/04/VW-Garage-1-50-scaled.jpg"
+             data-description="VW Garage is a standout Constructed Matter project that blends function, craftsmanship, and clean design into one refined space. Thoughtfully built with attention to detail, this project transforms the garage into more than just storage�it becomes an extension of the home, designed to feel polished, purposeful, and elevated.">
+          <img src="https://wp-constructedmatter-com-985548.hostingersite.com/wp-content/uploads/2026/04/VW-Garage-1-50-scaled.jpg"
                alt="VW Garage" class="w-full h-full object-cover" />
           <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent"></div>
           <div class="project-overlay absolute inset-0 flex items-center justify-center">
@@ -925,7 +925,7 @@
             </span>
           </div>
           <div class="absolute bottom-0 left-0 right-0 p-7">
-            <p class="text-[11px] uppercase tracking-widest text-cmi-gold-dark mb-2 font-medium">Residential · Arcadia</p>
+            <p class="text-[11px] uppercase tracking-widest text-cmi-gold-dark mb-2 font-medium">Residential � Arcadia</p>
             <h3 class="font-display text-xl lg:text-2xl text-white">VW Garage</h3>
           </div>
         </div>
@@ -961,16 +961,16 @@
 </div>
 
 
-<!-- ════════════════════════════════════════════════════════════════════
+<!-- --------------------------------------------------------------------
      4. ABOUT / STATS
-     ════════════════════════════════════════════════════════════════════ -->
+     -------------------------------------------------------------------- -->
 <section class="py-24 lg:py-32 bg-white dark:bg-cmi-dark-light">
   <div class="max-w-[1400px] mx-auto px-6 lg:px-10">
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-16 lg:gap-24 items-center">
 
       <!-- Left: Image -->
       <div class="fade-up relative">
-        <img src="https://wp.constructedmatter.com/wp-content/uploads/2026/03/Brandon_Joe.png"
+        <img src="https://wp-constructedmatter-com-985548.hostingersite.com/wp-content/uploads/2026/03/Brandon_Joe.png"
              alt="Brandon Fadden and Joe Ballard, Managing Partners"
              class="rounded-2xl w-full aspect-[4/5] object-cover object-top" />
         <!-- Floating stat card -->
@@ -987,7 +987,7 @@
           Craftsmanship You Can<br/>See and Feel
         </h2>
         <p class="text-neutral-500 dark:text-neutral-400 leading-relaxed mb-8">
-          Constructed Matter is a full-service construction and design firm rooted in Arizona. We believe every project is a partnership — a shared commitment to quality, transparency, and a space that reflects who you are. From the first sketch to the final walkthrough, our team is with you.
+          Constructed Matter is a full-service construction and design firm rooted in Arizona. We believe every project is a partnership � a shared commitment to quality, transparency, and a space that reflects who you are. From the first sketch to the final walkthrough, our team is with you.
         </p>
 
         <!-- Stats Row -->
@@ -1016,9 +1016,9 @@
 </section>
 
 
-<!-- ════════════════════════════════════════════════════════════════════
+<!-- --------------------------------------------------------------------
      5. THE PROCESS
-     ════════════════════════════════════════════════════════════════════ -->
+     -------------------------------------------------------------------- -->
 <section class="py-24 lg:py-32 bg-cmi-dark overflow-hidden">
   <style>
     .pc-card {
@@ -1213,9 +1213,9 @@
 </section>
 
 
-<!-- ════════════════════════════════════════════════════════════════════
+<!-- --------------------------------------------------------------------
      6. TESTIMONIALS
-     ════════════════════════════════════════════════════════════════════ -->
+     -------------------------------------------------------------------- -->
 <section class="py-24 lg:py-32 bg-cmi-light dark:bg-cmi-dark">
   <div class="max-w-[1400px] mx-auto px-6 lg:px-10">
 
@@ -1227,7 +1227,7 @@
         <div class="flex items-center gap-3 mt-4">
           <div class="flex gap-0.5"><svg class="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg><svg class="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg><svg class="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg><svg class="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg><svg class="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg></div>
           <span class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">5.0</span>
-          <span class="text-sm text-neutral-400 dark:text-neutral-500">&nbsp;· 15+ Google Reviews</span>
+          <span class="text-sm text-neutral-400 dark:text-neutral-500">&nbsp;� 15+ Google Reviews</span>
         </div>
       </div>
       <button id="allReviewsBtn" class="inline-flex items-center gap-2 px-6 py-3 rounded-lg text-[13px] font-medium border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:border-cmi-gold-light dark:hover:border-cmi-gold-dark hover:text-cmi-gold-light dark:hover:text-cmi-gold-dark transition-colors shrink-0">
@@ -1316,7 +1316,7 @@
   .dark .review-response { background: rgba(255,255,255,0.03); border-left-color: #C9A46E; }
   .reviews-modal-footer { border-top: 1px solid rgba(0,0,0,0.07); flex-shrink: 0; }
   .dark .reviews-modal-footer { border-top-color: rgba(255,255,255,0.07); }
-  /* ── Grid paper section backgrounds ── */
+  /* -- Grid paper section backgrounds -- */
   .grid-paper {
     background-image:
       linear-gradient(to bottom, #F7F5F2 0%, transparent 20%, transparent 80%, #F7F5F2 100%),
@@ -1337,7 +1337,7 @@
       linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
     background-size: 100% 100%, 40px 40px, 40px 40px;
   }
-  /* ── Review card mobile slider ── */
+  /* -- Review card mobile slider -- */
   .review-slider {
     display: flex;
     gap: 20px;
@@ -1678,9 +1678,9 @@
 </script>
 
 
-<!-- ════════════════════════════════════════════════════════════════════
+<!-- --------------------------------------------------------------------
      7. CTA BANNER
-     ════════════════════════════════════════════════════════════════════ -->
+     -------------------------------------------------------------------- -->
 <section class="relative py-24 lg:py-32 overflow-hidden">
   <!-- YouTube video background -->
   <div class="absolute inset-0 overflow-hidden pointer-events-none">
@@ -1715,9 +1715,9 @@
 </section>
 
 
-<!-- ════════════════════════════════════════════════════════════════════
+<!-- --------------------------------------------------------------------
      7. FOOTER
-     ════════════════════════════════════════════════════════════════════ -->
+     -------------------------------------------------------------------- -->
 <footer class="bg-cmi-dark text-neutral-400 pt-20 pb-8">
   <div class="max-w-[1400px] mx-auto px-6 lg:px-10">
 
@@ -1726,7 +1726,7 @@
       <!-- Brand Column -->
       <div class="lg:col-span-1">
         <div class="mb-5">
-          <img src="https://wp.constructedmatter.com/wp-content/uploads/2026/03/CMI_Logo_White.svg"
+          <img src="https://wp-constructedmatter-com-985548.hostingersite.com/wp-content/uploads/2026/03/CMI_Logo_White.svg"
                alt="Constructed Matter"
                class="h-9 w-auto" />
         </div>
@@ -1826,7 +1826,7 @@
 </footer>
 
 
-<!-- ── Project Detail Modal ── -->
+<!-- -- Project Detail Modal -- -->
 <div id="projectModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
   <div id="modalBackdrop" class="modal-backdrop"></div>
   <div class="modal-card">
@@ -1888,15 +1888,15 @@
   </div>
 </div>
 
-<!-- ════════════════════════════════════════════════════════════════════
+<!-- --------------------------------------------------------------------
      SCRIPTS
-     ════════════════════════════════════════════════════════════════════ -->
+     -------------------------------------------------------------------- -->
 <script>
-  // ── Theme Toggle ──
+  // -- Theme Toggle --
   const html = document.documentElement;
   const faviconEl = document.getElementById('faviconEl');
-  const FAVICON_DARK = 'https://wp.constructedmatter.com/wp-content/uploads/2026/03/cmi_favicon_white.png';
-  const FAVICON_LIGHT = 'https://wp.constructedmatter.com/wp-content/uploads/2026/03/cmi_favicon_black.png';
+  const FAVICON_DARK = 'https://wp-constructedmatter-com-985548.hostingersite.com/wp-content/uploads/2026/03/cmi_favicon_white.png';
+  const FAVICON_LIGHT = 'https://wp-constructedmatter-com-985548.hostingersite.com/wp-content/uploads/2026/03/cmi_favicon_black.png';
 
   function applyTheme(isDark) {
     html.classList.toggle('dark', isDark);
@@ -1916,19 +1916,19 @@
   document.getElementById('themeToggle').addEventListener('click', toggleTheme);
   document.getElementById('mobileThemeToggle').addEventListener('click', toggleTheme);
 
-  // ── Header Scroll Shadow ──
+  // -- Header Scroll Shadow --
   const header = document.getElementById('siteHeader');
   window.addEventListener('scroll', () => {
     header.classList.toggle('scrolled', window.scrollY > 10);
   });
 
-  // ── Mobile Menu ──
+  // -- Mobile Menu --
   const overlay = document.getElementById('mobileOverlay');
   document.getElementById('mobileMenuBtn').addEventListener('click', () => { overlay.classList.add('open'); document.body.style.overflow = 'hidden'; });
   document.getElementById('mobileCloseBtn').addEventListener('click', () => { overlay.classList.remove('open'); document.body.style.overflow = ''; });
   document.getElementById('mobileBackdrop').addEventListener('click', () => { overlay.classList.remove('open'); document.body.style.overflow = ''; });
 
-  // ── Mobile Accordions ──
+  // -- Mobile Accordions --
   function setupAccordion(toggleId, subId, chevronId) {
     const toggle = document.getElementById(toggleId);
     const sub = document.getElementById(subId);
@@ -1942,7 +1942,7 @@
   setupAccordion('mobileServicesToggle', 'mobileServicesSub', 'mobileServicesChevron');
   setupAccordion('mobileAccountToggle', 'mobileAccountSub', 'mobileAccountChevron');
 
-  // ── Fade-up on Scroll ──
+  // -- Fade-up on Scroll --
   const fadeEls = document.querySelectorAll('.fade-up');
   const fadeObserver = new IntersectionObserver((entries) => {
     entries.forEach((entry) => {
@@ -1954,7 +1954,7 @@
   }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
   fadeEls.forEach((el) => fadeObserver.observe(el));
 
-  // ── Project Horizontal Scroll / Mobile Slider ──
+  // -- Project Horizontal Scroll / Mobile Slider --
   const projectsWrapper = document.getElementById('projectsWrapper');
   const projectTrack    = document.getElementById('projectTrack');
   const projectProgress = document.getElementById('projectProgress');
@@ -1966,7 +1966,7 @@
 
   function isMobile() { return window.innerWidth < 1024; }
 
-  // ── Desktop: scroll-driven horizontal translate ──
+  // -- Desktop: scroll-driven horizontal translate --
   function setupProjectScroll() {
     if (isMobile()) {
       projectsWrapper.style.height = '';
@@ -1993,7 +1993,7 @@
     if (projectProgress) projectProgress.style.width = (progress * 100) + '%';
   }
 
-  // ── Mobile: touch swipe slider ──
+  // -- Mobile: touch swipe slider --
   function setupMobileSlider() {
     if (!projDots) return;
     projDots.innerHTML = '';
@@ -2039,7 +2039,7 @@
   });
   window.addEventListener('scroll', onProjectScroll, { passive: true });
 
-  // ── Hero Image — random pick on page load ──
+  // -- Hero Image � random pick on page load --
   (function() {
     const slides = Array.from(document.querySelectorAll('.hero-slide'));
     if (slides.length < 2) return;
@@ -2047,7 +2047,7 @@
     slides[Math.floor(Math.random() * slides.length)].classList.add('active');
   })();
 
-  // ── Project Modal ──
+  // -- Project Modal --
   const modal        = document.getElementById('projectModal');
   const modalImg     = document.getElementById('modalImg');
   const modalGallery = document.getElementById('modalGalleryBtn');
@@ -2098,9 +2098,9 @@
 
 
 
-<!-- ═══════════════════════════════════════════════════════════
-     FAB — SUPPORT WIDGET
-     ═══════════════════════════════════════════════════════════ -->
+<!-- -----------------------------------------------------------
+     FAB � SUPPORT WIDGET
+     ----------------------------------------------------------- -->
 <style>
   #fabCard {
     opacity: 0;
@@ -2121,7 +2121,7 @@
   <div id="fabCard" class="w-[300px] bg-white dark:bg-cmi-dark-light rounded-2xl shadow-2xl border border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden">
     <div class="px-5 py-4 border-b border-neutral-100 dark:border-neutral-800">
       <p class="font-semibold text-neutral-900 dark:text-neutral-100 text-[15px]">Constructed Matter Support</p>
-      <p class="text-[12px] text-neutral-500 dark:text-neutral-400 mt-0.5 leading-snug">We're open Monday – Friday 8:00 am to 5:00 pm.</p>
+      <p class="text-[12px] text-neutral-500 dark:text-neutral-400 mt-0.5 leading-snug">We're open Monday � Friday 8:00 am to 5:00 pm.</p>
     </div>
     <div class="divide-y divide-neutral-100 dark:divide-neutral-800">
       <a href="tel:+14806284458"

@@ -1,4 +1,4 @@
-﻿import os
+import os
 
 BASE = r"c:\Users\jwate\Constructed Matter Inc\portfolio"
 SQSP = "https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/"
@@ -13,9 +13,9 @@ projects = [
     scope=["Detached ADU", "New Construction", "Permitting", "Interior Finishes", "Utility Connection"],
     sqft="620",
     description=[
-      "The Ambassador ADU is a detached accessory dwelling unit set on a generous corner lot in Arcadia — finished to the standard of a primary residence and designed to function as one.",
+      "The Ambassador ADU is a detached accessory dwelling unit set on a generous corner lot in Arcadia � finished to the standard of a primary residence and designed to function as one.",
       "Built as a self-contained income-generating unit, the project required a new utility service lateral, minor site regrading, and custom cabinetry fabricated off-site. The architectural palette mirrors the main house: stucco exterior, clay tile roofline details, and steel-framed windows that let in north light.",
-      "Interior finishes were specified to hotel standard — concrete look tile floors, quartzite kitchen counters, integrated undercabinet lighting, and full-size appliances throughout. From groundbreaking to certificate of occupancy: eight months.",
+      "Interior finishes were specified to hotel standard � concrete look tile floors, quartzite kitchen counters, integrated undercabinet lighting, and full-size appliances throughout. From groundbreaking to certificate of occupancy: eight months.",
     ],
     images=[
       SQSP+"f8d1c98a-e6b7-4b1d-ab9e-3ce111e9b817/Kit+Detail+2.jpg",
@@ -43,9 +43,9 @@ projects = [
     scope=["Custom Home", "New Construction", "Landscape Integration", "Pool & Hardscape", "Smart Home"],
     sqft="3,900",
     description=[
-      "8702 is a ground-up custom residential build in Scottsdale — a single-story desert contemporary home designed around a central courtyard and seamless indoor-outdoor connectivity.",
+      "8702 is a ground-up custom residential build in Scottsdale � a single-story desert contemporary home designed around a central courtyard and seamless indoor-outdoor connectivity.",
       "The project was developed under CMI's full design-build process, with structural and interior design decisions made in parallel from day one. The result is a home where architecture and interiors feel unified rather than assembled.",
-      "The outdoor environment received equal attention — a negative-edge pool, covered ramada, outdoor kitchen, and native landscape design create a resort-quality backyard that functions as a genuine extension of the main living area.",
+      "The outdoor environment received equal attention � a negative-edge pool, covered ramada, outdoor kitchen, and native landscape design create a resort-quality backyard that functions as a genuine extension of the main living area.",
     ],
     images=[
       SQSP+"123aab5a-5d9c-4da3-ade7-0c00a8ae39ea/Brandons+House-1.jpg",
@@ -69,7 +69,7 @@ projects = [
     scope=["Interior Design", "Custom Millwork", "Material Selection", "Finish Coordination", "Lighting Design"],
     sqft="3,400",
     description=[
-      "The Conrad Interior project was a full-scope interior design engagement for a custom residence in Scottsdale — a home that required thoughtful material curation, custom millwork, and a cohesive design language from entry to primary suite.",
+      "The Conrad Interior project was a full-scope interior design engagement for a custom residence in Scottsdale � a home that required thoughtful material curation, custom millwork, and a cohesive design language from entry to primary suite.",
       "Working directly with the homeowners from concept through installation, our interior design team developed a warm, layered palette anchored by limewash plaster walls, honed travertine floors, and unlacquered brass hardware. Every finish selection was made with longevity and livability in mind.",
       "Custom cabinetry was designed in-house and fabricated locally. Lighting design was coordinated with the electrical contractor to achieve a layered, scene-capable system throughout the main living areas.",
     ],
@@ -105,7 +105,7 @@ projects = [
     scope=["Custom Home", "New Construction", "Design-Build", "Landscape Coordination", "Smart Home Integration"],
     sqft="4,100",
     description=[
-      "Ply Place is a ground-up custom residential build in Scottsdale — a modern desert home designed to take full advantage of its site orientation, indoor-outdoor flow, and the Arizona climate.",
+      "Ply Place is a ground-up custom residential build in Scottsdale � a modern desert home designed to take full advantage of its site orientation, indoor-outdoor flow, and the Arizona climate.",
       "The project was delivered under a design-build contract, allowing CMI to integrate structural decisions with interior design selections from the earliest planning stages. The result is a home where storage, lighting, and material transitions feel considered rather than retrofitted.",
       "Large-format sliding glass walls connect the main living area to a fully equipped outdoor kitchen and covered lounge. Interior finishes include wide-plank white oak flooring, custom millwork throughout, and a statement kitchen with waterfall quartzite counters.",
     ],
@@ -136,9 +136,9 @@ projects = [
     scope=["Commercial TI", "MEP Coordination", "ADA Compliance", "Permitting", "Project Management"],
     sqft="8,200",
     description=[
-      "Garden Plaza was a full commercial tenant improvement project in Scottsdale — a multi-suite retail and mixed-use building requiring phased construction around active neighboring tenants.",
+      "Garden Plaza was a full commercial tenant improvement project in Scottsdale � a multi-suite retail and mixed-use building requiring phased construction around active neighboring tenants.",
       "CMI managed all trade coordination, permitting, and ADA compliance for the project. The scope included new MEP systems throughout, demising wall construction, storefront glazing, and finish-out of four tenant suites to base building standard.",
-      "The project was completed on schedule and within budget — a result of aggressive preconstruction planning and a subcontractor buyout that locked pricing three months before construction began.",
+      "The project was completed on schedule and within budget � a result of aggressive preconstruction planning and a subcontractor buyout that locked pricing three months before construction began.",
     ],
     images=[
       SQSP+"1e81aab0-672a-40ef-8ee4-324172b85e8b/Trinity+Church-14.jpg",
@@ -162,7 +162,7 @@ projects = [
     scope=["Exterior Renovation", "Hospitality", "Phased Construction", "Permitting", "Project Management"],
     sqft="18,200",
     description=[
-      "The Residence Inn renovation was a hospitality sector engagement in Mesa — a phased exterior improvement project on an active, occupied Marriott property requiring careful coordination around ongoing guest operations.",
+      "The Residence Inn renovation was a hospitality sector engagement in Mesa � a phased exterior improvement project on an active, occupied Marriott property requiring careful coordination around ongoing guest operations.",
       "CMI managed the full exterior scope, including surface preparation, coating systems, and site logistics designed to minimize disruption to hotel operations. All work was sequenced in coordination with property management to maintain occupancy throughout construction.",
       "The result is a refreshed exterior envelope that brings the property in line with current Marriott brand standards and strengthens the property's competitive position in the Mesa market.",
     ],
@@ -184,7 +184,7 @@ projects = [
     scope=["Interior Design", "Commercial TI", "Custom Millwork", "Finish Coordination", "Permit Management"],
     sqft="2,800",
     description=[
-      "Real Faith Studio was a full interior design and commercial tenant improvement project in Scottsdale — a creative studio environment designed to support the work produced within it.",
+      "Real Faith Studio was a full interior design and commercial tenant improvement project in Scottsdale � a creative studio environment designed to support the work produced within it.",
       "CMI coordinated the complete commercial TI scope in partnership with the interior design team, managing permit coordination, trade supervision, and custom millwork fabrication through to final occupancy.",
       "The finished space features clean-lined built-ins, carefully curated material selections, and a lighting system designed to support both focused creative work and client-facing presentations.",
     ],
@@ -212,7 +212,7 @@ projects = [
     scope=["Commercial Build-Out", "High-Bay Construction", "Specialty MEP", "Permitting", "Project Management"],
     sqft="12,400",
     description=[
-      "The VW Garage project was a ground-up commercial build-out for a specialty automotive facility in Scottsdale — a high-bay, high-finish environment designed for both function and client experience.",
+      "The VW Garage project was a ground-up commercial build-out for a specialty automotive facility in Scottsdale � a high-bay, high-finish environment designed for both function and client experience.",
       "The scope included structural steel framing, specialty mechanical systems (compressed air, vehicle lift infrastructure, exhaust ventilation), high-gloss polished concrete floors, and a premium client lounge and showroom area.",
       "CMI managed all trade coordination and permitting through the City of Scottsdale. The project was completed in 11 months and received its certificate of occupancy ahead of the client's target opening date.",
     ],
@@ -239,7 +239,7 @@ projects = [
     scope=["Luxury Renovation", "Kitchen & Bath", "Structural Modifications", "Custom Millwork", "Exterior Improvements"],
     sqft="5,600",
     description=[
-      "The Parco project was a comprehensive luxury renovation of an existing custom home in Scottsdale — a complete transformation of the interior while preserving the architectural bones of the original structure.",
+      "The Parco project was a comprehensive luxury renovation of an existing custom home in Scottsdale � a complete transformation of the interior while preserving the architectural bones of the original structure.",
       "The scope included a full kitchen and primary bath remodel, structural wall removals to open the main living area, custom built-in millwork throughout, and exterior improvements including a new pool deck and landscape redesign.",
       "CMI managed the project under a design-build contract, coordinating directly with the homeowners on every material selection. The renovation was executed in phases to allow the family to remain in the home throughout construction.",
     ],
@@ -260,13 +260,13 @@ projects = [
   ),
 ]
 
-NAV = '''<!-- ── Header ── -->
+NAV = '''<!-- -- Header -- -->
 <header id="siteHeader" class="fixed top-0 left-0 right-0 z-50 bg-cmi-light/90 dark:bg-cmi-dark/90 backdrop-blur-md border-b border-neutral-200/60 dark:border-neutral-800/50 transition-all">
   <div class="max-w-[1400px] mx-auto px-6 lg:px-10">
     <div class="flex items-center justify-between h-[72px]">
       <a href="../index.html" class="flex items-center" aria-label="Constructed Matter Home">
-        <img src="https://wp.constructedmatter.com/wp-content/uploads/2026/03/CMI_Logo_Black.svg" alt="Constructed Matter" class="h-8 w-auto block dark:hidden" />
-        <img src="https://wp.constructedmatter.com/wp-content/uploads/2026/03/CMI_Logo_White.svg" alt="Constructed Matter" class="h-8 w-auto hidden dark:block" />
+        <img src="https://wp-constructedmatter-com-985548.hostingersite.com/wp-content/uploads/2026/03/CMI_Logo_Black.svg" alt="Constructed Matter" class="h-8 w-auto block dark:hidden" />
+        <img src="https://wp-constructedmatter-com-985548.hostingersite.com/wp-content/uploads/2026/03/CMI_Logo_White.svg" alt="Constructed Matter" class="h-8 w-auto hidden dark:block" />
       </a>
       <nav class="hidden lg:flex items-center gap-1">
         <div class="mega-trigger">
@@ -317,8 +317,8 @@ NAV = '''<!-- ── Header ── -->
   <div id="mobileBackdrop" class="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
   <div class="mobile-panel absolute top-0 right-0 bottom-0 w-[300px] bg-white dark:bg-cmi-dark-light shadow-2xl overflow-y-auto">
     <div class="flex items-center justify-between p-5 border-b border-neutral-100 dark:border-neutral-800">
-      <img src="https://wp.constructedmatter.com/wp-content/uploads/2026/03/CMI_Logo_Black.svg" alt="CMI" class="h-7 w-auto block dark:hidden" />
-      <img src="https://wp.constructedmatter.com/wp-content/uploads/2026/03/CMI_Logo_White.svg" alt="CMI" class="h-7 w-auto hidden dark:block" />
+      <img src="https://wp-constructedmatter-com-985548.hostingersite.com/wp-content/uploads/2026/03/CMI_Logo_Black.svg" alt="CMI" class="h-7 w-auto block dark:hidden" />
+      <img src="https://wp-constructedmatter-com-985548.hostingersite.com/wp-content/uploads/2026/03/CMI_Logo_White.svg" alt="CMI" class="h-7 w-auto hidden dark:block" />
       <button id="mobileCloseBtn" class="w-8 h-8 rounded-lg flex items-center justify-center text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
       </button>
@@ -350,12 +350,12 @@ NAV = '''<!-- ── Header ── -->
   </div>
 </div>'''
 
-FOOTER = '''<!-- ── Footer ── -->
+FOOTER = '''<!-- -- Footer -- -->
 <footer class="bg-cmi-dark border-t border-neutral-800/60">
   <div class="max-w-[1400px] mx-auto px-6 lg:px-10 py-16">
     <div class="grid grid-cols-1 md:grid-cols-4 gap-10">
       <div>
-        <img src="https://wp.constructedmatter.com/wp-content/uploads/2026/03/CMI_Logo_White.svg" alt="Constructed Matter" class="h-8 w-auto mb-4" />
+        <img src="https://wp-constructedmatter-com-985548.hostingersite.com/wp-content/uploads/2026/03/CMI_Logo_White.svg" alt="Constructed Matter" class="h-8 w-auto mb-4" />
         <p class="text-sm text-neutral-500 leading-relaxed">Building with intention. Delivering with precision.</p>
       </div>
       <div>
@@ -424,8 +424,8 @@ def make_page(p):
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>{title} — Constructed Matter</title>
-  <link rel="icon" type="image/png" href="https://wp.constructedmatter.com/wp-content/uploads/2026/03/cmi_favicon_black.png" id="faviconEl" />
+  <title>{title} � Constructed Matter</title>
+  <link rel="icon" type="image/png" href="https://wp-constructedmatter-com-985548.hostingersite.com/wp-content/uploads/2026/03/cmi_favicon_black.png" id="faviconEl" />
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -491,7 +491,7 @@ def make_page(p):
 
 {NAV}
 
-<!-- ── Hero ── -->
+<!-- -- Hero -- -->
 <div style="margin-top:72px" class="relative bg-neutral-900" style="height:62vh; min-height:440px;">
   <div class="w-full" style="height:62vh; min-height:440px; position:relative; overflow:hidden;">
     <img id="heroImg" src="{hero_img}" alt="{title}" />
@@ -512,7 +512,7 @@ def make_page(p):
   </div>
 </div>
 
-<!-- ── Thumbnail Strip ── -->
+<!-- -- Thumbnail Strip -- -->
 <div class="bg-neutral-900 border-b border-neutral-800">
   <div class="max-w-[1400px] mx-auto">
     <div class="thumb-strip" id="thumbStrip">
@@ -521,7 +521,7 @@ def make_page(p):
   </div>
 </div>
 
-<!-- ── Main Content ── -->
+<!-- -- Main Content -- -->
 <section class="py-16 lg:py-24 bg-white dark:bg-cmi-dark-light">
   <div class="max-w-[1400px] mx-auto px-6 lg:px-10">
     <div class="grid grid-cols-1 lg:grid-cols-[1fr_300px] xl:grid-cols-[1fr_340px] gap-12 lg:gap-20">
@@ -571,7 +571,7 @@ def make_page(p):
   </div>
 </section>
 
-<!-- ── CTA ── -->
+<!-- -- CTA -- -->
 <section class="py-20 bg-cmi-light dark:bg-cmi-dark border-t border-neutral-200/60 dark:border-neutral-800/60">
   <div class="max-w-[1400px] mx-auto px-6 lg:px-10 text-center fade-up">
     <p class="text-[12px] uppercase tracking-[0.25em] text-cmi-gold-light dark:text-cmi-gold-dark font-medium mb-4">Work With Us</p>
@@ -593,8 +593,8 @@ def make_page(p):
   function applyTheme(isDark) {{
     html.classList.toggle('dark', isDark); html.classList.toggle('light', !isDark);
     if (faviconEl) faviconEl.href = isDark
-      ? 'https://wp.constructedmatter.com/wp-content/uploads/2026/03/cmi_favicon_white.png'
-      : 'https://wp.constructedmatter.com/wp-content/uploads/2026/03/cmi_favicon_black.png';
+      ? 'https://wp-constructedmatter-com-985548.hostingersite.com/wp-content/uploads/2026/03/cmi_favicon_white.png'
+      : 'https://wp-constructedmatter-com-985548.hostingersite.com/wp-content/uploads/2026/03/cmi_favicon_black.png';
   }}
   const stored = localStorage.getItem('cmi-theme');
   applyTheme(stored === 'dark' || (!stored && window.matchMedia('(prefers-color-scheme: dark)').matches));
@@ -620,7 +620,7 @@ def make_page(p):
     new IntersectionObserver(entries => {{ entries.forEach(e => {{ if(e.isIntersecting) e.target.classList.add('visible'); }}); }}, {{threshold:0.08}}).observe(el);
   }});
 
-  // ── Thumbnail → Hero switcher ──
+  // -- Thumbnail ? Hero switcher --
   const heroImg  = document.getElementById('heroImg');
   const thumbBtns = document.querySelectorAll('#thumbStrip .thumb');
 
