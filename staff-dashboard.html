@@ -2339,62 +2339,26 @@ let BK_CAL_MONTH   = new Date().getMonth();
 async function loadFBBookings() {
   const wrap = document.getElementById('bkContent');
   if (wrap) wrap.innerHTML = '<div class="py-16 text-center text-sm" style="color:var(--text-muted)">Loading bookings…</div>';
-  const H = { Authorization: WP_AUTH };
 
-  // 1. Load calendars — shape: {calendars:{current_page,data:[...]}}
+  // Bookings come from Supabase (synced via Fluent Booking → n8n webhook)
+  if (sb) {
+    const { data, error } = await sb.from('bookings').select('*').order('start_datetime', { ascending: true });
+    if (error) console.warn('[Bookings] Supabase error:', error);
+    else FB_BOOKINGS = data || [];
+  }
+
+  // Event types still come from Fluent Booking REST API (calendars endpoint works)
   try {
-    const r = await fetch(FB_BOOK_BASE + '/calendars?per_page=50', { headers: H });
+    const r = await fetch(FB_BOOK_BASE + '/calendars?per_page=50', { headers: { Authorization: WP_AUTH } });
     if (r.ok) {
       const d = await r.json();
-      if (d.calendars && Array.isArray(d.calendars.data))   FB_CALENDARS = d.calendars.data;
-      else if (Array.isArray(d))                             FB_CALENDARS = d;
-      else if (Array.isArray(d.data))                        FB_CALENDARS = d.data;
-    }
-  } catch(e) { console.warn('[FB Cal]', e); }
-  console.log('[FB Cal] parsed', FB_CALENDARS.length, 'calendars');
-
-  // 2. Main bookings endpoint (returns empty for per-slot bookings — try anyway)
-  try {
-    const r = await fetch(FB_BOOK_BASE + '/bookings?per_page=200', { headers: H });
-    if (r.ok) {
-      const d = await r.json();
-      const bks = Array.isArray(d) ? d : (Array.isArray(d.bookings) ? d.bookings : Array.isArray(d.data) ? d.data : []);
-      FB_BOOKINGS = bks;
+      if (d.calendars && Array.isArray(d.calendars.data)) FB_CALENDARS = d.calendars.data;
+      else if (Array.isArray(d))                           FB_CALENDARS = d;
+      else if (Array.isArray(d.data))                      FB_CALENDARS = d.data;
     }
   } catch(e) {}
 
-  // 3. Broad probe sweep — try every reasonable variation and log all non-empty 200s
-  if (FB_BOOKINGS.length === 0) {
-    const statuses = ['scheduled','pending','completed','cancelled','upcoming','all','approved'];
-    const probeUrls = [
-      ...statuses.map(s => FB_BOOK_BASE + '/bookings?status=' + s + '&per_page=200'),
-      FB_BOOK_BASE + '/attendees?per_page=200',
-      FB_BOOK_BASE + '/slots?per_page=200',
-      FB_BOOK_BASE + '/appointments?per_page=200',
-      WP_BASE + '/fluent-booking/v1/bookings?per_page=200',
-      WP_BASE + '/fluent-booking/v2/admin/bookings?per_page=200',
-    ];
-    // Also add per-slot hash-based lookup from calendars
-    for (const cal of FB_CALENDARS) {
-      (cal.slots || []).forEach(sl => {
-        probeUrls.push(FB_BOOK_BASE + '/bookings?hash=' + sl.hash + '&per_page=200');
-        probeUrls.push(FB_BOOK_BASE + '/bookings?event_id=' + sl.id + '&per_page=200');
-      });
-    }
-    for (const url of probeUrls) {
-      try {
-        const r = await fetch(url, { headers: H });
-        if (!r.ok) continue;
-        const d = await r.json();
-        const bks = Array.isArray(d) ? d : (Array.isArray(d.bookings) ? d.bookings : Array.isArray(d.data) ? d.data : Array.isArray(d.appointments) ? d.appointments : []);
-        const label = url.replace(WP_BASE + '/fluent-booking/', '');
-        console.log('[FB Probe]', label, '→ total:', (d.total ?? bks.length), '| shape sample:', JSON.stringify(d).slice(0, 300));
-        if (bks.length > 0) { FB_BOOKINGS = bks; break; }
-      } catch(e) {}
-    }
-  }
-
-  console.log('[FB] Final: calendars', FB_CALENDARS.length, 'bookings', FB_BOOKINGS.length);
+  console.log('[Bookings] Supabase:', FB_BOOKINGS.length, '| Calendars:', FB_CALENDARS.length);
   bkSyncLegacy();
   renderUpcoming();
   renderBkContent();
@@ -2404,24 +2368,24 @@ function bkSyncLegacy() {
   BOOKINGS.length = 0;
   const now = new Date();
   FB_BOOKINGS
-    .filter(b => { const d = new Date(b.scheduled_at || b.start_time || b.created_at); return d >= now; })
+    .filter(b => { const d = new Date(b.start_datetime || b.created_at); return d >= now; })
     .slice(0,10)
     .forEach(b => BOOKINGS.push(bkToLegacy(b)));
 }
 
 function bkToLegacy(b) {
-  const dt = new Date(b.scheduled_at || b.start_time || b.created_at);
+  const dt = new Date(b.start_datetime || b.created_at);
   return {
-    name:   b.person_name || b.name || b.full_name || 'Guest',
-    type:   (b.calendar_event && b.calendar_event.title) || b.event_type || 'Meeting',
+    name:   b.guest_name || 'Guest',
+    type:   b.booking_type || b.title || 'Meeting',
     date:   dt.toLocaleDateString('en-US', { month:'short', day:'numeric' }),
     time:   dt.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' }),
-    status: b.status || 'scheduled',
+    status: b.status || 'pending',
   };
 }
 
 function bkStatusBadge(status) {
-  const map = { scheduled:'b-blue', completed:'b-green', cancelled:'b-red', pending:'b-amber', rejected:'b-red' };
+  const map = { confirmed:'b-blue', scheduled:'b-blue', completed:'b-green', cancelled:'b-red', pending:'b-amber', rejected:'b-red' };
   const label = status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Unknown';
   return '<span class="badge ' + (map[status] || 'b-neutral') + ' text-[10px]">' + label + '</span>';
 }
@@ -2440,8 +2404,8 @@ function bkGetFiltered() {
   const now = new Date(); now.setHours(0,0,0,0);
   if (BK_FILTER === 'upcoming') {
     return FB_BOOKINGS.filter(b => {
-      const d = new Date(b.scheduled_at || b.start_time || '');
-      return (b.status === 'scheduled' || b.status === 'pending') && d >= now;
+      const d = new Date(b.start_datetime || '');
+      return (b.status === 'confirmed' || b.status === 'scheduled' || b.status === 'pending') && (!b.start_datetime || d >= now);
     });
   }
   if (BK_FILTER === 'completed') return FB_BOOKINGS.filter(b => b.status === 'completed');
@@ -2484,17 +2448,17 @@ function renderBkList() {
   html += '<span class="text-[10px] uppercase tracking-widest font-medium" style="color:var(--text-muted)">Status</span>';
   html += '<span></span></div>';
   bookings.forEach(function(b) {
-    const dt   = bkFmtDateTime(b.scheduled_at || b.start_time);
-    const name = escHtml(b.person_name || b.name || b.full_name || 'Guest');
-    const email= escHtml(b.email || '');
-    const evt  = escHtml((b.calendar_event && b.calendar_event.title) || b.event_type || 'Meeting');
-    const color= (b.calendar_event && b.calendar_event.color) || '#C9A46E';
-    html += '<div class="bk-row" onclick="openBkDetail(' + b.id + ')">';
+    const dt   = bkFmtDateTime(b.start_datetime);
+    const name = escHtml(b.guest_name || 'Guest');
+    const email= escHtml(b.guest_email || '');
+    const evt  = escHtml(b.booking_type || b.title || 'Meeting');
+    const bid  = escAttr(b.id);
+    html += '<div class="bk-row" onclick="openBkDetail(\'' + bid + '\')">';
     html += '<div><p class="text-sm font-medium" style="color:var(--text)">' + name + '</p><p class="text-xs" style="color:var(--text-muted)">' + email + '</p></div>';
-    html += '<div class="flex items-center gap-2"><span class="bk-dot" style="background:' + escAttr(color) + '"></span><span class="text-sm" style="color:var(--text-sub)">' + evt + '</span></div>';
+    html += '<div class="flex items-center gap-2"><span class="bk-dot" style="background:#C9A46E"></span><span class="text-sm" style="color:var(--text-sub)">' + evt + '</span></div>';
     html += '<div><p class="text-sm" style="color:var(--text-sub)">' + escHtml(dt.date) + '</p><p class="text-xs" style="color:var(--text-muted)">' + escHtml(dt.time) + '</p></div>';
     html += bkStatusBadge(b.status);
-    html += '<div class="flex gap-2 justify-end"><button onclick="event.stopPropagation();openBkDetail(' + b.id + ')" class="text-xs hover:underline" style="color:var(--gold)">View</button></div>';
+    html += '<div class="flex gap-2 justify-end"><button onclick="event.stopPropagation();openBkDetail(\'' + bid + '\')" class="text-xs hover:underline" style="color:var(--gold)">View</button></div>';
     html += '</div>';
   });
   html += '</div>';
@@ -2513,7 +2477,7 @@ function renderBkCalendar() {
   // Map bookings to day numbers for this month
   const bookingDays = {};
   FB_BOOKINGS.forEach(function(b) {
-    const d = new Date(b.scheduled_at || b.start_time || '');
+    const d = new Date(b.start_datetime || '');
     if (isNaN(d)) return;
     if (d.getFullYear() === year && d.getMonth() === month) {
       const day = d.getDate();
@@ -2546,7 +2510,7 @@ function renderBkCalendar() {
     let cls = 'cal-day-wrap';
     if (isToday) cls += ' today';
     if (bks.length) cls += ' has-bookings';
-    const dotHtml  = bks.slice(0,3).map(function(b) { const c = (b.calendar_event && b.calendar_event.color) || '#C9A46E'; return '<span class="bk-cal-dot" style="background:' + c + '"></span>'; }).join('');
+    const dotHtml  = bks.slice(0,3).map(function() { return '<span class="bk-cal-dot" style="background:#C9A46E"></span>'; }).join('');
     html += '<div class="' + cls + '" onclick="bkCalDayClick(' + d + ')">';
     html += '<span>' + d + '</span>';
     if (dotHtml) html += '<div class="flex justify-center gap-0.5">' + dotHtml + '</div>';
@@ -2570,12 +2534,11 @@ function bkCalNext() {
 }
 function bkCalDayClick(day) {
   const bks = FB_BOOKINGS.filter(function(b) {
-    const d = new Date(b.scheduled_at || b.start_time || '');
+    const d = new Date(b.start_datetime || '');
     return !isNaN(d) && d.getFullYear() === BK_CAL_YEAR && d.getMonth() === BK_CAL_MONTH && d.getDate() === day;
   });
   if (!bks.length) return;
   if (bks.length === 1) { openBkDetail(bks[0].id); return; }
-  // Show mini list below calendar
   const existing = document.getElementById('bkCalDayList');
   if (existing) existing.remove();
   const div = document.createElement('div');
@@ -2584,14 +2547,15 @@ function bkCalDayClick(day) {
   const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   div.innerHTML = '<div class="px-4 py-3 border-b" style="border-color:var(--border-md)"><p class="text-xs font-medium" style="color:var(--text-muted)">' + monthNames[BK_CAL_MONTH] + ' ' + day + ' — ' + bks.length + ' bookings</p></div>' +
     bks.map(function(b) {
-      const dt = bkFmtDateTime(b.scheduled_at || b.start_time);
-      const name = escHtml(b.person_name || b.name || 'Guest');
-      const evt  = escHtml((b.calendar_event && b.calendar_event.title) || 'Meeting');
-      return '<div class="bk-row" style="grid-template-columns:1fr 140px 90px 60px" onclick="openBkDetail(' + b.id + ')">' +
+      const dt  = bkFmtDateTime(b.start_datetime);
+      const name = escHtml(b.guest_name || 'Guest');
+      const evt  = escHtml(b.booking_type || b.title || 'Meeting');
+      const bid  = escAttr(b.id);
+      return '<div class="bk-row" style="grid-template-columns:1fr 140px 90px 60px" onclick="openBkDetail(\'' + bid + '\')">' +
         '<div><p class="text-sm font-medium" style="color:var(--text)">' + name + '</p><p class="text-xs" style="color:var(--text-muted)">' + evt + '</p></div>' +
         '<p class="text-xs" style="color:var(--text-muted)">' + escHtml(dt.time) + '</p>' +
         bkStatusBadge(b.status) +
-        '<button onclick="event.stopPropagation();openBkDetail(' + b.id + ')" class="text-xs" style="color:var(--gold)">View</button>' +
+        '<button onclick="event.stopPropagation();openBkDetail(\'' + bid + '\')" class="text-xs" style="color:var(--gold)">View</button>' +
         '</div>';
     }).join('');
   document.getElementById('bkContent').appendChild(div);
@@ -2648,15 +2612,15 @@ function renderBkEvents() {
 function openBkDetail(id) {
   const b = FB_BOOKINGS.find(function(x) { return x.id === id; });
   if (!b) return;
-  const dt     = bkFmtDateTime(b.scheduled_at || b.start_time);
-  const dtEnd  = bkFmtDateTime(b.end_time);
-  const name   = escHtml(b.person_name || b.name || b.full_name || 'Guest');
-  const email  = escHtml(b.email || '—');
-  const phone  = escHtml(b.phone || b.phone_number || '—');
-  const evtTitle = escHtml((b.calendar_event && b.calendar_event.title) || b.event_type || 'Meeting');
-  const loc    = escHtml(b.location || (b.meeting_details && b.meeting_details.location) || '—');
-  const note   = escHtml(b.note || b.message || '—');
-  const evtColor = (b.calendar_event && b.calendar_event.color) || '#C9A46E';
+  const dt     = bkFmtDateTime(b.start_datetime);
+  const dtEnd  = bkFmtDateTime(b.end_datetime);
+  const name   = escHtml(b.guest_name || 'Guest');
+  const email  = escHtml(b.guest_email || '—');
+  const phone  = escHtml(b.guest_phone || '—');
+  const evtTitle = escHtml(b.booking_type || b.title || 'Meeting');
+  const loc    = escHtml(b.location || b.meeting_url || '—');
+  const note   = escHtml(b.notes || '—');
+  const evtColor = '#C9A46E';
 
   let html = '';
   // Status bar
@@ -2698,44 +2662,27 @@ function closeBkDetail() {
 }
 
 async function bkUpdateStatus(id, status) {
-  try {
-    const res = await fetch(FB_BOOK_BASE + '/bookings/' + id, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: WP_AUTH },
-      body: JSON.stringify({ status: status }),
-    });
-    if (res.ok) {
-      const idx = FB_BOOKINGS.findIndex(function(b) { return b.id === id; });
-      if (idx >= 0) FB_BOOKINGS[idx].status = status;
-      closeBkDetail();
-      renderBkContent();
-      bkSyncLegacy(); renderUpcoming();
-      showToast('Booking updated');
-    } else {
-      const e = await res.json().catch(function() { return {}; });
-      showToast('Error: ' + (e.message || res.status));
-    }
-  } catch(e) { showToast('Network error: ' + e.message); }
+  if (!sb) { showToast('Supabase not connected'); return; }
+  const { error } = await sb.from('bookings').update({ status, updated_at: new Date().toISOString() }).eq('id', id);
+  if (error) { showToast('Error: ' + error.message); return; }
+  const idx = FB_BOOKINGS.findIndex(function(b) { return b.id === id; });
+  if (idx >= 0) FB_BOOKINGS[idx].status = status;
+  closeBkDetail();
+  renderBkContent();
+  bkSyncLegacy(); renderUpcoming();
+  showToast('Booking updated');
 }
 
 async function bkDelete(id) {
   if (!confirm('Delete this booking permanently?')) return;
-  try {
-    const res = await fetch(FB_BOOK_BASE + '/bookings/' + id, {
-      method: 'DELETE',
-      headers: { Authorization: WP_AUTH },
-    });
-    if (res.ok) {
-      FB_BOOKINGS = FB_BOOKINGS.filter(function(b) { return b.id !== id; });
-      closeBkDetail();
-      renderBkContent();
-      bkSyncLegacy(); renderUpcoming();
-      showToast('Booking deleted');
-    } else {
-      const e = await res.json().catch(function() { return {}; });
-      showToast('Error: ' + (e.message || res.status));
-    }
-  } catch(e) { showToast('Network error: ' + e.message); }
+  if (!sb) { showToast('Supabase not connected'); return; }
+  const { error } = await sb.from('bookings').delete().eq('id', id);
+  if (error) { showToast('Error: ' + error.message); return; }
+  FB_BOOKINGS = FB_BOOKINGS.filter(function(b) { return b.id !== id; });
+  closeBkDetail();
+  renderBkContent();
+  bkSyncLegacy(); renderUpcoming();
+  showToast('Booking deleted');
 }
 
 async function bkSendConfirmation(id) {
