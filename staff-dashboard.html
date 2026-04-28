@@ -2363,52 +2363,35 @@ async function loadFBBookings() {
     }
   } catch(e) {}
 
-  // 3. If still empty, probe per-calendar and per-slot endpoints
+  // 3. Broad probe sweep — try every reasonable variation and log all non-empty 200s
   if (FB_BOOKINGS.length === 0) {
-    const all = [];
+    const statuses = ['scheduled','pending','completed','cancelled','upcoming','all','approved'];
+    const probeUrls = [
+      ...statuses.map(s => FB_BOOK_BASE + '/bookings?status=' + s + '&per_page=200'),
+      FB_BOOK_BASE + '/attendees?per_page=200',
+      FB_BOOK_BASE + '/slots?per_page=200',
+      FB_BOOK_BASE + '/appointments?per_page=200',
+      WP_BASE + '/fluent-booking/v1/bookings?per_page=200',
+      WP_BASE + '/fluent-booking/v2/admin/bookings?per_page=200',
+    ];
+    // Also add per-slot hash-based lookup from calendars
     for (const cal of FB_CALENDARS) {
-      // Try calendar-level booking endpoint
-      const calUrls = [
-        FB_BOOK_BASE + '/calendars/' + cal.id + '/bookings?per_page=200',
-        FB_BOOK_BASE + '/bookings?calendar_id=' + cal.id + '&per_page=200',
-      ];
-      for (const url of calUrls) {
-        try {
-          const r = await fetch(url, { headers: H });
-          console.log('[FB Book] per-cal', r.status, url);
-          if (r.ok) {
-            const d = await r.json();
-            console.log('[FB Book] per-cal shape:', JSON.stringify(d).slice(0, 800));
-            const bks = Array.isArray(d) ? d : (Array.isArray(d.bookings) ? d.bookings : Array.isArray(d.data) ? d.data : []);
-            bks.forEach(b => { if (!all.find(x => x.id === b.id)) all.push(b); });
-            if (bks.length > 0) break;
-          }
-        } catch(e) {}
-      }
-      // Try per-slot booking endpoints (slots are embedded in calendar data)
-      const slots = Array.isArray(cal.slots) ? cal.slots : [];
-      for (const slot of slots) {
-        const slotUrls = [
-          FB_BOOK_BASE + '/calendars/' + cal.id + '/slots/' + slot.id + '/bookings?per_page=200',
-          FB_BOOK_BASE + '/bookings?slot_id=' + slot.id + '&per_page=200',
-          FB_BOOK_BASE + '/slots/' + slot.id + '/bookings?per_page=200',
-        ];
-        for (const url of slotUrls) {
-          try {
-            const r = await fetch(url, { headers: H });
-            console.log('[FB Book] per-slot', r.status, url);
-            if (r.ok) {
-              const d = await r.json();
-              console.log('[FB Book] per-slot shape:', JSON.stringify(d).slice(0, 800));
-              const bks = Array.isArray(d) ? d : (Array.isArray(d.bookings) ? d.bookings : Array.isArray(d.data) ? d.data : []);
-              bks.forEach(b => { if (!all.find(x => x.id === b.id)) all.push(b); });
-              if (bks.length > 0) break;
-            }
-          } catch(e) {}
-        }
-      }
+      (cal.slots || []).forEach(sl => {
+        probeUrls.push(FB_BOOK_BASE + '/bookings?hash=' + sl.hash + '&per_page=200');
+        probeUrls.push(FB_BOOK_BASE + '/bookings?event_id=' + sl.id + '&per_page=200');
+      });
     }
-    FB_BOOKINGS = all;
+    for (const url of probeUrls) {
+      try {
+        const r = await fetch(url, { headers: H });
+        if (!r.ok) continue;
+        const d = await r.json();
+        const bks = Array.isArray(d) ? d : (Array.isArray(d.bookings) ? d.bookings : Array.isArray(d.data) ? d.data : Array.isArray(d.appointments) ? d.appointments : []);
+        const label = url.replace(WP_BASE + '/fluent-booking/', '');
+        console.log('[FB Probe]', label, '→ total:', (d.total ?? bks.length), '| shape sample:', JSON.stringify(d).slice(0, 300));
+        if (bks.length > 0) { FB_BOOKINGS = bks; break; }
+      } catch(e) {}
+    }
   }
 
   console.log('[FB] Final: calendars', FB_CALENDARS.length, 'bookings', FB_BOOKINGS.length);
