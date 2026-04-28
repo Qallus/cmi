@@ -2132,9 +2132,11 @@ function buildBlogTagChips() {
   const wrap = document.getElementById('blogTagChips');
   if (!wrap) return;
   wrap.innerHTML = WP_TAGS_LIST.map(t =>
-    '<div class="chip text-xs" data-tag-id="' + t.id + '" onclick="this.classList.toggle('selected')">' + escHtml(t.name) + '</div>'
+    '<div class="chip text-xs" data-tag-id="' + t.id + '" onclick="blogTagToggle(this)">' + escHtml(t.name) + '</div>'
   ).join('');
 }
+
+function blogTagToggle(el) { el.classList.toggle('selected'); }
 
 function buildBlogAuthorSelect(selectedId) {
   const sel = document.getElementById('postAuthor');
