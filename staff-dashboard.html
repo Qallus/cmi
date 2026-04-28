@@ -2339,58 +2339,79 @@ let BK_CAL_MONTH   = new Date().getMonth();
 async function loadFBBookings() {
   const wrap = document.getElementById('bkContent');
   if (wrap) wrap.innerHTML = '<div class="py-16 text-center text-sm" style="color:var(--text-muted)">Loading bookings…</div>';
+  const H = { Authorization: WP_AUTH };
 
-  // Fluent Booking Pro endpoint candidates (try in order)
-  const bkEndpoints = [
-    FB_BOOK_BASE + '/bookings?per_page=200',
-    FB_BOOK_BASE + '/appointments?per_page=200',
-    WP_BASE + '/fluent-booking/v1/bookings?per_page=200',
-  ];
-  const calEndpoints = [
-    FB_BOOK_BASE + '/calendars?per_page=50',
-    FB_BOOK_BASE + '/calendar-events?per_page=50',
-    FB_BOOK_BASE + '/hosts?per_page=50',
-  ];
-
-  async function tryEndpoints(endpoints) {
-    for (const url of endpoints) {
-      try {
-        const res = await fetch(url, { headers: { Authorization: WP_AUTH } });
-        console.log('[FB Book] GET', url, '→', res.status);
-        if (res.ok) {
-          const d = await res.json();
-          console.log('[FB Book] response:', JSON.stringify(d).slice(0, 2000));
-          return d;
-        }
-      } catch(e) { console.warn('[FB Book] fetch error:', url, e); }
+  // 1. Load calendars — shape: {calendars:{current_page,data:[...]}}
+  try {
+    const r = await fetch(FB_BOOK_BASE + '/calendars?per_page=50', { headers: H });
+    if (r.ok) {
+      const d = await r.json();
+      if (d.calendars && Array.isArray(d.calendars.data))   FB_CALENDARS = d.calendars.data;
+      else if (Array.isArray(d))                             FB_CALENDARS = d;
+      else if (Array.isArray(d.data))                        FB_CALENDARS = d.data;
     }
-    return null;
+  } catch(e) { console.warn('[FB Cal]', e); }
+  console.log('[FB Cal] parsed', FB_CALENDARS.length, 'calendars');
+
+  // 2. Main bookings endpoint (returns empty for per-slot bookings — try anyway)
+  try {
+    const r = await fetch(FB_BOOK_BASE + '/bookings?per_page=200', { headers: H });
+    if (r.ok) {
+      const d = await r.json();
+      const bks = Array.isArray(d) ? d : (Array.isArray(d.bookings) ? d.bookings : Array.isArray(d.data) ? d.data : []);
+      FB_BOOKINGS = bks;
+    }
+  } catch(e) {}
+
+  // 3. If still empty, probe per-calendar and per-slot endpoints
+  if (FB_BOOKINGS.length === 0) {
+    const all = [];
+    for (const cal of FB_CALENDARS) {
+      // Try calendar-level booking endpoint
+      const calUrls = [
+        FB_BOOK_BASE + '/calendars/' + cal.id + '/bookings?per_page=200',
+        FB_BOOK_BASE + '/bookings?calendar_id=' + cal.id + '&per_page=200',
+      ];
+      for (const url of calUrls) {
+        try {
+          const r = await fetch(url, { headers: H });
+          console.log('[FB Book] per-cal', r.status, url);
+          if (r.ok) {
+            const d = await r.json();
+            console.log('[FB Book] per-cal shape:', JSON.stringify(d).slice(0, 800));
+            const bks = Array.isArray(d) ? d : (Array.isArray(d.bookings) ? d.bookings : Array.isArray(d.data) ? d.data : []);
+            bks.forEach(b => { if (!all.find(x => x.id === b.id)) all.push(b); });
+            if (bks.length > 0) break;
+          }
+        } catch(e) {}
+      }
+      // Try per-slot booking endpoints (slots are embedded in calendar data)
+      const slots = Array.isArray(cal.slots) ? cal.slots : [];
+      for (const slot of slots) {
+        const slotUrls = [
+          FB_BOOK_BASE + '/calendars/' + cal.id + '/slots/' + slot.id + '/bookings?per_page=200',
+          FB_BOOK_BASE + '/bookings?slot_id=' + slot.id + '&per_page=200',
+          FB_BOOK_BASE + '/slots/' + slot.id + '/bookings?per_page=200',
+        ];
+        for (const url of slotUrls) {
+          try {
+            const r = await fetch(url, { headers: H });
+            console.log('[FB Book] per-slot', r.status, url);
+            if (r.ok) {
+              const d = await r.json();
+              console.log('[FB Book] per-slot shape:', JSON.stringify(d).slice(0, 800));
+              const bks = Array.isArray(d) ? d : (Array.isArray(d.bookings) ? d.bookings : Array.isArray(d.data) ? d.data : []);
+              bks.forEach(b => { if (!all.find(x => x.id === b.id)) all.push(b); });
+              if (bks.length > 0) break;
+            }
+          } catch(e) {}
+        }
+      }
+    }
+    FB_BOOKINGS = all;
   }
 
-  const [bkData, calData] = await Promise.all([
-    tryEndpoints(bkEndpoints),
-    tryEndpoints(calEndpoints),
-  ]);
-
-  if (bkData !== null) {
-    FB_BOOKINGS = Array.isArray(bkData) ? bkData
-      : Array.isArray(bkData.bookings)    ? bkData.bookings
-      : Array.isArray(bkData.data)        ? bkData.data
-      : Array.isArray(bkData.appointments)? bkData.appointments
-      : bkData.data && Array.isArray(bkData.data.bookings) ? bkData.data.bookings
-      : [];
-    console.log('[FB Book] parsed bookings:', FB_BOOKINGS.length, FB_BOOKINGS);
-  }
-
-  if (calData !== null) {
-    FB_CALENDARS = Array.isArray(calData) ? calData
-      : Array.isArray(calData.calendars)  ? calData.calendars
-      : Array.isArray(calData.data)       ? calData.data
-      : calData.data && Array.isArray(calData.data.calendars) ? calData.data.calendars
-      : [];
-    console.log('[FB Book] parsed calendars:', FB_CALENDARS.length, FB_CALENDARS);
-  }
-
+  console.log('[FB] Final: calendars', FB_CALENDARS.length, 'bookings', FB_BOOKINGS.length);
   bkSyncLegacy();
   renderUpcoming();
   renderBkContent();
