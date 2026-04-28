@@ -2226,7 +2226,10 @@ function renderBlog() {
           '<td><span class="text-xs text-neutral-500">' + catName(p.categories) + '</span></td>' +
           '<td><span class="badge ' + (statusBadge[st]||'b-neutral') + '">' + (statusLabel[st]||st) + '</span></td>' +
           '<td class="text-neutral-500">' + fmtDate(p.date) + '</td>' +
-          '<td><button onclick="editBlogPost(' + p.id + ')" class="text-xs hover:underline" style="color:var(--gold)">Edit</button></td>' +
+          '<td class="flex gap-3">' +
+          '<button onclick="editBlogPost(' + p.id + ')" class="text-xs hover:underline" style="color:var(--gold)">Edit</button>' +
+          '<button onclick="deleteBlogPost(' + p.id + ')" class="text-xs hover:underline" style="color:#f87171">Delete</button>' +
+          '</td>' +
           '</tr>';
       }).join('')
     : '<tr><td colspan="5" class="py-8 text-center text-sm" style="color:var(--text-muted)">No posts found</td></tr>';
@@ -2869,6 +2872,25 @@ function resetBlogForm() {
   const tagWrap = document.getElementById('blogTagChips');
   if (tagWrap) tagWrap.querySelectorAll('.chip').forEach(c => c.classList.remove('selected'));
   buildBlogAuthorSelect();
+}
+
+async function deleteBlogPost(id) {
+  if (!confirm('Move this post to trash?')) return;
+  try {
+    const res = await fetch(WP_BASE + '/wp/v2/posts/' + id, {
+      method: 'DELETE', headers: { Authorization: WP_AUTH },
+    });
+    if (res.ok) {
+      WP_POSTS = WP_POSTS.filter(p => p.id !== id);
+      renderBlog();
+      showToast('Post moved to trash');
+    } else {
+      const err = await res.json().catch(() => ({}));
+      showToast('Error: ' + (err.message || res.status));
+    }
+  } catch(e) {
+    showToast('Network error: ' + e.message);
+  }
 }
 
 // ── Attr Repeater helpers ──────────────────────────────────────
