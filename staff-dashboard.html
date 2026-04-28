@@ -127,6 +127,18 @@
     .upload-zone{border:2px dashed var(--border-lg);border-radius:10px;padding:28px;text-align:center;cursor:pointer;transition:all .2s;}
     .upload-zone:hover,.upload-zone.dragover{border-color:var(--gold);background:var(--gold-alpha);}
 
+    /* Attr Repeater */
+    .attr-row{display:flex;gap:10px;align-items:flex-start;background:var(--surface-2);border:1px solid var(--border-md);border-radius:10px;padding:12px 12px 10px;}
+    .attr-row-fields{flex:1;min-width:0;}
+    .attr-row-fields input{width:100%;background:var(--surface);border:1px solid var(--border-lg);border-radius:7px;padding:8px 11px;font-size:13px;color:var(--text);font-family:'Roboto',sans-serif;outline:none;margin-bottom:8px;transition:border-color .2s;}
+    .attr-row-fields input:focus{border-color:var(--gold);}
+    .attr-row-fields textarea{width:100%;background:var(--surface);border:1px solid var(--border-lg);border-radius:7px;padding:8px 11px;font-size:13px;color:var(--text);font-family:'Roboto',sans-serif;outline:none;resize:none;line-height:1.5;transition:border-color .2s;}
+    .attr-row-fields textarea:focus{border-color:var(--gold);}
+    .attr-char-count{font-size:11px;text-align:right;margin-top:4px;color:var(--text-muted);}
+    .attr-char-count.near{color:#fbbf24;}.attr-char-count.full{color:#f87171;}
+    .attr-remove-btn{width:28px;height:28px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border-radius:6px;border:1px solid var(--border-md);background:transparent;color:var(--text-muted);cursor:pointer;transition:all .2s;margin-top:2px;}
+    .attr-remove-btn:hover{background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.4);color:#f87171;}
+
     /* RTE */
     .rte-btn{width:30px;height:28px;display:inline-flex;align-items:center;justify-content:center;border-radius:5px;border:1px solid var(--border-lg);color:var(--text-dim);cursor:pointer;font-size:12px;font-weight:700;transition:all .2s;}
     .rte-btn:hover{background:var(--hover-bg);color:var(--text);}
@@ -310,7 +322,7 @@
       <div class="flex items-center gap-3">
         <div id="sidebarAvatar" class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0" style="background:var(--gold)">??</div>
         <div class="min-w-0 flex-1">
-          <p id="sidebarName" class="text-sm font-medium text-neutral-200 truncate">Loading…</p>
+          <p id="sidebarName" class="text-sm font-medium text-neutral-200 truncate">Loadingï¿½</p>
           <p class="text-[11px] text-neutral-500 truncate">CMI Staff</p>
         </div>
         <button onclick="logout()" title="Log out" class="theme-btn flex-shrink-0" style="width:28px;height:28px">
@@ -333,7 +345,7 @@
       <div class="flex items-center gap-2.5 flex-shrink-0">
         <div class="hidden sm:flex items-center gap-2 rounded-lg px-3 py-1.5" style="background:var(--surface-2);border:1px solid var(--border-md)">
           <svg class="w-3.5 h-3.5" style="color:var(--text-muted)" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-          <input placeholder="Search…" class="bg-transparent text-sm placeholder-neutral-600 outline-none w-32" style="color:var(--text)" />
+          <input placeholder="Searchï¿½" class="bg-transparent text-sm placeholder-neutral-600 outline-none w-32" style="color:var(--text)" />
         </div>
         <button onclick="toggleTheme()" class="theme-btn" id="themeBtn" title="Toggle light/dark mode">
           <svg id="themeIcon" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
@@ -433,17 +445,17 @@
           </div>
           <div>
             <label class="form-label">Description *</label>
-            <textarea name="description" class="form-input" rows="6" placeholder="Describe the project — scope, design intent, materials, and outcome…"></textarea>
+            <textarea name="description" class="form-input" rows="6" placeholder="Describe the project ï¿½ scope, design intent, materials, and outcomeï¿½"></textarea>
           </div>
           <!-- Category Chips -->
           <div>
-            <label class="form-label">Category <span class="normal-case font-normal text-neutral-600">— select all that apply</span></label>
+            <label class="form-label">Category <span class="normal-case font-normal text-neutral-600">ï¿½ select all that apply</span></label>
             <div id="categoryChips" class="flex flex-wrap gap-2 mt-1"></div>
             <input type="hidden" name="category" id="categoryValue" />
           </div>
           <!-- Services Chips -->
           <div>
-            <label class="form-label">Services Used <span class="normal-case font-normal text-neutral-600">— select all that apply</span></label>
+            <label class="form-label">Services Used <span class="normal-case font-normal text-neutral-600">ï¿½ select all that apply</span></label>
             <div id="servicesChips" class="flex flex-wrap gap-2 mt-1"></div>
             <input type="hidden" name="service_used" id="servicesValue" />
           </div>
@@ -453,14 +465,14 @@
             <div class="upload-zone" id="featuredZone" onclick="document.getElementById('featuredInput').click()" ondragover="onDragOver(event,'featuredZone')" ondragleave="onDragLeave('featuredZone')" ondrop="onDrop(event,'featuredPreview',false)">
               <svg class="w-8 h-8 text-neutral-600 mx-auto mb-2" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
               <p class="text-sm text-neutral-500">Click or drag to upload featured image</p>
-              <p class="text-xs text-neutral-600 mt-1">JPG, PNG, WebP — recommended 1600×900</p>
+              <p class="text-xs text-neutral-600 mt-1">JPG, PNG, WebP ï¿½ recommended 1600ï¿½900</p>
             </div>
             <input type="file" id="featuredInput" accept="image/*" class="hidden" onchange="previewFiles(this,'featuredPreview',false)" />
             <div id="featuredPreview" class="flex flex-wrap gap-2 mt-3"></div>
           </div>
           <!-- Gallery -->
           <div>
-            <label class="form-label">Image Gallery <span class="normal-case font-normal text-neutral-600">— multiple</span></label>
+            <label class="form-label">Image Gallery <span class="normal-case font-normal text-neutral-600">ï¿½ multiple</span></label>
             <div class="upload-zone" id="galleryZone" onclick="document.getElementById('galleryInput').click()" ondragover="onDragOver(event,'galleryZone')" ondragleave="onDragLeave('galleryZone')" ondrop="onDrop(event,'galleryPreview',true)">
               <svg class="w-8 h-8 text-neutral-600 mx-auto mb-2" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
               <p class="text-sm text-neutral-500">Click or drag to upload gallery images</p>
@@ -471,11 +483,11 @@
           </div>
           <!-- Video -->
           <div>
-            <label class="form-label">Video <span class="normal-case font-normal text-neutral-600">— optional</span></label>
+            <label class="form-label">Video <span class="normal-case font-normal text-neutral-600">ï¿½ optional</span></label>
             <div class="upload-zone" id="videoZone" onclick="document.getElementById('videoInput').click()" ondragover="onDragOver(event,'videoZone')" ondragleave="onDragLeave('videoZone')">
               <svg class="w-8 h-8 text-neutral-600 mx-auto mb-2" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
               <p class="text-sm text-neutral-500">Click or drag to upload video</p>
-              <p class="text-xs text-neutral-600 mt-1">MP4, MOV — max 500 MB</p>
+              <p class="text-xs text-neutral-600 mt-1">MP4, MOV ï¿½ max 500 MB</p>
             </div>
             <input type="file" id="videoInput" accept="video/*" class="hidden" onchange="showVideoName(this)" />
             <div id="videoPreview" class="mt-3"></div>
@@ -537,7 +549,7 @@
 
         <!-- Dynamic content area -->
         <div id="fb-content-wrap">
-          <div class="py-20 text-center text-sm" style="color:var(--text-muted)">Navigate here to load boards…</div>
+          <div class="py-20 text-center text-sm" style="color:var(--text-muted)">Navigate here to load boardsï¿½</div>
         </div>
       </section>
 
@@ -576,7 +588,7 @@
         </div>
         <div class="grid grid-cols-1 lg:grid-cols-[1fr_268px] gap-5 max-w-5xl">
           <div class="space-y-4">
-            <input id="blogTitle" class="form-input text-xl" placeholder="Post title…" style="background:transparent;border:none;border-bottom:1px solid rgba(255,255,255,0.1);border-radius:0;padding:10px 0;font-size:20px;" />
+            <input id="blogTitle" class="form-input text-xl" placeholder="Post titleï¿½" style="background:transparent;border:none;border-bottom:1px solid rgba(255,255,255,0.1);border-radius:0;padding:10px 0;font-size:20px;" />
             <!-- Toolbar -->
             <div class="flex flex-wrap gap-1.5 p-2.5 rounded-t-lg" style="background:var(--surface-2);border:1px solid var(--border-md);border-bottom:none;">
               <button type="button" class="rte-btn font-bold" onclick="fmt('bold')" title="Bold">B</button>
@@ -599,7 +611,7 @@
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
               </button>
             </div>
-            <div id="blogEditor" contenteditable="true" data-empty="true" data-placeholder="Start writing your post…"
+            <div id="blogEditor" contenteditable="true" data-empty="true" data-placeholder="Start writing your postï¿½"
               class="min-h-[340px] p-5 rounded-b-lg text-neutral-300 text-[15px] leading-relaxed outline-none"
               style="background:var(--surface-2);border:1px solid var(--border-md);font-family:'Roboto',sans-serif;"
               oninput="checkEditorEmpty(this)" onfocus="checkEditorEmpty(this)" onblur="checkEditorEmpty(this)">
@@ -625,7 +637,7 @@
             </div>
             <div class="card p-4">
               <p class="text-[10px] uppercase tracking-widest text-neutral-500 font-medium mb-3">Excerpt</p>
-              <textarea class="form-input text-sm" rows="3" placeholder="Short summary for card previews…" id="postExcerpt"></textarea>
+              <textarea class="form-input text-sm" rows="3" placeholder="Short summary for card previewsï¿½" id="postExcerpt"></textarea>
             </div>
             <div class="card p-4">
               <p class="text-[10px] uppercase tracking-widest text-neutral-500 font-medium mb-3">Featured Image</p>
@@ -652,7 +664,7 @@
             <!-- Search -->
             <div class="flex items-center gap-2 rounded-lg px-3 py-1.5" style="background:var(--surface-2);border:1px solid var(--border-md)">
               <svg class="w-3.5 h-3.5 flex-shrink-0" style="color:var(--text-muted)" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-              <input id="crmSearchInput" placeholder="Search by name or email…" class="bg-transparent text-sm placeholder-neutral-600 outline-none w-44" style="color:var(--text)" oninput="searchCRM(this.value)" />
+              <input id="crmSearchInput" placeholder="Search by name or emailï¿½" class="bg-transparent text-sm placeholder-neutral-600 outline-none w-44" style="color:var(--text)" oninput="searchCRM(this.value)" />
             </div>
             <!-- Status filter -->
             <select id="crmStatusFilter" class="crm-toolbar-btn" style="appearance:none;padding-right:24px;background-image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' stroke='%236E6A66' stroke-width='2' viewBox='0 0 24 24'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E\");background-repeat:no-repeat;background-position:right 6px center;background-size:14px" onchange="crmStatusChange(this.value)">
@@ -692,7 +704,7 @@
         <div class="mb-2">
           <p class="text-[10px] uppercase tracking-widest font-medium mb-2" style="color:var(--text-muted)">Lists</p>
           <div class="flex flex-wrap gap-1.5" id="crmListFilterChips">
-            <div class="chip text-xs" style="opacity:.5;cursor:default">Loading…</div>
+            <div class="chip text-xs" style="opacity:.5;cursor:default">Loadingï¿½</div>
           </div>
         </div>
 
@@ -704,7 +716,7 @@
           </div>
           <div id="crmTagsWrap" class="hidden">
             <div class="flex flex-wrap gap-1.5" id="crmTagFilterChips">
-              <div class="chip text-xs" style="opacity:.5;cursor:default">Loading…</div>
+              <div class="chip text-xs" style="opacity:.5;cursor:default">Loadingï¿½</div>
             </div>
           </div>
         </div>
@@ -723,7 +735,7 @@
               </tr>
             </thead>
             <tbody id="clientTableBody">
-              <tr><td colspan="6" class="text-center py-10 text-sm" style="color:var(--text-muted)">Navigate here to load contacts…</td></tr>
+              <tr><td colspan="6" class="text-center py-10 text-sm" style="color:var(--text-muted)">Navigate here to load contactsï¿½</td></tr>
             </tbody>
           </table>
           <div id="clientPager"></div>
@@ -738,7 +750,7 @@
             <div class="flex items-center gap-3">
               <div id="crmModalAvatar" class="w-11 h-11 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0" style="background:var(--gold)">??</div>
               <div>
-                <h3 id="crmModalName" class="font-semibold text-base" style="color:var(--text)">—</h3>
+                <h3 id="crmModalName" class="font-semibold text-base" style="color:var(--text)">ï¿½</h3>
                 <div id="crmModalStatusBadge"></div>
               </div>
             </div>
@@ -833,7 +845,7 @@
           <p class="text-xs mb-1" style="color:var(--text-muted)">To</p>
           <input id="smsTo" class="form-input text-sm mb-3" readonly />
           <p class="text-xs mb-1" style="color:var(--text-muted)">Message</p>
-          <textarea id="smsBody" class="form-input text-sm mb-1" rows="4" placeholder="Type your message…" oninput="document.getElementById('smsCharCount').textContent=this.value.length+'/160'"></textarea>
+          <textarea id="smsBody" class="form-input text-sm mb-1" rows="4" placeholder="Type your messageï¿½" oninput="document.getElementById('smsCharCount').textContent=this.value.length+'/160'"></textarea>
           <p id="smsCharCount" class="text-xs text-right mb-4" style="color:var(--text-muted)">0/160</p>
           <p id="smsStatus" class="text-xs mb-3" style="color:var(--text-muted)"></p>
           <div class="flex gap-3">
@@ -939,11 +951,15 @@
             <div><label class="form-label">Email</label><input name="email_address" type="email" class="form-input" /></div>
             <div><label class="form-label">Phone</label><input name="phone_number" type="tel" class="form-input" /></div>
           </div>
-          <div><label class="form-label">LinkedIn URL</label><input name="linkedIn_url" type="url" class="form-input" placeholder="https://linkedin.com/in/…" /></div>
-          <div><label class="form-label">Bio</label><textarea name="bio" class="form-input" rows="4" placeholder="Professional background and role at CMI…"></textarea></div>
+          <div><label class="form-label">LinkedIn URL</label><input name="linkedIn_url" type="url" class="form-input" placeholder="https://linkedin.com/in/ï¿½" /></div>
+          <div><label class="form-label">Bio</label><textarea name="bio" class="form-input" rows="4" placeholder="Professional background and role at CMIï¿½"></textarea></div>
           <div>
-            <label class="form-label">Key Attributes <span class="normal-case font-normal text-neutral-600">— select all that apply</span></label>
-            <div class="flex flex-wrap gap-2 mt-1" id="teamAttrChips"></div>
+            <label class="form-label">Key Attributes</label>
+            <div id="teamAttrRepeater" class="space-y-2 mt-1"></div>
+            <button type="button" onclick="addTeamAttrRow('teamAttrRepeater')" class="mt-3 flex items-center gap-1.5 text-xs font-medium transition-opacity hover:opacity-75" style="color:var(--gold);background:none;border:none;cursor:pointer;padding:0">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 4v16m8-8H4"/></svg>
+              Add Attribute
+            </button>
           </div>
           <div>
             <label class="form-label">Profile Photo</label>
@@ -1012,7 +1028,7 @@
               </tr>
             </thead>
             <tbody id="docsTableBody">
-              <tr><td colspan="8" class="text-center py-8 text-sm" style="color:var(--text-muted)">Loading documents…</td></tr>
+              <tr><td colspan="8" class="text-center py-8 text-sm" style="color:var(--text-muted)">Loading documentsï¿½</td></tr>
             </tbody>
           </table>
         </div>
@@ -1036,7 +1052,7 @@
           <div class="card p-6 space-y-5">
             <p class="text-[10px] uppercase tracking-widest font-medium mb-1" style="color:var(--gold)">Document Setup</p>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <div class="md:col-span-2"><label class="form-label">Document Title *</label><input name="doc_title" class="form-input" placeholder="e.g. Contract — Arcadia Modern Remodel" required /></div>
+              <div class="md:col-span-2"><label class="form-label">Document Title *</label><input name="doc_title" class="form-input" placeholder="e.g. Contract ï¿½ Arcadia Modern Remodel" required /></div>
               <div>
                 <label class="form-label">Status</label>
                 <select name="doc_status" class="form-input">
@@ -1074,7 +1090,7 @@
               <div>
                 <label class="form-label">Project Type</label>
                 <select name="project_type" class="form-input">
-                  <option value="">Select…</option>
+                  <option value="">Selectï¿½</option>
                   <option>Residential</option>
                   <option>Commercial</option>
                   <option>ADU</option>
@@ -1088,21 +1104,21 @@
               <div>
                 <label class="form-label">Desired Timeline</label>
                 <select name="timeline" class="form-input">
-                  <option value="">Select…</option>
-                  <option>1–3 months</option>
-                  <option>3–6 months</option>
-                  <option>6–12 months</option>
-                  <option>12–18 months</option>
+                  <option value="">Selectï¿½</option>
+                  <option>1ï¿½3 months</option>
+                  <option>3ï¿½6 months</option>
+                  <option>6ï¿½12 months</option>
+                  <option>12ï¿½18 months</option>
                   <option>18+ months</option>
                 </select>
               </div>
             </div>
             <div>
-              <label class="form-label">Services Included <span class="normal-case font-normal text-neutral-600">— select all that apply</span></label>
+              <label class="form-label">Services Included <span class="normal-case font-normal text-neutral-600">ï¿½ select all that apply</span></label>
               <div class="flex flex-wrap gap-2 mt-1" id="contractServiceChips"></div>
               <input type="hidden" name="services" id="contractServicesValue" />
             </div>
-            <div><label class="form-label">Project Description / Scope Summary</label><textarea name="project_description" class="form-input" rows="5" placeholder="Describe the overall project scope, design intent, materials, and expected outcomes…"></textarea></div>
+            <div><label class="form-label">Project Description / Scope Summary</label><textarea name="project_description" class="form-input" rows="5" placeholder="Describe the overall project scope, design intent, materials, and expected outcomesï¿½"></textarea></div>
           </div>
 
           <!-- Contract Terms -->
@@ -1115,12 +1131,12 @@
               <div>
                 <label class="form-label">Budget Range</label>
                 <select name="budget_range" class="form-input">
-                  <option value="">Select…</option>
+                  <option value="">Selectï¿½</option>
                   <option>Under $100K</option>
-                  <option>$100K – $250K</option>
-                  <option>$250K – $500K</option>
-                  <option>$500K – $1M</option>
-                  <option>$1M – $2M</option>
+                  <option>$100K ï¿½ $250K</option>
+                  <option>$250K ï¿½ $500K</option>
+                  <option>$500K ï¿½ $1M</option>
+                  <option>$1M ï¿½ $2M</option>
                   <option>$2M+</option>
                 </select>
               </div>
@@ -1141,14 +1157,14 @@
             <div><label class="form-label">Change Order Policy</label><textarea name="change_order_policy" class="form-input" rows="3" placeholder="All changes to scope must be approved in writing via a signed Change Order before work proceeds. Change orders will include cost and schedule impact."></textarea></div>
             <div><label class="form-label">Warranty Terms</label><textarea name="warranty" class="form-input" rows="3" placeholder="e.g. 1-year workmanship warranty on all labor. Manufacturer warranties passed through to client for all installed products and materials."></textarea></div>
             <div><label class="form-label">Dispute Resolution</label><textarea name="dispute" class="form-input" rows="2" placeholder="e.g. Any disputes shall be resolved by binding arbitration in Maricopa County, AZ."></textarea></div>
-            <div><label class="form-label">Special Conditions / Notes</label><textarea name="special_conditions" class="form-input" rows="4" placeholder="Any additional terms, conditions, exclusions, or notes relevant to this contract…"></textarea></div>
+            <div><label class="form-label">Special Conditions / Notes</label><textarea name="special_conditions" class="form-input" rows="4" placeholder="Any additional terms, conditions, exclusions, or notes relevant to this contractï¿½"></textarea></div>
             <div>
               <label class="form-label">Permit Responsibility</label>
               <select name="permit_responsibility" class="form-input">
-                <option value="">Select…</option>
+                <option value="">Selectï¿½</option>
                 <option value="cmi">CMI will obtain all required permits</option>
                 <option value="client">Client responsible for permits</option>
-                <option value="shared">Shared — see special conditions</option>
+                <option value="shared">Shared ï¿½ see special conditions</option>
                 <option value="na">Not applicable</option>
               </select>
             </div>
@@ -1165,10 +1181,10 @@
               <div>
                 <label class="form-label">CMI Authorized Representative</label>
                 <select name="cmi_rep" class="form-input">
-                  <option value="">Select…</option>
-                  <option>Brandon Fadden — Principal / President</option>
-                  <option>Joseph Ballard — Principal / Construction Manager</option>
-                  <option>Ben Peck — Project Manager</option>
+                  <option value="">Selectï¿½</option>
+                  <option>Brandon Fadden ï¿½ Principal / President</option>
+                  <option>Joseph Ballard ï¿½ Principal / Construction Manager</option>
+                  <option>Ben Peck ï¿½ Project Manager</option>
                 </select>
               </div>
               <div><label class="form-label">CMI Signature Date</label><input name="cmi_sig_date" type="date" class="form-input" /></div>
@@ -1206,7 +1222,7 @@
           <div class="card p-6 space-y-5">
             <p class="text-[10px] uppercase tracking-widest font-medium mb-1" style="color:var(--gold)">Document Setup</p>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <div class="md:col-span-2"><label class="form-label">Document Title *</label><input name="doc_title" class="form-input" placeholder="e.g. SOW — Scottsdale Master Bath Renovation" required /></div>
+              <div class="md:col-span-2"><label class="form-label">Document Title *</label><input name="doc_title" class="form-input" placeholder="e.g. SOW ï¿½ Scottsdale Master Bath Renovation" required /></div>
               <div>
                 <label class="form-label">Status</label>
                 <select name="doc_status" class="form-input">
@@ -1221,11 +1237,11 @@
               <div><label class="form-label">SOW Version</label><input name="sow_version" class="form-input" placeholder="e.g. v1.0" value="v1.0" /></div>
               <div><label class="form-label">Prepared By</label>
                 <select name="prepared_by" class="form-input">
-                  <option value="">Select…</option>
-                  <option>Brandon Fadden — Principal / President</option>
-                  <option>Joseph Ballard — Principal / Construction Manager</option>
-                  <option>Ben Peck — Project Manager</option>
-                  <option>Jeremy Waters — Channel Development</option>
+                  <option value="">Selectï¿½</option>
+                  <option>Brandon Fadden ï¿½ Principal / President</option>
+                  <option>Joseph Ballard ï¿½ Principal / Construction Manager</option>
+                  <option>Ben Peck ï¿½ Project Manager</option>
+                  <option>Jeremy Waters ï¿½ Channel Development</option>
                 </select>
               </div>
             </div>
@@ -1251,7 +1267,7 @@
               <div>
                 <label class="form-label">Project Type</label>
                 <select name="project_type" class="form-input">
-                  <option value="">Select…</option>
+                  <option value="">Selectï¿½</option>
                   <option>Residential</option>
                   <option>Commercial</option>
                   <option>ADU</option>
@@ -1265,12 +1281,12 @@
               <div>
                 <label class="form-label">Estimated Budget</label>
                 <select name="budget" class="form-input">
-                  <option value="">Select…</option>
+                  <option value="">Selectï¿½</option>
                   <option>Under $100K</option>
-                  <option>$100K – $250K</option>
-                  <option>$250K – $500K</option>
-                  <option>$500K – $1M</option>
-                  <option>$1M – $2M</option>
+                  <option>$100K ï¿½ $250K</option>
+                  <option>$250K ï¿½ $500K</option>
+                  <option>$500K ï¿½ $1M</option>
+                  <option>$1M ï¿½ $2M</option>
                   <option>$2M+</option>
                 </select>
               </div>
@@ -1278,11 +1294,11 @@
               <div>
                 <label class="form-label">Desired Timeline</label>
                 <select name="timeline" class="form-input">
-                  <option value="">Select…</option>
-                  <option>1–3 months</option>
-                  <option>3–6 months</option>
-                  <option>6–12 months</option>
-                  <option>12–18 months</option>
+                  <option value="">Selectï¿½</option>
+                  <option>1ï¿½3 months</option>
+                  <option>3ï¿½6 months</option>
+                  <option>6ï¿½12 months</option>
+                  <option>12ï¿½18 months</option>
                   <option>18+ months</option>
                 </select>
               </div>
@@ -1290,7 +1306,7 @@
               <div><label class="form-label">Estimated Completion Date</label><input name="end_date" type="date" class="form-input" /></div>
             </div>
             <div>
-              <label class="form-label">Services Included <span class="normal-case font-normal text-neutral-600">— select all that apply</span></label>
+              <label class="form-label">Services Included <span class="normal-case font-normal text-neutral-600">ï¿½ select all that apply</span></label>
               <div class="flex flex-wrap gap-2 mt-1" id="sowServiceChips"></div>
               <input type="hidden" name="services" id="sowServicesValue" />
             </div>
@@ -1299,20 +1315,20 @@
           <!-- Scope of Work -->
           <div class="card p-6 space-y-5">
             <p class="text-[10px] uppercase tracking-widest font-medium mb-1" style="color:var(--gold)">Scope of Work</p>
-            <div><label class="form-label">Detailed Work Description *</label><textarea name="scope_description" class="form-input" rows="8" placeholder="Provide a comprehensive description of all work to be performed. Include phases, specific tasks, trades involved, finish levels, and any design specifications…" required></textarea></div>
-            <div><label class="form-label">Deliverables</label><textarea name="deliverables" class="form-input" rows="5" placeholder="List the specific items, systems, or installations CMI will deliver upon project completion&#10;&#10;e.g.&#10;• Completed demo of existing bathroom&#10;• New custom tile shower with niche and bench&#10;• Freestanding soaking tub with floor-mounted filler&#10;• Heated tile flooring throughout&#10;• Custom floating vanity with integrated lighting"></textarea></div>
-            <div><label class="form-label">Exclusions <span class="normal-case font-normal text-neutral-600">— what is NOT included</span></label><textarea name="exclusions" class="form-input" rows="4" placeholder="e.g.&#10;• Furniture and décor&#10;• Appliances beyond those specified&#10;• Landscaping and exterior work&#10;• HOA approval fees&#10;• Work outside the defined project boundary"></textarea></div>
-            <div><label class="form-label">Assumptions &amp; Conditions</label><textarea name="assumptions" class="form-input" rows="3" placeholder="e.g. Work assumes no hidden structural issues. Scope is based on current drawings dated [date]. Client to provide site access Mon–Fri 7am–5pm."></textarea></div>
+            <div><label class="form-label">Detailed Work Description *</label><textarea name="scope_description" class="form-input" rows="8" placeholder="Provide a comprehensive description of all work to be performed. Include phases, specific tasks, trades involved, finish levels, and any design specificationsï¿½" required></textarea></div>
+            <div><label class="form-label">Deliverables</label><textarea name="deliverables" class="form-input" rows="5" placeholder="List the specific items, systems, or installations CMI will deliver upon project completion&#10;&#10;e.g.&#10;ï¿½ Completed demo of existing bathroom&#10;ï¿½ New custom tile shower with niche and bench&#10;ï¿½ Freestanding soaking tub with floor-mounted filler&#10;ï¿½ Heated tile flooring throughout&#10;ï¿½ Custom floating vanity with integrated lighting"></textarea></div>
+            <div><label class="form-label">Exclusions <span class="normal-case font-normal text-neutral-600">ï¿½ what is NOT included</span></label><textarea name="exclusions" class="form-input" rows="4" placeholder="e.g.&#10;ï¿½ Furniture and dï¿½cor&#10;ï¿½ Appliances beyond those specified&#10;ï¿½ Landscaping and exterior work&#10;ï¿½ HOA approval fees&#10;ï¿½ Work outside the defined project boundary"></textarea></div>
+            <div><label class="form-label">Assumptions &amp; Conditions</label><textarea name="assumptions" class="form-input" rows="3" placeholder="e.g. Work assumes no hidden structural issues. Scope is based on current drawings dated [date]. Client to provide site access Monï¿½Fri 7amï¿½5pm."></textarea></div>
           </div>
 
           <!-- Materials & Specifications -->
           <div class="card p-6 space-y-5">
             <p class="text-[10px] uppercase tracking-widest font-medium mb-1" style="color:var(--gold)">Materials &amp; Specifications</p>
-            <div><label class="form-label">Materials &amp; Finish Specifications</label><textarea name="materials" class="form-input" rows="5" placeholder="Describe key materials, finishes, fixtures, or product selections to be used&#10;&#10;e.g.&#10;• Tile: Porcelain 24x48 large format (client-selected)&#10;• Vanity: Custom white oak floating, 72", with integrated LED mirror&#10;• Faucets: Kohler Artifacts brushed nickel throughout&#10;• Shower door: Frameless glass, Euro style"></textarea></div>
+            <div><label class="form-label">Materials &amp; Finish Specifications</label><textarea name="materials" class="form-input" rows="5" placeholder="Describe key materials, finishes, fixtures, or product selections to be used&#10;&#10;e.g.&#10;ï¿½ Tile: Porcelain 24x48 large format (client-selected)&#10;ï¿½ Vanity: Custom white oak floating, 72", with integrated LED mirror&#10;ï¿½ Faucets: Kohler Artifacts brushed nickel throughout&#10;ï¿½ Shower door: Frameless glass, Euro style"></textarea></div>
             <div>
               <label class="form-label">Permit Requirements</label>
               <select name="permits" class="form-input">
-                <option value="">Select…</option>
+                <option value="">Selectï¿½</option>
                 <option value="cmi">CMI will obtain all required permits</option>
                 <option value="client">Client responsible for permits</option>
                 <option value="none">No permits required</option>
@@ -1325,7 +1341,7 @@
           <!-- Payment Schedule -->
           <div class="card p-6 space-y-5">
             <p class="text-[10px] uppercase tracking-widest font-medium mb-1" style="color:var(--gold)">Payment Schedule</p>
-            <div><label class="form-label">Payment Terms</label><textarea name="payment_schedule" class="form-input" rows="5" placeholder="e.g.&#10;• 25% ($17,000) deposit due upon SOW approval and scheduling&#10;• 25% ($17,000) due at rough-in completion&#10;• 25% ($17,000) due at tile and fixture installation&#10;• 25% ($17,000) due at final completion and punchlist signoff"></textarea></div>
+            <div><label class="form-label">Payment Terms</label><textarea name="payment_schedule" class="form-input" rows="5" placeholder="e.g.&#10;ï¿½ 25% ($17,000) deposit due upon SOW approval and scheduling&#10;ï¿½ 25% ($17,000) due at rough-in completion&#10;ï¿½ 25% ($17,000) due at tile and fixture installation&#10;ï¿½ 25% ($17,000) due at final completion and punchlist signoff"></textarea></div>
             <div>
               <label class="form-label">Change Order Policy</label>
               <textarea name="change_order" class="form-input" rows="2" placeholder="All scope changes must be approved in writing via a signed Change Order prior to work proceeding."></textarea>
@@ -1335,8 +1351,8 @@
           <!-- Notes -->
           <div class="card p-6 space-y-5">
             <p class="text-[10px] uppercase tracking-widest font-medium mb-1" style="color:var(--gold)">Additional Notes</p>
-            <div><label class="form-label">Internal Notes <span class="normal-case font-normal text-neutral-600">— not visible to client</span></label><textarea name="internal_notes" class="form-input" rows="3" placeholder="Notes for the CMI team only…"></textarea></div>
-            <div><label class="form-label">Client-Facing Notes</label><textarea name="client_notes" class="form-input" rows="3" placeholder="Any final notes, terms, or acknowledgements for the client…"></textarea></div>
+            <div><label class="form-label">Internal Notes <span class="normal-case font-normal text-neutral-600">ï¿½ not visible to client</span></label><textarea name="internal_notes" class="form-input" rows="3" placeholder="Notes for the CMI team onlyï¿½"></textarea></div>
+            <div><label class="form-label">Client-Facing Notes</label><textarea name="client_notes" class="form-input" rows="3" placeholder="Any final notes, terms, or acknowledgements for the clientï¿½"></textarea></div>
             <div>
               <label class="form-label">License / ROC Reference</label>
               <input name="roc_license" class="form-input" value="AZ ROC KB-1 #343120" />
@@ -1420,18 +1436,22 @@
         <div><label class="form-label">Phone</label><input id="tmPhone" type="tel" class="form-input" placeholder="(480) 555-0000" /></div>
         <div><label class="form-label">Email</label><input id="tmEmail" type="email" class="form-input" placeholder="name@cmi.com" /></div>
       </div>
-      <div><label class="form-label">LinkedIn URL</label><input id="tmLinkedIn" type="url" class="form-input" placeholder="https://linkedin.com/in/…" /></div>
+      <div><label class="form-label">LinkedIn URL</label><input id="tmLinkedIn" type="url" class="form-input" placeholder="https://linkedin.com/in/ï¿½" /></div>
       <div>
         <label class="form-label">Bio</label>
-        <textarea id="tmBio" class="form-input" rows="4" placeholder="Professional background and role at CMI…"></textarea>
+        <textarea id="tmBio" class="form-input" rows="4" placeholder="Professional background and role at CMIï¿½"></textarea>
       </div>
       <div>
-        <label class="form-label">Key Attributes <span class="normal-case font-normal" style="color:var(--text-muted)">— select all that apply</span></label>
-        <div id="tmAttrChips" class="flex flex-wrap gap-2 mt-1"></div>
+        <label class="form-label">Key Attributes</label>
+        <div id="tmAttrRepeater" class="space-y-2 mt-1"></div>
+        <button type="button" onclick="addTeamAttrRow('tmAttrRepeater')" class="mt-3 flex items-center gap-1.5 text-xs font-medium transition-opacity hover:opacity-75" style="color:var(--gold);background:none;border:none;cursor:pointer;padding:0">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 4v16m8-8H4"/></svg>
+          Add Attribute
+        </button>
       </div>
       <div>
         <label class="form-label">Schedule</label>
-        <input id="tmSchedule" class="form-input" placeholder="e.g. Mon–Fri 7am–4pm" />
+        <input id="tmSchedule" class="form-input" placeholder="e.g. Monï¿½Fri 7amï¿½4pm" />
       </div>
       <!-- Profile Photo -->
       <div>
@@ -1445,7 +1465,7 @@
       </div>
       <!-- Secondary Photo -->
       <div>
-        <label class="form-label">Secondary Photo <span class="normal-case font-normal" style="color:var(--text-muted)">— shown on card hover</span></label>
+        <label class="form-label">Secondary Photo <span class="normal-case font-normal" style="color:var(--text-muted)">ï¿½ shown on card hover</span></label>
         <div id="tmSecondaryPreviewWrap" class="mb-2"></div>
         <div class="upload-zone py-4" onclick="document.getElementById('tmSecondaryInput').click()">
           <svg class="w-5 h-5 mx-auto mb-1" style="color:var(--text-muted)" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
@@ -1476,7 +1496,7 @@
     <div class="flex items-start justify-between p-6" style="border-bottom:1px solid var(--border)">
       <div class="pr-4">
         <p id="fbTaskModalStageLabel" class="text-[10px] uppercase tracking-widest font-medium mb-1" style="color:var(--gold)">Task</p>
-        <h3 id="fbTaskModalTitle" class="font-display text-xl" style="color:var(--text)">—</h3>
+        <h3 id="fbTaskModalTitle" class="font-display text-xl" style="color:var(--text)">ï¿½</h3>
       </div>
       <button onclick="closeFBTaskModal()" class="theme-btn flex-shrink-0">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg>
@@ -1491,7 +1511,7 @@
         <div>
           <p class="form-label">Priority</p>
           <select id="fbTaskModalPriorityInput" class="form-input text-sm">
-            <option value="">— None —</option>
+            <option value="">ï¿½ None ï¿½</option>
             <option value="low">Low</option>
             <option value="medium">Medium</option>
             <option value="high">High</option>
@@ -1534,7 +1554,7 @@
       </button>
     </div>
     <div class="p-6 space-y-4">
-      <div><label class="form-label">Title *</label><input id="fbNewTitle" class="form-input" placeholder="Task title…" /></div>
+      <div><label class="form-label">Title *</label><input id="fbNewTitle" class="form-input" placeholder="Task titleï¿½" /></div>
       <div class="grid grid-cols-2 gap-4">
         <div>
           <label class="form-label">Stage</label>
@@ -1543,7 +1563,7 @@
         <div>
           <label class="form-label">Priority</label>
           <select id="fbNewPriority" class="form-input">
-            <option value="">— None —</option>
+            <option value="">ï¿½ None ï¿½</option>
             <option value="low">Low</option>
             <option value="medium">Medium</option>
             <option value="high">High</option>
@@ -1552,7 +1572,7 @@
         </div>
       </div>
       <div><label class="form-label">Due Date</label><input type="date" id="fbNewDue" class="form-input" /></div>
-      <div><label class="form-label">Description</label><textarea id="fbNewDesc" class="form-input" rows="4" placeholder="Task details…"></textarea></div>
+      <div><label class="form-label">Description</label><textarea id="fbNewDesc" class="form-input" rows="4" placeholder="Task detailsï¿½"></textarea></div>
     </div>
     <div class="flex items-center gap-3 p-6" style="border-top:1px solid var(--border)">
       <button onclick="submitFBNewTask()" class="px-6 py-2.5 rounded-lg text-white text-sm font-medium hover:opacity-90 flex items-center gap-2" style="background:var(--gold)">
@@ -1636,10 +1656,10 @@ function applyTheme(theme) {
   const icon = document.getElementById('themeIcon');
   if (!icon) return;
   if (theme === 'light') {
-    // Moon icon — switch to dark
+    // Moon icon ï¿½ switch to dark
     icon.innerHTML = '<path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>';
   } else {
-    // Sun icon — switch to light
+    // Sun icon ï¿½ switch to light
     icon.innerHTML = '<circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>';
   }
 }
@@ -1671,7 +1691,7 @@ function pagerHTML(section, page, pages, total) {
   const from = Math.min((page - 1) * size + 1, total);
   const to   = Math.min(page * size, total);
   return '<div class="pager">' +
-    '<span class="pager-info">Showing ' + from + '–' + to + ' of ' + total + '</span>' +
+    '<span class="pager-info">Showing ' + from + 'ï¿½' + to + ' of ' + total + '</span>' +
     '<div style="display:flex;gap:6px">' +
       '<button class="pager-btn" onclick="changePage(\'' + section + '\',-1)" ' + (page <= 1 ? 'disabled' : '') + '>' +
         '<svg style="width:13px;height:13px" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7"/></svg>' +
@@ -1720,17 +1740,17 @@ let _pendingGalleryFiles = [];
 let _pendingFeaturedFile = null;
 
 const PROJECTS = [
-  { slug:'ambassador-adu', title:'Ambassador ADU', cat:'ADU', year:2024, location:'Arcadia / Scottsdale, AZ', timeline:'8 months', sqft:620, description:'The Ambassador ADU is a detached accessory dwelling unit set on a generous corner lot in Arcadia — finished to the standard of a primary residence and designed to function as one.\n\nBuilt as a self-contained income-generating unit, the project required a new utility service lateral, minor site regrading, and custom cabinetry fabricated off-site. The architectural palette mirrors the main house: stucco exterior, clay tile roofline details, and steel-framed windows that let in north light.\n\nInterior finishes were specified to hotel standard — concrete look tile floors, quartzite kitchen counters, integrated undercabinet lighting, and full-size appliances throughout. From groundbreaking to certificate of occupancy: eight months.', scope:['Detached ADU','New Construction','Permitting','Interior Finishes','Utility Connection'], img:'https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/f8d1c98a-e6b7-4b1d-ab9e-3ce111e9b817/Kit+Detail+2.jpg', gallery:['https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/f8d1c98a-e6b7-4b1d-ab9e-3ce111e9b817/Kit+Detail+2.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/a162f250-9a9e-4534-8539-cf97fe354da8/Kit+Detail.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/347f1cc7-d335-4f7b-8ed5-0a6e29c0a386/Kit+Shelf.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/199ab360-67f6-4307-9d8a-b82ec369a930/Kit+Detail+3.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/2552562b-0622-4402-9649-38b2cc78ac91/Living+Room+Detail.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/7279d35a-716a-485a-8603-baf24f26626f/Chair.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/c66e3390-0b69-4057-94a7-dc17d51e9d95/Bed+2.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/3f6b3379-697b-423e-bdfa-accc6d1361b2/Vanity+Detail.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/be0c4f51-2299-4e39-9832-11801f512773/Vanity+Detail+2.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/5b86f7cc-57ea-40cb-8cf1-e68e1c9c8231/Bath+Towel+Detail.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/7ef8128b-8fc2-48c3-aeca-58b7f26e8e07/Ext2.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/4484164b-6d54-4a3a-8650-654a14364de1/Ext.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/dabc3215-7ffd-402d-99d0-eab67c305b8c/DJI_0384.JPG','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/30ffd8a6-d378-454c-b765-a303f9bba3d9/DJI_0383.JPG'] },
-  { slug:'boulders', title:'Boulders', cat:'Residential', year:2023, location:'Scottsdale, AZ', timeline:'', sqft:4800, description:'Boulders is a custom residential build in north Scottsdale — a home designed in dialogue with its natural desert setting, integrating the existing boulder formations of the site into the architecture rather than working around them.\n\nThe project required significant site development work, including custom foundation engineering to accommodate the native rock formations, and careful landscape design that preserved the mature saguaro and palo verde on the property.\n\nThe home\'s exterior palette — sand-textured stucco, oxidized steel accents, and ipe wood — weathers naturally over time, intended to patina into its surroundings rather than contrast with them.', scope:['Custom Home','New Construction','Site Development','Desert Landscape','Pool & Spa'], img:'https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/Peffer-Pitt+Residence-1.jpg', gallery:['https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/Peffer-Pitt+Residence-1.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/Brandons+House-1.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/Parco+Residence-12.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/1738363725187-C9L2JWZOXXQT2M517PCG/Keim-10.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/ConstructedMatter-LHP-26.jpg?format=1000w','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/Trinity+Church-14.jpg'] },
-  { slug:'drake', title:'Drake', cat:'New Construction', year:2023, location:'Scottsdale, AZ', timeline:'14 months', sqft:5200, description:'The Drake residence is a ground-up custom home in Scottsdale — a sprawling single-story build on a generous lot, designed to maximize the indoor-outdoor living experience the Arizona lifestyle demands.\n\nFrom aerial perspective, the home\'s footprint is organized around a central courtyard and negative-edge pool, with living wings extending outward to capture views and manage solar orientation. The roof plane is a defining architectural feature — low-pitched with deep overhangs that shade the glazing during summer months.\n\nCMI managed the full construction scope from site clearing through final landscaping. The project required coordination of 24 subcontractor scopes and was delivered within the original 14-month schedule.', scope:['New Construction','Ground-Up','Site Preparation','Luxury Finishes','Pool & Landscape'], img:'https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/DJI_0414.JPG', gallery:['https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/DJI_0414.JPG','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/Brandons+House-1.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/Peffer-Pitt+Residence-1.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/1738363725187-C9L2JWZOXXQT2M517PCG/Keim-10.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/Trinity+Church-14.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/Parco+Residence-12.jpg'] },
-  { slug:'8702', title:'8702', cat:'Residential', year:2023, location:'Scottsdale, AZ', timeline:'', sqft:3900, description:'8702 is a ground-up custom residential build in Scottsdale — a single-story desert contemporary home designed around a central courtyard and seamless indoor-outdoor connectivity.\n\nThe project was developed under CMI\'s full design-build process, with structural and interior design decisions made in parallel from day one. The result is a home where architecture and interiors feel unified rather than assembled.\n\nThe outdoor environment received equal attention — a negative-edge pool, covered ramada, outdoor kitchen, and native landscape design create a resort-quality backyard that functions as a genuine extension of the main living area.', scope:['Custom Home','New Construction','Landscape Integration','Pool & Hardscape','Smart Home'], img:'https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/123aab5a-5d9c-4da3-ade7-0c00a8ae39ea/Brandons+House-1.jpg', gallery:['https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/123aab5a-5d9c-4da3-ade7-0c00a8ae39ea/Brandons+House-1.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/fa98872c-8902-4163-a99a-e94314e9486e/Brandons+House-8.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/9ff371d4-12b0-499b-928b-5e7dc27902bd/Brandons+House-2.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/ffd661c4-d6cc-43ad-82da-a83a6efcab53/Brandons+House-5.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/434a6045-cd83-42d4-9855-3d6f0e621dbf/Brandons+House-4.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/0d9a25ba-051c-432d-a79f-b6d09446d26e/Brandons+House-3.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/8e15bef4-fa19-4c7e-b458-4b90c2529509/Brandons+House-7.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/bc55e6fe-b78d-4940-b484-53e592ad3466/Brandons+House-10.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/4a40a962-e791-4581-a0fd-ec4ae11c2253/Brandons+House-6.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/c8c45d07-8b89-40e2-947d-6c10e9c95a14/Brandons+House-9.jpg'] },
-  { slug:'conrad-interior', title:'Conrad Interior', cat:'Interior Design', year:2024, location:'Scottsdale, AZ', timeline:'', sqft:3400, description:'The Conrad Interior project was a full-scope interior design engagement for a custom residence in Scottsdale — a home that required thoughtful material curation, custom millwork, and a cohesive design language from entry to primary suite.\n\nWorking directly with the homeowners from concept through installation, our interior design team developed a warm, layered palette anchored by limewash plaster walls, honed travertine floors, and unlacquered brass hardware. Every finish selection was made with longevity and livability in mind.\n\nCustom cabinetry was designed in-house and fabricated locally. Lighting design was coordinated with the electrical contractor to achieve a layered, scene-capable system throughout the main living areas.', scope:['Interior Design','Custom Millwork','Material Selection','Finish Coordination','Lighting Design'], img:'https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/589cd039-0f3e-488c-a28a-dc00086c6c8a/Conrad+Residence-13.jpg', gallery:['https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/589cd039-0f3e-488c-a28a-dc00086c6c8a/Conrad+Residence-13.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/00e612d1-f64f-4d38-a078-b5afc12a4127/Conrad+Residence-14.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/6889db1a-ea10-47e5-ab5f-5982b4e2123e/Conrad+Residence-15.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/6adbbe37-54bf-400a-9e39-833d3ea06e47/Conrad+Residence-16.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/7f8fcbb9-4fd9-4be5-8c8b-2c88c83a8e0e/Conrad+Residence-17.jpg'] },
-  { slug:'garden-plaza', title:'Gaarden Plaza', cat:'Commercial', year:2023, location:'Scottsdale, AZ', timeline:'', sqft:8200, description:'Garden Plaza was a full commercial tenant improvement project in Scottsdale — a multi-suite retail and mixed-use building requiring phased construction around active neighboring tenants.\n\nCMI managed all trade coordination, permitting, and ADA compliance for the project. The scope included new MEP systems throughout, demising wall construction, storefront glazing, and finish-out of four tenant suites to base building standard.\n\nThe project was completed on schedule and within budget — a result of aggressive preconstruction planning and a subcontractor buyout that locked pricing three months before construction began.', scope:['Commercial TI','MEP Coordination','ADA Compliance','Permitting','Project Management'], img:'https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/1e81aab0-672a-40ef-8ee4-324172b85e8b/Trinity+Church-14.jpg', gallery:['https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/1e81aab0-672a-40ef-8ee4-324172b85e8b/Trinity+Church-14.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/f6d950dc-4ea8-4283-b330-0ae350bd1b3b/Screenshot+2023-05-08+at+8.54.25+PM.png','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/aec8cd5c-743d-4ec3-b285-90a52dbd01e0/Trinity+Church-15.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/52e3781f-0dd7-420e-9f2c-971f7f028306/Trinity+Church-16.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/b44acf0f-b3cb-4af9-9fa2-f40046cc8707/Trinity+Church-7.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/bd631bff-603c-4681-aa82-ef0e099ca5b7/Trinity+Church-6.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/4318ba63-2f0a-437c-9979-f9c1ab3045bb/Trinity+Church-8.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/87dda0a8-3040-4460-b233-f420750a780c/Trinity+Church-9.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/13988564-582c-455e-9b6f-29c723bed451/Trinity+Church-1.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/fb56bf4f-0e7c-40cd-8a30-d06219172073/Trinity+Church-13.jpg'] },
-  { slug:'ply-place', title:'Ply Place', cat:'Residential', year:2024, location:'Scottsdale, AZ', timeline:'', sqft:4100, description:'Ply Place is a ground-up custom residential build in Scottsdale — a modern desert home designed to take full advantage of its site orientation, indoor-outdoor flow, and the Arizona climate.\n\nThe project was delivered under a design-build contract, allowing CMI to integrate structural decisions with interior design selections from the earliest planning stages. The result is a home where storage, lighting, and material transitions feel considered rather than retrofitted.\n\nLarge-format sliding glass walls connect the main living area to a fully equipped outdoor kitchen and covered lounge. Interior finishes include wide-plank white oak flooring, custom millwork throughout, and a statement kitchen with waterfall quartzite counters.', scope:['Custom Home','New Construction','Design-Build','Landscape Coordination','Smart Home Integration'], img:'https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/eed88e19-ab27-4b5e-8a52-1adde7a6b5d8/Keim-10.jpg', gallery:['https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/eed88e19-ab27-4b5e-8a52-1adde7a6b5d8/Keim-10.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/478e6ad2-fc55-4762-b48c-b5fb05805e2d/Keim-16.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/35df99c4-71c0-4f9c-9e74-e1d50d74fc9b/Keim-11.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/61c0a0d3-8a9a-40df-bc54-eafd37aa462a/Keim-13.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/0709841a-0fbe-44b9-a158-4ffa29788c0a/Keim-14.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/fdb1e197-5253-4f9b-8220-0164b36600db/Keim-12.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/68ded38a-b653-486f-9e94-b37967d14029/Keim-15.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/bbe626a5-10f7-405c-a33d-48f36a1b78af/Keim-22.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/7bbccbaa-9813-4fd3-bd46-42ba959e3473/Keim-28.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/73dadfab-1393-46a4-b4dd-756a667984bb/Keim-27.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/c2f2528c-e86a-4524-9157-5a418b4cf671/Keim-29.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/e6b3e2aa-031c-4ece-ba7d-f88cdf9f056b/Keim-33.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/b4ba5425-6348-42b4-ab33-1faa171914c3/Keim-35.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/9eba01b5-194f-4b87-a511-5fefe8625fe3/Keim-38.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/7d129a68-79a0-4ad7-9e38-10e6d950e9d1/Keim-40.jpg'] },
-  { slug:'res-inn', title:'Res. Inn', cat:'Commercial', year:2023, location:'Mesa, AZ', timeline:'', sqft:18200, description:'The Residence Inn renovation was a hospitality sector engagement in Mesa — a phased exterior improvement project on an active, occupied Marriott property requiring careful coordination around ongoing guest operations.\n\nCMI managed the full exterior scope, including surface preparation, coating systems, and site logistics designed to minimize disruption to hotel operations. All work was sequenced in coordination with property management to maintain occupancy throughout construction.\n\nThe result is a refreshed exterior envelope that brings the property in line with current Marriott brand standards and strengthens the property\'s competitive position in the Mesa market.', scope:['Exterior Renovation','Hospitality','Phased Construction','Permitting','Project Management'], img:'https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/82492f12-6244-45a1-b882-0ddc7926cd86/Hotel-2.jpg', gallery:['https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/82492f12-6244-45a1-b882-0ddc7926cd86/Hotel-2.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/d8c9908c-63d7-4a28-91f1-1015024a4c49/Hotel-1.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/e1d717ba-8bee-43d1-b612-58e50ef5a4f0/Hotel-4.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/da83a59a-74c7-4bf2-8c1e-a6a98ce99a06/Hotel-3.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/b399db5c-ab00-4b98-9544-579ed580277b/Hotel-5.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/76743656-1daf-404d-8805-b15d582d30a7/Hotel-6.jpg'] },
-  { slug:'real-faith-studio', title:'Real Faith Studio', cat:'Commercial', year:2022, location:'Scottsdale, AZ', timeline:'', sqft:2800, description:'Real Faith Studio was a full interior design and commercial tenant improvement project in Scottsdale — a creative studio environment designed to support the work produced within it.\n\nCMI coordinated the complete commercial TI scope in partnership with the interior design team, managing permit coordination, trade supervision, and custom millwork fabrication through to final occupancy.\n\nThe finished space features clean-lined built-ins, carefully curated material selections, and a lighting system designed to support both focused creative work and client-facing presentations.', scope:['Interior Design','Commercial TI','Custom Millwork','Finish Coordination','Permit Management'], img:'https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/5acfa8e2-ab12-4e79-9250-c56e77358799/Trinity+Church+Office-4+edit.jpg', gallery:['https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/5acfa8e2-ab12-4e79-9250-c56e77358799/Trinity+Church+Office-4+edit.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/f0658d5e-5385-4180-964d-6c1d32fa1f44/Trinity+Church+Office-7.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/c4abb930-3b38-4658-ba5e-9d1c6f553752/Trinity+Church+Office-9+edit.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/65cceffd-7348-454c-b5bc-65fcd3dde426/Trinity+Church+Office-6.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/79272505-1e82-4a4f-a18b-f1518777d775/Trinity+Church+Office-13.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/d1de37aa-de4d-4f94-83d0-542dfd73fa6a/Trinity+Church+Office-3+Edit.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/4538d2a1-ba37-4512-af07-091ae0e5678e/Trinity+Church+Office-5.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/39cb7149-7e8c-4671-820c-ad372a64956a/Trinity+Church+Office-2.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/b32e375d-b66a-4968-80dc-cc3af7bfe7dc/Trinity+Church+Office-1.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/bd4f1442-9392-4fe8-b2c5-b3af7734147f/Trinity+Church+Office-15+Edit.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/be142560-3187-44c6-937f-af9a5bb76c4e/Trinity+Church+Office-8.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/2c2d6ebc-57ed-422f-90f2-c4fe753d7db1/Trinity+Church+Office-12.jpg'] },
-  { slug:'vw-garage', title:'VW Garage', cat:'Commercial', year:2022, location:'Scottsdale, AZ', timeline:'11 months', sqft:12400, description:'The VW Garage project was a ground-up commercial build-out for a specialty automotive facility in Scottsdale — a high-bay, high-finish environment designed for both function and client experience.\n\nThe scope included structural steel framing, specialty mechanical systems (compressed air, vehicle lift infrastructure, exhaust ventilation), high-gloss polished concrete floors, and a premium client lounge and showroom area.\n\nCMI managed all trade coordination and permitting through the City of Scottsdale. The project was completed in 11 months and received its certificate of occupancy ahead of the client\'s target opening date.', scope:['Commercial Build-Out','High-Bay Construction','Specialty MEP','Permitting','Project Management'], img:'https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/1a36b7ac-c91d-4e07-aefa-d0c168014f1c/VW+Garage-4.jpg', gallery:['https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/1a36b7ac-c91d-4e07-aefa-d0c168014f1c/VW+Garage-4.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/4e4d5a9e-d768-43a8-a6ba-6e9991c9f1b1/VW+Garage-1.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/0864c0f0-43c1-4df0-ac27-3c6688a2d963/VW+Garage-5.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/23fe45d3-4e1b-4716-b1c8-e6119553142f/VW+Garage-3.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/03213b7a-1a95-44ab-b32c-9fe62c46f955/VW+Garage-2.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/db57d7ea-109d-43cd-922c-76921ea255ee/VW+Garage-9.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/3c8b35a2-bd4b-4e4e-93d1-29024440248c/VW+Garage-8.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/4edd91d7-4344-4544-80de-9bab1de452c7/VW+Garage-7.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/10a3094c-006a-4e84-8d7b-00128cd2ebc6/VW+Garage-6.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/1a120285-056b-4e3b-b388-1f30796bfbcf/VW+Garage-10.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/c0f86a8d-511f-4448-841c-5e383c069a12/VW+Garage-11.jpg'] },
-  { slug:'parco', title:'Parco', cat:'Residential', year:2023, location:'Scottsdale, AZ', timeline:'', sqft:5600, description:'The Parco project was a comprehensive luxury renovation of an existing custom home in Scottsdale — a complete transformation of the interior while preserving the architectural bones of the original structure.\n\nThe scope included a full kitchen and primary bath remodel, structural wall removals to open the main living area, custom built-in millwork throughout, and exterior improvements including a new pool deck and landscape redesign.\n\nCMI managed the project under a design-build contract, coordinating directly with the homeowners on every material selection. The renovation was executed in phases to allow the family to remain in the home throughout construction.', scope:['Luxury Renovation','Kitchen & Bath','Structural Modifications','Custom Millwork','Exterior Improvements'], img:'https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/f7e8ec78-a4fd-4fac-9dcd-385ddce06322/Parco+Residence-12.jpg', gallery:['https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/f7e8ec78-a4fd-4fac-9dcd-385ddce06322/Parco+Residence-12.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/c1258a72-9178-431e-a1fa-003f91cc337a/Parco+Residence-13.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/45dec560-fa9b-4ec8-898c-a942503e44db/Parco+Residence-15.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/d255b48f-9d02-423e-b662-1c916d2d4fc1/Parco+Residence-14.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/a1db389c-aba9-4c28-8c5d-be8526ed0b78/Parco+Residence-1.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/379d1330-f07c-4ff6-a3f5-0a0ebf14dbd3/Parco+Residence-2.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/a913f3ff-ae56-4afc-9da3-4dd6d319b104/Parco+Residence-3.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/15159832-62a7-412a-8b84-c8e713899393/Parco+Residence-9.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/c6029b24-c8ec-4773-9182-372f53659426/Parco+Residence-8.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/6be562f4-1463-48ba-9f45-51320e405a75/Parco+Residence-5.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/1b9fabe3-5951-4d23-9d09-3bc7e2857b1f/Parco+Residence-7.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/c768be1c-ea9c-4e4f-99dc-2e1f19d7c050/Parco+Residence-4.jpg'] },
+  { slug:'ambassador-adu', title:'Ambassador ADU', cat:'ADU', year:2024, location:'Arcadia / Scottsdale, AZ', timeline:'8 months', sqft:620, description:'The Ambassador ADU is a detached accessory dwelling unit set on a generous corner lot in Arcadia ï¿½ finished to the standard of a primary residence and designed to function as one.\n\nBuilt as a self-contained income-generating unit, the project required a new utility service lateral, minor site regrading, and custom cabinetry fabricated off-site. The architectural palette mirrors the main house: stucco exterior, clay tile roofline details, and steel-framed windows that let in north light.\n\nInterior finishes were specified to hotel standard ï¿½ concrete look tile floors, quartzite kitchen counters, integrated undercabinet lighting, and full-size appliances throughout. From groundbreaking to certificate of occupancy: eight months.', scope:['Detached ADU','New Construction','Permitting','Interior Finishes','Utility Connection'], img:'https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/f8d1c98a-e6b7-4b1d-ab9e-3ce111e9b817/Kit+Detail+2.jpg', gallery:['https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/f8d1c98a-e6b7-4b1d-ab9e-3ce111e9b817/Kit+Detail+2.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/a162f250-9a9e-4534-8539-cf97fe354da8/Kit+Detail.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/347f1cc7-d335-4f7b-8ed5-0a6e29c0a386/Kit+Shelf.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/199ab360-67f6-4307-9d8a-b82ec369a930/Kit+Detail+3.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/2552562b-0622-4402-9649-38b2cc78ac91/Living+Room+Detail.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/7279d35a-716a-485a-8603-baf24f26626f/Chair.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/c66e3390-0b69-4057-94a7-dc17d51e9d95/Bed+2.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/3f6b3379-697b-423e-bdfa-accc6d1361b2/Vanity+Detail.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/be0c4f51-2299-4e39-9832-11801f512773/Vanity+Detail+2.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/5b86f7cc-57ea-40cb-8cf1-e68e1c9c8231/Bath+Towel+Detail.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/7ef8128b-8fc2-48c3-aeca-58b7f26e8e07/Ext2.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/4484164b-6d54-4a3a-8650-654a14364de1/Ext.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/dabc3215-7ffd-402d-99d0-eab67c305b8c/DJI_0384.JPG','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/30ffd8a6-d378-454c-b765-a303f9bba3d9/DJI_0383.JPG'] },
+  { slug:'boulders', title:'Boulders', cat:'Residential', year:2023, location:'Scottsdale, AZ', timeline:'', sqft:4800, description:'Boulders is a custom residential build in north Scottsdale ï¿½ a home designed in dialogue with its natural desert setting, integrating the existing boulder formations of the site into the architecture rather than working around them.\n\nThe project required significant site development work, including custom foundation engineering to accommodate the native rock formations, and careful landscape design that preserved the mature saguaro and palo verde on the property.\n\nThe home\'s exterior palette ï¿½ sand-textured stucco, oxidized steel accents, and ipe wood ï¿½ weathers naturally over time, intended to patina into its surroundings rather than contrast with them.', scope:['Custom Home','New Construction','Site Development','Desert Landscape','Pool & Spa'], img:'https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/Peffer-Pitt+Residence-1.jpg', gallery:['https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/Peffer-Pitt+Residence-1.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/Brandons+House-1.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/Parco+Residence-12.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/1738363725187-C9L2JWZOXXQT2M517PCG/Keim-10.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/ConstructedMatter-LHP-26.jpg?format=1000w','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/Trinity+Church-14.jpg'] },
+  { slug:'drake', title:'Drake', cat:'New Construction', year:2023, location:'Scottsdale, AZ', timeline:'14 months', sqft:5200, description:'The Drake residence is a ground-up custom home in Scottsdale ï¿½ a sprawling single-story build on a generous lot, designed to maximize the indoor-outdoor living experience the Arizona lifestyle demands.\n\nFrom aerial perspective, the home\'s footprint is organized around a central courtyard and negative-edge pool, with living wings extending outward to capture views and manage solar orientation. The roof plane is a defining architectural feature ï¿½ low-pitched with deep overhangs that shade the glazing during summer months.\n\nCMI managed the full construction scope from site clearing through final landscaping. The project required coordination of 24 subcontractor scopes and was delivered within the original 14-month schedule.', scope:['New Construction','Ground-Up','Site Preparation','Luxury Finishes','Pool & Landscape'], img:'https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/DJI_0414.JPG', gallery:['https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/DJI_0414.JPG','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/Brandons+House-1.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/Peffer-Pitt+Residence-1.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/1738363725187-C9L2JWZOXXQT2M517PCG/Keim-10.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/Trinity+Church-14.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/Parco+Residence-12.jpg'] },
+  { slug:'8702', title:'8702', cat:'Residential', year:2023, location:'Scottsdale, AZ', timeline:'', sqft:3900, description:'8702 is a ground-up custom residential build in Scottsdale ï¿½ a single-story desert contemporary home designed around a central courtyard and seamless indoor-outdoor connectivity.\n\nThe project was developed under CMI\'s full design-build process, with structural and interior design decisions made in parallel from day one. The result is a home where architecture and interiors feel unified rather than assembled.\n\nThe outdoor environment received equal attention ï¿½ a negative-edge pool, covered ramada, outdoor kitchen, and native landscape design create a resort-quality backyard that functions as a genuine extension of the main living area.', scope:['Custom Home','New Construction','Landscape Integration','Pool & Hardscape','Smart Home'], img:'https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/123aab5a-5d9c-4da3-ade7-0c00a8ae39ea/Brandons+House-1.jpg', gallery:['https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/123aab5a-5d9c-4da3-ade7-0c00a8ae39ea/Brandons+House-1.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/fa98872c-8902-4163-a99a-e94314e9486e/Brandons+House-8.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/9ff371d4-12b0-499b-928b-5e7dc27902bd/Brandons+House-2.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/ffd661c4-d6cc-43ad-82da-a83a6efcab53/Brandons+House-5.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/434a6045-cd83-42d4-9855-3d6f0e621dbf/Brandons+House-4.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/0d9a25ba-051c-432d-a79f-b6d09446d26e/Brandons+House-3.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/8e15bef4-fa19-4c7e-b458-4b90c2529509/Brandons+House-7.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/bc55e6fe-b78d-4940-b484-53e592ad3466/Brandons+House-10.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/4a40a962-e791-4581-a0fd-ec4ae11c2253/Brandons+House-6.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/c8c45d07-8b89-40e2-947d-6c10e9c95a14/Brandons+House-9.jpg'] },
+  { slug:'conrad-interior', title:'Conrad Interior', cat:'Interior Design', year:2024, location:'Scottsdale, AZ', timeline:'', sqft:3400, description:'The Conrad Interior project was a full-scope interior design engagement for a custom residence in Scottsdale ï¿½ a home that required thoughtful material curation, custom millwork, and a cohesive design language from entry to primary suite.\n\nWorking directly with the homeowners from concept through installation, our interior design team developed a warm, layered palette anchored by limewash plaster walls, honed travertine floors, and unlacquered brass hardware. Every finish selection was made with longevity and livability in mind.\n\nCustom cabinetry was designed in-house and fabricated locally. Lighting design was coordinated with the electrical contractor to achieve a layered, scene-capable system throughout the main living areas.', scope:['Interior Design','Custom Millwork','Material Selection','Finish Coordination','Lighting Design'], img:'https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/589cd039-0f3e-488c-a28a-dc00086c6c8a/Conrad+Residence-13.jpg', gallery:['https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/589cd039-0f3e-488c-a28a-dc00086c6c8a/Conrad+Residence-13.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/00e612d1-f64f-4d38-a078-b5afc12a4127/Conrad+Residence-14.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/6889db1a-ea10-47e5-ab5f-5982b4e2123e/Conrad+Residence-15.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/6adbbe37-54bf-400a-9e39-833d3ea06e47/Conrad+Residence-16.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/7f8fcbb9-4fd9-4be5-8c8b-2c88c83a8e0e/Conrad+Residence-17.jpg'] },
+  { slug:'garden-plaza', title:'Gaarden Plaza', cat:'Commercial', year:2023, location:'Scottsdale, AZ', timeline:'', sqft:8200, description:'Garden Plaza was a full commercial tenant improvement project in Scottsdale ï¿½ a multi-suite retail and mixed-use building requiring phased construction around active neighboring tenants.\n\nCMI managed all trade coordination, permitting, and ADA compliance for the project. The scope included new MEP systems throughout, demising wall construction, storefront glazing, and finish-out of four tenant suites to base building standard.\n\nThe project was completed on schedule and within budget ï¿½ a result of aggressive preconstruction planning and a subcontractor buyout that locked pricing three months before construction began.', scope:['Commercial TI','MEP Coordination','ADA Compliance','Permitting','Project Management'], img:'https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/1e81aab0-672a-40ef-8ee4-324172b85e8b/Trinity+Church-14.jpg', gallery:['https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/1e81aab0-672a-40ef-8ee4-324172b85e8b/Trinity+Church-14.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/f6d950dc-4ea8-4283-b330-0ae350bd1b3b/Screenshot+2023-05-08+at+8.54.25+PM.png','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/aec8cd5c-743d-4ec3-b285-90a52dbd01e0/Trinity+Church-15.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/52e3781f-0dd7-420e-9f2c-971f7f028306/Trinity+Church-16.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/b44acf0f-b3cb-4af9-9fa2-f40046cc8707/Trinity+Church-7.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/bd631bff-603c-4681-aa82-ef0e099ca5b7/Trinity+Church-6.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/4318ba63-2f0a-437c-9979-f9c1ab3045bb/Trinity+Church-8.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/87dda0a8-3040-4460-b233-f420750a780c/Trinity+Church-9.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/13988564-582c-455e-9b6f-29c723bed451/Trinity+Church-1.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/fb56bf4f-0e7c-40cd-8a30-d06219172073/Trinity+Church-13.jpg'] },
+  { slug:'ply-place', title:'Ply Place', cat:'Residential', year:2024, location:'Scottsdale, AZ', timeline:'', sqft:4100, description:'Ply Place is a ground-up custom residential build in Scottsdale ï¿½ a modern desert home designed to take full advantage of its site orientation, indoor-outdoor flow, and the Arizona climate.\n\nThe project was delivered under a design-build contract, allowing CMI to integrate structural decisions with interior design selections from the earliest planning stages. The result is a home where storage, lighting, and material transitions feel considered rather than retrofitted.\n\nLarge-format sliding glass walls connect the main living area to a fully equipped outdoor kitchen and covered lounge. Interior finishes include wide-plank white oak flooring, custom millwork throughout, and a statement kitchen with waterfall quartzite counters.', scope:['Custom Home','New Construction','Design-Build','Landscape Coordination','Smart Home Integration'], img:'https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/eed88e19-ab27-4b5e-8a52-1adde7a6b5d8/Keim-10.jpg', gallery:['https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/eed88e19-ab27-4b5e-8a52-1adde7a6b5d8/Keim-10.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/478e6ad2-fc55-4762-b48c-b5fb05805e2d/Keim-16.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/35df99c4-71c0-4f9c-9e74-e1d50d74fc9b/Keim-11.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/61c0a0d3-8a9a-40df-bc54-eafd37aa462a/Keim-13.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/0709841a-0fbe-44b9-a158-4ffa29788c0a/Keim-14.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/fdb1e197-5253-4f9b-8220-0164b36600db/Keim-12.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/68ded38a-b653-486f-9e94-b37967d14029/Keim-15.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/bbe626a5-10f7-405c-a33d-48f36a1b78af/Keim-22.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/7bbccbaa-9813-4fd3-bd46-42ba959e3473/Keim-28.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/73dadfab-1393-46a4-b4dd-756a667984bb/Keim-27.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/c2f2528c-e86a-4524-9157-5a418b4cf671/Keim-29.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/e6b3e2aa-031c-4ece-ba7d-f88cdf9f056b/Keim-33.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/b4ba5425-6348-42b4-ab33-1faa171914c3/Keim-35.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/9eba01b5-194f-4b87-a511-5fefe8625fe3/Keim-38.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/7d129a68-79a0-4ad7-9e38-10e6d950e9d1/Keim-40.jpg'] },
+  { slug:'res-inn', title:'Res. Inn', cat:'Commercial', year:2023, location:'Mesa, AZ', timeline:'', sqft:18200, description:'The Residence Inn renovation was a hospitality sector engagement in Mesa ï¿½ a phased exterior improvement project on an active, occupied Marriott property requiring careful coordination around ongoing guest operations.\n\nCMI managed the full exterior scope, including surface preparation, coating systems, and site logistics designed to minimize disruption to hotel operations. All work was sequenced in coordination with property management to maintain occupancy throughout construction.\n\nThe result is a refreshed exterior envelope that brings the property in line with current Marriott brand standards and strengthens the property\'s competitive position in the Mesa market.', scope:['Exterior Renovation','Hospitality','Phased Construction','Permitting','Project Management'], img:'https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/82492f12-6244-45a1-b882-0ddc7926cd86/Hotel-2.jpg', gallery:['https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/82492f12-6244-45a1-b882-0ddc7926cd86/Hotel-2.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/d8c9908c-63d7-4a28-91f1-1015024a4c49/Hotel-1.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/e1d717ba-8bee-43d1-b612-58e50ef5a4f0/Hotel-4.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/da83a59a-74c7-4bf2-8c1e-a6a98ce99a06/Hotel-3.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/b399db5c-ab00-4b98-9544-579ed580277b/Hotel-5.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/76743656-1daf-404d-8805-b15d582d30a7/Hotel-6.jpg'] },
+  { slug:'real-faith-studio', title:'Real Faith Studio', cat:'Commercial', year:2022, location:'Scottsdale, AZ', timeline:'', sqft:2800, description:'Real Faith Studio was a full interior design and commercial tenant improvement project in Scottsdale ï¿½ a creative studio environment designed to support the work produced within it.\n\nCMI coordinated the complete commercial TI scope in partnership with the interior design team, managing permit coordination, trade supervision, and custom millwork fabrication through to final occupancy.\n\nThe finished space features clean-lined built-ins, carefully curated material selections, and a lighting system designed to support both focused creative work and client-facing presentations.', scope:['Interior Design','Commercial TI','Custom Millwork','Finish Coordination','Permit Management'], img:'https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/5acfa8e2-ab12-4e79-9250-c56e77358799/Trinity+Church+Office-4+edit.jpg', gallery:['https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/5acfa8e2-ab12-4e79-9250-c56e77358799/Trinity+Church+Office-4+edit.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/f0658d5e-5385-4180-964d-6c1d32fa1f44/Trinity+Church+Office-7.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/c4abb930-3b38-4658-ba5e-9d1c6f553752/Trinity+Church+Office-9+edit.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/65cceffd-7348-454c-b5bc-65fcd3dde426/Trinity+Church+Office-6.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/79272505-1e82-4a4f-a18b-f1518777d775/Trinity+Church+Office-13.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/d1de37aa-de4d-4f94-83d0-542dfd73fa6a/Trinity+Church+Office-3+Edit.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/4538d2a1-ba37-4512-af07-091ae0e5678e/Trinity+Church+Office-5.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/39cb7149-7e8c-4671-820c-ad372a64956a/Trinity+Church+Office-2.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/b32e375d-b66a-4968-80dc-cc3af7bfe7dc/Trinity+Church+Office-1.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/bd4f1442-9392-4fe8-b2c5-b3af7734147f/Trinity+Church+Office-15+Edit.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/be142560-3187-44c6-937f-af9a5bb76c4e/Trinity+Church+Office-8.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/2c2d6ebc-57ed-422f-90f2-c4fe753d7db1/Trinity+Church+Office-12.jpg'] },
+  { slug:'vw-garage', title:'VW Garage', cat:'Commercial', year:2022, location:'Scottsdale, AZ', timeline:'11 months', sqft:12400, description:'The VW Garage project was a ground-up commercial build-out for a specialty automotive facility in Scottsdale ï¿½ a high-bay, high-finish environment designed for both function and client experience.\n\nThe scope included structural steel framing, specialty mechanical systems (compressed air, vehicle lift infrastructure, exhaust ventilation), high-gloss polished concrete floors, and a premium client lounge and showroom area.\n\nCMI managed all trade coordination and permitting through the City of Scottsdale. The project was completed in 11 months and received its certificate of occupancy ahead of the client\'s target opening date.', scope:['Commercial Build-Out','High-Bay Construction','Specialty MEP','Permitting','Project Management'], img:'https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/1a36b7ac-c91d-4e07-aefa-d0c168014f1c/VW+Garage-4.jpg', gallery:['https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/1a36b7ac-c91d-4e07-aefa-d0c168014f1c/VW+Garage-4.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/4e4d5a9e-d768-43a8-a6ba-6e9991c9f1b1/VW+Garage-1.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/0864c0f0-43c1-4df0-ac27-3c6688a2d963/VW+Garage-5.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/23fe45d3-4e1b-4716-b1c8-e6119553142f/VW+Garage-3.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/03213b7a-1a95-44ab-b32c-9fe62c46f955/VW+Garage-2.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/db57d7ea-109d-43cd-922c-76921ea255ee/VW+Garage-9.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/3c8b35a2-bd4b-4e4e-93d1-29024440248c/VW+Garage-8.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/4edd91d7-4344-4544-80de-9bab1de452c7/VW+Garage-7.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/10a3094c-006a-4e84-8d7b-00128cd2ebc6/VW+Garage-6.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/1a120285-056b-4e3b-b388-1f30796bfbcf/VW+Garage-10.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/c0f86a8d-511f-4448-841c-5e383c069a12/VW+Garage-11.jpg'] },
+  { slug:'parco', title:'Parco', cat:'Residential', year:2023, location:'Scottsdale, AZ', timeline:'', sqft:5600, description:'The Parco project was a comprehensive luxury renovation of an existing custom home in Scottsdale ï¿½ a complete transformation of the interior while preserving the architectural bones of the original structure.\n\nThe scope included a full kitchen and primary bath remodel, structural wall removals to open the main living area, custom built-in millwork throughout, and exterior improvements including a new pool deck and landscape redesign.\n\nCMI managed the project under a design-build contract, coordinating directly with the homeowners on every material selection. The renovation was executed in phases to allow the family to remain in the home throughout construction.', scope:['Luxury Renovation','Kitchen & Bath','Structural Modifications','Custom Millwork','Exterior Improvements'], img:'https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/f7e8ec78-a4fd-4fac-9dcd-385ddce06322/Parco+Residence-12.jpg', gallery:['https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/f7e8ec78-a4fd-4fac-9dcd-385ddce06322/Parco+Residence-12.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/c1258a72-9178-431e-a1fa-003f91cc337a/Parco+Residence-13.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/45dec560-fa9b-4ec8-898c-a942503e44db/Parco+Residence-15.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/d255b48f-9d02-423e-b662-1c916d2d4fc1/Parco+Residence-14.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/a1db389c-aba9-4c28-8c5d-be8526ed0b78/Parco+Residence-1.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/379d1330-f07c-4ff6-a3f5-0a0ebf14dbd3/Parco+Residence-2.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/a913f3ff-ae56-4afc-9da3-4dd6d319b104/Parco+Residence-3.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/15159832-62a7-412a-8b84-c8e713899393/Parco+Residence-9.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/c6029b24-c8ec-4773-9182-372f53659426/Parco+Residence-8.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/6be562f4-1463-48ba-9f45-51320e405a75/Parco+Residence-5.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/1b9fabe3-5951-4d23-9d09-3bc7e2857b1f/Parco+Residence-7.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/c768be1c-ea9c-4e4f-99dc-2e1f19d7c050/Parco+Residence-4.jpg'] },
 ];
 
 const BLOG_POSTS = [
@@ -1778,22 +1798,22 @@ const TEAM = [
 ];
 
 const ACTIVITY = [
-  { text:'New quote from Sarah K.', sub:'Residential Renovation · Scottsdale', time:'2h ago', dot:'#C9A46E' },
-  { text:'Booking confirmed — Mike T.', sub:'Site consultation · Apr 17 @ 10:00 AM', time:'5h ago', dot:'#4ade80' },
+  { text:'New quote from Sarah K.', sub:'Residential Renovation ï¿½ Scottsdale', time:'2h ago', dot:'#C9A46E' },
+  { text:'Booking confirmed ï¿½ Mike T.', sub:'Site consultation ï¿½ Apr 17 @ 10:00 AM', time:'5h ago', dot:'#4ade80' },
   { text:'Blog post published', sub:'"Desert Modern: What It Really Means"', time:'Yesterday', dot:'#818cf8' },
-  { text:'Project updated — Ply Place', sub:'Gallery images added by J. Waters', time:'2 days ago', dot:'#60a5fa' },
+  { text:'Project updated ï¿½ Ply Place', sub:'Gallery images added by J. Waters', time:'2 days ago', dot:'#60a5fa' },
   { text:'New client registered', sub:'Daniel R. via website contact form', time:'3 days ago', dot:'#C9A46E' },
 ];
 
 // --- Documents Data -------------------------------------------
 const DOCS = [
-  { id:'contract-001', type:'contract', title:'Arcadia Modern Remodel', client:'Sarah & Tom Mitchell', clientEmail:'mitchell@email.com', clientPhone:'(602) 555-0181', project:'Arcadia Modern Remodel', location:'Arcadia, Phoenix, AZ', date:'Apr 10, 2026', startDate:'Apr 21, 2026', completionDate:'Oct 15, 2026', value:'$285,000', deposit:'$57,000', paymentSchedule:'Monthly draws tied to completion milestones', allowances:'$15,000 tile & stone allowance', sqFt:'3,200', services:'Framing, Electrical, Plumbing, HVAC / Mechanical, Flooring, Cabinetry & Millwork, Painting & Coatings', description:'Full interior and exterior remodel of a 3,200 sq ft residential property in the Arcadia neighborhood. Scope includes structural framing modifications, full MEP rough-in and trim, new flooring throughout, kitchen and bath remodel.', warranty:'2-year workmanship warranty on all labor', changeOrder:'All change orders require written approval and signed amendment prior to work beginning.', dispute:'Maricopa County, AZ — binding arbitration', roc:'AZ ROC KB-1 #343120', cmiRep:'Ben Peck', status:'Signed / Active', notes:'' },
-  { id:'contract-002', type:'contract', title:'Desert Highlands ADU', client:'James Okonkwo', clientEmail:'jokonkwo@email.com', clientPhone:'(480) 555-0247', project:'Desert Highlands ADU', location:'Scottsdale, AZ', date:'Apr 14, 2026', startDate:'May 5, 2026', completionDate:'Sep 30, 2026', value:'$142,500', deposit:'$28,500', paymentSchedule:'3 draws: mobilization, framing/MEP rough-in, final completion', allowances:'$8,000 flooring allowance', sqFt:'720', services:'Site Preparation & Grading, Foundation & Concrete, Framing, Electrical, Plumbing, HVAC / Mechanical, Roofing, Flooring', description:'Detached ADU construction on existing residential lot. 720 sq ft one-bedroom unit with full kitchen and bathroom.', warranty:'2-year workmanship warranty on all labor', changeOrder:'All change orders require written approval and signed amendment prior to work beginning.', dispute:'Maricopa County, AZ — binding arbitration', roc:'AZ ROC KB-1 #343120', cmiRep:'Ben Peck', status:'Pending Signature', notes:'' },
-  { id:'contract-003', type:'contract', title:'Paradise Valley Commercial TI', client:'Prestige Retail Group', clientEmail:'projects@prestigeretail.com', clientPhone:'(602) 555-0399', project:'PV Commercial TI', location:'Paradise Valley, AZ', date:'Mar 28, 2026', startDate:'Apr 7, 2026', completionDate:'Aug 1, 2026', value:'$510,000', deposit:'$102,000', paymentSchedule:'Monthly AIA-style draw schedule with 10% retention', allowances:'$30,000 FF&E allowance; $20,000 storefront glazing allowance', sqFt:'6,400', services:'Site Preparation & Grading, Structural Steel, Framing, Electrical, Plumbing, HVAC / Mechanical, Flooring, Cabinetry & Millwork, Painting & Coatings, Lighting Design', description:'Tenant improvement buildout for retail and showroom space. Includes demising walls, MEP for new retail configuration, custom millwork, storefront modifications, and full ADA compliance.', warranty:'1-year workmanship warranty; manufacturer warranties passed through on equipment', changeOrder:'All change orders require written approval and signed amendment prior to work beginning.', dispute:'Maricopa County, AZ — binding arbitration', roc:'AZ ROC KB-1 #343120', cmiRep:'Ben Peck', status:'Signed / Active', notes:'' },
+  { id:'contract-001', type:'contract', title:'Arcadia Modern Remodel', client:'Sarah & Tom Mitchell', clientEmail:'mitchell@email.com', clientPhone:'(602) 555-0181', project:'Arcadia Modern Remodel', location:'Arcadia, Phoenix, AZ', date:'Apr 10, 2026', startDate:'Apr 21, 2026', completionDate:'Oct 15, 2026', value:'$285,000', deposit:'$57,000', paymentSchedule:'Monthly draws tied to completion milestones', allowances:'$15,000 tile & stone allowance', sqFt:'3,200', services:'Framing, Electrical, Plumbing, HVAC / Mechanical, Flooring, Cabinetry & Millwork, Painting & Coatings', description:'Full interior and exterior remodel of a 3,200 sq ft residential property in the Arcadia neighborhood. Scope includes structural framing modifications, full MEP rough-in and trim, new flooring throughout, kitchen and bath remodel.', warranty:'2-year workmanship warranty on all labor', changeOrder:'All change orders require written approval and signed amendment prior to work beginning.', dispute:'Maricopa County, AZ ï¿½ binding arbitration', roc:'AZ ROC KB-1 #343120', cmiRep:'Ben Peck', status:'Signed / Active', notes:'' },
+  { id:'contract-002', type:'contract', title:'Desert Highlands ADU', client:'James Okonkwo', clientEmail:'jokonkwo@email.com', clientPhone:'(480) 555-0247', project:'Desert Highlands ADU', location:'Scottsdale, AZ', date:'Apr 14, 2026', startDate:'May 5, 2026', completionDate:'Sep 30, 2026', value:'$142,500', deposit:'$28,500', paymentSchedule:'3 draws: mobilization, framing/MEP rough-in, final completion', allowances:'$8,000 flooring allowance', sqFt:'720', services:'Site Preparation & Grading, Foundation & Concrete, Framing, Electrical, Plumbing, HVAC / Mechanical, Roofing, Flooring', description:'Detached ADU construction on existing residential lot. 720 sq ft one-bedroom unit with full kitchen and bathroom.', warranty:'2-year workmanship warranty on all labor', changeOrder:'All change orders require written approval and signed amendment prior to work beginning.', dispute:'Maricopa County, AZ ï¿½ binding arbitration', roc:'AZ ROC KB-1 #343120', cmiRep:'Ben Peck', status:'Pending Signature', notes:'' },
+  { id:'contract-003', type:'contract', title:'Paradise Valley Commercial TI', client:'Prestige Retail Group', clientEmail:'projects@prestigeretail.com', clientPhone:'(602) 555-0399', project:'PV Commercial TI', location:'Paradise Valley, AZ', date:'Mar 28, 2026', startDate:'Apr 7, 2026', completionDate:'Aug 1, 2026', value:'$510,000', deposit:'$102,000', paymentSchedule:'Monthly AIA-style draw schedule with 10% retention', allowances:'$30,000 FF&E allowance; $20,000 storefront glazing allowance', sqFt:'6,400', services:'Site Preparation & Grading, Structural Steel, Framing, Electrical, Plumbing, HVAC / Mechanical, Flooring, Cabinetry & Millwork, Painting & Coatings, Lighting Design', description:'Tenant improvement buildout for retail and showroom space. Includes demising walls, MEP for new retail configuration, custom millwork, storefront modifications, and full ADA compliance.', warranty:'1-year workmanship warranty; manufacturer warranties passed through on equipment', changeOrder:'All change orders require written approval and signed amendment prior to work beginning.', dispute:'Maricopa County, AZ ï¿½ binding arbitration', roc:'AZ ROC KB-1 #343120', cmiRep:'Ben Peck', status:'Signed / Active', notes:'' },
   { id:'sow-001', type:'sow', title:'Scottsdale Master Bath Renovation', client:'Dana Reyes', clientEmail:'dana.reyes@email.com', clientPhone:'(480) 555-0152', project:'Scottsdale Master Bath', location:'Scottsdale, AZ', date:'Apr 18, 2026', startDate:'May 12, 2026', completionDate:'Jun 30, 2026', value:'$68,000', paymentTerms:'50% deposit, 50% upon completion', sqFt:'280', services:'Plumbing, Tile & Stone, Cabinetry & Millwork, Flooring, Painting & Coatings', description:'Complete master bathroom gut renovation including new tile and stone work, custom vanity, freestanding soaking tub, frameless glass shower enclosure, and smart fixtures.', deliverables:'Demo and haul-off; new shower tile and stone; custom double vanity with quartz top; freestanding soaking tub install; heated floor; lighting package; plumbing fixtures.', exclusions:'Painting beyond bathroom; structural changes; permits for anything outside bath scope.', assumptions:'Client to select all tile, fixtures, and finishes within allowance. Existing plumbing stack remains in current location.', permits:'CMI to obtain all required trade permits', inspections:'Plumbing and tile inspections as required by city', changeOrder:'All change orders require written approval and signed amendment prior to work beginning.', roc:'AZ ROC KB-1 #343120', preparedBy:'Jeremy Waters', status:'Approved', notes:'' },
   { id:'sow-002', type:'sow', title:'Chandler New Construction', client:'Marcus & Leila Osei', clientEmail:'osei.family@email.com', clientPhone:'(480) 555-0318', project:'Chandler Custom Home', location:'Chandler, AZ', date:'Apr 20, 2026', startDate:'Jun 1, 2026', completionDate:'Apr 30, 2027', value:'$1,240,000', paymentTerms:'Monthly AIA-style draws with 10% retention through substantial completion', sqFt:'4,800', services:'Site Preparation & Grading, Permitting & Entitlements, Foundation & Concrete, Framing, Roofing, Electrical, Plumbing, HVAC / Mechanical, Flooring, Cabinetry & Millwork, Painting & Coatings, Landscaping, Smart Home / AV', description:'Ground-up construction of a 4,800 sq ft custom single-family residence with attached 3-car garage, pool pre-plumb, and smart home integration throughout.', deliverables:'Full structure from foundation to final finishes; all mechanical systems; smart home pre-wire; landscaping rough grade; pool pre-plumb.', exclusions:'Pool construction; furniture and FF&E; solar installation; window treatments.', assumptions:'City of Chandler permits; approved architectural plans on file; client to provide landscaping design before rough grade.', permits:'CMI to obtain building permit and all trade permits', inspections:'All required city and county inspections through certificate of occupancy', changeOrder:'All change orders require written approval and signed amendment prior to work beginning.', roc:'AZ ROC KB-1 #343120', preparedBy:'Ben Peck', status:'Pending Signature', notes:'' },
   { id:'sow-003', type:'sow', title:'Gilbert Kitchen Remodel', client:'Priya Nair', clientEmail:'priya.nair@email.com', clientPhone:'(480) 555-0427', project:'Gilbert Kitchen Remodel', location:'Gilbert, AZ', date:'Apr 21, 2026', startDate:'TBD', completionDate:'TBD', value:'$44,500', paymentTerms:'40% deposit, 30% at cabinet install, 30% at final completion', sqFt:'320', services:'Electrical, Plumbing, Cabinetry & Millwork, Tile & Stone, Flooring, Painting & Coatings', description:'Kitchen remodel including new custom cabinetry, quartz countertops, tile backsplash, appliance rough-in, and updated lighting package.', deliverables:'Demo existing kitchen; install new custom cabinetry; quartz countertops; tile backsplash; updated electrical for island and appliances; new sink and faucet.', exclusions:'Appliance purchase; flooring outside kitchen; painting beyond kitchen walls.', assumptions:'Existing layout to remain; no structural wall changes; appliances provided by client.', permits:'Electrical and plumbing permits as required', inspections:'Per city requirements', changeOrder:'All change orders require written approval and signed amendment prior to work beginning.', roc:'AZ ROC KB-1 #343120', preparedBy:'Jeremy Waters', status:'Draft', notes:'' },
-  { id:'contract-004', type:'contract', title:'Tempe Interior Design', client:'Cassandra Wu', clientEmail:'cassandra.wu@email.com', clientPhone:'(480) 555-0563', project:'Tempe Interior Design', location:'Tempe, AZ', date:'Apr 22, 2026', startDate:'TBD', completionDate:'TBD', value:'$32,000', deposit:'$9,600', paymentSchedule:'50% deposit; 50% upon project completion', allowances:'$5,000 furnishings allowance', sqFt:'1,850', services:'Interior Design, Flooring, Painting & Coatings, Lighting Design', description:'Interior design and light renovation for a 1,850 sq ft condo in downtown Tempe. Scope includes new flooring, paint, lighting, and design direction for furnishings.', warranty:'90-day workmanship warranty on installation work', changeOrder:'All change orders require written approval and signed amendment prior to work beginning.', dispute:'Maricopa County, AZ — binding arbitration', roc:'AZ ROC KB-1 #343120', cmiRep:'Ben Peck', status:'Draft', notes:'' },
+  { id:'contract-004', type:'contract', title:'Tempe Interior Design', client:'Cassandra Wu', clientEmail:'cassandra.wu@email.com', clientPhone:'(480) 555-0563', project:'Tempe Interior Design', location:'Tempe, AZ', date:'Apr 22, 2026', startDate:'TBD', completionDate:'TBD', value:'$32,000', deposit:'$9,600', paymentSchedule:'50% deposit; 50% upon project completion', allowances:'$5,000 furnishings allowance', sqFt:'1,850', services:'Interior Design, Flooring, Painting & Coatings, Lighting Design', description:'Interior design and light renovation for a 1,850 sq ft condo in downtown Tempe. Scope includes new flooring, paint, lighting, and design direction for furnishings.', warranty:'90-day workmanship warranty on installation work', changeOrder:'All change orders require written approval and signed amendment prior to work beginning.', dispute:'Maricopa County, AZ ï¿½ binding arbitration', roc:'AZ ROC KB-1 #343120', cmiRep:'Ben Peck', status:'Draft', notes:'' },
 ];
 // Rehydrate from localStorage as initial fallback (Supabase overwrites on load)
 (function(){
@@ -2001,7 +2021,7 @@ function renderUpcoming() {
     '<div class="flex gap-3 py-2.5" style="border-bottom:1px solid var(--border-sm)">' +
       '<div class="text-center w-10 flex-shrink-0"><p class="text-[9px] text-neutral-600 uppercase">' + b.date.split(' ')[0] + '</p>' +
       '<p class="text-lg font-bold leading-tight" style="color:var(--gold)">' + b.date.split(' ')[1] + '</p></div>' +
-      '<div><p class="text-sm text-neutral-200">' + b.type + '</p><p class="text-xs text-neutral-500">' + b.name + ' · ' + b.time + '</p></div>' +
+      '<div><p class="text-sm text-neutral-200">' + b.type + '</p><p class="text-xs text-neutral-500">' + b.name + ' ï¿½ ' + b.time + '</p></div>' +
     '</div>'
   ).join('');
 }
@@ -2149,7 +2169,7 @@ let WP_MEDIA_MAP = {};
 
 async function loadTeam() {
   const grid = document.getElementById('teamGrid');
-  grid.innerHTML = '<div class="col-span-4 py-12 text-center text-sm" style="color:var(--text-muted)">Loading team members…</div>';
+  grid.innerHTML = '<div class="col-span-4 py-12 text-center text-sm" style="color:var(--text-muted)">Loading team membersï¿½</div>';
   try {
     const res = await fetch(WP_BASE + '/wp/v2/team-member?per_page=100', {
       headers: { Authorization: WP_AUTH }
@@ -2177,7 +2197,7 @@ async function loadTeam() {
     renderTeamCards();
   } catch(e) {
     console.warn('Team load failed:', e);
-    grid.innerHTML = '<div class="col-span-4 py-12 text-center text-sm" style="color:var(--text-muted)">Could not load team data — check API connection.</div>';
+    grid.innerHTML = '<div class="col-span-4 py-12 text-center text-sm" style="color:var(--text-muted)">Could not load team data ï¿½ check API connection.</div>';
   }
 }
 
@@ -2264,17 +2284,19 @@ function openTeamModal(id) {
   document.getElementById('tmProfileInput').value   = '';
   document.getElementById('tmSecondaryInput').value = '';
 
-  // Key attributes chips
-  let currentAttrs = [];
+  // Key attributes repeater â€” support both old (string[]) and new ({title,description}[]) formats
   const rawAttrs = meta.key_attributes;
-  if (Array.isArray(rawAttrs)) {
-    currentAttrs = rawAttrs.map(a => typeof a === 'object' ? Object.values(a)[0] : String(a));
-  } else if (typeof rawAttrs === 'string' && rawAttrs) {
-    currentAttrs = rawAttrs.split(',').map(s => s.trim()).filter(Boolean);
+  const container = document.getElementById('tmAttrRepeater');
+  container.innerHTML = '';
+  if (Array.isArray(rawAttrs) && rawAttrs.length) {
+    rawAttrs.forEach(a => {
+      if (typeof a === 'object' && a !== null && !Array.isArray(a)) {
+        addTeamAttrRow('tmAttrRepeater', a.title || Object.values(a)[0] || '', a.description || '');
+      } else {
+        addTeamAttrRow('tmAttrRepeater', String(a || ''), '');
+      }
+    });
   }
-  document.getElementById('tmAttrChips').innerHTML = TEAM_ATTRS.map(attr =>
-    '<div class="chip' + (currentAttrs.includes(attr) ? ' selected' : '') + '" onclick="this.classList.toggle(\'selected\')">' + attr + '</div>'
-  ).join('');
 
   document.getElementById('tmViewLink').href = m.slug ? 'team/' + m.slug + '.html' : '#';
   document.getElementById('teamModal').classList.add('open');
@@ -2290,10 +2312,9 @@ async function saveTeamMember() {
   const id  = document.getElementById('tmId').value;
   if (!id) return;
   const btn = document.getElementById('tmSaveBtn');
-  btn.textContent = 'Saving…'; btn.disabled = true;
+  btn.textContent = 'Savingï¿½'; btn.disabled = true;
 
-  const attrs = Array.from(document.getElementById('tmAttrChips').querySelectorAll('.chip.selected'))
-    .map(c => c.textContent.trim());
+  const attrs = getTeamAttrs('tmAttrRepeater');
   const first = document.getElementById('tmFirst').value.trim();
   const last  = document.getElementById('tmLast').value.trim();
 
@@ -2340,7 +2361,7 @@ async function saveTeamMember() {
       showToast('Error: ' + (err.message || 'Could not save'));
     }
   } catch(e) {
-    showToast('Network error — check connection');
+    showToast('Network error ï¿½ check connection');
   } finally {
     btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg> Save Changes';
     btn.disabled = false;
@@ -2490,7 +2511,7 @@ async function submitProject(e) {
   const btn = document.getElementById('projectSubmitBtn');
   const label = document.getElementById('projectSubmitLabel');
   const origLabel = label ? label.textContent : 'Save';
-  if (label) label.textContent = 'Saving…';
+  if (label) label.textContent = 'Savingï¿½';
   if (btn) btn.disabled = true;
 
   const isEdit = !!_editingSlug;
@@ -2570,7 +2591,7 @@ async function submitProject(e) {
     _editingGalleryImgs  = [];
     _pendingFeaturedFile = null;
     _pendingGalleryFiles = [];
-    showToast(isEdit ? 'Project updated — changes are live' : 'Project published successfully');
+    showToast(isEdit ? 'Project updated ï¿½ changes are live' : 'Project published successfully');
     _editingSlug = null;
     form.reset();
     ['featuredPreview','galleryPreview','videoPreview'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = ''; });
@@ -2610,17 +2631,108 @@ async function submitBlogPost(forceDraft) {
   } catch { showToast('Network error'); }
 }
 
-function submitTeamMember(e) {
+// â”€â”€ Attr Repeater helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const ATTR_MAX = 160;
+
+function addTeamAttrRow(containerId, title = '', desc = '') {
+  const c = document.getElementById(containerId);
+  const row = document.createElement('div');
+  row.className = 'attr-row';
+  const safeTitle = title.replace(/"/g, '&quot;');
+  const safeDesc  = desc.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const remaining = ATTR_MAX - desc.length;
+  const countClass = remaining <= 0 ? 'full' : remaining <= 30 ? 'near' : '';
+  row.innerHTML =
+    '<div class="attr-row-fields">' +
+      '<input type="text" placeholder="Attribute title (e.g. Design-Build)" maxlength="60" value="' + safeTitle + '" />' +
+      '<textarea rows="3" maxlength="' + ATTR_MAX + '" placeholder="Brief description of this attributeâ€¦" oninput="updateAttrCount(this)">' + safeDesc + '</textarea>' +
+      '<p class="attr-char-count ' + countClass + '">' + desc.length + '/' + ATTR_MAX + '</p>' +
+    '</div>' +
+    '<button type="button" class="attr-remove-btn" onclick="this.closest(\'.attr-row\').remove()" title="Remove">' +
+      '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>' +
+    '</button>';
+  c.appendChild(row);
+}
+
+function updateAttrCount(ta) {
+  const p = ta.nextElementSibling;
+  const n = ta.value.length;
+  const rem = ATTR_MAX - n;
+  p.textContent = n + '/' + ATTR_MAX;
+  p.className = 'attr-char-count' + (rem <= 0 ? ' full' : rem <= 30 ? ' near' : '');
+}
+
+function getTeamAttrs(containerId) {
+  return Array.from(document.getElementById(containerId).querySelectorAll('.attr-row')).map(row => ({
+    title:       row.querySelector('input').value.trim(),
+    description: row.querySelector('textarea').value.trim(),
+  })).filter(a => a.title);
+}
+
+// â”€â”€ Add Team Member (create new) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+async function submitTeamMember(e) {
   e.preventDefault();
-  showToast('Team member added');
-  nav('team', null);
+  const form = e.target;
+  const btn  = form.querySelector('button[type="submit"]');
+  btn.textContent = 'Savingâ€¦'; btn.disabled = true;
+
+  const first = form.first_name.value.trim();
+  const last  = form.last_name.value.trim();
+  const meta  = {
+    first_name:    first,
+    last_name:     last,
+    nickname:      form.nickname.value.trim(),
+    job_title:     form.job_title.value.trim(),
+    email_address: form.email_address.value.trim(),
+    phone_number:  form.phone_number.value.trim(),
+    linkedIn_url:  form.linkedIn_url.value.trim(),
+    bio:           form.bio.value.trim(),
+    key_attributes: getTeamAttrs('teamAttrRepeater'),
+  };
+
+  try {
+    const photoInput = document.getElementById('teamPhotoInput');
+    if (photoInput.files.length) {
+      const mid = await uploadMedia(photoInput.files[0]);
+      if (mid) meta.employee_profile_photo = mid;
+    }
+
+    const res = await fetch(WP_BASE + '/wp/v2/team-member', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: WP_AUTH },
+      body: JSON.stringify({
+        title:  (first + ' ' + last).trim() || 'Team Member',
+        status: 'publish',
+        meta,
+      }),
+    });
+
+    if (res.ok) {
+      const created = await res.json();
+      WP_TEAM.push(created);
+      renderTeamCards();
+      form.reset();
+      document.getElementById('teamAttrRepeater').innerHTML = '';
+      document.getElementById('teamPhotoPreview').innerHTML = '';
+      showToast('Team member added');
+      nav('team', document.querySelector('.nav-item[onclick*="team"]'));
+    } else {
+      const err = await res.json().catch(() => ({}));
+      showToast('Error: ' + (err.message || 'Could not save â€” check API connection'));
+    }
+  } catch(err) {
+    console.error('submitTeamMember:', err);
+    showToast('Network error â€” check connection');
+  } finally {
+    btn.textContent = 'Add to Team'; btn.disabled = false;
+  }
 }
 
 // --- FluentCRM ------------------------------------------------
 // --- FluentCRM ---------------------------------------------------
 const CRM_BASE = WP_BASE + '/fluent-crm/v2';
 
-// Twilio config (optional — set to enable in-dashboard SMS)
+// Twilio config (optional ï¿½ set to enable in-dashboard SMS)
 const TWILIO_ACCOUNT_SID  = '';   // e.g. 'ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 const TWILIO_AUTH_TOKEN   = '';   // Your Twilio Auth Token
 const TWILIO_FROM_NUMBER  = '';   // e.g. '+15005550006'
@@ -2652,7 +2764,7 @@ function parseCRMList(data, key) {
 }
 
 async function loadCRMInit() {
-  // Load contacts immediately — don't wait for filters
+  // Load contacts immediately ï¿½ don't wait for filters
   loadCRMContacts(1);
   // Load lists & tags in parallel, build filters when ready
   loadCRMFilters();
@@ -2722,7 +2834,7 @@ async function loadCRMContacts(page) {
 
 function showCRMLoading(msg) {
   const tb = document.getElementById('clientTableBody');
-  if (tb) tb.innerHTML = '<tr><td colspan="6" class="text-center py-10 text-sm" style="color:var(--text-muted)">' + (msg || 'Loading contacts…') + '</td></tr>';
+  if (tb) tb.innerHTML = '<tr><td colspan="6" class="text-center py-10 text-sm" style="color:var(--text-muted)">' + (msg || 'Loading contactsï¿½') + '</td></tr>';
 }
 function showCRMError(msg) {
   const tb = document.getElementById('clientTableBody');
@@ -2742,7 +2854,7 @@ function renderCRMTable() {
     return;
   }
   tbody.innerHTML = CRM_CONTACTS.map(c => {
-    const name     = ((c.full_name || ((c.first_name||'') + ' ' + (c.last_name||'')).trim()) || c.email || '—').trim();
+    const name     = ((c.full_name || ((c.first_name||'') + ' ' + (c.last_name||'')).trim()) || c.email || 'ï¿½').trim();
     const initials = name.split(' ').filter(Boolean).map(w=>w[0]).join('').toUpperCase().slice(0,2) || '?';
     const status   = (c.status || 'subscribed').toLowerCase();
     const badgeCls = CRM_STATUS_BADGE[status] || 'b-neutral';
@@ -2761,10 +2873,10 @@ function renderCRMTable() {
         '<div><p class="font-medium text-[13px]" style="color:var(--text)">' + escHtml(name) + '</p>' +
         '<span class="badge ' + badgeCls + ' text-[10px] mt-0.5">' + statusLabel + '</span></div>' +
       '</div></td>' +
-      '<td><a href="mailto:' + escAttr(c.email||'') + '" style="color:var(--text-sub);text-decoration:none;font-size:13px" onmouseover="this.style.color=\'var(--gold)\'" onmouseout="this.style.color=\'var(--text-sub)\'">' + escHtml(c.email||'—') + '</a></td>' +
-      '<td style="color:var(--text-muted);font-size:13px">' + escHtml(c.phone||'—') + '</td>' +
-      '<td><div style="display:flex;flex-wrap:wrap;gap:2px">' + (listChips || '<span style="color:var(--text-weak);font-size:12px">—</span>') + '</div></td>' +
-      '<td><div style="display:flex;flex-wrap:wrap;gap:2px">' + (tagChips  || '<span style="color:var(--text-weak);font-size:12px">—</span>') + '</div></td>' +
+      '<td><a href="mailto:' + escAttr(c.email||'') + '" style="color:var(--text-sub);text-decoration:none;font-size:13px" onmouseover="this.style.color=\'var(--gold)\'" onmouseout="this.style.color=\'var(--text-sub)\'">' + escHtml(c.email||'ï¿½') + '</a></td>' +
+      '<td style="color:var(--text-muted);font-size:13px">' + escHtml(c.phone||'ï¿½') + '</td>' +
+      '<td><div style="display:flex;flex-wrap:wrap;gap:2px">' + (listChips || '<span style="color:var(--text-weak);font-size:12px">ï¿½</span>') + '</div></td>' +
+      '<td><div style="display:flex;flex-wrap:wrap;gap:2px">' + (tagChips  || '<span style="color:var(--text-weak);font-size:12px">ï¿½</span>') + '</div></td>' +
       '<td><button onclick="openCRMContact(' + c.id + ')" class="crm-toolbar-btn" style="padding:4px 10px;font-size:11px">' +
         '<svg style="width:12px;height:12px" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>' +
         'View</button></td>' +
@@ -2782,7 +2894,7 @@ function renderCRMPager() {
   let pageOpts = '';
   for (let i=1; i<=totalPages; i++) pageOpts += '<option value="'+i+'"'+(i===CRM_PAGE?' selected':'')+'>'+i+'</option>';
   el.innerHTML = '<div class="pager">' +
-    '<span class="pager-info">Showing ' + from + '–' + to + ' of ' + CRM_TOTAL.toLocaleString() + ' contacts</span>' +
+    '<span class="pager-info">Showing ' + from + 'ï¿½' + to + ' of ' + CRM_TOTAL.toLocaleString() + ' contacts</span>' +
     '<div style="display:flex;align-items:center;gap:6px">' +
       '<span style="font-size:12px;color:var(--text-muted)">Page</span>' +
       '<select onchange="loadCRMContacts(+this.value)" style="background:var(--surface-2);border:1px solid var(--border-md);border-radius:6px;color:var(--text);font-size:12px;padding:3px 6px;cursor:pointer">' + pageOpts + '</select>' +
@@ -2882,7 +2994,7 @@ function switchCRMTab(tab) {
 function toggleCRMEditMode() { switchCRMTab('edit'); }
 
 function populateCRMModal(c) {
-  const name     = ((c.full_name || ((c.first_name||'') + ' ' + (c.last_name||'')).trim()) || c.email || '—').trim();
+  const name     = ((c.full_name || ((c.first_name||'') + ' ' + (c.last_name||'')).trim()) || c.email || 'ï¿½').trim();
   const initials = name.split(' ').filter(Boolean).map(w=>w[0]).join('').toUpperCase().slice(0,2) || '?';
   const status   = (c.status || 'subscribed').toLowerCase();
   const badgeCls = CRM_STATUS_BADGE[status] || 'b-neutral';
@@ -2900,13 +3012,13 @@ function populateCRMModal(c) {
 
   // Overview fields
   const fields = [
-    ['Email',    c.email ? '<a href="mailto:'+escAttr(c.email)+'" style="color:var(--gold);text-decoration:none">'+escHtml(c.email)+'</a>' : '—'],
-    ['Phone',    c.phone ? '<a href="tel:'+escAttr(c.phone)+'" style="color:var(--gold);text-decoration:none">'+escHtml(c.phone)+'</a>' : '—'],
-    ['Company',  escHtml(c.company||'—')],
-    ['Job Title',escHtml(c.designation||c.job_title||'—')],
-    ['Address',  escHtml([c.address_line_1,c.city,c.state,c.postal_code,c.country].filter(Boolean).join(', ')||'—')],
-    ['Source',   escHtml(c.source||'—')],
-    ['Created',  c.created_at ? new Date(c.created_at).toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'}) : '—'],
+    ['Email',    c.email ? '<a href="mailto:'+escAttr(c.email)+'" style="color:var(--gold);text-decoration:none">'+escHtml(c.email)+'</a>' : 'ï¿½'],
+    ['Phone',    c.phone ? '<a href="tel:'+escAttr(c.phone)+'" style="color:var(--gold);text-decoration:none">'+escHtml(c.phone)+'</a>' : 'ï¿½'],
+    ['Company',  escHtml(c.company||'ï¿½')],
+    ['Job Title',escHtml(c.designation||c.job_title||'ï¿½')],
+    ['Address',  escHtml([c.address_line_1,c.city,c.state,c.postal_code,c.country].filter(Boolean).join(', ')||'ï¿½')],
+    ['Source',   escHtml(c.source||'ï¿½')],
+    ['Created',  c.created_at ? new Date(c.created_at).toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'}) : 'ï¿½'],
   ];
   document.getElementById('crmOverviewFields').innerHTML = fields.map(([label,value]) =>
     '<div class="crm-field-row"><span class="crm-field-label">' + label + '</span><span class="crm-field-value">' + value + '</span></div>'
@@ -2944,7 +3056,7 @@ async function saveCRMContact() {
   if (!CRM_ACTIVE_CONTACT) return;
   const id = CRM_ACTIVE_CONTACT.id;
   const statusEl = document.getElementById('crmSaveStatus');
-  statusEl.textContent = 'Saving…';
+  statusEl.textContent = 'Savingï¿½';
   statusEl.style.color = 'var(--text-muted)';
   const payload = {
     first_name:   document.getElementById('ceFirstName').value.trim(),
@@ -3008,7 +3120,7 @@ async function sendSMSNow() {
 
   if (TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN && TWILIO_FROM_NUMBER) {
     // Send via Twilio REST API
-    statusEl.textContent = 'Sending…'; statusEl.style.color='var(--text-muted)';
+    statusEl.textContent = 'Sendingï¿½'; statusEl.style.color='var(--text-muted)';
     try {
       const params = new URLSearchParams({ To: to, From: TWILIO_FROM_NUMBER, Body: body });
       const res = await fetch('https://api.twilio.com/2010-04-01/Accounts/' + TWILIO_ACCOUNT_SID + '/Messages.json', {
@@ -3050,7 +3162,7 @@ async function submitAddContact() {
   const email = document.getElementById('acEmail').value.trim();
   const msgEl = document.getElementById('acStatus-msg');
   if (!email) { msgEl.textContent = 'Email is required.'; msgEl.style.color='#f87171'; return; }
-  msgEl.textContent = 'Creating…'; msgEl.style.color='var(--text-muted)';
+  msgEl.textContent = 'Creatingï¿½'; msgEl.style.color='var(--text-muted)';
   try {
     const res = await fetch(CRM_BASE + '/subscribers', {
       method: 'POST',
@@ -3076,7 +3188,7 @@ async function submitAddContact() {
 async function crmExportCSV() {
   const btn = event.currentTarget;
   const origText = btn.innerHTML;
-  btn.innerHTML = '<svg class="w-3 h-3 animate-spin" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/></svg> Exporting…';
+  btn.innerHTML = '<svg class="w-3 h-3 animate-spin" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/></svg> Exportingï¿½';
   btn.disabled = true;
   try {
     let all = [];
@@ -3149,7 +3261,7 @@ function crmImportCSV(input) {
     if (!confirmed) { input.value=''; return; }
 
     let success = 0, errors = 0;
-    showCRMLoading('Importing ' + contacts.length + ' contacts…');
+    showCRMLoading('Importing ' + contacts.length + ' contactsï¿½');
     for (const c of contacts) {
       try {
         const payload = {
@@ -3221,11 +3333,11 @@ function fbPriDot(p) {
   return '<span class="p-dot" style="background:' + c + '"></span>';
 }
 function fbPriBadge(p) {
-  const cfg = FB_PRIORITY_CFG[p] || { label: p ? p.charAt(0).toUpperCase()+p.slice(1) : '—', badge:'b-neutral' };
+  const cfg = FB_PRIORITY_CFG[p] || { label: p ? p.charAt(0).toUpperCase()+p.slice(1) : 'ï¿½', badge:'b-neutral' };
   return '<span class="badge ' + cfg.badge + ' text-[10px]">' + cfg.label + '</span>';
 }
 function fbDueDateStr(d) {
-  if (!d) return '—';
+  if (!d) return 'ï¿½';
   try {
     const dt = new Date(d);
     if (isNaN(dt)) return d;
@@ -3255,12 +3367,12 @@ function fbIsCompleted(t) {
 }
 function fbStageLabel(stageId) {
   const s = FB_STAGES.find(s => s.id == stageId);
-  return s ? s.title : (stageId ? 'Stage ' + stageId : '—');
+  return s ? s.title : (stageId ? 'Stage ' + stageId : 'ï¿½');
 }
 function fbStageLabelAll(boardId, stageId) {
   const stages = FB_ALL_STAGES[boardId] || FB_STAGES;
   const s = stages.find(s => s.id == stageId);
-  return s ? s.title : (stageId ? 'Stage ' + stageId : '—');
+  return s ? s.title : (stageId ? 'Stage ' + stageId : 'ï¿½');
 }
 function fbAssigneesAvatars(assignees) {
   if (!assignees || !assignees.length) return '<span style="font-size:11px;color:var(--text-weak)">Unassigned</span>';
@@ -3274,7 +3386,7 @@ function fbAssigneesAvatars(assignees) {
 // -- Load boards + all tasks ------------------------------------
 async function loadFBBoards() {
   const wrap = document.getElementById('fb-content-wrap');
-  if (wrap) wrap.innerHTML = '<div class="py-20 text-center text-sm" style="color:var(--text-muted)">Loading boards…</div>';
+  if (wrap) wrap.innerHTML = '<div class="py-20 text-center text-sm" style="color:var(--text-muted)">Loading boardsï¿½</div>';
   try {
     const res = await fetch(FB_BASE + '/projects', { headers: { Authorization: WP_AUTH } });
     console.log('[FB] /projects status:', res.status);
@@ -3434,7 +3546,7 @@ function renderFBMyTasks() {
     '<p class="text-[11px]" style="color:var(--text-muted)">' + escHtml(t._boardTitle || '') + '</p></div>' +
     '</div></td>' +
     '<td><span class="badge b-neutral text-[10px]">' + escHtml(fbStageLabelAll(t._boardId, t.stage_id)) + '</span></td>' +
-    '<td>' + (t.priority ? fbPriBadge(t.priority) : '<span style="color:var(--text-weak);font-size:12px">—</span>') + '</td>' +
+    '<td>' + (t.priority ? fbPriBadge(t.priority) : '<span style="color:var(--text-weak);font-size:12px">ï¿½</span>') + '</td>' +
     '<td>' + fbDueDateStr(t.due_at) + '</td>' +
     '<td><div style="display:flex;align-items:center">' + fbAssigneesAvatars(t.assignees) + '</div></td>' +
     '</tr>'
@@ -3470,7 +3582,7 @@ function renderFBList() {
     '<tr onclick="openFBTask(' + t.id + ')" style="cursor:pointer">' +
     '<td><div class="flex items-center gap-2.5">' + fbPriDot(t.priority) + '<span class="font-medium" style="color:var(--text)">' + escHtml(t.title || 'Untitled') + '</span></div></td>' +
     '<td><span class="badge b-neutral text-[10px]">' + escHtml(fbStageLabel(t.stage_id)) + '</span></td>' +
-    '<td>' + (t.priority ? fbPriBadge(t.priority) : '<span style="color:var(--text-weak);font-size:12px">—</span>') + '</td>' +
+    '<td>' + (t.priority ? fbPriBadge(t.priority) : '<span style="color:var(--text-weak);font-size:12px">ï¿½</span>') + '</td>' +
     '<td>' + fbDueDateStr(t.due_at) + '</td>' +
     '<td><div class="flex items-center">' + fbAssigneesAvatars(t.assignees) + '</div></td>' +
     '<td><button onclick="event.stopPropagation();openFBTask(' + t.id + ')" class="crm-toolbar-btn" style="padding:3px 8px;font-size:11px">Open</button></td>' +
@@ -3494,11 +3606,11 @@ function renderFBTable() {
     return;
   }
   const rows = FB_TASKS.map(t => {
-    const created = t.created_at ? new Date(t.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
+    const created = t.created_at ? new Date(t.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : 'ï¿½';
     return '<tr onclick="openFBTask(' + t.id + ')" style="cursor:pointer">' +
       '<td><span class="font-medium text-[13px]" style="color:var(--text)">' + escHtml(t.title||'Untitled') + '</span></td>' +
       '<td><span class="badge b-neutral text-[10px]">' + escHtml(fbStageLabel(t.stage_id)) + '</span></td>' +
-      '<td>' + (t.priority ? fbPriBadge(t.priority) : '—') + '</td>' +
+      '<td>' + (t.priority ? fbPriBadge(t.priority) : 'ï¿½') + '</td>' +
       '<td><span class="badge ' + (fbIsCompleted(t)?'b-green':'b-neutral') + ' text-[10px]">' + (fbIsCompleted(t)?'Done':'Open') + '</span></td>' +
       '<td>' + fbDueDateStr(t.due_at) + '</td>' +
       '<td><div style="display:flex;align-items:center">' + fbAssigneesAvatars(t.assignees) + '</div></td>' +
@@ -3527,7 +3639,7 @@ function renderFBKanban() {
             '<div class="fb-task-title">' + escHtml(t.title || 'Untitled') + '</div>' +
             '<div class="fb-task-meta">' +
               fbPriDot(t.priority) +
-              '<span style="font-size:11px;color:var(--text-muted)">' + (t.priority ? t.priority.charAt(0).toUpperCase()+t.priority.slice(1) : '—') + '</span>' +
+              '<span style="font-size:11px;color:var(--text-muted)">' + (t.priority ? t.priority.charAt(0).toUpperCase()+t.priority.slice(1) : 'ï¿½') + '</span>' +
               (t.due_at ? '<span style="margin-left:auto">' + fbDueDateStr(t.due_at) + '</span>' : '') +
             '</div>' +
             (t.assignees && t.assignees.length ? '<div style="display:flex;align-items:center;margin-top:8px">' + fbAssigneesAvatars(t.assignees) + '</div>' : '') +
@@ -3620,7 +3732,7 @@ function openFBTask(id, fromAllTasks) {
   document.getElementById('fbTaskModalId').value = id;
   document.getElementById('fbTaskModalId').dataset.boardId = taskBoardId;
   document.getElementById('fbTaskModalTitle').textContent = t.title || 'Untitled';
-  document.getElementById('fbTaskModalStageLabel').textContent = t._boardTitle ? t._boardTitle + ' — ' + fbStageLabelAll(taskBoardId, t.stage_id) : fbStageLabel(t.stage_id);
+  document.getElementById('fbTaskModalStageLabel').textContent = t._boardTitle ? t._boardTitle + ' ï¿½ ' + fbStageLabelAll(taskBoardId, t.stage_id) : fbStageLabel(t.stage_id);
   // Populate stage dropdown from correct board
   const stageSelect = document.getElementById('fbTaskModalStageInput');
   stageSelect.innerHTML = taskStages.map(s =>
@@ -3682,7 +3794,7 @@ async function saveFBTaskChanges() {
       const err = await res.json().catch(()=>({}));
       showToast('Error: ' + (err.message || 'Could not save'));
     }
-  } catch { showToast('Network error — check connection'); }
+  } catch { showToast('Network error ï¿½ check connection'); }
 }
 
 // --- FB New Task Modal ----------------------------------------
@@ -3727,7 +3839,7 @@ async function submitFBNewTask() {
       const err = await res.json().catch(()=>({}));
       showToast('Error: ' + (err.message || 'Could not create task'));
     }
-  } catch { showToast('Network error — check connection'); }
+  } catch { showToast('Network error ï¿½ check connection'); }
 }
 
 // --- FB Auth Error --------------------------------------------
@@ -3788,7 +3900,7 @@ async function submitDocument(event, type) {
     assumptions:     type === 'sow' ? fv('sowAssumptions') : '',
     warranty:        type === 'contract' ? fv('contractWarranty') : '',
     changeOrder:     'All change orders require written approval and signed amendment prior to work beginning.',
-    dispute:         type === 'contract' ? 'Maricopa County, AZ — binding arbitration' : '',
+    dispute:         type === 'contract' ? 'Maricopa County, AZ ï¿½ binding arbitration' : '',
     permits:         type === 'sow' ? fv('sowPermits') : '',
     inspections:     type === 'sow' ? fv('sowInspections') : '',
     roc:             'AZ ROC KB-1 #343120',
@@ -3897,7 +4009,7 @@ function buildDocView(doc) {
     ['ROC License', doc.roc],
     ['Prepared By', doc.preparedBy],
   ])) +
-  sec('Notes', [['Internal Notes', doc.notes || '—', true]]);
+  sec('Notes', [['Internal Notes', doc.notes || 'ï¿½', true]]);
 }
 function _inp(key, label, value, wide, multiline) {
   const tag = multiline ? 'textarea' : 'input';
@@ -4064,8 +4176,8 @@ function dbToBooking(row) {
   return {
     name:   name || row.title || 'Booking',
     type:   row.booking_type || 'Consultation',
-    date:   dt ? dt.toLocaleDateString('en-US', { month:'short', day:'numeric' }) : '—',
-    time:   dt ? dt.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' }) : '—',
+    date:   dt ? dt.toLocaleDateString('en-US', { month:'short', day:'numeric' }) : 'ï¿½',
+    time:   dt ? dt.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' }) : 'ï¿½',
     status: row.status || 'pending',
   };
 }
@@ -4075,7 +4187,7 @@ function dbToQuote(row) {
     name:   row.name || '',
     type:   row.project_type || '',
     loc:    row.location || '',
-    date:   dt ? dt.toLocaleDateString('en-US', { month:'short', day:'numeric' }) : '—',
+    date:   dt ? dt.toLocaleDateString('en-US', { month:'short', day:'numeric' }) : 'ï¿½',
     status: row.status || 'New',
   };
 }
@@ -4186,7 +4298,7 @@ function renderDocsTable(filter) {
         '<div class="w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0" style="background:' + iconBg + '">' +
           '<svg class="w-3.5 h-3.5" style="color:' + iconClr + '" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="' + iconPath + '"/></svg>' +
         '</div>' +
-        '<span class="font-medium text-neutral-200">' + typeLabel + ' — ' + escHtml(doc.title) + '</span>' +
+        '<span class="font-medium text-neutral-200">' + typeLabel + ' ï¿½ ' + escHtml(doc.title) + '</span>' +
       '</div></td>' +
       '<td>' + escHtml(doc.client) + '</td>' +
       '<td>' + escHtml(doc.project) + '</td>' +
@@ -4236,7 +4348,7 @@ async function init() {
   buildMultiChips('categoryChips', CATEGORIES, 'categoryValue');
   buildMultiChips('servicesChips', SERVICES, 'servicesValue');
   buildSingleChips('blogCategoryChips', BLOG_CATS, 'postCategory');
-  buildToggleChips('teamAttrChips', TEAM_ATTRS);
+  addTeamAttrRow('teamAttrRepeater'); // start Add form with one blank row
   buildMultiChips('contractServiceChips', SERVICES, 'contractServicesValue');
   buildMultiChips('sowServiceChips', SERVICES, 'sowServicesValue');
   loadTeam();
@@ -4293,7 +4405,7 @@ function buildDocPrintHTML(doc) {
     +'@media print{body{padding:20px 28px}}'
     +'</style></head><body>'
     +'<div class="hd"><div><div class="brand">CONSTRUCTED <em>MATTER</em></div>'
-    +'<div style="font-size:9px;color:#999;margin-top:3px;letter-spacing:.1em;text-transform:uppercase">constructedmatter.com &nbsp;·&nbsp; '+esc(doc.roc)+'</div></div>'
+    +'<div style="font-size:9px;color:#999;margin-top:3px;letter-spacing:.1em;text-transform:uppercase">constructedmatter.com &nbsp;ï¿½&nbsp; '+esc(doc.roc)+'</div></div>'
     +'<div><div class="doc-type">'+(isContract?'Construction Contract':'Scope of Work')+'</div>'
     +'<div class="doc-title">'+esc(doc.title)+'</div>'
     +'<div style="text-align:right"><span class="sbadge" style="'+statusColor+'">'+esc(doc.status)+'</span></div></div></div>'
@@ -4321,7 +4433,7 @@ function buildDocPrintHTML(doc) {
     +'<div><div class="sig-line"></div><div class="sig-lbl">Client Signature &amp; Date</div><div class="sig-name">'+esc(doc.client)+'</div></div>'
     +'<div><div class="sig-line"></div><div class="sig-lbl">CMI Representative &amp; Date</div><div class="sig-name">'+esc(isContract?(doc.cmiRep||''):(doc.preparedBy||''))+'</div></div>'
     +'</div></div>'
-    +'<div class="footer"><span>'+esc(doc.roc)+'</span><span>Constructed Matter Inc. &nbsp;·&nbsp; '+esc(doc.date)+'</span><span>Doc ID: '+esc(doc.id)+'</span></div>'
+    +'<div class="footer"><span>'+esc(doc.roc)+'</span><span>Constructed Matter Inc. &nbsp;ï¿½&nbsp; '+esc(doc.date)+'</span><span>Doc ID: '+esc(doc.id)+'</span></div>'
     +'<script>window.onload=function(){window.print();}<\/script></body></html>';
 }
 
