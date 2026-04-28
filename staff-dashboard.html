@@ -180,6 +180,32 @@
     .cal-day.booked:hover{opacity:.85;}
     .cal-day.empty{cursor:default;}
 
+    /* Bookings rebuild */
+    .bk-view-btn{padding:7px 16px;font-size:12px;font-weight:500;color:var(--text-muted);cursor:pointer;background:none;border:none;transition:all .15s;}
+    .bk-view-btn.active{color:var(--text);background:var(--surface-2);}
+    .bk-tab{padding:6px 14px;border-radius:8px;font-size:12px;font-weight:500;color:var(--text-muted);cursor:pointer;background:none;border:none;transition:all .15s;}
+    .bk-tab.active{color:var(--text);background:var(--surface-2);}
+    .bk-row{display:grid;grid-template-columns:1fr 160px 170px 100px 90px;gap:12px;align-items:center;padding:13px 16px;border-bottom:1px solid var(--border-sm);cursor:pointer;transition:background .15s;}
+    .bk-row:hover{background:var(--hover-bg);}
+    .bk-row:last-child{border-bottom:none;}
+    .bk-row-head{display:grid;grid-template-columns:1fr 160px 170px 100px 90px;gap:12px;padding:9px 16px;border-bottom:1px solid var(--border-md);}
+    .bk-detail{position:fixed;top:0;right:0;width:400px;height:100vh;z-index:300;background:var(--surface);border-left:1px solid var(--border-md);overflow-y:auto;transform:translateX(100%);transition:transform .25s cubic-bezier(.4,0,.2,1);padding:28px 24px;}
+    .bk-detail.open{transform:translateX(0);}
+    .bk-overlay{position:fixed;inset:0;z-index:299;background:rgba(0,0,0,.45);display:none;}
+    .bk-overlay.open{display:block;}
+    .bk-act{width:100%;padding:10px 12px;border-radius:8px;font-size:13px;font-weight:500;text-align:left;display:flex;align-items:center;gap:10px;cursor:pointer;background:none;border:none;color:var(--text-sub);transition:background .15s;}
+    .bk-act:hover{background:var(--hover-bg);}
+    .bk-act.danger{color:#f87171;}
+    .bk-act.danger:hover{background:rgba(248,113,113,.08);}
+    .bk-dot{width:7px;height:7px;border-radius:50%;display:inline-block;flex-shrink:0;}
+    .evt-card{border:1px solid var(--border-md);border-radius:12px;padding:16px 18px;background:var(--surface-2);margin-bottom:12px;}
+    .bk-cal-dot{width:5px;height:5px;border-radius:50%;background:var(--gold);display:inline-block;margin:0 1px;}
+    .cal-day-wrap{aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border-radius:8px;font-size:13px;cursor:pointer;color:var(--text-sub);transition:background .15s;}
+    .cal-day-wrap:hover{background:var(--hover-bg);}
+    .cal-day-wrap.today{background:var(--gold-alpha);color:var(--gold);font-weight:700;}
+    .cal-day-wrap.has-bookings{color:var(--text);}
+    .cal-day-wrap.empty-day{cursor:default;}
+
     /* Pagination */
     .pager{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-top:1px solid var(--border-sm);}
     .pager-info{font-size:12px;color:var(--text-muted);}
@@ -909,15 +935,36 @@
       </div>
 
       <!-- -- BOOKINGS -- -->
+      <div class="bk-overlay" id="bkOverlay" onclick="closeBkDetail()"></div>
+      <div class="bk-detail" id="bkDetail">
+        <div class="flex items-center justify-between mb-6">
+          <h3 class="font-display text-lg" style="color:var(--text)">Booking Details</h3>
+          <button onclick="closeBkDetail()" style="width:30px;height:30px;border-radius:50%;border:1px solid var(--border-md);background:none;cursor:pointer;color:var(--text-muted);font-size:16px;display:flex;align-items:center;justify-content:center;">&times;</button>
+        </div>
+        <div id="bkDetailContent"></div>
+      </div>
       <section id="sec-bookings" class="section">
-        <div class="mb-5">
-          <p class="text-[10px] uppercase tracking-widest text-neutral-500 font-medium">Schedule</p>
-          <h2 class="font-display text-2xl text-neutral-100 mt-0.5">Bookings</h2>
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <p class="text-[10px] uppercase tracking-widest text-neutral-500 font-medium">Schedule</p>
+            <h2 class="font-display text-2xl text-neutral-100 mt-0.5">Bookings</h2>
+          </div>
+          <div class="flex rounded-lg overflow-hidden" style="border:1px solid var(--border-md)">
+            <button id="bkListBtn" class="bk-view-btn active" onclick="setBkView('list')">
+              <svg class="inline w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>List View
+            </button>
+            <button id="bkCalBtn" class="bk-view-btn" onclick="setBkView('cal')" style="border-left:1px solid var(--border-md)">
+              <svg class="inline w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>Calendar
+            </button>
+          </div>
         </div>
-        <div class="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-5">
-          <div class="card p-6" id="calendarWrap"></div>
-          <div id="bookingsList"></div>
+        <div class="flex gap-1 mb-5" id="bkFilterTabs">
+          <button class="bk-tab active" onclick="setBkFilter('upcoming',this)">Upcoming</button>
+          <button class="bk-tab" onclick="setBkFilter('completed',this)">Completed</button>
+          <button class="bk-tab" onclick="setBkFilter('all',this)">All Bookings</button>
+          <button class="bk-tab" style="margin-left:auto" onclick="setBkFilter('events',this)">Event Types</button>
         </div>
+        <div id="bkContent"></div>
       </section>
 
       <!-- -- QUOTES -- -->
@@ -2267,39 +2314,387 @@ function buildClientFilters() {
 }
 
 // --- Render: Bookings -----------------------------------------
-function renderBookings() {
-  const booked = [17, 21, 24, 29];
-  const today = 15;
-  const days = ['S','M','T','W','T','F','S'];
-  let cal = '<div class="flex items-center justify-between mb-4"><h3 class="font-display text-lg text-neutral-200">April 2026</h3></div>';
-  cal += '<div class="grid grid-cols-7 gap-1 mb-1">' + days.map(d => '<div class="text-center text-[10px] text-neutral-600 font-medium uppercase py-1">' + d + '</div>').join('') + '</div>';
-  cal += '<div class="grid grid-cols-7 gap-1">';
-  for (let i = 0; i < 3; i++) cal += '<div class="cal-day empty"></div>';
-  for (let d = 1; d <= 30; d++) {
-    const cls = booked.includes(d) ? 'cal-day booked' : d === today ? 'cal-day today' : 'cal-day';
-    cal += '<div class="' + cls + '">' + d + '</div>';
-  }
-  cal += '</div>';
-  document.getElementById('calendarWrap').innerHTML = cal;
+// --- Bookings: Fluent Booking Pro API ------------------------
+const FB_BOOK_BASE = WP_BASE + '/fluent-booking/v2';
+let FB_BOOKINGS    = [];
+let FB_CALENDARS   = [];
+let BK_VIEW        = 'list';
+let BK_FILTER      = 'upcoming';
+let BK_CAL_YEAR    = new Date().getFullYear();
+let BK_CAL_MONTH   = new Date().getMonth();
 
-  const { items, total, pages } = paginate(BOOKINGS, PAGE.bookings, PAGE_SIZE.bookings);
-  const listHTML = '<p class="text-[10px] uppercase tracking-widest text-neutral-500 font-medium mb-3">Upcoming</p>' +
-    items.map(b =>
-      '<div class="card p-4 mb-3">' +
-        '<div class="flex items-start justify-between gap-2 mb-2">' +
-          '<div><p class="font-medium text-neutral-200 text-sm">' + b.name + '</p>' +
-          '<p class="text-xs text-neutral-500">' + b.type + '</p></div>' +
-          '<span class="badge ' + (b.status === 'confirmed' ? 'b-green' : 'b-amber') + ' text-[10px]">' + b.status + '</span>' +
-        '</div>' +
-        '<div class="flex gap-4 text-xs text-neutral-500">' +
-          '<span>&#128197; ' + b.date + '</span>' +
-          '<span>&#128336; ' + b.time + '</span>' +
-        '</div>' +
-      '</div>'
-    ).join('');
-  const pagerHt = pages > 1 ? pagerHTML('bookings', PAGE.bookings, pages, total) : '';
-  document.getElementById('bookingsList').innerHTML = listHTML + pagerHt;
+async function loadFBBookings() {
+  const wrap = document.getElementById('bkContent');
+  if (wrap) wrap.innerHTML = '<div class="py-16 text-center text-sm" style="color:var(--text-muted)">Loading bookings…</div>';
+  try {
+    const [bkRes, calRes] = await Promise.all([
+      fetch(FB_BOOK_BASE + '/bookings?per_page=200', { headers: { Authorization: WP_AUTH } }),
+      fetch(FB_BOOK_BASE + '/calendars?per_page=50', { headers: { Authorization: WP_AUTH } }),
+    ]);
+    if (bkRes.ok) {
+      const d = await bkRes.json();
+      FB_BOOKINGS = Array.isArray(d) ? d : Array.isArray(d.bookings) ? d.bookings : Array.isArray(d.data) ? d.data : [];
+    }
+    if (calRes.ok) {
+      const d = await calRes.json();
+      FB_CALENDARS = Array.isArray(d) ? d : Array.isArray(d.calendars) ? d.calendars : Array.isArray(d.data) ? d.data : [];
+    }
+  } catch(e) { console.warn('[FB Book] load error:', e); }
+  // Also update the legacy BOOKINGS array so renderUpcoming() still works
+  bkSyncLegacy();
+  renderUpcoming();
+  renderBkContent();
 }
+
+function bkSyncLegacy() {
+  BOOKINGS.length = 0;
+  const now = new Date();
+  FB_BOOKINGS
+    .filter(b => { const d = new Date(b.scheduled_at || b.start_time || b.created_at); return d >= now; })
+    .slice(0,10)
+    .forEach(b => BOOKINGS.push(bkToLegacy(b)));
+}
+
+function bkToLegacy(b) {
+  const dt = new Date(b.scheduled_at || b.start_time || b.created_at);
+  return {
+    name:   b.person_name || b.name || b.full_name || 'Guest',
+    type:   (b.calendar_event && b.calendar_event.title) || b.event_type || 'Meeting',
+    date:   dt.toLocaleDateString('en-US', { month:'short', day:'numeric' }),
+    time:   dt.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' }),
+    status: b.status || 'scheduled',
+  };
+}
+
+function bkStatusBadge(status) {
+  const map = { scheduled:'b-blue', completed:'b-green', cancelled:'b-red', pending:'b-amber', rejected:'b-red' };
+  const label = status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Unknown';
+  return '<span class="badge ' + (map[status] || 'b-neutral') + ' text-[10px]">' + label + '</span>';
+}
+
+function bkFmtDateTime(raw) {
+  if (!raw) return { date: '—', time: '—' };
+  const dt = new Date(raw);
+  if (isNaN(dt)) return { date: raw, time: '' };
+  return {
+    date: dt.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }),
+    time: dt.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' }),
+  };
+}
+
+function bkGetFiltered() {
+  const now = new Date(); now.setHours(0,0,0,0);
+  if (BK_FILTER === 'upcoming') {
+    return FB_BOOKINGS.filter(b => {
+      const d = new Date(b.scheduled_at || b.start_time || '');
+      return (b.status === 'scheduled' || b.status === 'pending') && d >= now;
+    });
+  }
+  if (BK_FILTER === 'completed') return FB_BOOKINGS.filter(b => b.status === 'completed');
+  return FB_BOOKINGS;
+}
+
+function setBkView(v) {
+  BK_VIEW = v;
+  document.getElementById('bkListBtn').classList.toggle('active', v === 'list');
+  document.getElementById('bkCalBtn').classList.toggle('active', v === 'cal');
+  renderBkContent();
+}
+
+function setBkFilter(f, el) {
+  BK_FILTER = f;
+  document.querySelectorAll('.bk-tab').forEach(t => t.classList.remove('active'));
+  if (el) el.classList.add('active');
+  renderBkContent();
+}
+
+function renderBkContent() {
+  if (BK_FILTER === 'events') { renderBkEvents(); return; }
+  if (BK_VIEW === 'cal') { renderBkCalendar(); return; }
+  renderBkList();
+}
+
+function renderBkList() {
+  const wrap = document.getElementById('bkContent');
+  if (!wrap) return;
+  const bookings = bkGetFiltered();
+  if (!bookings.length) {
+    wrap.innerHTML = '<div class="card p-12 text-center text-sm" style="color:var(--text-muted)">No bookings found.</div>';
+    return;
+  }
+  let html = '<div class="card overflow-hidden">';
+  html += '<div class="bk-row-head">';
+  html += '<span class="text-[10px] uppercase tracking-widest font-medium" style="color:var(--text-muted)">Invitee</span>';
+  html += '<span class="text-[10px] uppercase tracking-widest font-medium" style="color:var(--text-muted)">Event</span>';
+  html += '<span class="text-[10px] uppercase tracking-widest font-medium" style="color:var(--text-muted)">Date &amp; Time</span>';
+  html += '<span class="text-[10px] uppercase tracking-widest font-medium" style="color:var(--text-muted)">Status</span>';
+  html += '<span></span></div>';
+  bookings.forEach(function(b) {
+    const dt   = bkFmtDateTime(b.scheduled_at || b.start_time);
+    const name = escHtml(b.person_name || b.name || b.full_name || 'Guest');
+    const email= escHtml(b.email || '');
+    const evt  = escHtml((b.calendar_event && b.calendar_event.title) || b.event_type || 'Meeting');
+    const color= (b.calendar_event && b.calendar_event.color) || '#C9A46E';
+    html += '<div class="bk-row" onclick="openBkDetail(' + b.id + ')">';
+    html += '<div><p class="text-sm font-medium" style="color:var(--text)">' + name + '</p><p class="text-xs" style="color:var(--text-muted)">' + email + '</p></div>';
+    html += '<div class="flex items-center gap-2"><span class="bk-dot" style="background:' + escAttr(color) + '"></span><span class="text-sm" style="color:var(--text-sub)">' + evt + '</span></div>';
+    html += '<div><p class="text-sm" style="color:var(--text-sub)">' + escHtml(dt.date) + '</p><p class="text-xs" style="color:var(--text-muted)">' + escHtml(dt.time) + '</p></div>';
+    html += bkStatusBadge(b.status);
+    html += '<div class="flex gap-2 justify-end"><button onclick="event.stopPropagation();openBkDetail(' + b.id + ')" class="text-xs hover:underline" style="color:var(--gold)">View</button></div>';
+    html += '</div>';
+  });
+  html += '</div>';
+  wrap.innerHTML = html;
+}
+
+function renderBkCalendar() {
+  const wrap = document.getElementById('bkContent');
+  if (!wrap) return;
+  const year  = BK_CAL_YEAR;
+  const month = BK_CAL_MONTH;
+  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const days  = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const today = new Date(); today.setHours(0,0,0,0);
+
+  // Map bookings to day numbers for this month
+  const bookingDays = {};
+  FB_BOOKINGS.forEach(function(b) {
+    const d = new Date(b.scheduled_at || b.start_time || '');
+    if (isNaN(d)) return;
+    if (d.getFullYear() === year && d.getMonth() === month) {
+      const day = d.getDate();
+      if (!bookingDays[day]) bookingDays[day] = [];
+      bookingDays[day].push(b);
+    }
+  });
+
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  let html = '<div class="card p-5">';
+  // Nav header
+  html += '<div class="flex items-center justify-between mb-4">';
+  html += '<button onclick="bkCalPrev()" class="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-white/5" style="border:1px solid var(--border-md);background:none;cursor:pointer;color:var(--text-muted)"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>';
+  html += '<h3 class="font-display text-base" style="color:var(--text)">' + monthNames[month] + ' ' + year + '</h3>';
+  html += '<button onclick="bkCalNext()" class="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-white/5" style="border:1px solid var(--border-md);background:none;cursor:pointer;color:var(--text-muted)"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></button>';
+  html += '</div>';
+  // Day headers
+  html += '<div class="grid grid-cols-7 gap-1 mb-1">';
+  days.forEach(function(d) { html += '<div class="text-center text-[10px] uppercase font-medium py-1" style="color:var(--text-muted)">' + d + '</div>'; });
+  html += '</div>';
+  // Day grid
+  html += '<div class="grid grid-cols-7 gap-1">';
+  for (var i = 0; i < firstDay; i++) html += '<div class="cal-day-wrap empty-day"></div>';
+  for (var d = 1; d <= daysInMonth; d++) {
+    const thisDate = new Date(year, month, d); thisDate.setHours(0,0,0,0);
+    const isToday  = thisDate.getTime() === today.getTime();
+    const bks      = bookingDays[d] || [];
+    let cls = 'cal-day-wrap';
+    if (isToday) cls += ' today';
+    if (bks.length) cls += ' has-bookings';
+    const dotHtml  = bks.slice(0,3).map(function(b) { const c = (b.calendar_event && b.calendar_event.color) || '#C9A46E'; return '<span class="bk-cal-dot" style="background:' + c + '"></span>'; }).join('');
+    html += '<div class="' + cls + '" onclick="bkCalDayClick(' + d + ')">';
+    html += '<span>' + d + '</span>';
+    if (dotHtml) html += '<div class="flex justify-center gap-0.5">' + dotHtml + '</div>';
+    html += '</div>';
+  }
+  html += '</div></div>';
+
+  // Day's bookings list below calendar
+  wrap.innerHTML = html;
+}
+
+function bkCalPrev() {
+  BK_CAL_MONTH--;
+  if (BK_CAL_MONTH < 0) { BK_CAL_MONTH = 11; BK_CAL_YEAR--; }
+  renderBkCalendar();
+}
+function bkCalNext() {
+  BK_CAL_MONTH++;
+  if (BK_CAL_MONTH > 11) { BK_CAL_MONTH = 0; BK_CAL_YEAR++; }
+  renderBkCalendar();
+}
+function bkCalDayClick(day) {
+  const bks = FB_BOOKINGS.filter(function(b) {
+    const d = new Date(b.scheduled_at || b.start_time || '');
+    return !isNaN(d) && d.getFullYear() === BK_CAL_YEAR && d.getMonth() === BK_CAL_MONTH && d.getDate() === day;
+  });
+  if (!bks.length) return;
+  if (bks.length === 1) { openBkDetail(bks[0].id); return; }
+  // Show mini list below calendar
+  const existing = document.getElementById('bkCalDayList');
+  if (existing) existing.remove();
+  const div = document.createElement('div');
+  div.id = 'bkCalDayList';
+  div.className = 'card mt-4 overflow-hidden';
+  const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  div.innerHTML = '<div class="px-4 py-3 border-b" style="border-color:var(--border-md)"><p class="text-xs font-medium" style="color:var(--text-muted)">' + monthNames[BK_CAL_MONTH] + ' ' + day + ' — ' + bks.length + ' bookings</p></div>' +
+    bks.map(function(b) {
+      const dt = bkFmtDateTime(b.scheduled_at || b.start_time);
+      const name = escHtml(b.person_name || b.name || 'Guest');
+      const evt  = escHtml((b.calendar_event && b.calendar_event.title) || 'Meeting');
+      return '<div class="bk-row" style="grid-template-columns:1fr 140px 90px 60px" onclick="openBkDetail(' + b.id + ')">' +
+        '<div><p class="text-sm font-medium" style="color:var(--text)">' + name + '</p><p class="text-xs" style="color:var(--text-muted)">' + evt + '</p></div>' +
+        '<p class="text-xs" style="color:var(--text-muted)">' + escHtml(dt.time) + '</p>' +
+        bkStatusBadge(b.status) +
+        '<button onclick="event.stopPropagation();openBkDetail(' + b.id + ')" class="text-xs" style="color:var(--gold)">View</button>' +
+        '</div>';
+    }).join('');
+  document.getElementById('bkContent').appendChild(div);
+}
+
+function bkCopyLink(el) { navigator.clipboard.writeText(el.dataset.url || '').then(function() { showToast('Link copied'); }); }
+
+function renderBkEvents() {
+  const wrap = document.getElementById('bkContent');
+  if (!wrap) return;
+  if (!FB_CALENDARS.length) {
+    wrap.innerHTML = '<div class="card p-12 text-center text-sm" style="color:var(--text-muted)">No event types loaded. Check API access.</div>';
+    return;
+  }
+  let html = '';
+  FB_CALENDARS.forEach(function(cal) {
+    const name = escHtml(cal.title || cal.name || 'Calendar');
+    const slug = escAttr(cal.slug || '');
+    const url  = escAttr(cal.booking_url || (cal.hash ? 'https://wp-constructedmatter-com-985548.hostingersite.com/?fluent-booking=calendar&host=' + cal.hash : ''));
+    const events = Array.isArray(cal.calendar_events) ? cal.calendar_events : Array.isArray(cal.events) ? cal.events : [];
+    html += '<div class="evt-card mb-5">';
+    html += '<div class="flex items-start justify-between mb-3">';
+    html += '<div><p class="font-display text-base" style="color:var(--text)">' + name + '</p>';
+    if (url) html += '<p class="text-xs mt-0.5 truncate max-w-xs" style="color:var(--text-muted)">' + url + '</p>';
+    html += '</div>';
+    html += '<a href="https://wp-constructedmatter-com-985548.hostingersite.com/wp-admin/admin.php?page=fluent-booking" target="_blank" class="text-xs hover:underline flex-shrink-0" style="color:var(--gold)">Manage ↗</a>';
+    html += '</div>';
+    if (events.length) {
+      html += '<div class="space-y-2">';
+      events.forEach(function(ev) {
+        const evName = escHtml(ev.title || ev.name || 'Event');
+        const dur    = ev.duration ? ev.duration + ' min' : '';
+        const evColor= escAttr(ev.color || '#C9A46E');
+        const evUrl  = escAttr(ev.booking_url || '');
+        html += '<div class="flex items-center justify-between rounded-lg px-3 py-2.5" style="background:var(--surface);border:1px solid var(--border-sm)">';
+        html += '<div class="flex items-center gap-2.5"><span class="bk-dot flex-shrink-0" style="background:' + evColor + '"></span>';
+        html += '<div><p class="text-sm font-medium" style="color:var(--text)">' + evName + '</p>';
+        if (dur) html += '<p class="text-xs" style="color:var(--text-muted)">' + dur + '</p>';
+        html += '</div></div>';
+        html += '<div class="flex items-center gap-3">';
+        if (evUrl) html += '<button data-url="' + evUrl + '" onclick="bkCopyLink(this)" class="text-xs hover:underline" style="color:var(--text-muted)">Copy Link</button>';
+        html += '</div>';
+        html += '</div>';
+      });
+      html += '</div>';
+    } else {
+      html += '<p class="text-xs" style="color:var(--text-muted)">No event types in this calendar.</p>';
+    }
+    html += '</div>';
+  });
+  wrap.innerHTML = html;
+}
+
+function openBkDetail(id) {
+  const b = FB_BOOKINGS.find(function(x) { return x.id === id; });
+  if (!b) return;
+  const dt     = bkFmtDateTime(b.scheduled_at || b.start_time);
+  const dtEnd  = bkFmtDateTime(b.end_time);
+  const name   = escHtml(b.person_name || b.name || b.full_name || 'Guest');
+  const email  = escHtml(b.email || '—');
+  const phone  = escHtml(b.phone || b.phone_number || '—');
+  const evtTitle = escHtml((b.calendar_event && b.calendar_event.title) || b.event_type || 'Meeting');
+  const loc    = escHtml(b.location || (b.meeting_details && b.meeting_details.location) || '—');
+  const note   = escHtml(b.note || b.message || '—');
+  const evtColor = (b.calendar_event && b.calendar_event.color) || '#C9A46E';
+
+  let html = '';
+  // Status bar
+  html += '<div class="flex items-center gap-2 mb-5 px-3 py-2.5 rounded-lg" style="background:var(--surface-2);border:1px solid var(--border-md)">';
+  html += '<span class="bk-dot" style="background:' + escAttr(evtColor) + '"></span>';
+  html += '<p class="text-sm font-medium" style="color:var(--text)">' + evtTitle + '</p>';
+  html += '<span style="margin-left:auto">' + bkStatusBadge(b.status) + '</span>';
+  html += '</div>';
+  // Info grid
+  html += '<div class="space-y-4 mb-6">';
+  html += '<div><p class="text-[10px] uppercase tracking-widest font-medium mb-1" style="color:var(--text-muted)">Invitee</p><p class="text-sm font-medium" style="color:var(--text)">' + name + '</p><p class="text-xs" style="color:var(--text-muted)">' + email + '</p><p class="text-xs" style="color:var(--text-muted)">' + phone + '</p></div>';
+  html += '<div class="grid grid-cols-2 gap-4">';
+  html += '<div><p class="text-[10px] uppercase tracking-widest font-medium mb-1" style="color:var(--text-muted)">Date</p><p class="text-sm" style="color:var(--text)">' + escHtml(dt.date) + '</p></div>';
+  html += '<div><p class="text-[10px] uppercase tracking-widest font-medium mb-1" style="color:var(--text-muted)">Time</p><p class="text-sm" style="color:var(--text)">' + escHtml(dt.time) + (dtEnd.time ? ' – ' + escHtml(dtEnd.time) : '') + '</p></div>';
+  html += '</div>';
+  html += '<div><p class="text-[10px] uppercase tracking-widest font-medium mb-1" style="color:var(--text-muted)">Location</p><p class="text-sm" style="color:var(--text)">' + loc + '</p></div>';
+  if (note && note !== '—') html += '<div><p class="text-[10px] uppercase tracking-widest font-medium mb-1" style="color:var(--text-muted)">Message</p><p class="text-sm" style="color:var(--text)">' + note + '</p></div>';
+  html += '</div>';
+  // Actions
+  html += '<div class="space-y-1" style="border-top:1px solid var(--border-md);padding-top:16px">';
+  html += '<p class="text-[10px] uppercase tracking-widest font-medium mb-2" style="color:var(--text-muted)">Actions</p>';
+  html += '<button class="bk-act" onclick="bkSendConfirmation(' + id + ')"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>Send Confirmation Email</button>';
+  if (b.status !== 'completed') html += '<button class="bk-act" onclick="bkMarkCompleted(' + id + ')"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg>Mark as Completed</button>';
+  if (b.status !== 'cancelled') html += '<button class="bk-act" onclick="bkMarkCancelled(' + id + ')"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg>Cancel Booking</button>';
+  html += '<button class="bk-act danger" onclick="bkDelete(' + id + ')"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>Delete Booking</button>';
+  html += '</div>';
+
+  document.getElementById('bkDetailContent').innerHTML = html;
+  document.getElementById('bkDetail').classList.add('open');
+  document.getElementById('bkOverlay').classList.add('open');
+}
+
+function bkMarkCompleted(id) { bkUpdateStatus(id, 'completed'); }
+function bkMarkCancelled(id) { bkUpdateStatus(id, 'cancelled'); }
+
+function closeBkDetail() {
+  document.getElementById('bkDetail').classList.remove('open');
+  document.getElementById('bkOverlay').classList.remove('open');
+}
+
+async function bkUpdateStatus(id, status) {
+  try {
+    const res = await fetch(FB_BOOK_BASE + '/bookings/' + id, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: WP_AUTH },
+      body: JSON.stringify({ status: status }),
+    });
+    if (res.ok) {
+      const idx = FB_BOOKINGS.findIndex(function(b) { return b.id === id; });
+      if (idx >= 0) FB_BOOKINGS[idx].status = status;
+      closeBkDetail();
+      renderBkContent();
+      bkSyncLegacy(); renderUpcoming();
+      showToast('Booking updated');
+    } else {
+      const e = await res.json().catch(function() { return {}; });
+      showToast('Error: ' + (e.message || res.status));
+    }
+  } catch(e) { showToast('Network error: ' + e.message); }
+}
+
+async function bkDelete(id) {
+  if (!confirm('Delete this booking permanently?')) return;
+  try {
+    const res = await fetch(FB_BOOK_BASE + '/bookings/' + id, {
+      method: 'DELETE',
+      headers: { Authorization: WP_AUTH },
+    });
+    if (res.ok) {
+      FB_BOOKINGS = FB_BOOKINGS.filter(function(b) { return b.id !== id; });
+      closeBkDetail();
+      renderBkContent();
+      bkSyncLegacy(); renderUpcoming();
+      showToast('Booking deleted');
+    } else {
+      const e = await res.json().catch(function() { return {}; });
+      showToast('Error: ' + (e.message || res.status));
+    }
+  } catch(e) { showToast('Network error: ' + e.message); }
+}
+
+async function bkSendConfirmation(id) {
+  try {
+    const res = await fetch(FB_BOOK_BASE + '/bookings/' + id + '/confirmation-email', {
+      method: 'POST',
+      headers: { Authorization: WP_AUTH },
+    });
+    showToast(res.ok ? 'Confirmation email sent' : 'Could not send email (check Fluent Booking settings)');
+  } catch(e) { showToast('Network error: ' + e.message); }
+}
+
+function renderBookings() { renderBkContent(); }
 
 // --- Render: Quotes -------------------------------------------
 function renderQuotes(data) {
@@ -4622,7 +5017,7 @@ async function init() {
     loadBlogData(),
     loadPortfolioFromSupabase(),
     loadDocsFromSupabase(),
-    loadBookingsFromSupabase(),
+    loadFBBookings(),
     loadQuotesFromSupabase(),
   ]);
   // Clients loaded lazily via nav() ? loadCRMInit()
