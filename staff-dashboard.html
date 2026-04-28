@@ -2339,21 +2339,58 @@ let BK_CAL_MONTH   = new Date().getMonth();
 async function loadFBBookings() {
   const wrap = document.getElementById('bkContent');
   if (wrap) wrap.innerHTML = '<div class="py-16 text-center text-sm" style="color:var(--text-muted)">Loading bookings…</div>';
-  try {
-    const [bkRes, calRes] = await Promise.all([
-      fetch(FB_BOOK_BASE + '/bookings?per_page=200', { headers: { Authorization: WP_AUTH } }),
-      fetch(FB_BOOK_BASE + '/calendars?per_page=50', { headers: { Authorization: WP_AUTH } }),
-    ]);
-    if (bkRes.ok) {
-      const d = await bkRes.json();
-      FB_BOOKINGS = Array.isArray(d) ? d : Array.isArray(d.bookings) ? d.bookings : Array.isArray(d.data) ? d.data : [];
+
+  // Fluent Booking Pro endpoint candidates (try in order)
+  const bkEndpoints = [
+    FB_BOOK_BASE + '/bookings?per_page=200',
+    FB_BOOK_BASE + '/appointments?per_page=200',
+    WP_BASE + '/fluent-booking/v1/bookings?per_page=200',
+  ];
+  const calEndpoints = [
+    FB_BOOK_BASE + '/calendars?per_page=50',
+    FB_BOOK_BASE + '/calendar-events?per_page=50',
+    FB_BOOK_BASE + '/hosts?per_page=50',
+  ];
+
+  async function tryEndpoints(endpoints) {
+    for (const url of endpoints) {
+      try {
+        const res = await fetch(url, { headers: { Authorization: WP_AUTH } });
+        console.log('[FB Book] GET', url, '→', res.status);
+        if (res.ok) {
+          const d = await res.json();
+          console.log('[FB Book] response:', d);
+          return d;
+        }
+      } catch(e) { console.warn('[FB Book] fetch error:', url, e); }
     }
-    if (calRes.ok) {
-      const d = await calRes.json();
-      FB_CALENDARS = Array.isArray(d) ? d : Array.isArray(d.calendars) ? d.calendars : Array.isArray(d.data) ? d.data : [];
-    }
-  } catch(e) { console.warn('[FB Book] load error:', e); }
-  // Also update the legacy BOOKINGS array so renderUpcoming() still works
+    return null;
+  }
+
+  const [bkData, calData] = await Promise.all([
+    tryEndpoints(bkEndpoints),
+    tryEndpoints(calEndpoints),
+  ]);
+
+  if (bkData !== null) {
+    FB_BOOKINGS = Array.isArray(bkData) ? bkData
+      : Array.isArray(bkData.bookings)    ? bkData.bookings
+      : Array.isArray(bkData.data)        ? bkData.data
+      : Array.isArray(bkData.appointments)? bkData.appointments
+      : bkData.data && Array.isArray(bkData.data.bookings) ? bkData.data.bookings
+      : [];
+    console.log('[FB Book] parsed bookings:', FB_BOOKINGS.length, FB_BOOKINGS);
+  }
+
+  if (calData !== null) {
+    FB_CALENDARS = Array.isArray(calData) ? calData
+      : Array.isArray(calData.calendars)  ? calData.calendars
+      : Array.isArray(calData.data)       ? calData.data
+      : calData.data && Array.isArray(calData.data.calendars) ? calData.data.calendars
+      : [];
+    console.log('[FB Book] parsed calendars:', FB_CALENDARS.length, FB_CALENDARS);
+  }
+
   bkSyncLegacy();
   renderUpcoming();
   renderBkContent();
