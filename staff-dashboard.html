@@ -2359,7 +2359,7 @@ async function loadFBBookings() {
         console.log('[FB Book] GET', url, '→', res.status);
         if (res.ok) {
           const d = await res.json();
-          console.log('[FB Book] response:', d);
+          console.log('[FB Book] response:', JSON.stringify(d).slice(0, 2000));
           return d;
         }
       } catch(e) { console.warn('[FB Book] fetch error:', url, e); }
