@@ -579,13 +579,14 @@
         <div class="flex items-center justify-between mb-6">
           <div>
             <p class="text-[10px] uppercase tracking-widest text-neutral-500 font-medium">Content</p>
-            <h2 class="font-display text-2xl text-neutral-100 mt-0.5">New Post</h2>
+            <h2 id="addBlogTitle" class="font-display text-2xl text-neutral-100 mt-0.5">New Post</h2>
           </div>
           <button onclick="nav('blog',null)" class="flex items-center gap-2 text-sm text-neutral-400 hover:text-neutral-200">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 12H5m7-7l-7 7 7 7"/></svg>
             Back
           </button>
         </div>
+        <input type="hidden" id="editingPostId" value="" />
         <div class="grid grid-cols-1 lg:grid-cols-[1fr_268px] gap-5 max-w-5xl">
           <div class="space-y-4">
             <input id="blogTitle" class="form-input text-xl" placeholder="Post title�" style="background:transparent;border:none;border-bottom:1px solid rgba(255,255,255,0.1);border-radius:0;padding:10px 0;font-size:20px;" />
@@ -622,18 +623,33 @@
             <div class="card p-4 space-y-3">
               <p class="text-[10px] uppercase tracking-widest text-neutral-500 font-medium">Publish</p>
               <div><label class="form-label">Status</label>
-                <select class="form-input" id="postStatus">
+                <select class="form-input" id="postStatus" onchange="toggleScheduledDate(this.value)">
                   <option value="draft">Draft</option>
+                  <option value="pending">Pending Review</option>
+                  <option value="private">Private</option>
+                  <option value="future">Scheduled</option>
                   <option value="publish">Published</option>
                 </select>
               </div>
-              <button onclick="submitBlogPost()" class="w-full py-2.5 rounded-lg bg-cmi-gold-dark text-white text-sm font-medium hover:opacity-90">Publish Post</button>
+              <div id="scheduledDateWrap" style="display:none">
+                <label class="form-label">Publish Date &amp; Time</label>
+                <input type="datetime-local" class="form-input text-sm" id="postScheduledDate" />
+              </div>
+              <button onclick="submitBlogPost()" id="blogPublishBtn" class="w-full py-2.5 rounded-lg bg-cmi-gold-dark text-white text-sm font-medium hover:opacity-90">Publish Post</button>
               <button onclick="submitBlogPost('draft')" class="w-full py-2.5 rounded-lg text-neutral-400 text-sm font-medium hover:bg-white/5 transition-colors" style="border:1px solid rgba(255,255,255,0.1)">Save Draft</button>
             </div>
             <div class="card p-4">
               <p class="text-[10px] uppercase tracking-widest text-neutral-500 font-medium mb-3">Category</p>
               <div class="flex flex-wrap gap-1.5" id="blogCategoryChips"></div>
               <input type="hidden" id="postCategory" />
+            </div>
+            <div class="card p-4">
+              <p class="text-[10px] uppercase tracking-widest text-neutral-500 font-medium mb-3">Tags</p>
+              <div class="flex flex-wrap gap-1.5" id="blogTagChips"></div>
+            </div>
+            <div class="card p-4">
+              <p class="text-[10px] uppercase tracking-widest text-neutral-500 font-medium mb-3">Author</p>
+              <select class="form-input text-sm" id="postAuthor"><option value="">Loading…</option></select>
             </div>
             <div class="card p-4">
               <p class="text-[10px] uppercase tracking-widest text-neutral-500 font-medium mb-3">Excerpt</p>
@@ -647,6 +663,15 @@
               </div>
               <input type="file" id="blogImgInput" accept="image/*" class="hidden" onchange="previewFiles(this,'blogImgPreview',false)" />
               <div id="blogImgPreview" class="mt-2"></div>
+            </div>
+            <div class="card p-4">
+              <p class="text-[10px] uppercase tracking-widest text-neutral-500 font-medium mb-3">Gallery</p>
+              <div class="upload-zone py-5" onclick="document.getElementById('blogGalleryInput').click()">
+                <svg class="w-6 h-6 text-neutral-600 mx-auto mb-1" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                <p class="text-xs text-neutral-500">Upload images (multiple)</p>
+              </div>
+              <input type="file" id="blogGalleryInput" accept="image/*" multiple class="hidden" onchange="previewFiles(this,'blogGalleryPreview',true)" />
+              <div id="blogGalleryPreview" class="mt-2 grid grid-cols-3 gap-1.5"></div>
             </div>
           </div>
         </div>
@@ -1727,6 +1752,7 @@ const SERVICES = [
 const BLOG_CATS = [
   'Industry News','Design Trends','CMI Projects','Construction Tips','Client Stories','Company Updates',
 ];
+let WP_POSTS = [], WP_CATS_LIST = [], WP_TAGS_LIST = [], WP_AUTHORS = [], WP_EDITING_POST_ID = null;
 
 const TEAM_ATTRS = [
   'Design-Build','Commercial','Residential','ADU','Interior Design',
@@ -2064,16 +2090,146 @@ function selectFilter(el, containerId) {
   el.classList.add('selected');
 }
 
+// --- Blog: WP API -------------------------------------------
+async function loadBlogData() {
+  const tb = document.getElementById('blogTableBody');
+  if (tb) tb.innerHTML = '<tr><td colspan="5" class="py-8 text-center text-sm" style="color:var(--text-muted)">Loading posts…</td></tr>';
+  try {
+    const [postsRes, catsRes, tagsRes, usersRes] = await Promise.all([
+      fetch(WP_BASE + '/wp/v2/posts?per_page=100&status=any&_embed', { headers: { Authorization: WP_AUTH } }),
+      fetch(WP_BASE + '/wp/v2/categories?per_page=100', { headers: { Authorization: WP_AUTH } }),
+      fetch(WP_BASE + '/wp/v2/tags?per_page=100', { headers: { Authorization: WP_AUTH } }),
+      fetch(WP_BASE + '/wp/v2/users?per_page=100', { headers: { Authorization: WP_AUTH } }),
+    ]);
+    WP_POSTS     = postsRes.ok ? await postsRes.json() : [];
+    WP_CATS_LIST = catsRes.ok  ? await catsRes.json()  : [];
+    WP_TAGS_LIST = tagsRes.ok  ? await tagsRes.json()  : [];
+    WP_AUTHORS   = usersRes.ok ? await usersRes.json() : [];
+  } catch(e) {
+    WP_POSTS = []; WP_CATS_LIST = []; WP_TAGS_LIST = []; WP_AUTHORS = [];
+  }
+  renderBlog();
+  buildBlogCategoryChips();
+  buildBlogTagChips();
+  buildBlogAuthorSelect();
+}
+
+function buildBlogCategoryChips() {
+  const cats = WP_CATS_LIST.length ? WP_CATS_LIST : BLOG_CATS.map((n,i) => ({ id: i+1, name: n }));
+  const wrap = document.getElementById('blogCategoryChips');
+  if (!wrap) return;
+  wrap.innerHTML = cats.map(c =>
+    '<div class="chip text-xs" data-cat-id="' + c.id + '" onclick="selectBlogCat(this,' + c.id + ')">' + escHtml(c.name) + '</div>'
+  ).join('');
+}
+
+function selectBlogCat(el, id) {
+  document.getElementById('blogCategoryChips').querySelectorAll('.chip').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+function buildBlogTagChips() {
+  const wrap = document.getElementById('blogTagChips');
+  if (!wrap) return;
+  wrap.innerHTML = WP_TAGS_LIST.map(t =>
+    '<div class="chip text-xs" data-tag-id="' + t.id + '" onclick="this.classList.toggle('selected')">' + escHtml(t.name) + '</div>'
+  ).join('');
+}
+
+function buildBlogAuthorSelect(selectedId) {
+  const sel = document.getElementById('postAuthor');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">-- Select Author --</option>' +
+    WP_AUTHORS.map(u => '<option value="' + u.id + '"' + (selectedId && u.id == selectedId ? ' selected' : '') + '>' + escHtml(u.name) + '</option>').join('');
+}
+
+function toggleScheduledDate(val) {
+  const wrap = document.getElementById('scheduledDateWrap');
+  if (wrap) wrap.style.display = val === 'future' ? 'block' : 'none';
+  const btn = document.getElementById('blogPublishBtn');
+  if (btn) btn.textContent = val === 'future' ? 'Schedule Post' : 'Publish Post';
+}
+
+function getBlogSelectedCats() {
+  const chips = document.getElementById('blogCategoryChips');
+  if (!chips) return [];
+  return Array.from(chips.querySelectorAll('.chip.selected')).map(c => parseInt(c.dataset.catId)).filter(Boolean);
+}
+
+function getBlogSelectedTags() {
+  const wrap = document.getElementById('blogTagChips');
+  if (!wrap) return [];
+  return Array.from(wrap.querySelectorAll('.chip.selected')).map(c => parseInt(c.dataset.tagId)).filter(Boolean);
+}
+
+function editBlogPost(id) {
+  const post = WP_POSTS.find(p => p.id === id);
+  if (!post) return;
+  WP_EDITING_POST_ID = id;
+  document.getElementById('editingPostId').value = id;
+  document.getElementById('addBlogTitle').textContent = 'Edit Post';
+  document.getElementById('blogTitle').value = post.title ? post.title.rendered.replace(/<[^>]*>/g,'') : '';
+  const editor = document.getElementById('blogEditor');
+  editor.innerHTML = post.content ? post.content.rendered : '';
+  editor.dataset.empty = editor.innerHTML.trim() ? 'false' : 'true';
+  document.getElementById('postExcerpt').value = post.excerpt ? post.excerpt.rendered.replace(/<[^>]*>/g,'').trim() : '';
+  const statusEl = document.getElementById('postStatus');
+  statusEl.value = post.status || 'draft';
+  toggleScheduledDate(post.status);
+  if (post.status === 'future' && post.date) {
+    const d = new Date(post.date);
+    const pad = n => String(n).padStart(2,'0');
+    document.getElementById('postScheduledDate').value = d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':'+pad(d.getMinutes());
+  }
+  const featPreview = document.getElementById('blogImgPreview');
+  if (featPreview) {
+    const featMedia = post._embedded && post._embedded['wp:featuredmedia'] && post._embedded['wp:featuredmedia'][0];
+    featPreview.innerHTML = featMedia && featMedia.source_url
+      ? '<img src="' + escAttr(featMedia.source_url) + '" style="width:100%;height:80px;object-fit:cover;border-radius:6px;margin-top:4px" />'
+      : '';
+  }
+  const galPreview = document.getElementById('blogGalleryPreview');
+  if (galPreview) galPreview.innerHTML = '';
+  const postCats = post.categories || [];
+  document.getElementById('blogCategoryChips').querySelectorAll('.chip').forEach(c => {
+    c.classList.toggle('selected', postCats.includes(parseInt(c.dataset.catId)));
+  });
+  const postTags = post.tags || [];
+  const tagWrap = document.getElementById('blogTagChips');
+  if (tagWrap) tagWrap.querySelectorAll('.chip').forEach(c => {
+    c.classList.toggle('selected', postTags.includes(parseInt(c.dataset.tagId)));
+  });
+  buildBlogAuthorSelect(post.author);
+  nav('add-blog', null);
+}
+
 // --- Render: Blog ---------------------------------------------
 function renderBlog() {
-  const { items, total, pages } = paginate(BLOG_POSTS, PAGE.blog, PAGE_SIZE.blog);
-  document.getElementById('blogTableBody').innerHTML = items.map(p =>
-    '<tr><td class="font-medium text-neutral-200">' + p.title + '</td>' +
-    '<td><span class="text-xs text-neutral-500">' + p.cat + '</span></td>' +
-    '<td><span class="badge ' + (p.status === 'published' ? 'b-green' : 'b-neutral') + '">' + p.status + '</span></td>' +
-    '<td class="text-neutral-500">' + p.date + '</td>' +
-    '<td><button onclick="nav(\'add-blog\',null)" class="text-xs hover:underline" style="color:var(--gold)">Edit</button></td></tr>'
-  ).join('');
+  const posts = WP_POSTS.length ? WP_POSTS : [];
+  const { items, total, pages } = paginate(posts, PAGE.blog, PAGE_SIZE.blog);
+  const statusBadge = { publish:'b-green', future:'b-blue', draft:'b-neutral', pending:'b-amber', private:'b-neutral' };
+  const statusLabel = { publish:'Published', future:'Scheduled', draft:'Draft', pending:'Pending', private:'Private' };
+  const catName = (ids) => {
+    if (!ids || !ids.length) return '—';
+    const c = WP_CATS_LIST.find(c => c.id === ids[0]);
+    return c ? escHtml(c.name) : '—';
+  };
+  const fmtDate = (s) => {
+    try { return new Date(s).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }); } catch { return s || ''; }
+  };
+  document.getElementById('blogTableBody').innerHTML = items.length
+    ? items.map(p => {
+        const st = p.status || 'draft';
+        const title = p.title ? p.title.rendered.replace(/<[^>]*>/g,'') : '(untitled)';
+        return '<tr>' +
+          '<td class="font-medium text-neutral-200">' + escHtml(title) + '</td>' +
+          '<td><span class="text-xs text-neutral-500">' + catName(p.categories) + '</span></td>' +
+          '<td><span class="badge ' + (statusBadge[st]||'b-neutral') + '">' + (statusLabel[st]||st) + '</span></td>' +
+          '<td class="text-neutral-500">' + fmtDate(p.date) + '</td>' +
+          '<td><button onclick="editBlogPost(' + p.id + ')" class="text-xs hover:underline" style="color:var(--gold)">Edit</button></td>' +
+          '</tr>';
+      }).join('')
+    : '<tr><td colspan="5" class="py-8 text-center text-sm" style="color:var(--text-muted)">No posts found</td></tr>';
   const pg = document.getElementById('blogPager');
   if (pg) pg.innerHTML = pages > 1 ? pagerHTML('blog', PAGE.blog, pages, total) : '';
 }
@@ -2617,18 +2773,102 @@ async function uploadMedia(file) {
 }
 
 async function submitBlogPost(forceDraft) {
-  const title = document.getElementById('blogTitle').value.trim();
-  const content = document.getElementById('blogEditor').innerHTML;
+  const titleVal = document.getElementById('blogTitle').value.trim();
+  const postContent = document.getElementById('blogEditor').innerHTML;
   const status = forceDraft === 'draft' ? 'draft' : document.getElementById('postStatus').value;
-  if (!title) { showToast('Please add a post title'); return; }
+  if (!titleVal) { showToast('Please add a post title'); return; }
+
+  const btn = document.getElementById('blogPublishBtn');
+  const origLabel = btn ? btn.textContent : 'Publish Post';
+  if (btn) { btn.textContent = 'Saving…'; btn.disabled = true; }
+
   try {
-    const res = await fetch(WP_BASE + '/wp/v2/posts', {
-      method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': WP_AUTH },
-      body: JSON.stringify({ title, content, status, excerpt: document.getElementById('postExcerpt').value })
+    let featuredMediaId = null;
+    const imgInput = document.getElementById('blogImgInput');
+    if (imgInput && imgInput.files.length) {
+      featuredMediaId = await uploadMedia(imgInput.files[0]);
+    }
+
+    const galInput = document.getElementById('blogGalleryInput');
+    const galIds = [];
+    if (galInput && galInput.files.length) {
+      for (const file of galInput.files) {
+        const mid = await uploadMedia(file);
+        if (mid) galIds.push(mid);
+      }
+    }
+
+    const cats = getBlogSelectedCats();
+    const tags = getBlogSelectedTags();
+    const authorId = parseInt(document.getElementById('postAuthor').value) || undefined;
+    const excerpt = document.getElementById('postExcerpt').value;
+
+    const payload = {
+      title: titleVal,
+      content: postContent,
+      status,
+      excerpt,
+      categories: cats,
+      tags,
+    };
+    if (authorId) payload.author = authorId;
+    if (featuredMediaId) payload.featured_media = featuredMediaId;
+    if (status === 'future') {
+      const dt = document.getElementById('postScheduledDate').value;
+      if (dt) payload.date = new Date(dt).toISOString();
+    }
+
+    const editingId = WP_EDITING_POST_ID || document.getElementById('editingPostId').value;
+    const url = editingId
+      ? WP_BASE + '/wp/v2/posts/' + editingId
+      : WP_BASE + '/wp/v2/posts';
+    const method = editingId ? 'PUT' : 'POST';
+
+    const res = await fetch(url, {
+      method, headers: { 'Content-Type': 'application/json', 'Authorization': WP_AUTH },
+      body: JSON.stringify(payload),
     });
-    if (res.ok) { showToast(status === 'publish' ? 'Post published!' : 'Saved as draft'); nav('blog', null); }
-    else showToast('Error publishing post');
-  } catch { showToast('Network error'); }
+
+    if (res.ok) {
+      const saved = await res.json();
+      const idx = WP_POSTS.findIndex(p => p.id === saved.id);
+      if (idx >= 0) WP_POSTS[idx] = saved; else WP_POSTS.unshift(saved);
+      const msg = status === 'publish' ? 'Post published!' : status === 'future' ? 'Post scheduled!' : 'Saved as draft';
+      showToast(msg);
+      resetBlogForm();
+      nav('blog', null);
+      renderBlog();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      showToast('Error: ' + (err.message || res.status));
+    }
+  } catch(e) {
+    showToast('Network error: ' + e.message);
+  } finally {
+    if (btn) { btn.textContent = origLabel; btn.disabled = false; }
+  }
+}
+
+function resetBlogForm() {
+  WP_EDITING_POST_ID = null;
+  document.getElementById('editingPostId').value = '';
+  document.getElementById('addBlogTitle').textContent = 'New Post';
+  document.getElementById('blogTitle').value = '';
+  const ed = document.getElementById('blogEditor'); ed.innerHTML = ''; ed.dataset.empty = 'true';
+  document.getElementById('postExcerpt').value = '';
+  document.getElementById('postStatus').value = 'draft';
+  toggleScheduledDate('draft');
+  document.getElementById('blogImgPreview').innerHTML = '';
+  const galPreview = document.getElementById('blogGalleryPreview');
+  if (galPreview) galPreview.innerHTML = '';
+  document.getElementById('blogImgInput').value = '';
+  const galInput = document.getElementById('blogGalleryInput');
+  if (galInput) galInput.value = '';
+  const catWrap = document.getElementById('blogCategoryChips');
+  if (catWrap) catWrap.querySelectorAll('.chip').forEach(c => c.classList.remove('selected'));
+  const tagWrap = document.getElementById('blogTagChips');
+  if (tagWrap) tagWrap.querySelectorAll('.chip').forEach(c => c.classList.remove('selected'));
+  buildBlogAuthorSelect();
 }
 
 // ── Attr Repeater helpers ──────────────────────────────────────
@@ -4344,10 +4584,8 @@ async function init() {
   renderQuickActions();
   buildProjectFilters();
   renderProjects();
-  renderBlog();
   buildMultiChips('categoryChips', CATEGORIES, 'categoryValue');
   buildMultiChips('servicesChips', SERVICES, 'servicesValue');
-  buildSingleChips('blogCategoryChips', BLOG_CATS, 'postCategory');
   addTeamAttrRow('teamAttrRepeater'); // start Add form with one blank row
   buildMultiChips('contractServiceChips', SERVICES, 'contractServicesValue');
   buildMultiChips('sowServiceChips', SERVICES, 'sowServicesValue');
@@ -4357,6 +4595,7 @@ async function init() {
   updateDocStats();
   // Load all Supabase data in parallel
   await Promise.all([
+    loadBlogData(),
     loadPortfolioFromSupabase(),
     loadDocsFromSupabase(),
     loadBookingsFromSupabase(),
