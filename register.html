@@ -1,10 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en" class="light">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Create Account — Constructed Matter</title>
-  <link rel="icon" type="image/png" href="https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/cmi_favicon_black.png" id="faviconEl" />
+  <link rel="icon" type="image/png" href="https://wp.constructedmatter.com/wp-content/uploads/2026/03/cmi_favicon_black.png" id="faviconEl" />
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -70,8 +70,8 @@
   <header class="border-b border-neutral-200/60 dark:border-neutral-800/60 bg-cmi-light/90 dark:bg-cmi-dark/90 backdrop-blur-md">
     <div class="max-w-[1400px] mx-auto px-6 h-[64px] flex items-center justify-between">
       <a href="index.html" class="flex items-center">
-        <img src="https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/CMI_Logo.svg" alt="Constructed Matter" class="block dark:hidden h-8 w-auto" />
-        <img src="https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/CMI_Logo_White.svg" alt="Constructed Matter" class="hidden dark:block h-8 w-auto" />
+        <img src="https://wp.constructedmatter.com/wp-content/uploads/2026/03/CMI_Logo.svg" alt="Constructed Matter" class="block dark:hidden h-8 w-auto" />
+        <img src="https://wp.constructedmatter.com/wp-content/uploads/2026/03/CMI_Logo_White.svg" alt="Constructed Matter" class="hidden dark:block h-8 w-auto" />
       </a>
       <div class="flex items-center gap-4">
         <a href="login.html" class="text-sm text-neutral-500 dark:text-neutral-400 hover:text-cmi-gold-light dark:hover:text-cmi-gold-dark transition-colors">Already have an account? <strong>Log In</strong></a>
@@ -200,7 +200,7 @@
     const faviconEl = document.getElementById('faviconEl');
     function applyTheme(isDark) {
       html.classList.toggle('dark', isDark); html.classList.toggle('light', !isDark);
-      if (faviconEl) faviconEl.href = isDark ? 'https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/cmi_favicon_white.png' : 'https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/cmi_favicon_black.png';
+      if (faviconEl) faviconEl.href = isDark ? 'https://wp.constructedmatter.com/wp-content/uploads/2026/03/cmi_favicon_white.png' : 'https://wp.constructedmatter.com/wp-content/uploads/2026/03/cmi_favicon_black.png';
     }
     const stored = localStorage.getItem('cmi-theme');
     applyTheme(stored === 'dark' || (!stored && window.matchMedia('(prefers-color-scheme: dark)').matches));
@@ -230,8 +230,8 @@
     // Registration
     // NOTE: This form posts to WordPress REST API (/wp-json/wp/v2/users) and also to FluentCRM.
     // In production, wire the WP_API_URL to your WordPress instance.
-    const WP_API_URL = 'https://orange-coyote-460839.hostingersite.com/wp-json/wp/v2/users';
-    const FLUENT_WEBHOOK = 'https://orange-coyote-460839.hostingersite.com/?fluentcrm=1&route=contact&hash=d1125c3e-8e7c-4324-8b87-d7442013e870';
+    const WP_API_URL = 'https://wp.constructedmatter.com/wp-json/wp/v2/users';
+    const FLUENT_WEBHOOK = 'https://wp.constructedmatter.com/?fluentcrm=1&route=contact&hash=d1125c3e-8e7c-4324-8b87-d7442013e870';
 
     document.getElementById('registerForm').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -340,14 +340,13 @@
         </svg>
         hello@constructedmatter.com
       </a>
-      <a href="quote.html"
-         class="flex items-center gap-3 px-5 py-3.5 text-[13px] text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 transition-colors">
+      <button type="button" onclick="openBookingModal()" class="w-full flex items-center gap-3 px-5 py-3.5 text-[13px] text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 transition-colors text-left">
         <svg class="w-4 h-4 text-neutral-400 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
           <rect x="3" y="4" width="18" height="18" rx="2"/>
           <path d="M16 2v4M8 2v4M3 10h18"/>
         </svg>
         Book Appointment
-      </a>
+      </button>
     </div>
     <!-- Close row -->
     <div class="flex justify-end px-4 py-3 border-t border-neutral-100 dark:border-neutral-800">

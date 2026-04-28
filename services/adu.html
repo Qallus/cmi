@@ -1,10 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en" class="light">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ADU Construction — Constructed Matter</title>
-  <link rel="icon" type="image/png" href="https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/cmi_favicon_black.png" id="faviconEl" />
+  <link rel="icon" type="image/png" href="https://wp.constructedmatter.com/wp-content/uploads/2026/03/cmi_favicon_black.png" id="faviconEl" />
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -77,8 +77,8 @@
   <div class="max-w-[1400px] mx-auto px-6 lg:px-10">
     <nav class="flex items-center justify-between h-[72px]">
       <a href="../index.html" class="flex items-center" aria-label="Constructed Matter Home">
-        <img src="https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/CMI_Logo.svg" alt="Constructed Matter" class="block dark:hidden h-9 w-auto" />
-        <img src="https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/CMI_Logo_White.svg" alt="Constructed Matter" class="hidden dark:block h-9 w-auto" />
+        <img src="https://wp.constructedmatter.com/wp-content/uploads/2026/03/CMI_Logo.svg" alt="Constructed Matter" class="block dark:hidden h-9 w-auto" />
+        <img src="https://wp.constructedmatter.com/wp-content/uploads/2026/03/CMI_Logo_White.svg" alt="Constructed Matter" class="hidden dark:block h-9 w-auto" />
       </a>
       <div class="hidden lg:flex items-center gap-1">
         <div class="mega-trigger">
@@ -136,8 +136,8 @@
   <div class="absolute inset-0 bg-black/40 dark:bg-black/60" id="mobileBackdrop"></div>
   <div class="mobile-panel absolute top-0 right-0 w-[85%] max-w-[380px] h-full bg-cmi-light dark:bg-cmi-dark border-l border-neutral-200/60 dark:border-neutral-800/60 flex flex-col">
     <div class="flex items-center justify-between px-6 h-[72px] border-b border-neutral-200/60 dark:border-neutral-800/60">
-      <img src="https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/CMI_Logo.svg" alt="CMI" class="block dark:hidden h-8 w-auto" />
-      <img src="https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/CMI_Logo_White.svg" alt="CMI" class="hidden dark:block h-8 w-auto" />
+      <img src="https://wp.constructedmatter.com/wp-content/uploads/2026/03/CMI_Logo.svg" alt="CMI" class="block dark:hidden h-8 w-auto" />
+      <img src="https://wp.constructedmatter.com/wp-content/uploads/2026/03/CMI_Logo_White.svg" alt="CMI" class="hidden dark:block h-8 w-auto" />
       <button id="mobileCloseBtn" class="w-10 h-10 rounded-lg flex items-center justify-center hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors">
         <svg class="w-5 h-5 text-neutral-600 dark:text-neutral-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
       </button>
@@ -349,7 +349,7 @@
     <div class="max-w-[1400px] mx-auto px-6 py-12">
       <div class="grid sm:grid-cols-2 lg:grid-cols-5 gap-10 mb-10">
         <div>
-          <img src="https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/CMI_Logo_White.svg" alt="Constructed Matter" class="h-7 w-auto mb-4" />
+          <img src="https://wp.constructedmatter.com/wp-content/uploads/2026/03/CMI_Logo_White.svg" alt="Constructed Matter" class="h-7 w-auto mb-4" />
           <p class="text-xs text-neutral-500 leading-relaxed">Building Arizona's finest homes, commercial spaces, and ADUs since 2010.</p>
         </div>
         <div>
@@ -410,7 +410,7 @@
     const faviconEl = document.getElementById('faviconEl');
     function applyTheme(isDark) {
       html.classList.toggle('dark', isDark); html.classList.toggle('light', !isDark);
-      if (faviconEl) faviconEl.href = isDark ? 'https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/cmi_favicon_white.png' : 'https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/cmi_favicon_black.png';
+      if (faviconEl) faviconEl.href = isDark ? 'https://wp.constructedmatter.com/wp-content/uploads/2026/03/cmi_favicon_white.png' : 'https://wp.constructedmatter.com/wp-content/uploads/2026/03/cmi_favicon_black.png';
     }
     const stored = localStorage.getItem('cmi-theme');
     applyTheme(stored === 'dark' || (!stored && window.matchMedia('(prefers-color-scheme: dark)').matches));
@@ -464,14 +464,13 @@
         </svg>
         hello@constructedmatter.com
       </a>
-      <a href="../quote.html"
-         class="flex items-center gap-3 px-5 py-3.5 text-[13px] text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 transition-colors">
+      <button type="button" onclick="openBookingModal()" class="w-full flex items-center gap-3 px-5 py-3.5 text-[13px] text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 transition-colors text-left">
         <svg class="w-4 h-4 text-neutral-400 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
           <rect x="3" y="4" width="18" height="18" rx="2"/>
           <path d="M16 2v4M8 2v4M3 10h18"/>
         </svg>
         Book Appointment
-      </a>
+      </button>
     </div>
     <!-- Close row -->
     <div class="flex justify-end px-4 py-3 border-t border-neutral-100 dark:border-neutral-800">

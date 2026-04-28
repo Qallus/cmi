@@ -21,3 +21,7 @@ desktop.ini
 .env.*
 *.env
 secrets.json
+
+# Claude / MCP
+.claude/
+.mcp.json

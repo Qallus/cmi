@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
@@ -1064,5 +1064,40 @@ document.querySelectorAll('.slide-body').forEach(function(el){
   el.insertBefore(g,el.firstChild);
 });
 </script>
-</body>
+
+<!-- ── FLUENT BOOKING MODAL ── -->
+<div id="bookingModal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.55);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);align-items:flex-end;justify-content:center">
+  <div style="width:100%;max-width:700px;background:#fff;border-radius:20px 20px 0 0;box-shadow:0 -8px 48px rgba(0,0,0,0.22);overflow:hidden;position:relative;max-height:92vh;display:flex;flex-direction:column">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #efefef;flex-shrink:0">
+      <div>
+        <p style="font-weight:600;font-size:15px;color:#111;margin:0">Book an Appointment</p>
+        <p style="font-size:12px;color:#888;margin:2px 0 0">Schedule a free consultation with our team</p>
+      </div>
+      <button onclick="closeBookingModal()" aria-label="Close" style="width:32px;height:32px;border-radius:50%;background:#111;color:#fff;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div style="overflow-y:auto;flex:1">
+      <iframe id="fluentbooking" loading="lazy" width="100%" style="min-width:320px;height:720px;border:none;display:block" src="https://wp-constructedmatter-com-985548.hostingersite.com/?fluent-booking=calendar&host=jwaters-1772651529&event=30min&embedded=1"></iframe>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  function openBookingModal(){
+    var m=document.getElementById('bookingModal');
+    m.style.display='flex';
+    document.body.style.overflow='hidden';
+  }
+  function closeBookingModal(){
+    var m=document.getElementById('bookingModal');
+    m.style.display='none';
+    document.body.style.overflow='';
+  }
+  window.openBookingModal=openBookingModal;
+  window.closeBookingModal=closeBookingModal;
+  document.getElementById('bookingModal').addEventListener('click',function(e){if(e.target===this)closeBookingModal();});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')closeBookingModal();});
+})();
+</script></body>
 </html>

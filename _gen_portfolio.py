@@ -1,4 +1,4 @@
-import os
+﻿import os
 
 BASE = r"c:\Users\jwate\Constructed Matter Inc\portfolio"
 SQSP = "https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/"
@@ -265,8 +265,8 @@ NAV = '''<!-- ── Header ── -->
   <div class="max-w-[1400px] mx-auto px-6 lg:px-10">
     <div class="flex items-center justify-between h-[72px]">
       <a href="../index.html" class="flex items-center" aria-label="Constructed Matter Home">
-        <img src="https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/CMI_Logo_Black.svg" alt="Constructed Matter" class="h-8 w-auto block dark:hidden" />
-        <img src="https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/CMI_Logo_White.svg" alt="Constructed Matter" class="h-8 w-auto hidden dark:block" />
+        <img src="https://wp.constructedmatter.com/wp-content/uploads/2026/03/CMI_Logo_Black.svg" alt="Constructed Matter" class="h-8 w-auto block dark:hidden" />
+        <img src="https://wp.constructedmatter.com/wp-content/uploads/2026/03/CMI_Logo_White.svg" alt="Constructed Matter" class="h-8 w-auto hidden dark:block" />
       </a>
       <nav class="hidden lg:flex items-center gap-1">
         <div class="mega-trigger">
@@ -317,8 +317,8 @@ NAV = '''<!-- ── Header ── -->
   <div id="mobileBackdrop" class="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
   <div class="mobile-panel absolute top-0 right-0 bottom-0 w-[300px] bg-white dark:bg-cmi-dark-light shadow-2xl overflow-y-auto">
     <div class="flex items-center justify-between p-5 border-b border-neutral-100 dark:border-neutral-800">
-      <img src="https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/CMI_Logo_Black.svg" alt="CMI" class="h-7 w-auto block dark:hidden" />
-      <img src="https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/CMI_Logo_White.svg" alt="CMI" class="h-7 w-auto hidden dark:block" />
+      <img src="https://wp.constructedmatter.com/wp-content/uploads/2026/03/CMI_Logo_Black.svg" alt="CMI" class="h-7 w-auto block dark:hidden" />
+      <img src="https://wp.constructedmatter.com/wp-content/uploads/2026/03/CMI_Logo_White.svg" alt="CMI" class="h-7 w-auto hidden dark:block" />
       <button id="mobileCloseBtn" class="w-8 h-8 rounded-lg flex items-center justify-center text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
       </button>
@@ -355,7 +355,7 @@ FOOTER = '''<!-- ── Footer ── -->
   <div class="max-w-[1400px] mx-auto px-6 lg:px-10 py-16">
     <div class="grid grid-cols-1 md:grid-cols-4 gap-10">
       <div>
-        <img src="https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/CMI_Logo_White.svg" alt="Constructed Matter" class="h-8 w-auto mb-4" />
+        <img src="https://wp.constructedmatter.com/wp-content/uploads/2026/03/CMI_Logo_White.svg" alt="Constructed Matter" class="h-8 w-auto mb-4" />
         <p class="text-sm text-neutral-500 leading-relaxed">Building with intention. Delivering with precision.</p>
       </div>
       <div>
@@ -425,7 +425,7 @@ def make_page(p):
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{title} — Constructed Matter</title>
-  <link rel="icon" type="image/png" href="https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/cmi_favicon_black.png" id="faviconEl" />
+  <link rel="icon" type="image/png" href="https://wp.constructedmatter.com/wp-content/uploads/2026/03/cmi_favicon_black.png" id="faviconEl" />
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -593,8 +593,8 @@ def make_page(p):
   function applyTheme(isDark) {{
     html.classList.toggle('dark', isDark); html.classList.toggle('light', !isDark);
     if (faviconEl) faviconEl.href = isDark
-      ? 'https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/cmi_favicon_white.png'
-      : 'https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/cmi_favicon_black.png';
+      ? 'https://wp.constructedmatter.com/wp-content/uploads/2026/03/cmi_favicon_white.png'
+      : 'https://wp.constructedmatter.com/wp-content/uploads/2026/03/cmi_favicon_black.png';
   }}
   const stored = localStorage.getItem('cmi-theme');
   applyTheme(stored === 'dark' || (!stored && window.matchMedia('(prefers-color-scheme: dark)').matches));

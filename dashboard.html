@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en" class="dark">
 <script>
   (function(){
@@ -13,7 +13,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Sign In — Constructed Matter</title>
-  <link id="favicon" rel="icon" type="image/png" href="https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/cmi_favicon_white.png" />
+  <link id="favicon" rel="icon" type="image/png" href="https://wp.constructedmatter.com/wp-content/uploads/2026/03/cmi_favicon_white.png" />
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -102,8 +102,8 @@
 
     <!-- Logo -->
     <div class="text-center mb-8">
-      <img src="https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/CMI_Logo_White.svg" alt="Constructed Matter" class="logo-dark h-8 mx-auto" />
-      <img src="https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/CMI_Logo.svg" alt="Constructed Matter" class="logo-light h-8 mx-auto" />
+      <img src="https://wp.constructedmatter.com/wp-content/uploads/2026/03/CMI_Logo_White.svg" alt="Constructed Matter" class="logo-dark h-8 mx-auto" />
+      <img src="https://wp.constructedmatter.com/wp-content/uploads/2026/03/CMI_Logo.svg" alt="Constructed Matter" class="logo-light h-8 mx-auto" />
     </div>
 
     <!-- ── LOGIN PANEL ── -->
@@ -204,8 +204,8 @@ const STAFF = {
 const STAFF_CODE = 'qafn SAYK VJlm zRYt WuWG HOxk';
 
 // ─── Theme ────────────────────────────────────────────────────
-const FAVICON_DARK  = 'https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/cmi_favicon_white.png';
-const FAVICON_LIGHT = 'https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/cmi_favicon_black.png';
+const FAVICON_DARK  = 'https://wp.constructedmatter.com/wp-content/uploads/2026/03/cmi_favicon_white.png';
+const FAVICON_LIGHT = 'https://wp.constructedmatter.com/wp-content/uploads/2026/03/cmi_favicon_black.png';
 
 function applyTheme(theme) {
   document.documentElement.className = theme;
@@ -284,5 +284,40 @@ function signOut() {
   document.getElementById('passwordInput').value = '';
 }
 </script>
-</body>
+
+<!-- ── FLUENT BOOKING MODAL ── -->
+<div id="bookingModal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.55);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);align-items:flex-end;justify-content:center">
+  <div style="width:100%;max-width:700px;background:#fff;border-radius:20px 20px 0 0;box-shadow:0 -8px 48px rgba(0,0,0,0.22);overflow:hidden;position:relative;max-height:92vh;display:flex;flex-direction:column">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #efefef;flex-shrink:0">
+      <div>
+        <p style="font-weight:600;font-size:15px;color:#111;margin:0">Book an Appointment</p>
+        <p style="font-size:12px;color:#888;margin:2px 0 0">Schedule a free consultation with our team</p>
+      </div>
+      <button onclick="closeBookingModal()" aria-label="Close" style="width:32px;height:32px;border-radius:50%;background:#111;color:#fff;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div style="overflow-y:auto;flex:1">
+      <iframe id="fluentbooking" loading="lazy" width="100%" style="min-width:320px;height:720px;border:none;display:block" src="https://wp-constructedmatter-com-985548.hostingersite.com/?fluent-booking=calendar&host=jwaters-1772651529&event=30min&embedded=1"></iframe>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  function openBookingModal(){
+    var m=document.getElementById('bookingModal');
+    m.style.display='flex';
+    document.body.style.overflow='hidden';
+  }
+  function closeBookingModal(){
+    var m=document.getElementById('bookingModal');
+    m.style.display='none';
+    document.body.style.overflow='';
+  }
+  window.openBookingModal=openBookingModal;
+  window.closeBookingModal=closeBookingModal;
+  document.getElementById('bookingModal').addEventListener('click',function(e){if(e.target===this)closeBookingModal();});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')closeBookingModal();});
+})();
+</script></body>
 </html>

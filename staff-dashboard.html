@@ -1,11 +1,11 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en" class="dark">
 <script>(function(){var t=localStorage.getItem('cmi-theme')||'dark';document.documentElement.className=t;if(!localStorage.getItem('cmi-auth-token')){window.location.replace('dashboard.html');}})();</script>
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CMI Team Dashboard</title>
-  <link id="favicon" rel="icon" type="image/png" href="https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/cmi_favicon_white.png" />
+  <link id="favicon" rel="icon" type="image/png" href="https://wp.constructedmatter.com/wp-content/uploads/2026/03/cmi_favicon_white.png" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -255,8 +255,8 @@
   <!-- ── Sidebar ── -->
   <aside id="sidebar">
     <div class="px-5 py-5" style="border-bottom:1px solid var(--border)">
-      <img src="https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/CMI_Logo_White.svg" alt="CMI" class="logo-dark h-7 w-auto" />
-      <img src="https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/CMI_Logo.svg" alt="CMI" class="logo-light h-7 w-auto" />
+      <img src="https://wp.constructedmatter.com/wp-content/uploads/2026/03/CMI_Logo_White.svg" alt="CMI" class="logo-dark h-7 w-auto" />
+      <img src="https://wp.constructedmatter.com/wp-content/uploads/2026/03/CMI_Logo.svg" alt="CMI" class="logo-light h-7 w-auto" />
       <p class="text-[10px] text-neutral-600 mt-1.5 font-medium tracking-widest uppercase">Team Dashboard</p>
     </div>
     <nav class="flex-1 py-3">
@@ -1363,7 +1363,7 @@
         <div class="max-w-2xl space-y-5">
           <div class="card p-5 space-y-4">
             <p class="text-[10px] uppercase tracking-widest text-neutral-500 font-medium">WordPress API</p>
-            <div><label class="form-label">Site URL</label><input class="form-input" value="https://orange-coyote-460839.hostingersite.com" /></div>
+            <div><label class="form-label">Site URL</label><input class="form-input" value="https://wp.constructedmatter.com" /></div>
             <div><label class="form-label">Username</label><input class="form-input" value="jwaters@qallus.co" /></div>
             <div><label class="form-label">App Password</label><input type="password" class="form-input" value="HFKb 1Ksz VhQG ysYu QrmV A2TN" /></div>
             <button class="px-5 py-2 rounded-lg bg-cmi-gold-dark text-white text-sm font-medium hover:opacity-90" onclick="showToast('API settings saved')">Save Settings</button>
@@ -1375,7 +1375,7 @@
           </div>
           <div class="card p-5 space-y-4">
             <p class="text-[10px] uppercase tracking-widest text-neutral-500 font-medium">FluentCRM Webhook</p>
-            <div><label class="form-label">Webhook URL</label><input class="form-input text-xs" value="https://orange-coyote-460839.hostingersite.com/?fluentcrm=1&route=contact&hash=d1125c3e-8e7c-4324-8b87-d7442013e870" /></div>
+            <div><label class="form-label">Webhook URL</label><input class="form-input text-xs" value="https://wp.constructedmatter.com/?fluentcrm=1&route=contact&hash=d1125c3e-8e7c-4324-8b87-d7442013e870" /></div>
             <button class="px-5 py-2 rounded-lg bg-cmi-gold-dark text-white text-sm font-medium hover:opacity-90" onclick="showToast('Webhook URL updated')">Update Webhook</button>
           </div>
         </div>
@@ -1617,8 +1617,8 @@
 
 <script>
 // ─── Config ───────────────────────────────────────────────────
-const WP_BASE = 'https://orange-coyote-460839.hostingersite.com/wp-json';
-const WP_AUTH = 'Basic ' + btoa('jw@channelcast.io:qafn SAYK VJlm zRYt WuWG HOxk');
+const WP_BASE = 'https://wp-constructedmatter-com-985548.hostingersite.com/wp-json';
+const WP_AUTH = 'Basic ' + btoa('jwaters@qallus.co:vtEQ fWMK oQcd C3sB M9PM e9K2');
 
 // ─── Supabase Client ──────────────────────────────────────────
 const SB_URL  = 'https://uoerzrmeibavqgisfzso.supabase.co';
@@ -1626,8 +1626,8 @@ const SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsIn
 const sb = window.supabase ? window.supabase.createClient(SB_URL, SB_ANON) : null;
 
 // ─── Theme ────────────────────────────────────────────────────
-const FAVICON_DARK  = 'https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/cmi_favicon_white.png';
-const FAVICON_LIGHT = 'https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/cmi_favicon_black.png';
+const FAVICON_DARK  = 'https://wp.constructedmatter.com/wp-content/uploads/2026/03/cmi_favicon_white.png';
+const FAVICON_LIGHT = 'https://wp.constructedmatter.com/wp-content/uploads/2026/03/cmi_favicon_black.png';
 
 function applyTheme(theme) {
   document.documentElement.className = theme;
@@ -1713,9 +1713,11 @@ const TEAM_ATTRS = [
   'Project Management','Estimating','Field Operations','Client Relations','Permitting',
 ];
 
-let _editingSlug       = null;
+let _editingSlug        = null;
 let _editingFeaturedImg = null;
 let _editingGalleryImgs = [];
+let _pendingGalleryFiles = [];
+let _pendingFeaturedFile = null;
 
 const PROJECTS = [
   { slug:'ambassador-adu', title:'Ambassador ADU', cat:'ADU', year:2024, location:'Arcadia / Scottsdale, AZ', timeline:'8 months', sqft:620, description:'The Ambassador ADU is a detached accessory dwelling unit set on a generous corner lot in Arcadia — finished to the standard of a primary residence and designed to function as one.\n\nBuilt as a self-contained income-generating unit, the project required a new utility service lateral, minor site regrading, and custom cabinetry fabricated off-site. The architectural palette mirrors the main house: stucco exterior, clay tile roofline details, and steel-framed windows that let in north light.\n\nInterior finishes were specified to hotel standard — concrete look tile floors, quartzite kitchen counters, integrated undercabinet lighting, and full-size appliances throughout. From groundbreaking to certificate of occupancy: eight months.', scope:['Detached ADU','New Construction','Permitting','Interior Finishes','Utility Connection'], img:'https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/f8d1c98a-e6b7-4b1d-ab9e-3ce111e9b817/Kit+Detail+2.jpg', gallery:['https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/f8d1c98a-e6b7-4b1d-ab9e-3ce111e9b817/Kit+Detail+2.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/a162f250-9a9e-4534-8539-cf97fe354da8/Kit+Detail.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/347f1cc7-d335-4f7b-8ed5-0a6e29c0a386/Kit+Shelf.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/199ab360-67f6-4307-9d8a-b82ec369a930/Kit+Detail+3.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/2552562b-0622-4402-9649-38b2cc78ac91/Living+Room+Detail.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/7279d35a-716a-485a-8603-baf24f26626f/Chair.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/c66e3390-0b69-4057-94a7-dc17d51e9d95/Bed+2.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/3f6b3379-697b-423e-bdfa-accc6d1361b2/Vanity+Detail.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/be0c4f51-2299-4e39-9832-11801f512773/Vanity+Detail+2.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/5b86f7cc-57ea-40cb-8cf1-e68e1c9c8231/Bath+Towel+Detail.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/7ef8128b-8fc2-48c3-aeca-58b7f26e8e07/Ext2.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/4484164b-6d54-4a3a-8650-654a14364de1/Ext.jpg','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/dabc3215-7ffd-402d-99d0-eab67c305b8c/DJI_0384.JPG','https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/30ffd8a6-d378-454c-b765-a303f9bba3d9/DJI_0383.JPG'] },
@@ -1873,6 +1875,14 @@ function showToast(msg, ms = 3200) {
 
 // ─── File Uploads ─────────────────────────────────────────────
 function previewFiles(input, previewId, multiple) {
+  if (previewId === 'galleryPreview') {
+    Array.from(input.files).forEach(f => _pendingGalleryFiles.push(f));
+    refreshGalleryPreview();
+    return;
+  }
+  if (previewId === 'featuredPreview' && input.files.length > 0) {
+    _pendingFeaturedFile = input.files[0];
+  }
   const preview = document.getElementById(previewId);
   if (!preview) return;
   if (!multiple) preview.innerHTML = '';
@@ -1894,10 +1904,18 @@ function onDragLeave(id) { document.getElementById(id).classList.remove('dragove
 function onDrop(e, previewId, multiple) {
   e.preventDefault();
   if (e.currentTarget.id) onDragLeave(e.currentTarget.id);
+  const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+  if (previewId === 'galleryPreview') {
+    files.forEach(f => _pendingGalleryFiles.push(f));
+    refreshGalleryPreview();
+    return;
+  }
+  if (previewId === 'featuredPreview' && files.length > 0) {
+    _pendingFeaturedFile = files[0];
+  }
   const preview = document.getElementById(previewId);
   if (!multiple && preview) preview.innerHTML = '';
-  Array.from(e.dataTransfer.files).forEach(file => {
-    if (!file.type.startsWith('image/')) return;
+  files.forEach(file => {
     const img = document.createElement('img');
     img.src = URL.createObjectURL(file);
     img.className = 'thumb-preview';
@@ -2342,9 +2360,11 @@ function renderTeam() {
 
 // ─── API Submissions ──────────────────────────────────────────
 function openNewProject() {
-  _editingSlug        = null;
-  _editingFeaturedImg = null;
-  _editingGalleryImgs = [];
+  _editingSlug         = null;
+  _editingFeaturedImg  = null;
+  _editingGalleryImgs  = [];
+  _pendingGalleryFiles = [];
+  _pendingFeaturedFile = null;
   const form = document.getElementById('projectForm');
   if (form) form.reset();
   ['featuredPreview','galleryPreview','videoPreview'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = ''; });
@@ -2359,9 +2379,11 @@ function openNewProject() {
 function editProject(slug) {
   const p = PROJECTS.find(x => x.slug === slug);
   if (!p) return;
-  _editingSlug        = slug;
-  _editingFeaturedImg = p.img    || null;
-  _editingGalleryImgs = p.gallery ? [...p.gallery] : [];
+  _editingSlug         = slug;
+  _editingFeaturedImg  = p.img    || null;
+  _editingGalleryImgs  = p.gallery ? [...p.gallery] : [];
+  _pendingGalleryFiles = [];
+  _pendingFeaturedFile = null;
 
   const heading = document.getElementById('projectFormHeading');
   if (heading) heading.textContent = 'Edit: ' + p.title;
@@ -2393,21 +2415,64 @@ function editProject(slug) {
   const svcHidden = document.getElementById('servicesValue');
   if (svcHidden) svcHidden.value = (p.scope || []).join(',');
 
-  // Show featured image preview
+  // Show featured image preview with remove button
   const featPrev = document.getElementById('featuredPreview');
   if (featPrev && p.img) {
-    featPrev.innerHTML = '<div class="relative inline-block"><img src="' + p.img + '" class="h-24 w-36 object-cover rounded-lg" /><p class="text-xs text-neutral-500 mt-1 truncate max-w-[144px]">Current featured image</p></div>';
+    featPrev.innerHTML =
+      '<div class="relative inline-block">' +
+        '<img src="' + p.img + '" class="h-24 w-36 object-cover rounded-lg block" />' +
+        '<button type="button" onclick="clearFeaturedImg()" title="Remove featured image" ' +
+          'style="position:absolute;top:4px;right:4px;width:20px;height:20px;border-radius:50%;background:rgba(0,0,0,0.75);color:#fff;display:flex;align-items:center;justify-content:center;border:none;cursor:pointer;padding:0">' +
+          '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M6 18L18 6M6 6l12 12"/></svg>' +
+        '</button>' +
+        '<p class="text-xs text-neutral-500 mt-1 truncate max-w-[144px]">Current featured image</p>' +
+      '</div>';
   }
 
-  // Show gallery preview
-  const galPrev = document.getElementById('galleryPreview');
-  if (galPrev && p.gallery && p.gallery.length) {
-    galPrev.innerHTML = p.gallery.map(url =>
-      '<div class="relative"><img src="' + url + '" class="h-20 w-28 object-cover rounded-lg" /></div>'
-    ).join('');
-  }
+  // Show gallery preview with remove buttons
+  refreshGalleryPreview();
 
   nav('add-project', null);
+}
+
+function refreshGalleryPreview() {
+  const galPrev = document.getElementById('galleryPreview');
+  if (!galPrev) return;
+  const btnStyle = 'position:absolute;top:4px;right:4px;width:20px;height:20px;border-radius:50%;background:rgba(0,0,0,0.75);color:#fff;display:flex;align-items:center;justify-content:center;border:none;cursor:pointer;padding:0';
+  const xIcon   = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M6 18L18 6M6 6l12 12"/></svg>';
+  const existingHtml = _editingGalleryImgs.map((url, i) =>
+    '<div style="position:relative;display:inline-block">' +
+      '<img src="' + url + '" class="h-20 w-28 object-cover rounded-lg block" />' +
+      '<button type="button" onclick="removeExistingGalleryImg(' + i + ')" title="Remove" style="' + btnStyle + '">' + xIcon + '</button>' +
+    '</div>'
+  ).join('');
+  const pendingHtml = _pendingGalleryFiles.map((file, i) => {
+    const src = URL.createObjectURL(file);
+    return '<div style="position:relative;display:inline-block">' +
+      '<img src="' + src + '" class="h-20 w-28 object-cover rounded-lg block" />' +
+      '<div style="position:absolute;bottom:2px;left:2px;background:rgba(0,0,0,0.6);color:#fff;font-size:9px;padding:1px 4px;border-radius:3px">New</div>' +
+      '<button type="button" onclick="removePendingGalleryFile(' + i + ')" title="Remove" style="' + btnStyle + '">' + xIcon + '</button>' +
+    '</div>';
+  }).join('');
+  galPrev.innerHTML = existingHtml + pendingHtml;
+}
+
+function removeExistingGalleryImg(i) {
+  _editingGalleryImgs.splice(i, 1);
+  refreshGalleryPreview();
+}
+
+function removePendingGalleryFile(i) {
+  _pendingGalleryFiles.splice(i, 1);
+  refreshGalleryPreview();
+}
+
+function clearFeaturedImg() {
+  _editingFeaturedImg = null;
+  _pendingFeaturedFile = null;
+  document.getElementById('featuredPreview').innerHTML = '';
+  const fi = document.getElementById('featuredInput');
+  if (fi) fi.value = '';
 }
 
 async function uploadPortfolioImage(file, slug, suffix) {
@@ -2435,25 +2500,30 @@ async function submitProject(e) {
   const scopeChips = Array.from(document.querySelectorAll('#servicesChips .chip.selected')).map(c => c.textContent.trim());
   const catChips   = Array.from(document.querySelectorAll('#categoryChips .chip.selected')).map(c => c.textContent.trim());
 
-  // Upload images to Supabase Storage if new files were selected
+  // Upload images to Supabase Storage
   let featuredUrl = _editingFeaturedImg || null;
   let galleryUrls = [...(_editingGalleryImgs || [])];
 
   try {
     if (sb) {
-      const featInput = document.getElementById('featuredInput');
-      if (featInput && featInput.files.length > 0) {
-        featuredUrl = await uploadPortfolioImage(featInput.files[0], slug, 'featured');
+      // Featured: prefer pending drop/select, fall back to file input
+      const featFile = _pendingFeaturedFile || (document.getElementById('featuredInput')?.files[0] || null);
+      if (featFile) {
+        featuredUrl = await uploadPortfolioImage(featFile, slug, 'featured');
       }
-      const galInput = document.getElementById('galleryInput');
-      if (galInput && galInput.files.length > 0) {
+      // Gallery: upload pending files (drag-drop + file-input), append to existing URLs
+      const galFiles = _pendingGalleryFiles.length > 0
+        ? _pendingGalleryFiles
+        : Array.from(document.getElementById('galleryInput')?.files || []);
+      if (galFiles.length > 0) {
         const uploads = await Promise.all(
-          Array.from(galInput.files).map((f, i) => uploadPortfolioImage(f, slug, 'gallery-' + i))
+          galFiles.map((f, i) => uploadPortfolioImage(f, slug, 'gallery-' + i))
         );
         galleryUrls = galleryUrls.concat(uploads);
       }
     }
   } catch (uploadErr) {
+    console.error('Portfolio image upload error:', uploadErr);
     showToast('Image upload failed: ' + uploadErr.message);
     if (label) label.textContent = origLabel;
     if (btn) btn.disabled = false;
@@ -2474,12 +2544,16 @@ async function submitProject(e) {
     status:         'published',
     featured_image: featuredUrl || null,
     gallery_images: galleryUrls.length ? galleryUrls : null,
+    updated_at:     new Date().toISOString(),
   };
 
   try {
     if (sb) {
       const { error } = await sb.from('portfolio').upsert(row, { onConflict: 'slug' });
-      if (error) throw new Error(error.message);
+      if (error) {
+        console.error('Supabase portfolio upsert error:', error);
+        throw new Error(error.message);
+      }
     }
 
     // Update local PROJECTS array
@@ -2492,8 +2566,10 @@ async function submitProject(e) {
     });
     if (idx >= 0) PROJECTS[idx] = updated; else PROJECTS.push(updated);
 
-    _editingFeaturedImg = null;
-    _editingGalleryImgs = [];
+    _editingFeaturedImg  = null;
+    _editingGalleryImgs  = [];
+    _pendingFeaturedFile = null;
+    _pendingGalleryFiles = [];
     showToast(isEdit ? 'Project updated — changes are live' : 'Project published successfully');
     _editingSlug = null;
     form.reset();
@@ -4247,7 +4323,42 @@ function buildDocPrintHTML(doc) {
     +'</div></div>'
     +'<div class="footer"><span>'+esc(doc.roc)+'</span><span>Constructed Matter Inc. &nbsp;·&nbsp; '+esc(doc.date)+'</span><span>Doc ID: '+esc(doc.id)+'</span></div>'
     +'<script>window.onload=function(){window.print();}<\/script>'
-    +'</body></html>';
+    +'
+<!-- ── FLUENT BOOKING MODAL ── -->
+<div id="bookingModal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.55);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);align-items:flex-end;justify-content:center">
+  <div style="width:100%;max-width:700px;background:#fff;border-radius:20px 20px 0 0;box-shadow:0 -8px 48px rgba(0,0,0,0.22);overflow:hidden;position:relative;max-height:92vh;display:flex;flex-direction:column">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #efefef;flex-shrink:0">
+      <div>
+        <p style="font-weight:600;font-size:15px;color:#111;margin:0">Book an Appointment</p>
+        <p style="font-size:12px;color:#888;margin:2px 0 0">Schedule a free consultation with our team</p>
+      </div>
+      <button onclick="closeBookingModal()" aria-label="Close" style="width:32px;height:32px;border-radius:50%;background:#111;color:#fff;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div style="overflow-y:auto;flex:1">
+      <iframe id="fluentbooking" loading="lazy" width="100%" style="min-width:320px;height:720px;border:none;display:block" src="https://wp-constructedmatter-com-985548.hostingersite.com/?fluent-booking=calendar&host=jwaters-1772651529&event=30min&embedded=1"></iframe>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  function openBookingModal(){
+    var m=document.getElementById('bookingModal');
+    m.style.display='flex';
+    document.body.style.overflow='hidden';
+  }
+  function closeBookingModal(){
+    var m=document.getElementById('bookingModal');
+    m.style.display='none';
+    document.body.style.overflow='';
+  }
+  window.openBookingModal=openBookingModal;
+  window.closeBookingModal=closeBookingModal;
+  document.getElementById('bookingModal').addEventListener('click',function(e){if(e.target===this)closeBookingModal();});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')closeBookingModal();});
+})();
+</script></body></html>';
 }
 
 // ─── CSV Export ───────────────────────────────────────────────
@@ -4277,5 +4388,40 @@ function downloadFile(content, filename, type) {
   document.body.removeChild(a);
 }
 </script>
-</body>
+
+<!-- ── FLUENT BOOKING MODAL ── -->
+<div id="bookingModal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.55);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);align-items:flex-end;justify-content:center">
+  <div style="width:100%;max-width:700px;background:#fff;border-radius:20px 20px 0 0;box-shadow:0 -8px 48px rgba(0,0,0,0.22);overflow:hidden;position:relative;max-height:92vh;display:flex;flex-direction:column">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #efefef;flex-shrink:0">
+      <div>
+        <p style="font-weight:600;font-size:15px;color:#111;margin:0">Book an Appointment</p>
+        <p style="font-size:12px;color:#888;margin:2px 0 0">Schedule a free consultation with our team</p>
+      </div>
+      <button onclick="closeBookingModal()" aria-label="Close" style="width:32px;height:32px;border-radius:50%;background:#111;color:#fff;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div style="overflow-y:auto;flex:1">
+      <iframe id="fluentbooking" loading="lazy" width="100%" style="min-width:320px;height:720px;border:none;display:block" src="https://wp-constructedmatter-com-985548.hostingersite.com/?fluent-booking=calendar&host=jwaters-1772651529&event=30min&embedded=1"></iframe>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  function openBookingModal(){
+    var m=document.getElementById('bookingModal');
+    m.style.display='flex';
+    document.body.style.overflow='hidden';
+  }
+  function closeBookingModal(){
+    var m=document.getElementById('bookingModal');
+    m.style.display='none';
+    document.body.style.overflow='';
+  }
+  window.openBookingModal=openBookingModal;
+  window.closeBookingModal=closeBookingModal;
+  document.getElementById('bookingModal').addEventListener('click',function(e){if(e.target===this)closeBookingModal();});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')closeBookingModal();});
+})();
+</script></body>
 </html>

@@ -1,10 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en" class="light">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Logged Out — Constructed Matter</title>
-  <link rel="icon" type="image/png" href="https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/cmi_favicon_black.png" id="faviconEl" />
+  <link rel="icon" type="image/png" href="https://wp.constructedmatter.com/wp-content/uploads/2026/03/cmi_favicon_black.png" id="faviconEl" />
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -31,8 +31,8 @@
   <header class="border-b border-neutral-200/60 dark:border-neutral-800/60 bg-cmi-light/90 dark:bg-cmi-dark/90 backdrop-blur-md">
     <div class="max-w-[1400px] mx-auto px-6 h-[64px] flex items-center justify-between">
       <a href="index.html" class="flex items-center">
-        <img src="https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/CMI_Logo.svg" alt="Constructed Matter" class="block dark:hidden h-8 w-auto" />
-        <img src="https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/CMI_Logo_White.svg" alt="Constructed Matter" class="hidden dark:block h-8 w-auto" />
+        <img src="https://wp.constructedmatter.com/wp-content/uploads/2026/03/CMI_Logo.svg" alt="Constructed Matter" class="block dark:hidden h-8 w-auto" />
+        <img src="https://wp.constructedmatter.com/wp-content/uploads/2026/03/CMI_Logo_White.svg" alt="Constructed Matter" class="hidden dark:block h-8 w-auto" />
       </a>
       <button id="themeToggle" aria-label="Toggle theme" class="w-9 h-9 rounded-lg flex items-center justify-center text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors">
         <svg class="w-4 h-4 hidden dark:block" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
@@ -69,7 +69,7 @@
     const faviconEl = document.getElementById('faviconEl');
     function applyTheme(isDark) {
       html.classList.toggle('dark', isDark); html.classList.toggle('light', !isDark);
-      if (faviconEl) faviconEl.href = isDark ? 'https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/cmi_favicon_white.png' : 'https://orange-coyote-460839.hostingersite.com/wp-content/uploads/2026/03/cmi_favicon_black.png';
+      if (faviconEl) faviconEl.href = isDark ? 'https://wp.constructedmatter.com/wp-content/uploads/2026/03/cmi_favicon_white.png' : 'https://wp.constructedmatter.com/wp-content/uploads/2026/03/cmi_favicon_black.png';
     }
     const stored = localStorage.getItem('cmi-theme');
     applyTheme(stored === 'dark' || (!stored && window.matchMedia('(prefers-color-scheme: dark)').matches));
@@ -80,5 +80,40 @@
     localStorage.removeItem('cmi-user');
     sessionStorage.clear();
   </script>
-</body>
+
+<!-- ── FLUENT BOOKING MODAL ── -->
+<div id="bookingModal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.55);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);align-items:flex-end;justify-content:center">
+  <div style="width:100%;max-width:700px;background:#fff;border-radius:20px 20px 0 0;box-shadow:0 -8px 48px rgba(0,0,0,0.22);overflow:hidden;position:relative;max-height:92vh;display:flex;flex-direction:column">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #efefef;flex-shrink:0">
+      <div>
+        <p style="font-weight:600;font-size:15px;color:#111;margin:0">Book an Appointment</p>
+        <p style="font-size:12px;color:#888;margin:2px 0 0">Schedule a free consultation with our team</p>
+      </div>
+      <button onclick="closeBookingModal()" aria-label="Close" style="width:32px;height:32px;border-radius:50%;background:#111;color:#fff;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div style="overflow-y:auto;flex:1">
+      <iframe id="fluentbooking" loading="lazy" width="100%" style="min-width:320px;height:720px;border:none;display:block" src="https://wp-constructedmatter-com-985548.hostingersite.com/?fluent-booking=calendar&host=jwaters-1772651529&event=30min&embedded=1"></iframe>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  function openBookingModal(){
+    var m=document.getElementById('bookingModal');
+    m.style.display='flex';
+    document.body.style.overflow='hidden';
+  }
+  function closeBookingModal(){
+    var m=document.getElementById('bookingModal');
+    m.style.display='none';
+    document.body.style.overflow='';
+  }
+  window.openBookingModal=openBookingModal;
+  window.closeBookingModal=closeBookingModal;
+  document.getElementById('bookingModal').addEventListener('click',function(e){if(e.target===this)closeBookingModal();});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')closeBookingModal();});
+})();
+</script></body>
 </html>
