@@ -1021,9 +1021,9 @@
         <div class="flex items-center justify-between mb-6">
           <div>
             <p class="text-[10px] uppercase tracking-widest text-neutral-500 font-medium">Schedule</p>
-            <h2 class="font-display text-2xl text-neutral-100 mt-0.5">Add Appointment</h2>
+            <h2 id="abFormTitle" class="font-display text-2xl text-neutral-100 mt-0.5">Add Appointment</h2>
           </div>
-          <button onclick="nav('bookings',null)" class="flex items-center gap-2 text-sm text-neutral-400 hover:text-neutral-200">
+          <button onclick="resetAddBookingState();nav('bookings',null)" class="flex items-center gap-2 text-sm text-neutral-400 hover:text-neutral-200">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 12H5m7-7l-7 7 7 7"/></svg>
             Back
           </button>
@@ -1071,7 +1071,7 @@
           <p id="abStatusMsg" class="text-xs" style="color:var(--text-muted)"></p>
           <div class="flex gap-3 pt-2">
             <button type="submit" id="abSubmitBtn" class="px-7 py-2.5 rounded-lg text-white text-sm font-medium hover:opacity-90" style="background:var(--gold)">Save Appointment</button>
-            <button type="button" onclick="nav('bookings',null)" class="px-7 py-2.5 rounded-lg text-sm font-medium hover:opacity-80" style="border:1px solid var(--border-lg);color:var(--text-dim);background:transparent">Cancel</button>
+            <button type="button" onclick="resetAddBookingState();nav('bookings',null)" class="px-7 py-2.5 rounded-lg text-sm font-medium hover:opacity-80" style="border:1px solid var(--border-lg);color:var(--text-dim);background:transparent">Cancel</button>
           </div>
         </form>
       </section>
@@ -2567,7 +2567,7 @@ function renderBkList() {
     html += '<div class="flex items-center gap-2"><span class="bk-dot" style="background:#C9A46E"></span><span class="text-sm" style="color:var(--text-sub)">' + evt + '</span></div>';
     html += '<div><p class="text-sm" style="color:var(--text-sub)">' + escHtml(dt.date) + '</p><p class="text-xs" style="color:var(--text-muted)">' + escHtml(dt.time) + '</p></div>';
     html += bkStatusBadge(b.status);
-    html += '<div class="flex gap-2 justify-end"><button onclick="event.stopPropagation();openBkDetail(\'' + bid + '\')" class="text-xs hover:underline" style="color:var(--gold)">View</button></div>';
+    html += '<div class="flex gap-2 justify-end"><button onclick="event.stopPropagation();openBkEdit(\'' + bid + '\')" class="text-xs hover:underline" style="color:var(--text-muted)">Edit</button><button onclick="event.stopPropagation();openBkDetail(\'' + bid + '\')" class="text-xs hover:underline" style="color:var(--gold)">View</button></div>';
     html += '</div>';
   });
   html += '</div>';
@@ -2664,6 +2664,7 @@ function bkCalDayClick(day) {
         '<div><p class="text-sm font-medium" style="color:var(--text)">' + name + '</p><p class="text-xs" style="color:var(--text-muted)">' + evt + '</p></div>' +
         '<p class="text-xs" style="color:var(--text-muted)">' + escHtml(dt.time) + '</p>' +
         bkStatusBadge(b.status) +
+        '<button onclick="event.stopPropagation();openBkEdit(\'' + bid + '\')" class="text-xs mr-2" style="color:var(--text-muted)">Edit</button>' +
         '<button onclick="event.stopPropagation();openBkDetail(\'' + bid + '\')" class="text-xs" style="color:var(--gold)">View</button>' +
         '</div>';
     }).join('');
@@ -2874,28 +2875,41 @@ async function submitAddBooking(e) {
     updated_at:     new Date().toISOString(),
   };
 
+  const isEdit = !!_bkEditId;
   btn.disabled = true;
   btn.textContent = 'Saving…';
 
-  const { data, error } = await sb.from('bookings').insert(payload).select().single();
+  let data, error;
+  if (isEdit) {
+    delete payload.created_at;
+    ({ data, error } = await sb.from('bookings').update(payload).eq('id', _bkEditId).select().single());
+    if (!error && data) {
+      const idx = FB_BOOKINGS.findIndex(b => b.id === _bkEditId);
+      if (idx >= 0) FB_BOOKINGS[idx] = data;
+    }
+  } else {
+    ({ data, error } = await sb.from('bookings').insert(payload).select().single());
+    if (!error && data) FB_BOOKINGS.unshift(data);
+  }
+
   btn.disabled = false;
-  btn.textContent = 'Save Appointment';
+  btn.textContent = isEdit ? 'Save Changes' : 'Save Appointment';
 
   if (error) { msg.textContent = 'Error: ' + error.message; msg.style.color = '#f87171'; return; }
 
-  if (data) FB_BOOKINGS.unshift(data);
   bkSyncLegacy();
   renderUpcoming();
 
-  // Reset form and pickers
+  // Reset form, pickers, and edit state
   e.target.reset();
   if (_fpDate)  _fpDate.clear();
   if (_fpStart) _fpStart.clear();
   if (_fpEnd)   _fpEnd.clear();
   msg.textContent = '';
+  resetAddBookingState();
 
   nav('bookings', null);
-  showToast('Appointment added');
+  showToast(isEdit ? 'Appointment updated' : 'Appointment added');
 }
 
 // --- Render: Quotes -------------------------------------------
@@ -5274,6 +5288,64 @@ function buildCustomSelect(selectId) {
 }
 
 let _fpDate, _fpStart, _fpEnd;
+let _bkEditId = null;
+
+function resetAddBookingState() {
+  _bkEditId = null;
+  const title = document.getElementById('abFormTitle');
+  const btn   = document.getElementById('abSubmitBtn');
+  if (title) title.textContent = 'Add Appointment';
+  if (btn)   btn.textContent   = 'Save Appointment';
+}
+
+function setCustomSelect(id, value) {
+  const sel = document.getElementById(id);
+  if (!sel) return;
+  sel.value = value;
+  const wrap = sel.parentElement;
+  if (!wrap || !wrap.classList.contains('cmi-sel-wrap')) return;
+  const trigger = wrap.querySelector('.cmi-sel-trigger');
+  const label   = trigger && trigger.querySelector('span');
+  const opt     = Array.from(sel.options).find(o => o.value === value);
+  if (label && opt) {
+    label.textContent = opt.text;
+    trigger.classList.toggle('placeholder', !value);
+  }
+  wrap.querySelectorAll('.cmi-sel-opt').forEach(el => el.classList.toggle('selected', el.dataset.value === value));
+}
+
+function openBkEdit(id) {
+  const b = FB_BOOKINGS.find(x => x.id === id);
+  if (!b) return;
+  _bkEditId = id;
+  initBookingPickers();
+
+  // Split guest name into first / last
+  const parts = (b.guest_name || '').trim().split(/\s+/);
+  document.getElementById('abFirstName').value = parts[0] || '';
+  document.getElementById('abLastName').value  = parts.slice(1).join(' ') || '';
+  document.getElementById('abEmail').value     = b.guest_email || '';
+  document.getElementById('abPhone').value     = b.guest_phone || '';
+  document.getElementById('abLocation').value  = b.location || '';
+  document.getElementById('abNotes').value     = b.notes || '';
+
+  // Pre-fill flatpickr date & times
+  if (_fpDate)  _fpDate.setDate(b.start_datetime  ? new Date(b.start_datetime)  : null, true);
+  if (_fpStart) _fpStart.setDate(b.start_datetime ? new Date(b.start_datetime)  : null, true);
+  if (_fpEnd)   _fpEnd.setDate(b.end_datetime     ? new Date(b.end_datetime)    : null, true);
+
+  // Pre-fill custom selects
+  setCustomSelect('abEventType', b.booking_type || '');
+  setCustomSelect('abStatus',    b.status        || 'confirmed');
+
+  // Update heading & button
+  const title = document.getElementById('abFormTitle');
+  const btn   = document.getElementById('abSubmitBtn');
+  if (title) title.textContent = 'Edit Appointment';
+  if (btn)   btn.textContent   = 'Save Changes';
+
+  nav('add-booking', null);
+}
 function initBookingPickers() {
   if (typeof flatpickr === 'undefined') return;
   if (_fpDate) return; // already init'd
