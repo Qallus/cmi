@@ -1757,7 +1757,7 @@
         <div>
           <label class="form-label">Priority</label>
           <select id="fbNewPriority" class="form-input">
-            <option value="">� None �</option>
+            <option value="">None</option>
             <option value="low">Low</option>
             <option value="medium">Medium</option>
             <option value="high">High</option>
@@ -1765,7 +1765,7 @@
           </select>
         </div>
       </div>
-      <div><label class="form-label">Due Date</label><input type="date" id="fbNewDue" class="form-input" /></div>
+      <div><label class="form-label">Due Date</label><input type="text" id="fbNewDue" class="form-input" placeholder="Select date…" readonly /></div>
       <div><label class="form-label">Description</label><textarea id="fbNewDesc" class="form-input" rows="4" placeholder="Task details�"></textarea></div>
     </div>
     <div class="flex items-center gap-3 p-6" style="border-top:1px solid var(--border)">
@@ -4689,12 +4689,29 @@ async function saveFBTaskChanges() {
 
 // --- FB New Task Modal ----------------------------------------
 function openFBNewTask() {
+  // Populate stage options fresh each time (dynamic)
   const stageSelect = document.getElementById('fbNewStage');
   stageSelect.innerHTML = FB_STAGES.map(s => '<option value="' + s.id + '">' + s.title + '</option>').join('');
-  document.getElementById('fbNewTitle').value   = '';
+
+  // Reset plain fields
+  document.getElementById('fbNewTitle').value = '';
+  document.getElementById('fbNewDesc').value  = '';
+
+  // Rebuild custom selects (stage options change, so destroy first)
+  destroyCustomSelect('fbNewStage');
+  destroyCustomSelect('fbNewPriority');
+  // Reset native priority to "None" before rebuilding
   document.getElementById('fbNewPriority').value = '';
-  document.getElementById('fbNewDue').value      = '';
-  document.getElementById('fbNewDesc').value     = '';
+  buildCustomSelect('fbNewStage');
+  buildCustomSelect('fbNewPriority');
+
+  // Init or clear flatpickr for due date
+  if (!_fpFBDue) {
+    _fpFBDue = flatpickr('#fbNewDue', { dateFormat: 'Y-m-d', altInput: true, altFormat: 'F j, Y', allowInput: false, disableMobile: true });
+  } else {
+    _fpFBDue.clear();
+  }
+
   document.getElementById('fbNewTaskModal').classList.add('open');
   document.body.style.overflow = 'hidden';
   setTimeout(() => document.getElementById('fbNewTitle').focus(), 100);
@@ -4702,23 +4719,30 @@ function openFBNewTask() {
 function closeFBNewTask() {
   document.getElementById('fbNewTaskModal').classList.remove('open');
   document.body.style.overflow = '';
+  if (_fpFBDue) _fpFBDue.clear();
 }
 async function submitFBNewTask() {
   const title = document.getElementById('fbNewTitle').value.trim();
   if (!title) { showToast('Please enter a task title'); return; }
   const stageId  = document.getElementById('fbNewStage').value;
   const priority = document.getElementById('fbNewPriority').value;
-  const dueDate  = document.getElementById('fbNewDue').value;
-  const desc     = document.getElementById('fbNewDesc').value;
+  const dueDate  = _fpFBDue && _fpFBDue.selectedDates[0]
+    ? flatpickr.formatDate(_fpFBDue.selectedDates[0], 'Y-m-d')
+    : '';
+  const desc = document.getElementById('fbNewDesc').value.trim();
+
+  const body = { board_id: FB_ACTIVE_BOARD, title, stage_id: stageId || undefined, priority: priority || undefined, due_at: dueDate || undefined, description: desc || undefined };
+
   try {
-    const res = await fetch(FB_BASE + '/projects/' + FB_ACTIVE_BOARD + '/tasks', {
+    const res = await fetch(FB_BASE + '/tasks', {
       method: 'POST',
-      headers: { 'Content-Type':'application/json', Authorization: WP_AUTH },
-      body: JSON.stringify({ title, stage_id: stageId, priority: priority || null, due_at: dueDate || null, description: desc }),
+      headers: { 'Content-Type': 'application/json', Authorization: WP_AUTH },
+      body: JSON.stringify(body),
     });
+    const data = await res.json().catch(() => null);
+    console.log('[FB] create task status:', res.status, data);
     if (res.ok) {
-      const data = await res.json();
-      const newTask = { ...(data.task || data), _boardId: FB_ACTIVE_BOARD, _boardTitle: (FB_BOARDS.find(b=>b.id==FB_ACTIVE_BOARD)||{}).title || '' };
+      const newTask = { ...(data && (data.task || data)), _boardId: FB_ACTIVE_BOARD, _boardTitle: (FB_BOARDS.find(b => b.id == FB_ACTIVE_BOARD) || {}).title || '' };
       FB_TASKS.unshift(newTask);
       FB_ALL_TASKS.unshift(newTask);
       renderFBBoardTabs();
@@ -4726,10 +4750,13 @@ async function submitFBNewTask() {
       renderFBView();
       showToast('Task created');
     } else {
-      const err = await res.json().catch(()=>({}));
-      showToast('Error: ' + (err.message || 'Could not create task'));
+      const msg = (data && (data.message || data.error)) || 'Could not create task (HTTP ' + res.status + ')';
+      showToast('Error: ' + msg);
     }
-  } catch { showToast('Network error � check connection'); }
+  } catch(e) {
+    console.error('[FB] create task error:', e);
+    showToast('Network error: ' + e.message);
+  }
 }
 
 // --- FB Auth Error --------------------------------------------
@@ -5287,7 +5314,18 @@ function buildCustomSelect(selectId) {
   document.addEventListener('click', close);
 }
 
-let _fpDate, _fpStart, _fpEnd;
+function destroyCustomSelect(id) {
+  const sel = document.getElementById(id);
+  if (!sel || !sel._cmiDone) return;
+  const wrap = sel.parentElement;
+  if (!wrap || !wrap.classList.contains('cmi-sel-wrap')) return;
+  wrap.parentElement.insertBefore(sel, wrap);
+  wrap.remove();
+  sel._cmiDone = false;
+  sel.style.display = '';
+}
+
+let _fpDate, _fpStart, _fpEnd, _fpFBDue;
 let _bkEditId = null;
 
 function resetAddBookingState() {
