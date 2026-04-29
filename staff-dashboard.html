@@ -4731,26 +4731,23 @@ async function submitFBNewTask() {
     : '';
   const desc = document.getElementById('fbNewDesc').value.trim();
 
-  const body = { board_id: FB_ACTIVE_BOARD, title, stage_id: stageId || undefined, priority: priority || undefined, due_at: dueDate || undefined, description: desc || undefined };
-
   try {
-    const res = await fetch(FB_BASE + '/tasks', {
+    const res = await fetch(FB_BASE + '/projects/' + FB_ACTIVE_BOARD + '/tasks', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: WP_AUTH },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ title, stage_id: stageId || undefined, priority: priority || undefined, due_at: dueDate || undefined, description: desc || undefined }),
     });
-    const data = await res.json().catch(() => null);
-    console.log('[FB] create task status:', res.status, data);
+    const text = await res.text();
+    console.log('[FB] create task:', res.status, text);
     if (res.ok) {
-      const newTask = { ...(data && (data.task || data)), _boardId: FB_ACTIVE_BOARD, _boardTitle: (FB_BOARDS.find(b => b.id == FB_ACTIVE_BOARD) || {}).title || '' };
-      FB_TASKS.unshift(newTask);
-      FB_ALL_TASKS.unshift(newTask);
-      renderFBBoardTabs();
       closeFBNewTask();
-      renderFBView();
       showToast('Task created');
+      await loadAllFBTasks();
+      renderFBBoardTabs();
+      renderFBView();
     } else {
-      const msg = (data && (data.message || data.error)) || 'Could not create task (HTTP ' + res.status + ')';
+      let msg = 'Could not create task (HTTP ' + res.status + ')';
+      try { const err = JSON.parse(text); msg = err.message || err.error || msg; } catch {}
       showToast('Error: ' + msg);
     }
   } catch(e) {
