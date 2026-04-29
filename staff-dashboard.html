@@ -288,6 +288,21 @@
     #crmSmsModal.open{display:flex;}
     #crmSmsCard{width:100%;max-width:460px;border-radius:14px;background:var(--surface);border:1px solid var(--border-card);box-shadow:0 24px 60px rgba(0,0,0,.5);}
 
+    /* === Custom select === */
+    .cmi-sel-wrap{position:relative;}
+    .cmi-sel-trigger{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--surface-2);border:1px solid var(--border-lg);border-radius:8px;padding:11px 14px;font-size:14px;color:var(--text);font-family:'Roboto',sans-serif;cursor:pointer;text-align:left;outline:none;transition:border-color .2s;}
+    .cmi-sel-trigger:hover{border-color:var(--border-md);}
+    .cmi-sel-trigger.open,.cmi-sel-trigger:focus{border-color:var(--gold);}
+    .cmi-sel-trigger.placeholder{color:var(--text-weak);}
+    .cmi-sel-chevron{flex-shrink:0;color:var(--text-muted);transition:transform .2s;}
+    .cmi-sel-trigger.open .cmi-sel-chevron{transform:rotate(180deg);}
+    .cmi-sel-menu{display:none;position:absolute;top:calc(100% + 5px);left:0;right:0;z-index:500;background:var(--surface);border:1px solid var(--border-card);border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,.28);overflow:hidden;padding:4px;}
+    .cmi-sel-menu.open{display:block;}
+    .cmi-sel-opt{padding:9px 12px;font-size:13px;color:var(--text);border-radius:7px;cursor:pointer;transition:background .12s,color .12s;}
+    .cmi-sel-opt:hover{background:var(--gold-alpha);color:var(--gold);}
+    .cmi-sel-opt.selected{background:var(--gold-alpha);color:var(--gold);font-weight:500;}
+    .cmi-sel-opt.placeholder-opt{color:var(--text-muted);}
+
     /* === Flatpickr custom theme === */
     .flatpickr-calendar{background:var(--surface)!important;border:1px solid var(--border-card)!important;border-radius:12px!important;box-shadow:0 8px 40px rgba(0,0,0,.35)!important;font-family:'Roboto',sans-serif!important;padding:4px 6px 8px!important;}
     .flatpickr-months{padding:2px 0 4px!important;}
@@ -2833,6 +2848,7 @@ async function submitAddBooking(e) {
   const phone     = document.getElementById('abPhone').value.trim();
   const eventType = document.getElementById('abEventType').value;
   const status    = document.getElementById('abStatus').value;
+  if (!eventType) { msg.textContent = 'Please select an event type.'; msg.style.color = '#f87171'; return; }
   // flatpickr stores the real value (Y-m-d / H:i) on the original input
   const date      = _fpDate  ? (_fpDate.selectedDates[0]  ? flatpickr.formatDate(_fpDate.selectedDates[0],  'Y-m-d') : '') : document.getElementById('abDate').value;
   const startTime = _fpStart ? (_fpStart.selectedDates[0] ? flatpickr.formatDate(_fpStart.selectedDates[0], 'H:i')   : '') : document.getElementById('abStartTime').value;
@@ -5192,6 +5208,71 @@ function logout() {
 }
 
 // --- Init -----------------------------------------------------
+// --- Custom styled select (replaces native <select> to avoid browser blue) ---
+function buildCustomSelect(selectId) {
+  const sel = document.getElementById(selectId);
+  if (!sel || sel._cmiDone) return;
+  sel._cmiDone = true;
+  sel.style.display = 'none';
+
+  const opts = Array.from(sel.options);
+
+  // Wrapper
+  const wrap = document.createElement('div');
+  wrap.className = 'cmi-sel-wrap';
+  sel.parentNode.insertBefore(wrap, sel);
+  wrap.appendChild(sel);
+
+  // Trigger button
+  const trigger = document.createElement('button');
+  trigger.type = 'button';
+  trigger.className = 'cmi-sel-trigger' + (!sel.value ? ' placeholder' : '');
+
+  const label = document.createElement('span');
+  label.textContent = sel.value
+    ? (opts.find(o => o.value === sel.value) || opts[0]).text
+    : (opts[0]?.text || 'Select…');
+
+  const chevron = document.createElementNS('http://www.w3.org/2000/svg','svg');
+  chevron.setAttribute('class','cmi-sel-chevron');
+  chevron.setAttribute('width','14');chevron.setAttribute('height','14');
+  chevron.setAttribute('fill','none');chevron.setAttribute('stroke','currentColor');
+  chevron.setAttribute('stroke-width','2');chevron.setAttribute('viewBox','0 0 24 24');
+  const cp = document.createElementNS('http://www.w3.org/2000/svg','path');
+  cp.setAttribute('d','M6 9l6 6 6-6');
+  chevron.appendChild(cp);
+  trigger.appendChild(label); trigger.appendChild(chevron);
+
+  // Menu
+  const menu = document.createElement('div');
+  menu.className = 'cmi-sel-menu';
+
+  opts.forEach(opt => {
+    const item = document.createElement('div');
+    item.className = 'cmi-sel-opt' + (!opt.value ? ' placeholder-opt' : '') + (opt.value === sel.value ? ' selected' : '');
+    item.dataset.value = opt.value;
+    item.textContent = opt.text;
+    item.addEventListener('mousedown', e => {
+      e.preventDefault();
+      sel.value = opt.value;
+      label.textContent = opt.text;
+      trigger.classList.toggle('placeholder', !opt.value);
+      menu.querySelectorAll('.cmi-sel-opt').forEach(el => el.classList.remove('selected'));
+      item.classList.add('selected');
+      close();
+    });
+    menu.appendChild(item);
+  });
+
+  wrap.appendChild(trigger); wrap.appendChild(menu);
+
+  function open()  { menu.classList.add('open'); trigger.classList.add('open'); }
+  function close() { menu.classList.remove('open'); trigger.classList.remove('open'); }
+
+  trigger.addEventListener('click', e => { e.stopPropagation(); menu.classList.contains('open') ? close() : open(); });
+  document.addEventListener('click', close);
+}
+
 let _fpDate, _fpStart, _fpEnd;
 function initBookingPickers() {
   if (typeof flatpickr === 'undefined') return;
@@ -5214,6 +5295,8 @@ function initBookingPickers() {
   };
   _fpStart = flatpickr('#abStartTime', timeCfg);
   _fpEnd   = flatpickr('#abEndTime',   timeCfg);
+  buildCustomSelect('abEventType');
+  buildCustomSelect('abStatus');
 }
 
 async function init() {
