@@ -4732,10 +4732,10 @@ async function submitFBNewTask() {
   const desc = document.getElementById('fbNewDesc').value.trim();
 
   try {
-    const res = await fetch(FB_BASE + '/projects/' + FB_ACTIVE_BOARD + '/tasks', {
+    const res = await fetch('https://n8n.cueallus.com/webhook/cmi-create-fb-task', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: WP_AUTH },
-      body: JSON.stringify({ title, stage_id: stageId || undefined, priority: priority || undefined, due_at: dueDate || undefined, description: desc || undefined }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ board_id: FB_ACTIVE_BOARD, title, stage_id: stageId || undefined, priority: priority || undefined, due_at: dueDate || undefined, description: desc || undefined }),
     });
     const text = await res.text();
     console.log('[FB] create task:', res.status, text);
