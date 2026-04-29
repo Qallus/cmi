@@ -967,6 +967,66 @@
         <div id="bkContent"></div>
       </section>
 
+      <!-- -- ADD BOOKING -- -->
+      <section id="sec-add-booking" class="section">
+        <div class="flex items-center justify-between mb-6">
+          <div>
+            <p class="text-[10px] uppercase tracking-widest text-neutral-500 font-medium">Schedule</p>
+            <h2 class="font-display text-2xl text-neutral-100 mt-0.5">Add Appointment</h2>
+          </div>
+          <button onclick="nav('bookings',null)" class="flex items-center gap-2 text-sm text-neutral-400 hover:text-neutral-200">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 12H5m7-7l-7 7 7 7"/></svg>
+            Back
+          </button>
+        </div>
+        <form onsubmit="submitAddBooking(event)" class="max-w-2xl space-y-5">
+          <div class="grid grid-cols-2 gap-5">
+            <div><label class="form-label">First Name *</label><input id="abFirstName" class="form-input" placeholder="First" required /></div>
+            <div><label class="form-label">Last Name *</label><input id="abLastName" class="form-input" placeholder="Last" required /></div>
+          </div>
+          <div class="grid grid-cols-2 gap-5">
+            <div><label class="form-label">Email *</label><input id="abEmail" type="email" class="form-input" placeholder="guest@example.com" required /></div>
+            <div><label class="form-label">Phone</label><input id="abPhone" type="tel" class="form-input" placeholder="+1 (480) 555-0000" /></div>
+          </div>
+          <div class="grid grid-cols-2 gap-5">
+            <div>
+              <label class="form-label">Event Type *</label>
+              <select id="abEventType" class="form-input" required>
+                <option value="">Select event type…</option>
+                <option value="Discovery Call">Discovery Call</option>
+                <option value="Consultation">Consultation</option>
+                <option value="RSVP">RSVP</option>
+                <option value="Site Visit">Site Visit</option>
+                <option value="Follow-up">Follow-up</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label">Status</label>
+              <select id="abStatus" class="form-input">
+                <option value="confirmed">Confirmed</option>
+                <option value="scheduled">Scheduled</option>
+                <option value="pending">Pending</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-5">
+            <div><label class="form-label">Date *</label><input id="abDate" type="date" class="form-input" required /></div>
+            <div><label class="form-label">Start Time *</label><input id="abStartTime" type="time" class="form-input" required /></div>
+          </div>
+          <div class="grid grid-cols-2 gap-5">
+            <div><label class="form-label">End Time</label><input id="abEndTime" type="time" class="form-input" /></div>
+            <div><label class="form-label">Location</label><input id="abLocation" class="form-input" placeholder="e.g. 7314 E Osborn Dr, Scottsdale" /></div>
+          </div>
+          <div><label class="form-label">Notes</label><textarea id="abNotes" class="form-input" rows="3" placeholder="Any additional notes…"></textarea></div>
+          <p id="abStatusMsg" class="text-xs" style="color:var(--text-muted)"></p>
+          <div class="flex gap-3 pt-2">
+            <button type="submit" id="abSubmitBtn" class="px-7 py-2.5 rounded-lg text-white text-sm font-medium hover:opacity-90" style="background:var(--gold)">Save Appointment</button>
+            <button type="button" onclick="nav('bookings',null)" class="px-7 py-2.5 rounded-lg text-sm font-medium hover:opacity-80" style="border:1px solid var(--border-lg);color:var(--text-dim);background:transparent">Cancel</button>
+          </div>
+        </form>
+      </section>
+
       <!-- -- QUOTES -- -->
       <section id="sec-quotes" class="section">
         <div class="mb-5">
@@ -1918,7 +1978,7 @@ let DOC_FILTER    = 'all';
 const TITLES = {
   overview:'Overview', portfolio:'Portfolio', 'add-project':'New Project',
   projects:'Projects', blog:'Blog', 'add-blog':'New Post', clients:'Contacts',
-  bookings:'Bookings', quotes:'Quotes & Leads', team:'Team',
+  bookings:'Bookings', 'add-booking':'Add Appointment', quotes:'Quotes & Leads', team:'Team',
   'add-team':'Add Team Member', documents:'Documents',
   'new-contract':'New Contract', 'new-sow':'New Scope of Work',
   settings:'Settings',
@@ -2614,11 +2674,15 @@ function openBkDetail(id) {
   if (!b) return;
   const dt     = bkFmtDateTime(b.start_datetime);
   const dtEnd  = bkFmtDateTime(b.end_datetime);
+  const bookedAt = bkFmtDateTime(b.created_at);
   const name   = escHtml(b.guest_name || 'Guest');
+  const hasEmail = !!b.guest_email;
+  const hasPhone = !!b.guest_phone;
   const email  = escHtml(b.guest_email || '—');
   const phone  = escHtml(b.guest_phone || '—');
   const evtTitle = escHtml(b.booking_type || b.title || 'Meeting');
-  const loc    = escHtml(b.location || b.meeting_url || '—');
+  const loc    = escHtml(b.location || '—');
+  const bookingUrl = b.meeting_url || null;
   const note   = escHtml(b.notes || '—');
   const evtColor = '#C9A46E';
 
@@ -2631,13 +2695,38 @@ function openBkDetail(id) {
   html += '</div>';
   // Info grid
   html += '<div class="space-y-4 mb-6">';
-  html += '<div><p class="text-[10px] uppercase tracking-widest font-medium mb-1" style="color:var(--text-muted)">Invitee</p><p class="text-sm font-medium" style="color:var(--text)">' + name + '</p><p class="text-xs" style="color:var(--text-muted)">' + email + '</p><p class="text-xs" style="color:var(--text-muted)">' + phone + '</p></div>';
+  // Invitee block — email and phone as actionable links when present
+  html += '<div><p class="text-[10px] uppercase tracking-widest font-medium mb-1" style="color:var(--text-muted)">Invitee</p>';
+  html += '<p class="text-sm font-medium" style="color:var(--text)">' + name + '</p>';
+  if (hasEmail) {
+    html += '<p class="text-xs mt-0.5"><a href="mailto:' + escAttr(b.guest_email) + '" style="color:var(--gold);text-decoration:none">' + email + '</a></p>';
+  } else {
+    html += '<p class="text-xs mt-0.5" style="color:var(--text-muted)">—</p>';
+  }
+  if (hasPhone) {
+    html += '<p class="text-xs mt-0.5"><a href="tel:' + escAttr(b.guest_phone) + '" style="color:var(--text-sub);text-decoration:none">' + phone + '</a></p>';
+  } else {
+    html += '<p class="text-xs mt-0.5" style="color:var(--text-muted)">—</p>';
+  }
+  html += '</div>';
+  // Date / Time / Booked At grid
   html += '<div class="grid grid-cols-2 gap-4">';
   html += '<div><p class="text-[10px] uppercase tracking-widest font-medium mb-1" style="color:var(--text-muted)">Date</p><p class="text-sm" style="color:var(--text)">' + escHtml(dt.date) + '</p></div>';
   html += '<div><p class="text-[10px] uppercase tracking-widest font-medium mb-1" style="color:var(--text-muted)">Time</p><p class="text-sm" style="color:var(--text)">' + escHtml(dt.time) + (dtEnd.time ? ' – ' + escHtml(dtEnd.time) : '') + '</p></div>';
   html += '</div>';
+  // Booked At
+  if (b.created_at) {
+    html += '<div><p class="text-[10px] uppercase tracking-widest font-medium mb-1" style="color:var(--text-muted)">Booked At</p><p class="text-sm" style="color:var(--text)">' + escHtml(bookedAt.date) + ', ' + escHtml(bookedAt.time) + '</p></div>';
+  }
+  // Location
   html += '<div><p class="text-[10px] uppercase tracking-widest font-medium mb-1" style="color:var(--text-muted)">Location</p><p class="text-sm" style="color:var(--text)">' + loc + '</p></div>';
-  if (note && note !== '—') html += '<div><p class="text-[10px] uppercase tracking-widest font-medium mb-1" style="color:var(--text-muted)">Message</p><p class="text-sm" style="color:var(--text)">' + note + '</p></div>';
+  // Booking URL
+  if (bookingUrl) {
+    html += '<div><p class="text-[10px] uppercase tracking-widest font-medium mb-1" style="color:var(--text-muted)">Booking URL</p>';
+    html += '<p class="text-xs" style="word-break:break-all"><a href="' + escAttr(bookingUrl) + '" target="_blank" rel="noopener" style="color:var(--gold);text-decoration:none">' + escHtml(bookingUrl) + '</a></p></div>';
+  }
+  // Notes
+  if (note && note !== '—') html += '<div><p class="text-[10px] uppercase tracking-widest font-medium mb-1" style="color:var(--text-muted)">Notes</p><p class="text-sm" style="color:var(--text)">' + note + '</p></div>';
   html += '</div>';
   // Actions
   html += '<div class="space-y-1" style="border-top:1px solid var(--border-md);padding-top:16px">';
@@ -2696,6 +2785,64 @@ async function bkSendConfirmation(id) {
 }
 
 function renderBookings() { renderBkContent(); }
+
+async function submitAddBooking(e) {
+  e.preventDefault();
+  const msg = document.getElementById('abStatusMsg');
+  const btn = document.getElementById('abSubmitBtn');
+  msg.textContent = '';
+  if (!sb) { msg.textContent = 'Supabase not connected.'; return; }
+
+  const firstName = document.getElementById('abFirstName').value.trim();
+  const lastName  = document.getElementById('abLastName').value.trim();
+  const email     = document.getElementById('abEmail').value.trim();
+  const phone     = document.getElementById('abPhone').value.trim();
+  const eventType = document.getElementById('abEventType').value;
+  const status    = document.getElementById('abStatus').value;
+  const date      = document.getElementById('abDate').value;
+  const startTime = document.getElementById('abStartTime').value;
+  const endTime   = document.getElementById('abEndTime').value;
+  const location  = document.getElementById('abLocation').value.trim();
+  const notes     = document.getElementById('abNotes').value.trim();
+
+  const startDatetime = date && startTime ? new Date(date + 'T' + startTime + ':00').toISOString() : null;
+  const endDatetime   = date && endTime   ? new Date(date + 'T' + endTime   + ':00').toISOString() : null;
+
+  const payload = {
+    guest_name:     (firstName + ' ' + lastName).trim() || null,
+    guest_email:    email || null,
+    guest_phone:    phone || null,
+    booking_type:   eventType,
+    title:          eventType,
+    status,
+    start_datetime: startDatetime,
+    end_datetime:   endDatetime,
+    location:       location || null,
+    notes:          notes || null,
+    created_at:     new Date().toISOString(),
+    updated_at:     new Date().toISOString(),
+  };
+
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+
+  const { data, error } = await sb.from('bookings').insert(payload).select().single();
+  btn.disabled = false;
+  btn.textContent = 'Save Appointment';
+
+  if (error) { msg.textContent = 'Error: ' + error.message; msg.style.color = '#f87171'; return; }
+
+  if (data) FB_BOOKINGS.unshift(data);
+  bkSyncLegacy();
+  renderUpcoming();
+
+  // Reset form
+  e.target.reset();
+  msg.textContent = '';
+
+  nav('bookings', null);
+  showToast('Appointment added');
+}
 
 // --- Render: Quotes -------------------------------------------
 function renderQuotes(data) {
