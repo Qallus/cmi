@@ -3011,6 +3011,41 @@ function teamToSupabaseRow(id, meta) {
     updated_at: new Date().toISOString(),
   };
 }
+function isSchemaCacheColumnError(error) {
+  return /schema cache|could not find the .* column/i.test(error?.message || '');
+}
+function teamToLegacySupabaseRow(row) {
+  return {
+    id: row.id,
+    wp_post_id: row.wp_post_id,
+    name: row.name,
+    slug: row.slug,
+    role: row.role,
+    bio: row.bio,
+    email: row.email,
+    phone: row.phone,
+    profile_photo: row.profile_photo,
+    secondary_photo: row.secondary_photo,
+    attributes: row.attributes,
+    availability: row.availability,
+    status: row.status,
+    updated_at: row.updated_at,
+  };
+}
+async function saveTeamRow(row, mode = 'upsert') {
+  const table = sb.from('team_members');
+  const run = (payload) => {
+    if (mode === 'insert') return table.insert(payload).select().single();
+    return table.upsert(payload, { onConflict: payload.id ? 'id' : 'slug' }).select().single();
+  };
+  let { data, error } = await run(row);
+  if (error && isSchemaCacheColumnError(error)) {
+    console.warn('Team save retrying with legacy team_members schema:', error.message);
+    ({ data, error } = await run(teamToLegacySupabaseRow(row)));
+  }
+  if (error) throw error;
+  return data;
+}
 
 async function loadTeam() {
   const grid = document.getElementById('teamGrid');
@@ -3856,8 +3891,7 @@ async function saveTeamMember() {
       showToast('Photo upload needs the media backend; saving text fields now.');
     }
     const row = teamToSupabaseRow(id, meta);
-    const { data, error } = await sb.from('team_members').upsert(row, { onConflict: row.id ? 'id' : 'slug' }).select().single();
-    if (error) throw error;
+    const data = await saveTeamRow(row);
     const updated = teamFromSupabase(data);
     const idx = WP_TEAM.findIndex(t => String(t.id) === String(id));
     if (idx !== -1) WP_TEAM[idx] = updated; else WP_TEAM.push(updated);
@@ -3896,8 +3930,7 @@ async function submitTeamMember(e) {
       showToast('Photo upload needs the media backend; saving text fields now.');
     }
     const row = teamToSupabaseRow(null, meta);
-    const { data, error } = await sb.from('team_members').insert(row).select().single();
-    if (error) throw error;
+    const data = await saveTeamRow(row, 'insert');
     WP_TEAM.push(teamFromSupabase(data));
     renderTeamCards();
     form.reset();
