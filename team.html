@@ -329,7 +329,7 @@
       <p class="text-[12px] uppercase tracking-[0.2em] text-cmi-gold-light dark:text-cmi-gold-dark font-medium mb-2">The Team</p>
       <h2 class="font-display text-3xl lg:text-4xl text-neutral-900 dark:text-neutral-100">Supporting Staff</h2>
     </div>
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+    <div id="supportingTeamGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
 
       <!-- Angel Gutierrez -->
       <div class="fade-up team-card group rounded-2xl overflow-hidden border border-neutral-200/60 dark:border-neutral-800/60 bg-white dark:bg-cmi-dark-light">
@@ -435,6 +435,72 @@
     </div>
   </div>
 </section>
+
+<script>
+(function(){
+  const SB_URL = 'https://uoerzmeibavqgisfzso.supabase.co';
+  const SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVvZXJ6cm1laWJhdnFnaXNmenNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY4NzY2MzAsImV4cCI6MjA5MjQ1MjYzMH0.b8b2ZFSWMzT7-IR-h7eKbunbdfKPxSI9hvn9Bs0vs4A';
+  const headers = { apikey: SB_ANON, Authorization: 'Bearer ' + SB_ANON };
+  const esc = (s) => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const slugify = (s) => String(s || 'team-member').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'') || 'team-member';
+  const initials = (name) => name.split(/\s+/).map(p => p[0]).join('').slice(0,2).toUpperCase() || '?';
+  function attrs(row) {
+    if (Array.isArray(row.attributes_json) && row.attributes_json.length) return row.attributes_json.map(a => typeof a === 'object' ? a.title : a).filter(Boolean);
+    return Array.isArray(row.attributes) ? row.attributes : [];
+  }
+  function photoHtml(row, name) {
+    const primary = row.profile_photo || '';
+    const secondary = row.secondary_photo || '';
+    if (primary) {
+      return '<img src="' + esc(primary) + '" alt="' + esc(name) + '" class="photo-primary w-full h-full object-cover object-top" />' +
+        (secondary ? '<img src="' + esc(secondary) + '" alt="' + esc(name) + ' alternate" class="photo-secondary object-top" />' : '');
+    }
+    return '<div class="w-24 h-24 rounded-full bg-cmi-gold-light/10 dark:bg-cmi-gold-dark/10 border-2 border-cmi-gold-light/20 dark:border-cmi-gold-dark/20 flex items-center justify-center mb-4"><span class="font-display text-3xl text-cmi-gold-light dark:text-cmi-gold-dark">' + esc(initials(name)) + '</span></div><p class="text-xs text-neutral-400 dark:text-neutral-500">Photo Coming Soon</p>';
+  }
+  function cardHtml(row) {
+    const name = row.name || [row.first_name, row.last_name].filter(Boolean).join(' ') || 'Team Member';
+    const slug = row.slug || slugify(name);
+    const role = row.role || '';
+    const chips = attrs(row).slice(0, 4).map(a => '<span class="attr-chip">' + esc(a) + '</span>').join('');
+    return '<div class="fade-up visible team-card group rounded-2xl overflow-hidden border border-neutral-200/60 dark:border-neutral-800/60 bg-white dark:bg-cmi-dark-light">' +
+      '<a href="team/' + esc(slug) + '.html" class="team-card-link" aria-label="View ' + esc(name) + ' profile"></a>' +
+      '<div class="relative aspect-[3/4] overflow-hidden bg-neutral-100 dark:bg-neutral-800/60 flex flex-col items-center justify-center">' + photoHtml(row, name) + '</div>' +
+      '<div class="p-6"><p class="text-[11px] uppercase tracking-widest text-cmi-gold-light dark:text-cmi-gold-dark font-medium mb-1">' + esc(role) + '</p>' +
+      '<h3 class="font-display text-xl text-neutral-900 dark:text-neutral-100 mb-3">' + esc(name) + '</h3>' +
+      '<div class="flex flex-wrap gap-2 mb-5">' + chips + '</div>' +
+      '<div class="card-actions flex items-center gap-3 pt-5 border-t border-neutral-200/60 dark:border-neutral-800/60">' +
+      (row.email ? '<a href="mailto:' + esc(row.email) + '" class="text-neutral-400 hover:text-cmi-gold-light dark:hover:text-cmi-gold-dark transition-colors"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg></a>' : '') +
+      '<a href="team/' + esc(slug) + '.html" class="ml-auto text-[12px] font-medium text-cmi-gold-light dark:text-cmi-gold-dark hover:opacity-70 transition-opacity">View Profile &rarr;</a></div></div></div>';
+  }
+  function updateExisting(row) {
+    const name = row.name || [row.first_name, row.last_name].filter(Boolean).join(' ') || 'Team Member';
+    const slug = row.slug || slugify(name);
+    const link = document.querySelector('a[href="team/' + CSS.escape(slug) + '.html"]');
+    if (!link) return false;
+    const card = link.closest('.team-card');
+    if (!card) return true;
+    const photo = card.querySelector('.relative.overflow-hidden');
+    if (photo && (row.profile_photo || row.secondary_photo)) photo.innerHTML = photoHtml(row, name);
+    const role = card.querySelector('.p-6 > p');
+    if (role && row.role) role.textContent = row.role;
+    return true;
+  }
+  async function loadSupabaseTeam() {
+    try {
+      const res = await fetch(SB_URL + '/rest/v1/team_members?select=*&status=eq.active&order=sort_order.asc', { headers });
+      if (!res.ok) return;
+      const rows = await res.json();
+      const grid = document.getElementById('supportingTeamGrid');
+      rows.forEach(row => {
+        if (!updateExisting(row) && grid) grid.insertAdjacentHTML('beforeend', cardHtml(row));
+      });
+    } catch (err) {
+      console.warn('Supabase team load failed', err);
+    }
+  }
+  loadSupabaseTeam();
+})();
+</script>
 
 
 <!-- Join the Team CTA -->

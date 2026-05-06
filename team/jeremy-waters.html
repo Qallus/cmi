@@ -265,6 +265,38 @@
   const obs = new IntersectionObserver(entries => { entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); obs.unobserve(e.target); } }); }, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
   document.querySelectorAll('.fade-up').forEach(el => obs.observe(el));
 </script>
+<script>
+(function(){
+  const SB_URL = 'https://uoerzmeibavqgisfzso.supabase.co';
+  const SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVvZXJ6cm1laWJhdnFnaXNmenNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY4NzY2MzAsImV4cCI6MjA5MjQ1MjYzMH0.b8b2ZFSWMzT7-IR-h7eKbunbdfKPxSI9hvn9Bs0vs4A';
+  const headers = { apikey: SB_ANON, Authorization: 'Bearer ' + SB_ANON };
+  const esc = (s) => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  async function hydrateJeremyProfile() {
+    try {
+      const res = await fetch(SB_URL + '/rest/v1/team_members?slug=eq.jeremy-waters&status=eq.active&select=*&limit=1', { headers });
+      if (!res.ok) return;
+      const row = (await res.json())[0];
+      if (!row) return;
+      const name = row.name || [row.first_name, row.last_name].filter(Boolean).join(' ') || 'Jeremy Waters';
+      const h1 = document.querySelector('h1');
+      if (h1) h1.textContent = name;
+      const role = document.querySelector('p.text-\\[12px\\].uppercase');
+      if (role && row.role) role.textContent = row.role;
+      const heroPhoto = document.querySelector('.relative.aspect-\\[3\\/4\\]');
+      if (heroPhoto && row.profile_photo) {
+        heroPhoto.innerHTML = '<img src="' + esc(row.profile_photo) + '" alt="' + esc(name) + '" class="w-full h-full object-cover object-top" />';
+      }
+      const emailLinks = document.querySelectorAll('a[href^="mailto:"]');
+      if (row.email) emailLinks.forEach(a => { a.href = 'mailto:' + row.email; if (a.textContent.includes('@')) a.lastChild.textContent = row.email; });
+      const phoneLinks = document.querySelectorAll('a[href^="tel:"]');
+      if (row.phone) phoneLinks.forEach(a => { a.href = 'tel:' + row.phone.replace(/[^0-9+]/g, ''); if (a.textContent.match(/[0-9]/)) a.lastChild.textContent = row.phone; });
+    } catch (err) {
+      console.warn('Supabase profile hydration failed', err);
+    }
+  }
+  hydrateJeremyProfile();
+})();
+</script>
 
 <!-- -----------------------------------------------------------
      FAB, SUPPORT WIDGET

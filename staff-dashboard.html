@@ -226,6 +226,10 @@
     #teamModalCard{position:relative;width:100%;max-width:640px;max-height:92vh;overflow-y:auto;border-radius:16px;background:var(--surface);border:1px solid var(--border-card);box-shadow:0 32px 80px rgba(0,0,0,0.5);}
     #teamModalCard::-webkit-scrollbar{width:4px;}
     #teamModalCard::-webkit-scrollbar-thumb{background:var(--scrollbar);border-radius:4px;}
+    #teamDeleteModal{position:fixed;inset:0;z-index:320;display:none;align-items:center;justify-content:center;padding:20px;}
+    #teamDeleteModal.open{display:flex;}
+    #teamDeleteBackdrop{position:absolute;inset:0;background:rgba(0,0,0,0.72);}
+    #teamDeleteCard{position:relative;width:100%;max-width:420px;border-radius:16px;background:var(--surface);border:1px solid var(--border-card);box-shadow:0 32px 80px rgba(0,0,0,0.55);padding:24px;}
 
     /* -- Fluent Boards -- */
     .fb-kanban{display:flex;gap:14px;overflow-x:auto;padding-bottom:20px;min-height:500px;align-items:flex-start;}
@@ -1099,10 +1103,6 @@
             <p class="text-[10px] uppercase tracking-widest text-neutral-500 font-medium">People</p>
             <h2 class="font-display text-2xl text-neutral-100 mt-0.5">Team</h2>
           </div>
-          <button onclick="nav('add-team',null)" class="flex items-center gap-2 px-4 py-2 rounded-lg bg-cmi-gold-dark text-white text-sm font-medium hover:opacity-90">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 4v16m8-8H4"/></svg>
-            Add Member
-          </button>
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" id="teamGrid"></div>
       </section>
@@ -1683,6 +1683,20 @@
   </div>
 </div>
 
+<!-- Team Delete Confirmation Modal -->
+<div id="teamDeleteModal">
+  <div id="teamDeleteBackdrop" onclick="closeTeamDeleteModal()"></div>
+  <div id="teamDeleteCard">
+    <p class="text-[10px] uppercase tracking-widest font-medium mb-2" style="color:var(--gold)">Delete Team Member</p>
+    <h3 id="teamDeleteTitle" class="font-display text-xl text-neutral-100 mb-3">Remove this team member?</h3>
+    <p class="text-sm text-neutral-400 leading-relaxed mb-6">This will remove the dashboard team record. This action cannot be undone.</p>
+    <div class="flex justify-end gap-3">
+      <button type="button" onclick="closeTeamDeleteModal()" class="px-5 py-2.5 rounded-lg text-sm font-medium" style="border:1px solid var(--border-lg);color:var(--text-dim)">Cancel</button>
+      <button type="button" onclick="confirmDeleteTeamMember()" class="px-5 py-2.5 rounded-lg text-white text-sm font-medium hover:opacity-90" style="background:#b91c1c">Delete</button>
+    </div>
+  </div>
+</div>
+
 <!-- FB Task Detail Modal -->
 <div id="fbTaskModal">
   <div onclick="closeFBTaskModal()" style="position:absolute;inset:0;background:rgba(0,0,0,0.65)"></div>
@@ -2039,7 +2053,7 @@ const CTX_ACTIONS = {
   clients:    { label: '+ Add Contact',     action: () => openNewContact() },
   quotes:     { label: '+ Add Quote',       action: () => openNewQuote() },
   blog:       { label: '+ Add Post',        action: () => nav('add-blog', null) },
-  team:       { label: '+ Add Member',      action: () => openNewTeamMember() },
+  team:       { label: 'Add Member',        action: () => nav('add-team', null) },
   documents:  { label: '+ Add Document',    action: () => openNewDocument() },
 };
 
@@ -3495,6 +3509,14 @@ async function uploadMedia(file) {
   if (res.ok) { const d = await res.json(); return d.id; }
   return null;
 }
+async function uploadTeamPhoto(file) {
+  const id = await uploadMedia(file);
+  if (!id) throw new Error('Could not upload team photo to WordPress media.');
+  const res = await fetch(WP_BASE + '/wp/v2/media/' + id + '?_fields=id,source_url', { headers: { Authorization: WP_AUTH } });
+  if (!res.ok) throw new Error('Team photo uploaded, but the media URL could not be read.');
+  const media = await res.json();
+  return { id, url: media.source_url || '' };
+}
 
 async function submitBlogPost(forceDraft) {
   const titleVal = document.getElementById('blogTitle').value.trim();
@@ -3737,7 +3759,7 @@ async function loadTeam() {
     if (sb) {
       const { data, error } = await sb.from('team_members').select('*').order('sort_order', { ascending: true });
       if (error) throw error;
-      (data || []).map(teamFromSupabase).forEach(m => merged.set(String(m.meta.wp_post_id || m.slug || m.id), m));
+      (data || []).map(teamFromSupabase).forEach(m => merged.set(String(m.slug || m.meta.wp_post_id || m.id), m));
     }
   } catch(e) {
     console.warn('Supabase team load failed:', e);
@@ -3763,7 +3785,7 @@ async function loadTeam() {
         if (mr.ok) (await mr.json()).forEach(m => { WP_MEDIA_MAP[m.id] = m.source_url; });
       }
       rows.map(teamFromWordPress).forEach(m => {
-        const key = String(m.id || m.slug);
+        const key = String(m.slug || m.id);
         if (!merged.has(key)) merged.set(key, m);
       });
     }
@@ -3790,7 +3812,7 @@ function renderTeamCards() {
     const slug    = m.slug || teamSlug(name);
     const profUrl = meta.employee_profile_photo_url || WP_MEDIA_MAP[+(meta.employee_profile_photo || 0)] || '';
     const secUrl  = meta.employee_secondary_photo_url || WP_MEDIA_MAP[+(meta.employee_secondary_photo || 0)] || '';
-    const safeId  = JSON.stringify(String(m.id));
+    const safeId  = escAttr(String(m.id));
 
     const photo = profUrl
       ? '<div class="mx-auto mb-3 rounded-full overflow-hidden" style="width:72px;height:72px;border:2px solid var(--border-card)">' +
@@ -3799,19 +3821,28 @@ function renderTeamCards() {
           '/></div>'
       : '<div class="mx-auto mb-3 rounded-full flex items-center justify-center text-white font-bold text-xl" style="width:72px;height:72px;background:var(--gold)">' + tmInits(first, last) + '</div>';
 
-    return '<div class="card p-5 text-center cursor-pointer" ' +
-        'onclick="openTeamModal(' + safeId + ')" ' +
+    return '<div class="card p-5 text-center cursor-pointer team-card-admin" data-team-id="' + safeId + '" ' +
         'onmouseover="this.style.borderColor=\'rgba(201,164,110,0.3)\'" ' +
         'onmouseout="this.style.borderColor=\'var(--border-card)\'">' +
       photo +
       '<p class="font-medium text-neutral-100 text-sm mb-0.5">' + escHtml(name) + '</p>' +
       '<p class="text-xs text-neutral-500 mb-4">' + escHtml(role) + '</p>' +
       '<div class="flex justify-center gap-2" onclick="event.stopPropagation()">' +
-        '<button onclick="openTeamModal(' + safeId + ')" class="text-xs px-3 py-1.5 rounded-md text-neutral-400 hover:text-white transition-colors" style="border:1px solid var(--border-lg)">Edit</button>' +
+        '<button type="button" class="team-edit-btn text-xs px-3 py-1.5 rounded-md text-neutral-400 hover:text-white transition-colors" data-team-id="' + safeId + '" style="border:1px solid var(--border-lg)">Edit</button>' +
         (slug ? '<a href="team/' + escAttr(slug) + '.html" target="_blank" class="text-xs px-3 py-1.5 rounded-md text-neutral-400 hover:text-white transition-colors" style="border:1px solid var(--border-lg);text-decoration:none">View</a>' : '') +
+        '<button type="button" class="team-delete-btn text-xs px-3 py-1.5 rounded-md text-red-400 hover:text-red-300 transition-colors" data-team-id="' + safeId + '" style="border:1px solid rgba(248,113,113,0.35)">Delete</button>' +
       '</div>' +
     '</div>';
   }).join('');
+  grid.querySelectorAll('.team-card-admin').forEach(card => {
+    card.addEventListener('click', () => openTeamModal(card.dataset.teamId));
+  });
+  grid.querySelectorAll('.team-edit-btn').forEach(btn => {
+    btn.addEventListener('click', (event) => { event.stopPropagation(); openTeamModal(btn.dataset.teamId); });
+  });
+  grid.querySelectorAll('.team-delete-btn').forEach(btn => {
+    btn.addEventListener('click', (event) => { event.stopPropagation(); openTeamDeleteModal(btn.dataset.teamId); });
+  });
 }
 
 function openTeamModal(id) {
@@ -3864,6 +3895,45 @@ function openTeamModal(id) {
   document.getElementById('teamModal').classList.add('open');
   document.body.style.overflow = 'hidden';
 }
+let _pendingTeamDeleteId = null;
+function openTeamDeleteModal(id) {
+  const m = WP_TEAM.find(t => String(t.id) === String(id));
+  if (!m) return;
+  const meta = m.meta || {};
+  const name = ((meta.first_name || '') + ' ' + (meta.last_name || '')).trim() || teamTitleText(m.title) || 'this team member';
+  _pendingTeamDeleteId = String(id);
+  document.getElementById('teamDeleteTitle').textContent = 'Remove ' + name + '?';
+  document.getElementById('teamDeleteModal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeTeamDeleteModal() {
+  document.getElementById('teamDeleteModal').classList.remove('open');
+  _pendingTeamDeleteId = null;
+  if (!document.getElementById('teamModal').classList.contains('open')) document.body.style.overflow = '';
+}
+async function confirmDeleteTeamMember() {
+  if (!_pendingTeamDeleteId) return;
+  if (!sb) { showToast('Supabase not connected'); return; }
+  const id = _pendingTeamDeleteId;
+  const member = WP_TEAM.find(t => String(t.id) === String(id));
+  const slug = member?.slug || teamSlug(teamTitleText(member?.title));
+  try {
+    let error = null;
+    if (/^[0-9a-f-]{36}$/i.test(id)) {
+      ({ error } = await sb.from('team_members').delete().eq('id', id));
+    } else if (slug) {
+      ({ error } = await sb.from('team_members').delete().eq('slug', slug));
+    }
+    if (error) throw error;
+    WP_TEAM = WP_TEAM.filter(t => String(t.id) !== String(id) && String(t.slug || '') !== String(slug || ''));
+    closeTeamDeleteModal();
+    renderTeamCards();
+    showToast('Team member deleted from dashboard');
+  } catch (err) {
+    console.error('deleteTeamMember:', err);
+    showToast('Could not delete team member: ' + (err.message || err));
+  }
+}
 
 async function saveTeamMember() {
   const id = document.getElementById('tmId').value;
@@ -3887,8 +3957,19 @@ async function saveTeamMember() {
     schedule:      document.getElementById('tmSchedule').value.trim(),
   };
   try {
-    if (document.getElementById('tmProfileInput').files.length || document.getElementById('tmSecondaryInput').files.length) {
-      showToast('Photo upload needs the media backend; saving text fields now.');
+    const profInput = document.getElementById('tmProfileInput');
+    const secInput = document.getElementById('tmSecondaryInput');
+    if (profInput.files.length) {
+      const uploaded = await uploadTeamPhoto(profInput.files[0]);
+      meta.employee_profile_photo = uploaded.id;
+      meta.employee_profile_photo_url = uploaded.url;
+      WP_MEDIA_MAP[uploaded.id] = uploaded.url;
+    }
+    if (secInput.files.length) {
+      const uploaded = await uploadTeamPhoto(secInput.files[0]);
+      meta.employee_secondary_photo = uploaded.id;
+      meta.employee_secondary_photo_url = uploaded.url;
+      WP_MEDIA_MAP[uploaded.id] = uploaded.url;
     }
     const row = teamToSupabaseRow(id, meta);
     const data = await saveTeamRow(row);
@@ -3926,8 +4007,19 @@ async function submitTeamMember(e) {
     key_attributes: getTeamAttrs('teamAttrRepeater'),
   };
   try {
-    if (document.getElementById('teamPhotoInput').files.length || document.getElementById('teamSecondaryInput').files.length) {
-      showToast('Photo upload needs the media backend; saving text fields now.');
+    const photoInput = document.getElementById('teamPhotoInput');
+    const secInput = document.getElementById('teamSecondaryInput');
+    if (photoInput.files.length) {
+      const uploaded = await uploadTeamPhoto(photoInput.files[0]);
+      meta.employee_profile_photo = uploaded.id;
+      meta.employee_profile_photo_url = uploaded.url;
+      WP_MEDIA_MAP[uploaded.id] = uploaded.url;
+    }
+    if (secInput.files.length) {
+      const uploaded = await uploadTeamPhoto(secInput.files[0]);
+      meta.employee_secondary_photo = uploaded.id;
+      meta.employee_secondary_photo_url = uploaded.url;
+      WP_MEDIA_MAP[uploaded.id] = uploaded.url;
     }
     const row = teamToSupabaseRow(null, meta);
     const data = await saveTeamRow(row, 'insert');
