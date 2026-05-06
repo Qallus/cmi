@@ -267,16 +267,36 @@
 </script>
 <script>
 (function(){
-  const SB_URL = 'https://uoerzmeibavqgisfzso.supabase.co';
+  const SB_URL = 'https://uoerzrmeibavqgisfzso.supabase.co';
   const SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVvZXJ6cm1laWJhdnFnaXNmenNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY4NzY2MzAsImV4cCI6MjA5MjQ1MjYzMH0.b8b2ZFSWMzT7-IR-h7eKbunbdfKPxSI9hvn9Bs0vs4A';
   const headers = { apikey: SB_ANON, Authorization: 'Bearer ' + SB_ANON };
   const esc = (s) => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  function details(row) {
+    const raw = row.availability || '';
+    if (!raw || typeof raw !== 'string' || raw.trim()[0] !== '{') return {};
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed && parsed._cmiTeamDetails ? parsed : {};
+    } catch (_) {
+      return {};
+    }
+  }
+  function attrs(row) {
+    const d = details(row);
+    const richAttrs = row.attributes_json || d.attributes_json;
+    if (Array.isArray(richAttrs) && richAttrs.length) return richAttrs;
+    return Array.isArray(row.attributes) ? row.attributes.map(title => ({ title, description: '' })) : [];
+  }
+  function paragraphs(text) {
+    return String(text || '').split(/\n{2,}/).map(p => p.trim()).filter(Boolean);
+  }
   async function hydrateJeremyProfile() {
     try {
       const res = await fetch(SB_URL + '/rest/v1/team_members?slug=eq.jeremy-waters&status=eq.active&select=*&limit=1', { headers });
       if (!res.ok) return;
       const row = (await res.json())[0];
       if (!row) return;
+      const d = details(row);
       const name = row.name || [row.first_name, row.last_name].filter(Boolean).join(' ') || 'Jeremy Waters';
       const h1 = document.querySelector('h1');
       if (h1) h1.textContent = name;
@@ -290,6 +310,27 @@
       if (row.email) emailLinks.forEach(a => { a.href = 'mailto:' + row.email; if (a.textContent.includes('@')) a.lastChild.textContent = row.email; });
       const phoneLinks = document.querySelectorAll('a[href^="tel:"]');
       if (row.phone) phoneLinks.forEach(a => { a.href = 'tel:' + row.phone.replace(/[^0-9+]/g, ''); if (a.textContent.match(/[0-9]/)) a.lastChild.textContent = row.phone; });
+      const linkedin = row.linkedin_url || d.linkedin_url || '';
+      if (linkedin) {
+        const contactBox = document.querySelector('h4');
+        const wrap = contactBox ? contactBox.parentElement : null;
+        if (wrap && !wrap.querySelector('a[data-team-linkedin]')) {
+          wrap.insertAdjacentHTML('beforeend', '<a data-team-linkedin href="' + esc(linkedin) + '" target="_blank" rel="noopener" class="flex items-center gap-3 text-sm text-neutral-600 dark:text-neutral-400 hover:text-cmi-gold-light dark:hover:text-cmi-gold-dark transition-colors"><span class="w-8 h-8 rounded-lg flex items-center justify-center bg-neutral-100 dark:bg-neutral-800 shrink-0">in</span>LinkedIn</a>');
+        }
+      }
+      const bio = document.querySelector('.bio-content');
+      if (bio && row.bio) bio.innerHTML = paragraphs(row.bio).map(p => '<p>' + esc(p) + '</p>').join('');
+      const list = attrs(row);
+      const chips = document.querySelector('h1 + p + div.flex.flex-wrap');
+      if (chips && list.length) chips.innerHTML = list.slice(0, 5).map(a => '<span class="attr-chip">' + esc(typeof a === 'object' ? a.title : a) + '</span>').join('');
+      const track = document.getElementById('attrTrack');
+      if (track && list.length) {
+        track.innerHTML = list.map(a => {
+          const title = typeof a === 'object' ? a.title : a;
+          const desc = typeof a === 'object' ? a.description : '';
+          return '<div class="attr-slide attr-card"><div class="w-10 h-10 rounded-xl bg-cmi-gold-light/10 dark:bg-cmi-gold-dark/10 flex items-center justify-center mb-4"><svg class="w-5 h-5 text-cmi-gold-light dark:text-cmi-gold-dark" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M12 3l2.4 6.6L21 12l-6.6 2.4L12 21l-2.4-6.6L3 12l6.6-2.4L12 3z"/></svg></div><h3 class="font-display text-lg text-neutral-900 dark:text-neutral-100 mb-2">' + esc(title) + '</h3><p class="text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed">' + esc(desc) + '</p></div>';
+        }).join('');
+      }
     } catch (err) {
       console.warn('Supabase profile hydration failed', err);
     }

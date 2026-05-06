@@ -2960,10 +2960,26 @@ function teamTitleText(title) {
   if (!title) return '';
   return typeof title === 'string' ? title : (title.rendered || '');
 }
+function parseTeamLegacyDetails(row) {
+  const raw = row?.availability || '';
+  if (!raw || typeof raw !== 'string' || raw.trim()[0] !== '{') return {};
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && parsed._cmiTeamDetails ? parsed : {};
+  } catch (_) {
+    return {};
+  }
+}
+function teamAvailabilityText(row, details) {
+  if (row?.schedule_json) return row.schedule_json;
+  if (details?.schedule !== undefined) return details.schedule;
+  return row?.availability || '';
+}
 function teamFromSupabase(row) {
   const first = row.first_name || (row.name || '').split(/\s+/)[0] || '';
   const last = row.last_name || (row.name || '').split(/\s+/).slice(1).join(' ') || '';
-  const attrs = row.attributes_json || (row.attributes || []).map(a => ({ title:a, description:'' }));
+  const details = parseTeamLegacyDetails(row);
+  const attrs = row.attributes_json || details.attributes_json || (row.attributes || []).map(a => ({ title:a, description:'' }));
   return {
     id: row.id,
     _source: 'supabase',
@@ -2972,14 +2988,14 @@ function teamFromSupabase(row) {
     meta: {
       first_name: first,
       last_name: last,
-      nickname: row.nickname || '',
+      nickname: row.nickname || details.nickname || '',
       job_title: row.role || '',
       phone_number: row.phone || '',
       email_address: row.email || '',
-      linkedIn_url: row.linkedin_url || '',
+      linkedIn_url: row.linkedin_url || details.linkedin_url || '',
       bio: row.bio || '',
       key_attributes: attrs,
-      schedule: row.schedule_json || row.availability || '',
+      schedule: teamAvailabilityText(row, details),
       employee_profile_photo_url: row.profile_photo || '',
       employee_secondary_photo_url: row.secondary_photo || '',
       wp_post_id: row.wp_post_id || null,
@@ -3029,9 +3045,15 @@ function isSchemaCacheColumnError(error) {
   return /schema cache|could not find the .* column/i.test(error?.message || '');
 }
 function teamToLegacySupabaseRow(row) {
+  const details = {
+    _cmiTeamDetails: true,
+    nickname: row.nickname || '',
+    linkedin_url: row.linkedin_url || '',
+    attributes_json: row.attributes_json || [],
+    schedule: row.availability || '',
+  };
   return {
     id: row.id,
-    wp_post_id: row.wp_post_id,
     name: row.name,
     slug: row.slug,
     role: row.role,
@@ -3041,7 +3063,7 @@ function teamToLegacySupabaseRow(row) {
     profile_photo: row.profile_photo,
     secondary_photo: row.secondary_photo,
     attributes: row.attributes,
-    availability: row.availability,
+    availability: JSON.stringify(details),
     status: row.status,
     updated_at: row.updated_at,
   };
@@ -3509,13 +3531,15 @@ async function uploadMedia(file) {
   if (res.ok) { const d = await res.json(); return d.id; }
   return null;
 }
-async function uploadTeamPhoto(file) {
-  const id = await uploadMedia(file);
-  if (!id) throw new Error('Could not upload team photo to WordPress media.');
-  const res = await fetch(WP_BASE + '/wp/v2/media/' + id + '?_fields=id,source_url', { headers: { Authorization: WP_AUTH } });
-  if (!res.ok) throw new Error('Team photo uploaded, but the media URL could not be read.');
-  const media = await res.json();
-  return { id, url: media.source_url || '' };
+async function uploadTeamPhoto(file, slug) {
+  if (!sb) throw new Error('Supabase is not connected.');
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+  const safeSlug = teamSlug(slug || 'team-member');
+  const path = 'team/' + safeSlug + '/' + Date.now() + '-' + Math.random().toString(36).slice(2) + '.' + ext;
+  const { error } = await sb.storage.from('portfolio').upload(path, file, { upsert: true, contentType: file.type });
+  if (error) throw new Error('Team photo upload failed: ' + error.message);
+  const url = sb.storage.from('portfolio').getPublicUrl(path).data.publicUrl;
+  return { id: path, url };
 }
 
 async function submitBlogPost(forceDraft) {
@@ -3765,34 +3789,6 @@ async function loadTeam() {
     console.warn('Supabase team load failed:', e);
   }
 
-  try {
-    const res = await fetch(WP_BASE + '/wp/v2/team-member?per_page=100', { headers: { Authorization: WP_AUTH } });
-    if (res.ok) {
-      const rows = await res.json();
-      const ids = new Set();
-      rows.forEach(m => {
-        const meta = m.meta || {};
-        [meta.employee_profile_photo, meta.employee_secondary_photo].forEach(v => {
-          const n = +(v || 0);
-          if (n) ids.add(n);
-        });
-      });
-      if (ids.size) {
-        const mr = await fetch(
-          WP_BASE + '/wp/v2/media?include=' + [...ids].join(',') + '&per_page=100&_fields=id,source_url',
-          { headers: { Authorization: WP_AUTH } }
-        );
-        if (mr.ok) (await mr.json()).forEach(m => { WP_MEDIA_MAP[m.id] = m.source_url; });
-      }
-      rows.map(teamFromWordPress).forEach(m => {
-        const key = String(m.slug || m.id);
-        if (!merged.has(key)) merged.set(key, m);
-      });
-    }
-  } catch(e) {
-    console.warn('WordPress team fallback failed:', e);
-  }
-
   WP_TEAM = [...merged.values()];
   renderTeamCards();
 }
@@ -3957,16 +3953,17 @@ async function saveTeamMember() {
     schedule:      document.getElementById('tmSchedule').value.trim(),
   };
   try {
+    const memberSlug = teamSlug(((meta.first_name || '') + ' ' + (meta.last_name || '')).trim());
     const profInput = document.getElementById('tmProfileInput');
     const secInput = document.getElementById('tmSecondaryInput');
     if (profInput.files.length) {
-      const uploaded = await uploadTeamPhoto(profInput.files[0]);
+      const uploaded = await uploadTeamPhoto(profInput.files[0], memberSlug);
       meta.employee_profile_photo = uploaded.id;
       meta.employee_profile_photo_url = uploaded.url;
       WP_MEDIA_MAP[uploaded.id] = uploaded.url;
     }
     if (secInput.files.length) {
-      const uploaded = await uploadTeamPhoto(secInput.files[0]);
+      const uploaded = await uploadTeamPhoto(secInput.files[0], memberSlug);
       meta.employee_secondary_photo = uploaded.id;
       meta.employee_secondary_photo_url = uploaded.url;
       WP_MEDIA_MAP[uploaded.id] = uploaded.url;
@@ -4007,16 +4004,17 @@ async function submitTeamMember(e) {
     key_attributes: getTeamAttrs('teamAttrRepeater'),
   };
   try {
+    const memberSlug = teamSlug(((meta.first_name || '') + ' ' + (meta.last_name || '')).trim());
     const photoInput = document.getElementById('teamPhotoInput');
     const secInput = document.getElementById('teamSecondaryInput');
     if (photoInput.files.length) {
-      const uploaded = await uploadTeamPhoto(photoInput.files[0]);
+      const uploaded = await uploadTeamPhoto(photoInput.files[0], memberSlug);
       meta.employee_profile_photo = uploaded.id;
       meta.employee_profile_photo_url = uploaded.url;
       WP_MEDIA_MAP[uploaded.id] = uploaded.url;
     }
     if (secInput.files.length) {
-      const uploaded = await uploadTeamPhoto(secInput.files[0]);
+      const uploaded = await uploadTeamPhoto(secInput.files[0], memberSlug);
       meta.employee_secondary_photo = uploaded.id;
       meta.employee_secondary_photo_url = uploaded.url;
       WP_MEDIA_MAP[uploaded.id] = uploaded.url;
