@@ -2935,9 +2935,82 @@ function buildQuoteFilters() {
   ).join('');
 }
 
-// --- Team: WP API ---------------------------------------------
+// --- Team: Supabase-first, WordPress fallback ------------------
 let WP_TEAM = [];
 let WP_MEDIA_MAP = {};
+
+function teamSlug(name) {
+  return String(name || 'team-member').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'team-member';
+}
+function teamTitleText(title) {
+  if (!title) return '';
+  return typeof title === 'string' ? title : (title.rendered || '');
+}
+function teamFromSupabase(row) {
+  const first = row.first_name || (row.name || '').split(/\s+/)[0] || '';
+  const last = row.last_name || (row.name || '').split(/\s+/).slice(1).join(' ') || '';
+  const attrs = row.attributes_json || (row.attributes || []).map(a => ({ title:a, description:'' }));
+  return {
+    id: row.id,
+    _source: 'supabase',
+    slug: row.slug || teamSlug(row.name),
+    title: { rendered: row.name || ((first + ' ' + last).trim()) },
+    meta: {
+      first_name: first,
+      last_name: last,
+      nickname: row.nickname || '',
+      job_title: row.role || '',
+      phone_number: row.phone || '',
+      email_address: row.email || '',
+      linkedIn_url: row.linkedin_url || '',
+      bio: row.bio || '',
+      key_attributes: attrs,
+      schedule: row.schedule_json || row.availability || '',
+      employee_profile_photo_url: row.profile_photo || '',
+      employee_secondary_photo_url: row.secondary_photo || '',
+      wp_post_id: row.wp_post_id || null,
+    },
+  };
+}
+function teamFromWordPress(m) {
+  const meta = m.meta || {};
+  return {
+    ...m,
+    _source: 'wordpress',
+    meta: {
+      ...meta,
+      employee_profile_photo_url: WP_MEDIA_MAP[+(meta.employee_profile_photo || 0)] || '',
+      employee_secondary_photo_url: WP_MEDIA_MAP[+(meta.employee_secondary_photo || 0)] || '',
+      wp_post_id: m.id,
+    },
+  };
+}
+function teamToSupabaseRow(id, meta) {
+  const name = ((meta.first_name || '') + ' ' + (meta.last_name || '')).trim() || 'Team Member';
+  return {
+    id: /^[0-9a-f-]{36}$/i.test(String(id || '')) ? id : undefined,
+    wp_post_id: meta.wp_post_id || null,
+    name,
+    slug: teamSlug(name),
+    first_name: meta.first_name || '',
+    last_name: meta.last_name || '',
+    nickname: meta.nickname || '',
+    role: meta.job_title || '',
+    bio: meta.bio || '',
+    email: meta.email_address || '',
+    phone: meta.phone_number || '',
+    linkedin_url: meta.linkedIn_url || '',
+    profile_photo: meta.employee_profile_photo_url || '',
+    secondary_photo: meta.employee_secondary_photo_url || '',
+    attributes: (meta.key_attributes || []).map(a => typeof a === 'object' ? a.title : a).filter(Boolean),
+    attributes_json: meta.key_attributes || [],
+    availability: typeof meta.schedule === 'string' ? meta.schedule : '',
+    schedule_json: Array.isArray(meta.schedule) ? meta.schedule : null,
+    status: 'active',
+    sync_status: meta.wp_post_id ? 'pending' : 'local',
+    updated_at: new Date().toISOString(),
+  };
+}
 
 async function loadTeam() {
   const grid = document.getElementById('teamGrid');
@@ -3613,6 +3686,230 @@ async function submitTeamMember(e) {
   } catch(err) {
     console.error('submitTeamMember:', err);
     showToast('Network error — check connection');
+  } finally {
+    btn.textContent = 'Add to Team'; btn.disabled = false;
+  }
+}
+
+// Supabase-first Team implementation. This intentionally overrides the
+// earlier WordPress-only handlers while keeping the same UI contract.
+async function loadTeam() {
+  const grid = document.getElementById('teamGrid');
+  grid.innerHTML = '<div class="col-span-4 py-12 text-center text-sm" style="color:var(--text-muted)">Loading team members...</div>';
+  const merged = new Map();
+
+  try {
+    if (sb) {
+      const { data, error } = await sb.from('team_members').select('*').order('sort_order', { ascending: true });
+      if (error) throw error;
+      (data || []).map(teamFromSupabase).forEach(m => merged.set(String(m.meta.wp_post_id || m.slug || m.id), m));
+    }
+  } catch(e) {
+    console.warn('Supabase team load failed:', e);
+  }
+
+  try {
+    const res = await fetch(WP_BASE + '/wp/v2/team-member?per_page=100', { headers: { Authorization: WP_AUTH } });
+    if (res.ok) {
+      const rows = await res.json();
+      const ids = new Set();
+      rows.forEach(m => {
+        const meta = m.meta || {};
+        [meta.employee_profile_photo, meta.employee_secondary_photo].forEach(v => {
+          const n = +(v || 0);
+          if (n) ids.add(n);
+        });
+      });
+      if (ids.size) {
+        const mr = await fetch(
+          WP_BASE + '/wp/v2/media?include=' + [...ids].join(',') + '&per_page=100&_fields=id,source_url',
+          { headers: { Authorization: WP_AUTH } }
+        );
+        if (mr.ok) (await mr.json()).forEach(m => { WP_MEDIA_MAP[m.id] = m.source_url; });
+      }
+      rows.map(teamFromWordPress).forEach(m => {
+        const key = String(m.id || m.slug);
+        if (!merged.has(key)) merged.set(key, m);
+      });
+    }
+  } catch(e) {
+    console.warn('WordPress team fallback failed:', e);
+  }
+
+  WP_TEAM = [...merged.values()];
+  renderTeamCards();
+}
+
+function renderTeamCards() {
+  const grid = document.getElementById('teamGrid');
+  if (!WP_TEAM.length) {
+    grid.innerHTML = '<div class="col-span-4 py-12 text-center text-sm" style="color:var(--text-muted)">No team members found. Add a member to save one in Supabase.</div>';
+    return;
+  }
+  grid.innerHTML = WP_TEAM.map(m => {
+    const meta    = m.meta || {};
+    const first   = meta.first_name || '';
+    const last    = meta.last_name  || '';
+    const name    = ((first + ' ' + last).trim()) || teamTitleText(m.title) || 'Team Member';
+    const role    = meta.job_title  || '';
+    const slug    = m.slug || teamSlug(name);
+    const profUrl = meta.employee_profile_photo_url || WP_MEDIA_MAP[+(meta.employee_profile_photo || 0)] || '';
+    const secUrl  = meta.employee_secondary_photo_url || WP_MEDIA_MAP[+(meta.employee_secondary_photo || 0)] || '';
+    const safeId  = JSON.stringify(String(m.id));
+
+    const photo = profUrl
+      ? '<div class="mx-auto mb-3 rounded-full overflow-hidden" style="width:72px;height:72px;border:2px solid var(--border-card)">' +
+          '<img src="' + escAttr(profUrl) + '" alt="' + escAttr(name) + '" style="width:100%;height:100%;object-fit:cover"' +
+          (secUrl ? ' onmouseover="this.src=\'' + escAttr(secUrl) + '\'" onmouseout="this.src=\'' + escAttr(profUrl) + '\'"' : '') +
+          '/></div>'
+      : '<div class="mx-auto mb-3 rounded-full flex items-center justify-center text-white font-bold text-xl" style="width:72px;height:72px;background:var(--gold)">' + tmInits(first, last) + '</div>';
+
+    return '<div class="card p-5 text-center cursor-pointer" ' +
+        'onclick="openTeamModal(' + safeId + ')" ' +
+        'onmouseover="this.style.borderColor=\'rgba(201,164,110,0.3)\'" ' +
+        'onmouseout="this.style.borderColor=\'var(--border-card)\'">' +
+      photo +
+      '<p class="font-medium text-neutral-100 text-sm mb-0.5">' + escHtml(name) + '</p>' +
+      '<p class="text-xs text-neutral-500 mb-4">' + escHtml(role) + '</p>' +
+      '<div class="flex justify-center gap-2" onclick="event.stopPropagation()">' +
+        '<button onclick="openTeamModal(' + safeId + ')" class="text-xs px-3 py-1.5 rounded-md text-neutral-400 hover:text-white transition-colors" style="border:1px solid var(--border-lg)">Edit</button>' +
+        (slug ? '<a href="team/' + escAttr(slug) + '.html" target="_blank" class="text-xs px-3 py-1.5 rounded-md text-neutral-400 hover:text-white transition-colors" style="border:1px solid var(--border-lg);text-decoration:none">View</a>' : '') +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function openTeamModal(id) {
+  const m = WP_TEAM.find(t => String(t.id) === String(id));
+  if (!m) return;
+  const meta    = m.meta || {};
+  const first   = meta.first_name || '';
+  const last    = meta.last_name  || '';
+  const name    = ((first + ' ' + last).trim()) || teamTitleText(m.title) || 'Team Member';
+  const profUrl = meta.employee_profile_photo_url || WP_MEDIA_MAP[+(meta.employee_profile_photo || 0)] || '';
+  const secUrl  = meta.employee_secondary_photo_url || WP_MEDIA_MAP[+(meta.employee_secondary_photo || 0)] || '';
+
+  document.getElementById('tmId').value = id;
+  document.getElementById('tmModalName').textContent = name;
+  document.getElementById('tmModalRole').textContent  = meta.job_title || '';
+  document.getElementById('tmModalPhoto').innerHTML = profUrl
+    ? '<img src="' + escAttr(profUrl) + '" style="width:100%;height:100%;object-fit:cover" />'
+    : '<div style="width:100%;height:100%;background:var(--gold);display:flex;align-items:center;justify-content:center;font-weight:700;color:white;font-size:1.2rem">' + tmInits(first, last) + '</div>';
+
+  document.getElementById('tmFirst').value    = first;
+  document.getElementById('tmLast').value     = last;
+  document.getElementById('tmNickname').value = meta.nickname      || '';
+  document.getElementById('tmTitle').value    = meta.job_title     || '';
+  document.getElementById('tmPhone').value    = meta.phone_number  || '';
+  document.getElementById('tmEmail').value    = meta.email_address || '';
+  document.getElementById('tmLinkedIn').value = meta.linkedIn_url  || '';
+  document.getElementById('tmBio').value      = (meta.bio || '').replace(/<[^>]*>/g, '');
+
+  const sched = meta.schedule;
+  document.getElementById('tmSchedule').value = Array.isArray(sched)
+    ? sched.map(s => typeof s === 'object' ? Object.values(s)[0] : s).join(', ')
+    : (sched || '');
+
+  document.getElementById('tmProfilePreviewWrap').innerHTML   = profUrl ? '<img src="' + escAttr(profUrl) + '" class="thumb-preview mb-2" />' : '';
+  document.getElementById('tmSecondaryPreviewWrap').innerHTML = secUrl  ? '<img src="' + escAttr(secUrl)  + '" class="thumb-preview mb-2" />' : '';
+  document.getElementById('tmProfileInput').value   = '';
+  document.getElementById('tmSecondaryInput').value = '';
+
+  const rawAttrs = meta.key_attributes;
+  const container = document.getElementById('tmAttrRepeater');
+  container.innerHTML = '';
+  if (Array.isArray(rawAttrs) && rawAttrs.length) {
+    rawAttrs.forEach(a => {
+      if (typeof a === 'object' && a !== null && !Array.isArray(a)) addTeamAttrRow('tmAttrRepeater', a.title || Object.values(a)[0] || '', a.description || '');
+      else addTeamAttrRow('tmAttrRepeater', String(a || ''), '');
+    });
+  }
+
+  document.getElementById('tmViewLink').href = m.slug ? 'team/' + m.slug + '.html' : '#';
+  document.getElementById('teamModal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+async function saveTeamMember() {
+  const id = document.getElementById('tmId').value;
+  if (!id) return;
+  if (!sb) { showToast('Supabase not connected'); return; }
+  const existing = WP_TEAM.find(t => String(t.id) === String(id));
+  const oldMeta = existing?.meta || {};
+  const btn = document.getElementById('tmSaveBtn');
+  btn.textContent = 'Saving...'; btn.disabled = true;
+  const meta = {
+    ...oldMeta,
+    first_name:    document.getElementById('tmFirst').value.trim(),
+    last_name:     document.getElementById('tmLast').value.trim(),
+    nickname:      document.getElementById('tmNickname').value.trim(),
+    job_title:     document.getElementById('tmTitle').value.trim(),
+    phone_number:  document.getElementById('tmPhone').value.trim(),
+    email_address: document.getElementById('tmEmail').value.trim(),
+    linkedIn_url:  document.getElementById('tmLinkedIn').value.trim(),
+    bio:           document.getElementById('tmBio').value.trim(),
+    key_attributes: getTeamAttrs('tmAttrRepeater'),
+    schedule:      document.getElementById('tmSchedule').value.trim(),
+  };
+  try {
+    if (document.getElementById('tmProfileInput').files.length || document.getElementById('tmSecondaryInput').files.length) {
+      showToast('Photo upload needs the media backend; saving text fields now.');
+    }
+    const row = teamToSupabaseRow(id, meta);
+    const { data, error } = await sb.from('team_members').upsert(row, { onConflict: row.id ? 'id' : 'slug' }).select().single();
+    if (error) throw error;
+    const updated = teamFromSupabase(data);
+    const idx = WP_TEAM.findIndex(t => String(t.id) === String(id));
+    if (idx !== -1) WP_TEAM[idx] = updated; else WP_TEAM.push(updated);
+    renderTeamCards();
+    closeTeamModal();
+    showToast('Team member saved to Supabase');
+  } catch(e) {
+    console.error('Team save failed:', e);
+    showToast('Could not save team member: ' + (e.message || e));
+  } finally {
+    btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg> Save Changes';
+    btn.disabled = false;
+  }
+}
+
+async function submitTeamMember(e) {
+  e.preventDefault();
+  if (!sb) { showToast('Supabase not connected'); return; }
+  const form = e.target;
+  const btn  = form.querySelector('button[type="submit"]');
+  btn.textContent = 'Saving...'; btn.disabled = true;
+  const meta = {
+    first_name:    form.first_name.value.trim(),
+    last_name:     form.last_name.value.trim(),
+    nickname:      form.nickname.value.trim(),
+    job_title:     form.job_title.value.trim(),
+    email_address: form.email_address.value.trim(),
+    phone_number:  form.phone_number.value.trim(),
+    linkedIn_url:  form.linkedIn_url.value.trim(),
+    bio:           form.bio.value.trim(),
+    schedule:      form.schedule.value.trim(),
+    key_attributes: getTeamAttrs('teamAttrRepeater'),
+  };
+  try {
+    if (document.getElementById('teamPhotoInput').files.length || document.getElementById('teamSecondaryInput').files.length) {
+      showToast('Photo upload needs the media backend; saving text fields now.');
+    }
+    const row = teamToSupabaseRow(null, meta);
+    const { data, error } = await sb.from('team_members').insert(row).select().single();
+    if (error) throw error;
+    WP_TEAM.push(teamFromSupabase(data));
+    renderTeamCards();
+    form.reset();
+    document.getElementById('teamAttrRepeater').innerHTML = '';
+    document.getElementById('teamPhotoPreview').innerHTML = '';
+    document.getElementById('teamSecondaryPreview').innerHTML = '';
+    addTeamAttrRow('teamAttrRepeater');
+    showToast('Team member saved to Supabase');
+    nav('team', document.querySelector('.nav-item[onclick*="team"]'));
+  } catch(err) {
+    console.error('submitTeamMember:', err);
+    showToast('Could not save team member: ' + (err.message || err));
   } finally {
     btn.textContent = 'Add to Team'; btn.disabled = false;
   }
@@ -4784,57 +5081,90 @@ function filterDocs(type, el) {
     el.classList.add('active');
   }
 }
+function docFormStatus(value) {
+  const map = {
+    draft: 'Draft',
+    sent: 'Pending Signature',
+    signed: 'Signed / Active',
+    completed: 'Completed',
+    approved: 'Approved',
+    revised: 'Revision Requested',
+    void: 'Void',
+  };
+  return map[value] || 'Draft';
+}
+function docMoney(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const n = Number(raw.replace(/[$,]/g, ''));
+  return Number.isFinite(n) ? n.toLocaleString('en-US', { style:'currency', currency:'USD', maximumFractionDigits:0 }) : raw;
+}
+function docDate(value) {
+  if (!value) return new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+  const d = new Date(value + 'T00:00:00');
+  return isNaN(d) ? value : d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+}
 async function submitDocument(event, type) {
   event.preventDefault();
   const form = event.target;
   const label = type === 'contract' ? 'Contract' : 'Scope of Work';
-  const fv = id => { const el = form.querySelector('#'+id) || form.querySelector('[name="'+id+'"]'); return el ? el.value.trim() : ''; };
+  const btn = form.querySelector('button[type="submit"]');
+  const btnHtml = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
+  const fd = new FormData(form);
+  const fv = name => String(fd.get(name) || '').trim();
   const newId = type + '-' + Date.now();
   const doc = {
     id: newId, type,
-    title:           fv('contractTitle') || fv('sowTitle') || label,
-    client:          fv('contractClient') || fv('sowClient'),
-    clientEmail:     fv('contractClientEmail') || fv('sowClientEmail'),
-    clientPhone:     fv('contractClientPhone') || fv('sowClientPhone'),
-    project:         fv('contractProject') || fv('sowProject'),
-    location:        fv('contractLocation') || fv('sowLocation'),
-    date:            new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}),
-    startDate:       fv('contractStartDate') || fv('sowStartDate'),
-    completionDate:  fv('contractCompletionDate') || fv('sowCompletionDate'),
-    value:           fv('contractValue') || fv('sowValue'),
-    deposit:         type === 'contract' ? fv('contractDeposit') : '',
-    paymentSchedule: type === 'contract' ? fv('contractPaymentSchedule') : '',
-    paymentTerms:    type === 'sow' ? fv('sowPaymentTerms') : '',
-    allowances:      fv('contractAllowances'),
-    sqFt:            fv('contractSqFt') || fv('sowSqFt'),
-    services:        (form.querySelector('[id$="ServicesValue"]') || {}).value || '',
-    description:     fv('contractDescription') || fv('sowDescription'),
-    deliverables:    type === 'sow' ? fv('sowDeliverables') : '',
-    exclusions:      type === 'sow' ? fv('sowExclusions') : '',
-    assumptions:     type === 'sow' ? fv('sowAssumptions') : '',
-    warranty:        type === 'contract' ? fv('contractWarranty') : '',
+    title:           fv('doc_title') || label,
+    client:          fv('client_name'),
+    clientEmail:     fv('client_email'),
+    clientPhone:     fv('client_phone'),
+    project:         fv('project_title'),
+    location:        fv('project_location'),
+    date:            docDate(fv(type === 'contract' ? 'contract_date' : 'proposal_date')),
+    startDate:       fv('start_date') ? docDate(fv('start_date')) : '',
+    completionDate:  fv('end_date') ? docDate(fv('end_date')) : '',
+    value:           docMoney(type === 'contract' ? fv('contract_value') : fv('sow_value')),
+    deposit:         type === 'contract' ? docMoney(fv('deposit_amount')) : '',
+    paymentSchedule: type === 'contract' ? fv('payment_schedule') : '',
+    paymentTerms:    type === 'sow' ? fv('payment_schedule') : '',
+    allowances:      fv('allowances'),
+    sqFt:            fv('square_feet'),
+    services:        fv('services'),
+    description:     type === 'contract' ? fv('project_description') : fv('scope_description'),
+    deliverables:    type === 'sow' ? fv('deliverables') : '',
+    exclusions:      type === 'sow' ? fv('exclusions') : fv('special_conditions'),
+    assumptions:     type === 'sow' ? fv('assumptions') : '',
+    warranty:        type === 'contract' ? fv('warranty') : '',
     changeOrder:     'All change orders require written approval and signed amendment prior to work beginning.',
     dispute:         type === 'contract' ? 'Maricopa County, AZ � binding arbitration' : '',
-    permits:         type === 'sow' ? fv('sowPermits') : '',
-    inspections:     type === 'sow' ? fv('sowInspections') : '',
-    roc:             'AZ ROC KB-1 #343120',
-    cmiRep:          type === 'contract' ? fv('contractCmiRep') : '',
-    preparedBy:      type === 'sow' ? fv('sowPreparedBy') : '',
-    status:          'Draft',
-    notes:           '',
+    permits:         type === 'sow' ? fv('permits') : fv('permit_responsibility'),
+    inspections:     type === 'sow' ? fv('inspections') : '',
+    roc:             fv('roc_license') || 'AZ ROC KB-1 #343120',
+    cmiRep:          type === 'contract' ? fv('cmi_rep') : '',
+    preparedBy:      type === 'sow' ? fv('prepared_by') : '',
+    status:          docFormStatus(fv('doc_status')),
+    notes:           fv('internal_notes') || fv('special_conditions'),
   };
-  DOCS.unshift(doc);
-  if (sb) {
-    try {
+  try {
+    if (sb) {
       const { error } = await sb.from('documents').insert(docToDb(doc));
-      if (error) console.warn('Supabase insert error:', error);
-    } catch(e) { console.warn('Supabase insert failed:', e); }
+      if (error) throw error;
+    }
+    DOCS.unshift(doc);
+    try { localStorage.setItem('cmi-docs', JSON.stringify(DOCS)); } catch(e) {}
+    form.reset();
+    renderDocsTable();
+    updateDocStats();
+    showToast(label + ' created');
+    nav('documents', null);
+  } catch(e) {
+    console.warn('Document insert failed:', e);
+    showToast('Could not save ' + label.toLowerCase() + ': ' + (e.message || e));
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = btnHtml; }
   }
-  try { localStorage.setItem('cmi-docs', JSON.stringify(DOCS)); } catch(e) {}
-  renderDocsTable();
-  updateDocStats();
-  showToast(label + ' created');
-  nav('documents', null);
 }
 
 // --- Document Modal -------------------------------------------
@@ -4994,18 +5324,21 @@ async function saveDoc() {
     doc[el.dataset.key] = el.value;
   });
   // Persist to Supabase
-  if (sb) {
-    try {
+  try {
+    if (sb) {
       const { error } = await sb.from('documents').upsert(docToDb(doc), { onConflict: 'id' });
-      if (error) console.warn('Supabase save error:', error);
-    } catch(e) { console.warn('Supabase save failed:', e); }
+      if (error) throw error;
+    }
+    // localStorage fallback
+    try { localStorage.setItem('cmi-docs', JSON.stringify(DOCS)); } catch(e) {}
+    renderDocsTable();
+    updateDocStats();
+    showToast('Document saved');
+    openDocModal(doc.id, 'view');
+  } catch(e) {
+    console.warn('Supabase save failed:', e);
+    showToast('Could not save document: ' + (e.message || e));
   }
-  // localStorage fallback
-  try { localStorage.setItem('cmi-docs', JSON.stringify(DOCS)); } catch(e) {}
-  renderDocsTable();
-  updateDocStats();
-  showToast('Document saved');
-  openDocModal(doc.id, 'view');
 }
 
 // --- Supabase: Mapping ----------------------------------------
