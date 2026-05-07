@@ -528,13 +528,13 @@
           </div>
           <!-- Category Chips -->
           <div>
-            <label class="form-label">Category <span class="normal-case font-normal text-neutral-600">� select all that apply</span></label>
+            <label class="form-label">Category <span class="normal-case font-normal text-neutral-600">select all that apply</span></label>
             <div id="categoryChips" class="flex flex-wrap gap-2 mt-1"></div>
             <input type="hidden" name="category" id="categoryValue" />
           </div>
           <!-- Services Chips -->
           <div>
-            <label class="form-label">Services Used <span class="normal-case font-normal text-neutral-600">� select all that apply</span></label>
+            <label class="form-label">Services Used <span class="normal-case font-normal text-neutral-600">select all that apply</span></label>
             <div id="servicesChips" class="flex flex-wrap gap-2 mt-1"></div>
             <input type="hidden" name="service_used" id="servicesValue" />
           </div>
@@ -551,7 +551,7 @@
           </div>
           <!-- Gallery -->
           <div>
-            <label class="form-label">Image Gallery <span class="normal-case font-normal text-neutral-600">� multiple</span></label>
+            <label class="form-label">Image Gallery <span class="normal-case font-normal text-neutral-600">multiple</span></label>
             <div class="upload-zone" id="galleryZone" onclick="document.getElementById('galleryInput').click()" ondragover="onDragOver(event,'galleryZone')" ondragleave="onDragLeave('galleryZone')" ondrop="onDrop(event,'galleryPreview',true)">
               <svg class="w-8 h-8 text-neutral-600 mx-auto mb-2" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
               <p class="text-sm text-neutral-500">Click or drag to upload gallery images</p>
@@ -562,7 +562,7 @@
           </div>
           <!-- Video -->
           <div>
-            <label class="form-label">Video <span class="normal-case font-normal text-neutral-600">� optional</span></label>
+            <label class="form-label">Video <span class="normal-case font-normal text-neutral-600">optional</span></label>
             <div class="upload-zone" id="videoZone" onclick="document.getElementById('videoInput').click()" ondragover="onDragOver(event,'videoZone')" ondragleave="onDragLeave('videoZone')">
               <svg class="w-8 h-8 text-neutral-600 mx-auto mb-2" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
               <p class="text-sm text-neutral-500">Click or drag to upload video</p>
@@ -1096,6 +1096,106 @@
         </div>
       </section>
 
+      <!-- -- ADD QUOTE -- -->
+      <section id="sec-add-quote" class="section">
+        <div class="flex items-center justify-between mb-6">
+          <div>
+            <p class="text-[10px] uppercase tracking-widest text-neutral-500 font-medium">Sales</p>
+            <h2 class="font-display text-2xl text-neutral-100 mt-0.5">Add Quote</h2>
+          </div>
+          <button onclick="resetDashboardQuoteForm();nav('quotes',null)" class="flex items-center gap-2 text-sm text-neutral-400 hover:text-neutral-200">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 12H5m7-7l-7 7 7 7"/></svg>
+            Back to Quotes
+          </button>
+        </div>
+        <form id="dashboardQuoteForm" onsubmit="submitDashboardQuote(event)" class="max-w-3xl space-y-8">
+          <div class="card p-6 space-y-5">
+            <p class="text-[10px] uppercase tracking-widest font-medium mb-1" style="color:var(--gold)">Project Type</p>
+            <div>
+              <label class="form-label">What type of project is this? <span class="normal-case font-normal text-neutral-600">select all that apply</span></label>
+              <div class="flex flex-wrap gap-2 mt-1" id="quoteCategoryChips"></div>
+              <input type="hidden" name="project_categories" id="quoteCategoryValue" />
+            </div>
+            <div>
+              <label class="form-label">Which services do you need? <span class="normal-case font-normal text-neutral-600">select all that apply</span></label>
+              <div class="flex flex-wrap gap-2 mt-1" id="quoteServiceChips"></div>
+              <input type="hidden" name="services" id="quoteServicesValue" />
+            </div>
+          </div>
+          <div class="card p-6 space-y-5">
+            <p class="text-[10px] uppercase tracking-widest font-medium mb-1" style="color:var(--gold)">Project Details</p>
+            <div><label class="form-label">Project Title *</label><input name="project_title" class="form-input" placeholder="e.g. Custom Home Build, Gilbert, AZ" required /></div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div><label class="form-label">Project Location *</label><input name="location" class="form-input" placeholder="City, AZ" required /></div>
+              <div><label class="form-label">Approximate Square Footage</label><input name="square_feet" type="number" min="0" class="form-input" placeholder="e.g. 2500" /></div>
+              <div>
+                <label class="form-label">Desired Timeline</label>
+                <select id="quoteTimeline" name="timeline" class="form-input">
+                  <option value="">Select</option>
+                  <option value="ASAP">ASAP, Ready to start</option>
+                  <option value="1-3 months">1-3 months</option>
+                  <option value="3-6 months">3-6 months</option>
+                  <option value="6-12 months">6-12 months</option>
+                  <option value="1+ year">1+ year out</option>
+                  <option value="Still planning">Still in planning phase</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label">Estimated Budget</label>
+                <select id="quoteBudget" name="budget" class="form-input">
+                  <option value="">Select</option>
+                  <option value="Under $100K">Under $100K</option>
+                  <option value="$100K - $250K">$100K - $250K</option>
+                  <option value="$250K - $500K">$250K - $500K</option>
+                  <option value="$500K - $1M">$500K - $1M</option>
+                  <option value="$1M - $2M">$1M - $2M</option>
+                  <option value="$2M+">$2M+</option>
+                  <option value="Not sure">Not sure yet</option>
+                </select>
+              </div>
+            </div>
+            <div><label class="form-label">Project Description *</label><textarea name="description" class="form-input" rows="5" placeholder="Describe the vision, existing plans, special requirements, or questions." required></textarea></div>
+          </div>
+          <div class="card p-6 space-y-5">
+            <p class="text-[10px] uppercase tracking-widest font-medium mb-1" style="color:var(--gold)">Contact Information</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div><label class="form-label">First Name *</label><input name="first_name" class="form-input" placeholder="Jane" required /></div>
+              <div><label class="form-label">Last Name *</label><input name="last_name" class="form-input" placeholder="Smith" required /></div>
+              <div><label class="form-label">Email Address *</label><input name="email" type="email" class="form-input" placeholder="jane@example.com" required /></div>
+              <div><label class="form-label">Phone Number</label><input name="phone" type="tel" class="form-input" placeholder="(480) 555-0000" /></div>
+            </div>
+            <div>
+              <label class="form-label">Preferred Contact Method</label>
+              <select id="quotePreferredContact" name="preferred_contact" class="form-input">
+                <option value="Email">Email</option>
+                <option value="Phone">Phone</option>
+                <option value="Either">Either is fine</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label">How did they hear about us?</label>
+              <select id="quoteSource" name="source" class="form-input">
+                <option value="">Select</option>
+                <option value="Google Search">Google Search</option>
+                <option value="Social Media">Social Media</option>
+                <option value="Referral">Referral</option>
+                <option value="Project Drive-By">Project Drive-By</option>
+                <option value="Networking Event">Networking Event</option>
+                <option value="Vendor Referral">Vendor Referral</option>
+                <option value="Vehicle Graphics">Vehicle Graphics</option>
+                <option value="Walk-In">Walk-In</option>
+                <option value="Email Inquiry">Email Inquiry</option>
+                <option value="Dashboard">Dashboard</option>
+              </select>
+            </div>
+          </div>
+          <div class="flex gap-3 pt-2">
+            <button type="submit" id="quoteSubmitBtn" class="px-7 py-2.5 rounded-lg text-white text-sm font-medium hover:opacity-90" style="background:var(--gold)">Save Quote</button>
+            <button type="button" onclick="resetDashboardQuoteForm();nav('quotes',null)" class="px-7 py-2.5 rounded-lg text-sm font-medium hover:opacity-80" style="border:1px solid var(--border-lg);color:var(--text-dim);background:transparent">Cancel</button>
+          </div>
+        </form>
+      </section>
+
       <!-- -- TEAM -- -->
       <section id="sec-team" class="section">
         <div class="flex items-center justify-between mb-5">
@@ -1284,7 +1384,7 @@
               <div>
                 <label class="form-label">Project Type</label>
                 <select name="project_type" class="form-input">
-                  <option value="">Select�</option>
+                  <option value="">Select</option>
                   <option>Residential</option>
                   <option>Commercial</option>
                   <option>ADU</option>
@@ -1298,17 +1398,17 @@
               <div>
                 <label class="form-label">Desired Timeline</label>
                 <select name="timeline" class="form-input">
-                  <option value="">Select�</option>
-                  <option>1�3 months</option>
-                  <option>3�6 months</option>
-                  <option>6�12 months</option>
-                  <option>12�18 months</option>
+                  <option value="">Select</option>
+                  <option>1-3 months</option>
+                  <option>3-6 months</option>
+                  <option>6-12 months</option>
+                  <option>12-18 months</option>
                   <option>18+ months</option>
                 </select>
               </div>
             </div>
             <div>
-              <label class="form-label">Services Included <span class="normal-case font-normal text-neutral-600">� select all that apply</span></label>
+              <label class="form-label">Services Included <span class="normal-case font-normal text-neutral-600">select all that apply</span></label>
               <div class="flex flex-wrap gap-2 mt-1" id="contractServiceChips"></div>
               <input type="hidden" name="services" id="contractServicesValue" />
             </div>
@@ -1325,12 +1425,12 @@
               <div>
                 <label class="form-label">Budget Range</label>
                 <select name="budget_range" class="form-input">
-                  <option value="">Select�</option>
+                  <option value="">Select</option>
                   <option>Under $100K</option>
-                  <option>$100K � $250K</option>
-                  <option>$250K � $500K</option>
-                  <option>$500K � $1M</option>
-                  <option>$1M � $2M</option>
+                  <option>$100K - $250K</option>
+                  <option>$250K - $500K</option>
+                  <option>$500K - $1M</option>
+                  <option>$1M - $2M</option>
                   <option>$2M+</option>
                 </select>
               </div>
@@ -1355,10 +1455,10 @@
             <div>
               <label class="form-label">Permit Responsibility</label>
               <select name="permit_responsibility" class="form-input">
-                <option value="">Select�</option>
+                <option value="">Select</option>
                 <option value="cmi">CMI will obtain all required permits</option>
                 <option value="client">Client responsible for permits</option>
-                <option value="shared">Shared � see special conditions</option>
+                <option value="shared">Shared - see special conditions</option>
                 <option value="na">Not applicable</option>
               </select>
             </div>
@@ -1375,7 +1475,7 @@
               <div>
                 <label class="form-label">CMI Authorized Representative</label>
                 <select name="cmi_rep" class="form-input">
-                  <option value="">Select�</option>
+                  <option value="">Select</option>
                   <option>Brandon Fadden � Principal / President</option>
                   <option>Joseph Ballard � Principal / Construction Manager</option>
                   <option>Ben Peck � Project Manager</option>
@@ -1431,7 +1531,7 @@
               <div><label class="form-label">SOW Version</label><input name="sow_version" class="form-input" placeholder="e.g. v1.0" value="v1.0" /></div>
               <div><label class="form-label">Prepared By</label>
                 <select name="prepared_by" class="form-input">
-                  <option value="">Select�</option>
+                  <option value="">Select</option>
                   <option>Brandon Fadden � Principal / President</option>
                   <option>Joseph Ballard � Principal / Construction Manager</option>
                   <option>Ben Peck � Project Manager</option>
@@ -1461,7 +1561,7 @@
               <div>
                 <label class="form-label">Project Type</label>
                 <select name="project_type" class="form-input">
-                  <option value="">Select�</option>
+                  <option value="">Select</option>
                   <option>Residential</option>
                   <option>Commercial</option>
                   <option>ADU</option>
@@ -1475,12 +1575,12 @@
               <div>
                 <label class="form-label">Estimated Budget</label>
                 <select name="budget" class="form-input">
-                  <option value="">Select�</option>
+                  <option value="">Select</option>
                   <option>Under $100K</option>
-                  <option>$100K � $250K</option>
-                  <option>$250K � $500K</option>
-                  <option>$500K � $1M</option>
-                  <option>$1M � $2M</option>
+                  <option>$100K - $250K</option>
+                  <option>$250K - $500K</option>
+                  <option>$500K - $1M</option>
+                  <option>$1M - $2M</option>
                   <option>$2M+</option>
                 </select>
               </div>
@@ -1488,11 +1588,11 @@
               <div>
                 <label class="form-label">Desired Timeline</label>
                 <select name="timeline" class="form-input">
-                  <option value="">Select�</option>
-                  <option>1�3 months</option>
-                  <option>3�6 months</option>
-                  <option>6�12 months</option>
-                  <option>12�18 months</option>
+                  <option value="">Select</option>
+                  <option>1-3 months</option>
+                  <option>3-6 months</option>
+                  <option>6-12 months</option>
+                  <option>12-18 months</option>
                   <option>18+ months</option>
                 </select>
               </div>
@@ -1500,7 +1600,7 @@
               <div><label class="form-label">Estimated Completion Date</label><input name="end_date" type="date" class="form-input" /></div>
             </div>
             <div>
-              <label class="form-label">Services Included <span class="normal-case font-normal text-neutral-600">� select all that apply</span></label>
+              <label class="form-label">Services Included <span class="normal-case font-normal text-neutral-600">select all that apply</span></label>
               <div class="flex flex-wrap gap-2 mt-1" id="sowServiceChips"></div>
               <input type="hidden" name="services" id="sowServicesValue" />
             </div>
@@ -1522,7 +1622,7 @@
             <div>
               <label class="form-label">Permit Requirements</label>
               <select name="permits" class="form-input">
-                <option value="">Select�</option>
+                <option value="">Select</option>
                 <option value="cmi">CMI will obtain all required permits</option>
                 <option value="client">Client responsible for permits</option>
                 <option value="none">No permits required</option>
@@ -1719,7 +1819,7 @@
         <div>
           <p class="form-label">Priority</p>
           <select id="fbTaskModalPriorityInput" class="form-input text-sm">
-            <option value="">� None �</option>
+            <option value="">None</option>
             <option value="low">Low</option>
             <option value="medium">Medium</option>
             <option value="high">High</option>
@@ -1923,6 +2023,17 @@ const CATEGORIES = [
   'Hospitality','Industrial / Warehouse','Mixed-Use','Project Management Only',
 ];
 
+const QUOTE_CATEGORIES = [
+  'Residential','Commercial','ADU','New Construction','Architectural and Design Coordination',
+  'Renovations and Additions','Remodel / Renovation','Other',
+];
+
+const QUOTE_SERVICES = [
+  'General Contracting','Design-Build','Architectural Design','Architectural and Design Coordination',
+  'Permitting & Entitlements','Structural Framing','MEP','Finish Carpentry','Landscaping',
+  'Renovations and Additions Only',
+];
+
 const SERVICES = [
   'Site Preparation & Grading','Permitting & Entitlements','Foundation & Concrete',
   'Structural Steel','Framing','Roofing','Exterior Stucco & Finishes','Windows & Doors',
@@ -2041,7 +2152,7 @@ let DOC_FILTER    = 'all';
 const TITLES = {
   overview:'Overview', portfolio:'Portfolio', 'add-project':'New Project',
   projects:'Projects', blog:'Blog', 'add-blog':'New Post', clients:'Contacts',
-  bookings:'Bookings', 'add-booking':'Add Appointment', quotes:'Quotes & Leads', team:'Team',
+  bookings:'Bookings', 'add-booking':'Add Appointment', quotes:'Quotes & Leads', 'add-quote':'Add Quote', team:'Team',
   'add-team':'Add Team Member', documents:'Documents',
   'new-contract':'New Contract', 'new-sow':'New Scope of Work',
   settings:'Settings',
@@ -2051,7 +2162,7 @@ const CTX_ACTIONS = {
   portfolio:  { label: '+ Add Portfolio',   action: () => openNewProject() },
   bookings:   { label: '+ Add Appointment', action: () => nav('add-booking', null) },
   clients:    { label: '+ Add Contact',     action: () => openNewContact() },
-  quotes:     { label: '+ Add Quote',       action: () => openNewQuote() },
+  quotes:     { label: 'Add Quote',         action: () => openNewQuote() },
   blog:       { label: '+ Add Post',        action: () => nav('add-blog', null) },
   team:       { label: 'Add Member',        action: () => nav('add-team', null) },
 };
@@ -2946,6 +3057,82 @@ function buildQuoteFilters() {
   document.getElementById('quoteFilterChips').innerHTML = statuses.map((s, i) =>
     '<div class="chip text-xs' + (i === 0 ? ' selected' : '') + '" onclick="selectFilter(this,\'quoteFilterChips\');renderQuotes(' + (s === 'All' ? 'null' : 'QUOTES.filter(q=>q.status===\'' + s + '\')') + ')">' + s + '</div>'
   ).join('');
+}
+
+function openNewQuote() {
+  resetDashboardQuoteForm();
+  initDashboardQuoteControls();
+  nav('add-quote', null);
+}
+
+function resetDashboardQuoteForm() {
+  const form = document.getElementById('dashboardQuoteForm');
+  if (form) form.reset();
+  document.querySelectorAll('#quoteCategoryChips .chip, #quoteServiceChips .chip').forEach(c => c.classList.remove('selected'));
+  ['quoteCategoryValue','quoteServicesValue'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  ['quoteTimeline','quoteBudget','quotePreferredContact','quoteSource'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (sel) setCustomSelect(id, sel.value || '');
+  });
+}
+
+function initDashboardQuoteControls() {
+  buildMultiChips('quoteCategoryChips', QUOTE_CATEGORIES, 'quoteCategoryValue');
+  buildMultiChips('quoteServiceChips', QUOTE_SERVICES, 'quoteServicesValue');
+  ['quoteTimeline','quoteBudget','quotePreferredContact','quoteSource'].forEach(buildCustomSelect);
+}
+
+function dashboardQuoteValues(form) {
+  const fd = new FormData(form);
+  const fv = name => String(fd.get(name) || '').trim();
+  const first = fv('first_name');
+  const last = fv('last_name');
+  return {
+    name: [first, last].filter(Boolean).join(' '),
+    email: fv('email'),
+    phone: fv('phone'),
+    project_type: fv('project_categories'),
+    location: fv('location'),
+    sq_ft: fv('square_feet') ? Number(fv('square_feet')) : null,
+    budget_range: fv('budget'),
+    timeline: fv('timeline'),
+    services: fv('services') ? fv('services').split(',').map(s => s.trim()).filter(Boolean) : [],
+    description: fv('description'),
+    status: 'New',
+    source: fv('source') || 'Dashboard',
+  };
+}
+
+async function submitDashboardQuote(event) {
+  event.preventDefault();
+  const form = event.target;
+  const btn = document.getElementById('quoteSubmitBtn');
+  const btnText = btn ? btn.textContent : '';
+  const payload = dashboardQuoteValues(form);
+  if (!payload.name || !payload.email || !payload.location || !payload.description) {
+    showToast('Please complete the required quote fields.');
+    return;
+  }
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
+  try {
+    let saved = null;
+    if (sb) {
+      const { data, error } = await sb.from('quotes').insert(payload).select('*').single();
+      if (error) throw error;
+      saved = data;
+    }
+    QUOTES.unshift(dbToQuote(saved || { ...payload, created_at: new Date().toISOString() }));
+    buildQuoteFilters();
+    renderQuotes();
+    resetDashboardQuoteForm();
+    showToast('Quote saved');
+    nav('quotes', null);
+  } catch(e) {
+    console.warn('Quote insert failed:', e);
+    showToast('Could not save quote: ' + (e.message || e));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = btnText; }
+  }
 }
 
 // --- Team: Supabase-first, WordPress fallback ------------------
@@ -5775,6 +5962,7 @@ function buildCustomSelect(selectId) {
     item.addEventListener('mousedown', e => {
       e.preventDefault();
       sel.value = opt.value;
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
       label.textContent = opt.text;
       trigger.classList.toggle('placeholder', !opt.value);
       menu.querySelectorAll('.cmi-sel-opt').forEach(el => el.classList.remove('selected'));
@@ -5932,6 +6120,7 @@ async function init() {
   renderProjects();
   buildMultiChips('categoryChips', CATEGORIES, 'categoryValue');
   buildMultiChips('servicesChips', SERVICES, 'servicesValue');
+  initDashboardQuoteControls();
   addTeamAttrRow('teamAttrRepeater'); // start Add form with one blank row
   buildMultiChips('contractServiceChips', SERVICES, 'contractServicesValue');
   buildMultiChips('sowServiceChips', SERVICES, 'sowServicesValue');
