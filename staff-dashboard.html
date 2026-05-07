@@ -3070,14 +3070,24 @@ function teamToLegacySupabaseRow(row) {
 }
 async function saveTeamRow(row, mode = 'upsert') {
   const table = sb.from('team_members');
+  const clean = (payload) => Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined));
   const run = (payload) => {
-    if (mode === 'insert') return table.insert(payload).select().single();
-    return table.upsert(payload, { onConflict: payload.id ? 'id' : 'slug' }).select().single();
+    const safePayload = clean(payload);
+    if (mode === 'insert') return table.insert(safePayload).select().single();
+    return table.upsert(safePayload, { onConflict: safePayload.id ? 'id' : 'slug' }).select().single();
   };
   let { data, error } = await run(row);
+  if (error?.code === '23505' && row.slug) {
+    console.warn('Team save hit duplicate slug, retrying as slug upsert:', row.slug);
+    ({ data, error } = await table.upsert(clean({ ...row, id: undefined }), { onConflict: 'slug' }).select().single());
+  }
   if (error && isSchemaCacheColumnError(error)) {
     console.warn('Team save retrying with legacy team_members schema:', error.message);
     ({ data, error } = await run(teamToLegacySupabaseRow(row)));
+    if (error?.code === '23505' && row.slug) {
+      console.warn('Legacy team save hit duplicate slug, retrying as slug upsert:', row.slug);
+      ({ data, error } = await table.upsert(clean({ ...teamToLegacySupabaseRow(row), id: undefined }), { onConflict: 'slug' }).select().single());
+    }
   }
   if (error) throw error;
   return data;
@@ -4020,7 +4030,7 @@ async function submitTeamMember(e) {
       WP_MEDIA_MAP[uploaded.id] = uploaded.url;
     }
     const row = teamToSupabaseRow(null, meta);
-    const data = await saveTeamRow(row, 'insert');
+    const data = await saveTeamRow(row);
     WP_TEAM.push(teamFromSupabase(data));
     renderTeamCards();
     form.reset();
