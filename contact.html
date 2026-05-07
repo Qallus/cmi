@@ -109,6 +109,38 @@
     }
     .light .cmi-label { color: #1a1a1a; }
     .dark .cmi-label { color: #F0EDEA; }
+    .contact-select-wrap { position: relative; }
+    .contact-select-trigger {
+      width: 100%; min-height: 3.25rem; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+      padding: 0.75rem 1rem; border-radius: 6px; border: 1px solid; font-family: 'Roboto', sans-serif;
+      font-size: 0.875rem; text-align: left; cursor: pointer; outline: none;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+    }
+    .light .contact-select-trigger { background: #ffffff; border-color: rgba(0,0,0,0.15); color: #1a1a1a; }
+    .dark .contact-select-trigger { background: #1e1e1e; border-color: rgba(255,255,255,0.1); color: #F0EDEA; }
+    .light .contact-select-trigger.placeholder { color: #9E9A96; }
+    .dark .contact-select-trigger.placeholder { color: #6E6A66; }
+    .light .contact-select-trigger.open, .light .contact-select-trigger:focus { border-color: #9E6F2E; box-shadow: 0 0 0 3px rgba(158,111,46,0.12); }
+    .dark .contact-select-trigger.open, .dark .contact-select-trigger:focus { border-color: #C9A46E; box-shadow: 0 0 0 3px rgba(201,164,110,0.12); }
+    .contact-select-chevron { flex-shrink: 0; opacity: 0.68; transition: transform 0.18s ease; }
+    .contact-select-trigger.open .contact-select-chevron { transform: rotate(180deg); }
+    .contact-select-menu {
+      display: none; position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 80;
+      border: 1px solid; border-radius: 10px; padding: 0.35rem; box-shadow: 0 18px 48px rgba(0,0,0,0.18);
+    }
+    .contact-select-menu.open { display: block; }
+    .light .contact-select-menu { background: #ffffff; border-color: rgba(0,0,0,0.08); }
+    .dark .contact-select-menu { background: #151515; border-color: rgba(255,255,255,0.12); box-shadow: 0 18px 48px rgba(0,0,0,0.45); }
+    .contact-select-option {
+      width: 100%; display: block; padding: 0.7rem 0.85rem; border: 0; border-radius: 8px;
+      background: transparent; font-size: 0.875rem; text-align: left; cursor: pointer;
+      transition: background-color 0.12s ease, color 0.12s ease;
+    }
+    .light .contact-select-option { color: #1a1a1a; }
+    .dark .contact-select-option { color: #F0EDEA; }
+    .light .contact-select-option:hover, .light .contact-select-option.selected { background: rgba(158,111,46,0.08); color: #9E6F2E; }
+    .dark .contact-select-option:hover, .dark .contact-select-option.selected { background: rgba(201,164,110,0.12); color: #C9A46E; }
+    .contact-select-option.placeholder { color: #9E9A96; }
 
     /* Toast notification */
     #cmiToast {
@@ -392,7 +424,7 @@
           <div>
             <label class="cmi-label" for="source">How did you hear about us?</label>
             <select id="source" name="source" class="cmi-input">
-              <option value="">Select one…</option>
+              <option value="">Select one</option>
               <option value="Google Search">Google Search</option>
               <option value="Social Media">Social Media</option>
               <option value="Referral">Referral</option>
@@ -415,7 +447,7 @@
           <!-- Message -->
           <div>
             <label class="cmi-label" for="message">Message <span class="text-red-400">*</span></label>
-            <textarea id="message" name="project_description" required rows="5" placeholder="Tell us about your project, timeline, or any questions you have…" class="cmi-input resize-none"></textarea>
+            <textarea id="message" name="project_description" required rows="5" placeholder="Tell us about your project, timeline, or any questions you have." class="cmi-input resize-none"></textarea>
           </div>
 
           <!-- Privacy note -->
@@ -467,7 +499,7 @@
               <svg class="w-5 h-5 mt-0.5 text-cmi-gold-light dark:text-cmi-gold-dark shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
               <div>
                 <p class="font-medium text-neutral-800 dark:text-neutral-200 mb-0.5">Office Hours</p>
-                <p>Mon – Fri: 8:00 AM – 5:00 PM</p>
+                <p>Mon - Fri: 8:00 AM - 5:00 PM</p>
                 <p>Sat: By Appointment</p>
               </div>
             </li>
@@ -701,6 +733,60 @@
   }
 
   toastClose.addEventListener('click', dismissToast);
+  function buildContactSelect(selectId) {
+    const sel = document.getElementById(selectId);
+    if (!sel || sel.dataset.contactSelectReady === 'true') return;
+    sel.dataset.contactSelectReady = 'true';
+    sel.style.display = 'none';
+
+    const wrap = document.createElement('div');
+    wrap.className = 'contact-select-wrap';
+    sel.parentNode.insertBefore(wrap, sel);
+    wrap.appendChild(sel);
+
+    const trigger = document.createElement('button');
+    trigger.type = 'button';
+    trigger.className = 'contact-select-trigger' + (!sel.value ? ' placeholder' : '');
+    const label = document.createElement('span');
+    const current = Array.from(sel.options).find(opt => opt.value === sel.value) || sel.options[0];
+    label.textContent = current ? current.text : 'Select one';
+    const chevron = document.createElementNS('http://www.w3.org/2000/svg','svg');
+    chevron.setAttribute('class','contact-select-chevron');
+    chevron.setAttribute('width','16'); chevron.setAttribute('height','16');
+    chevron.setAttribute('fill','none'); chevron.setAttribute('stroke','currentColor');
+    chevron.setAttribute('stroke-width','2'); chevron.setAttribute('viewBox','0 0 24 24');
+    const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('d','M6 9l6 6 6-6');
+    chevron.appendChild(path);
+    trigger.appendChild(label); trigger.appendChild(chevron);
+
+    const menu = document.createElement('div');
+    menu.className = 'contact-select-menu';
+    Array.from(sel.options).forEach(opt => {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'contact-select-option' + (!opt.value ? ' placeholder' : '') + (opt.value === sel.value ? ' selected' : '');
+      item.dataset.value = opt.value;
+      item.textContent = opt.text;
+      item.addEventListener('click', () => {
+        sel.value = opt.value;
+        sel.dispatchEvent(new Event('change', { bubbles: true }));
+        label.textContent = opt.text;
+        trigger.classList.toggle('placeholder', !opt.value);
+        menu.querySelectorAll('.contact-select-option').forEach(el => el.classList.remove('selected'));
+        item.classList.add('selected');
+        close();
+      });
+      menu.appendChild(item);
+    });
+
+    function close() { trigger.classList.remove('open'); menu.classList.remove('open'); }
+    function open() { trigger.classList.add('open'); menu.classList.add('open'); }
+    trigger.addEventListener('click', e => { e.stopPropagation(); menu.classList.contains('open') ? close() : open(); });
+    wrap.appendChild(trigger); wrap.appendChild(menu);
+    document.addEventListener('click', close);
+  }
+  buildContactSelect('source');
 
   // -- Contact Form Submission --
   const FLUENT_WEBHOOK = 'https://wp.constructedmatter.com/?fluentcrm=1&route=contact&hash=d1125c3e-8e7c-4324-8b87-d7442013e870';
@@ -727,7 +813,7 @@
 
     // Loading state
     btn.disabled = true;
-    label.textContent = 'Sending…';
+    label.textContent = 'Sending...';
     arrow.classList.add('hidden');
     spinner.classList.remove('hidden');
 
@@ -838,7 +924,7 @@
   <div id="fabCard" class="w-[300px] bg-white dark:bg-cmi-dark-light rounded-2xl shadow-2xl border border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden">
     <div class="px-5 py-4 border-b border-neutral-100 dark:border-neutral-800">
       <p class="font-semibold text-neutral-900 dark:text-neutral-100 text-[15px]">Constructed Matter Support</p>
-      <p class="text-[12px] text-neutral-500 dark:text-neutral-400 mt-0.5 leading-snug">We're open Monday – Friday 8:00 am to 5:00 pm.</p>
+      <p class="text-[12px] text-neutral-500 dark:text-neutral-400 mt-0.5 leading-snug">We're open Monday - Friday 8:00 am to 5:00 pm.</p>
     </div>
     <div class="divide-y divide-neutral-100 dark:divide-neutral-800">
       <a href="tel:+14806284458"
