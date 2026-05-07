@@ -2054,7 +2054,6 @@ const CTX_ACTIONS = {
   quotes:     { label: '+ Add Quote',       action: () => openNewQuote() },
   blog:       { label: '+ Add Post',        action: () => nav('add-blog', null) },
   team:       { label: 'Add Member',        action: () => nav('add-team', null) },
-  documents:  { label: '+ Add Document',    action: () => openNewDocument() },
 };
 
 function ctxAction() {
@@ -3708,6 +3707,21 @@ function getTeamAttrs(containerId) {
   })).filter(a => a.title);
 }
 
+function mergeTeamAttrs(existingAttrs, nextAttrs) {
+  const existingByTitle = new Map((Array.isArray(existingAttrs) ? existingAttrs : []).map(attr => {
+    const title = typeof attr === 'object' && attr !== null ? attr.title : String(attr || '');
+    const description = typeof attr === 'object' && attr !== null ? attr.description : '';
+    return [title.trim().toLowerCase(), { title, description }];
+  }).filter(([key]) => key));
+  return nextAttrs.map(attr => {
+    const prior = existingByTitle.get(attr.title.trim().toLowerCase());
+    return {
+      title: attr.title,
+      description: attr.description || prior?.description || '',
+    };
+  });
+}
+
 // ── Add Team Member (create new) ──────────────────────────────
 async function submitTeamMember(e) {
   e.preventDefault();
@@ -3959,7 +3973,7 @@ async function saveTeamMember() {
     email_address: document.getElementById('tmEmail').value.trim(),
     linkedIn_url:  document.getElementById('tmLinkedIn').value.trim(),
     bio:           document.getElementById('tmBio').value.trim(),
-    key_attributes: getTeamAttrs('tmAttrRepeater'),
+    key_attributes: mergeTeamAttrs(oldMeta.key_attributes, getTeamAttrs('tmAttrRepeater')),
     schedule:      document.getElementById('tmSchedule').value.trim(),
   };
   try {
