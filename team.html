@@ -445,14 +445,15 @@
   const slugify = (s) => String(s || 'team-member').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'') || 'team-member';
   const initials = (name) => name.split(/\s+/).map(p => p[0]).join('').slice(0,2).toUpperCase() || '?';
   function details(row) {
-    const raw = row.availability || '';
-    if (!raw || typeof raw !== 'string' || raw.trim()[0] !== '{') return {};
-    try {
-      const parsed = JSON.parse(raw);
-      return parsed && parsed._cmiTeamDetails ? parsed : {};
-    } catch (_) {
-      return {};
+    const candidates = [row.tagline, row.department, row.availability];
+    for (const raw of candidates) {
+      if (!raw || typeof raw !== 'string' || raw.trim()[0] !== '{') continue;
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed._cmiTeamDetails) return parsed;
+      } catch (_) {}
     }
+    return {};
   }
   function attrs(row) {
     const d = details(row);
