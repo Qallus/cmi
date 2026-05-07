@@ -120,7 +120,7 @@
   <div class="max-w-[1400px] mx-auto px-6 lg:px-10">
     <div class="grid grid-cols-1 lg:grid-cols-[380px_1fr] xl:grid-cols-[440px_1fr] gap-12 lg:gap-16 items-start">
       <div class="fade-up">
-        <div class="rounded-2xl overflow-hidden aspect-[3/4] bg-neutral-100 dark:bg-neutral-800/60 flex flex-col items-center justify-center mb-6 border border-neutral-200/60 dark:border-neutral-800/60">
+        <div id="teamProfilePhoto" class="relative group rounded-2xl overflow-hidden aspect-[3/4] bg-neutral-100 dark:bg-neutral-800/60 flex flex-col items-center justify-center mb-6 border border-neutral-200/60 dark:border-neutral-800/60">
           <div class="w-28 h-28 rounded-full bg-cmi-gold-light/10 dark:bg-cmi-gold-dark/10 border-2 border-cmi-gold-light/30 dark:border-cmi-gold-dark/30 flex items-center justify-center mb-4">
             <span class="font-display text-4xl text-cmi-gold-light dark:text-cmi-gold-dark">JW</span>
           </div>
@@ -303,9 +303,10 @@
       if (h1) h1.textContent = name;
       const role = document.querySelector('p.text-\\[12px\\].uppercase');
       if (role && row.role) role.textContent = row.role;
-      const heroPhoto = document.querySelector('.relative.aspect-\\[3\\/4\\]');
+      const heroPhoto = document.getElementById('teamProfilePhoto');
       if (heroPhoto && row.profile_photo) {
-        heroPhoto.innerHTML = '<img src="' + esc(row.profile_photo) + '" alt="' + esc(name) + '" class="w-full h-full object-cover object-top" />';
+        heroPhoto.innerHTML = '<img src="' + esc(row.profile_photo) + '" alt="' + esc(name) + '" class="absolute inset-0 w-full h-full object-cover object-top transition-opacity duration-300" />' +
+          (row.secondary_photo ? '<img src="' + esc(row.secondary_photo) + '" alt="' + esc(name) + ' alternate" class="absolute inset-0 w-full h-full object-cover object-top opacity-0 group-hover:opacity-100 transition-opacity duration-300" />' : '');
       }
       const emailLinks = document.querySelectorAll('a[href^="mailto:"]');
       if (row.email) emailLinks.forEach(a => { a.href = 'mailto:' + row.email; if (a.textContent.includes('@')) a.lastChild.textContent = row.email; });
