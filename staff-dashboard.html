@@ -5805,6 +5805,7 @@ function destroyCustomSelect(id) {
 }
 
 let _fpDate, _fpStart, _fpEnd, _fpFBDue;
+let _docPickersReady = false;
 let _bkEditId = null;
 
 function resetAddBookingState() {
@@ -5888,6 +5889,35 @@ function initBookingPickers() {
   buildCustomSelect('abStatus');
 }
 
+function initDocumentFormControls() {
+  if (_docPickersReady) return;
+  const sections = ['sec-new-contract', 'sec-new-sow'];
+  sections.forEach(sectionId => {
+    const section = document.getElementById(sectionId);
+    if (!section) return;
+
+    section.querySelectorAll('select.form-input').forEach((select, index) => {
+      if (!select.id) select.id = sectionId + '-select-' + index;
+      buildCustomSelect(select.id);
+    });
+
+    if (typeof flatpickr !== 'undefined') {
+      section.querySelectorAll('input[type="date"].form-input').forEach((input, index) => {
+        if (!input.id) input.id = sectionId + '-date-' + index;
+        if (input._flatpickr) return;
+        flatpickr(input, {
+          dateFormat: 'Y-m-d',
+          altInput: true,
+          altFormat: 'F j, Y',
+          allowInput: false,
+          disableMobile: true,
+        });
+      });
+    }
+  });
+  _docPickersReady = true;
+}
+
 async function init() {
   applyTheme(localStorage.getItem('cmi-theme') || 'dark');
   // Show logged-in user in sidebar
@@ -5905,6 +5935,7 @@ async function init() {
   addTeamAttrRow('teamAttrRepeater'); // start Add form with one blank row
   buildMultiChips('contractServiceChips', SERVICES, 'contractServicesValue');
   buildMultiChips('sowServiceChips', SERVICES, 'sowServicesValue');
+  initDocumentFormControls();
   loadTeam();
   // Render from local DOCS immediately, then replace with Supabase data
   renderDocsTable();
