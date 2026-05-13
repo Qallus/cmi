@@ -393,6 +393,26 @@ app.post('/api/notifications/email', requireStaff, async (req, res) => {
   }
 });
 
+app.get('/api/contacts', requireStaff, async (req, res) => {
+  try {
+    if (!supabase) return res.status(503).json({ message: 'Supabase is not configured' });
+    const q = String(req.query.q || '').trim();
+    let query = supabase
+      .from('contacts')
+      .select('id,first_name,last_name,email,phone,type,company,status')
+      .order('last_activity', { ascending: false, nullsFirst: false })
+      .limit(200);
+    if (q) {
+      query = query.or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,email.ilike.%${q}%,phone.ilike.%${q}%,company.ilike.%${q}%`);
+    }
+    const { data, error } = await query;
+    if (error) throw error;
+    res.json({ contacts: data || [] });
+  } catch (err) {
+    res.status(500).json({ message: err.message || 'Contacts load failed' });
+  }
+});
+
 async function findOrCreateThread({ contact_id, client_project_id, channel = 'sms', subject }) {
   if (!supabase) return null;
   let query = supabase.from('message_threads').select('*').eq('channel', channel).limit(1);
@@ -402,6 +422,41 @@ async function findOrCreateThread({ contact_id, client_project_id, channel = 'sm
   if (data) return data;
   return supabaseInsert('message_threads', { contact_id, client_project_id, channel, subject });
 }
+
+app.get('/api/messages', requireStaff, async (req, res) => {
+  try {
+    if (!supabase) return res.status(503).json({ message: 'Supabase is not configured' });
+    const channel = ['sms', 'email'].includes(req.query.channel) ? req.query.channel : 'sms';
+    const limit = Math.min(Number(req.query.limit || 50), 200);
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*, contacts(first_name,last_name,email,phone,type)')
+      .eq('channel', channel)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (error) throw error;
+    res.json({ messages: data || [] });
+  } catch (err) {
+    res.status(500).json({ message: err.message || 'Messages load failed' });
+  }
+});
+
+app.get('/api/message-threads', requireStaff, async (req, res) => {
+  try {
+    if (!supabase) return res.status(503).json({ message: 'Supabase is not configured' });
+    const channel = ['sms', 'email'].includes(req.query.channel) ? req.query.channel : 'sms';
+    const { data, error } = await supabase
+      .from('message_threads')
+      .select('*, contacts(first_name,last_name,email,phone,type)')
+      .eq('channel', channel)
+      .order('last_message_at', { ascending: false, nullsFirst: false })
+      .limit(100);
+    if (error) throw error;
+    res.json({ threads: data || [] });
+  } catch (err) {
+    res.status(500).json({ message: err.message || 'Threads load failed' });
+  }
+});
 
 app.post('/api/messages/send', requireStaff, async (req, res) => {
   try {
@@ -445,6 +500,9 @@ app.post('/api/messages/send', requireStaff, async (req, res) => {
       sent_by: null,
       sent_at: new Date().toISOString(),
     });
+    if (thread?.id && supabase) {
+      await supabase.from('message_threads').update({ last_message_at: new Date().toISOString() }).eq('id', thread.id);
+    }
     res.json({ ok: true, sid: sent.sid, status: sent.status, message: row });
   } catch (err) {
     res.status(500).json({ message: err.message || 'SMS send failed' });
@@ -464,6 +522,43 @@ app.post('/api/messages/bulk', requireStaff, async (req, res) => {
     res.json({ ok: true, campaign });
   } catch (err) {
     res.status(500).json({ message: err.message || 'Bulk campaign failed' });
+  }
+});
+
+app.post('/api/email/send', requireStaff, async (req, res) => {
+  try {
+    const to = String(req.body.to || '').trim();
+    const subject = String(req.body.subject || '').trim() || 'Constructed Matter';
+    const body = String(req.body.body || '').trim();
+    if (!to || !body) return res.status(400).json({ message: 'Recipient and body are required' });
+
+    const sent = await sendMail({ to, subject, body });
+    const thread = await findOrCreateThread({
+      contact_id: req.body.contact_id || null,
+      client_project_id: req.body.client_project_id || null,
+      channel: 'email',
+      subject,
+    });
+    const row = await supabaseInsert('messages', {
+      thread_id: thread?.id || null,
+      contact_id: req.body.contact_id || null,
+      direction: 'outbound',
+      channel: 'email',
+      from_address: process.env.MAIL_FROM || process.env.SMTP_USER || null,
+      to_address: to,
+      body,
+      status: sent?.skipped ? 'skipped' : 'sent',
+      provider: 'smtp',
+      provider_sid: sent?.messageId || null,
+      sent_by: null,
+      sent_at: new Date().toISOString(),
+    });
+    if (thread?.id && supabase) {
+      await supabase.from('message_threads').update({ last_message_at: new Date().toISOString() }).eq('id', thread.id);
+    }
+    res.json({ ok: true, message: row, result: sent });
+  } catch (err) {
+    res.status(500).json({ message: err.message || 'Email send failed' });
   }
 });
 
@@ -499,6 +594,9 @@ app.post('/api/twilio/inbound', express.urlencoded({ extended: false }), async (
       status: 'received',
       provider_sid: payload.MessageSid || null,
     });
+    if (thread?.id && supabase) {
+      await supabase.from('message_threads').update({ last_message_at: new Date().toISOString() }).eq('id', thread.id);
+    }
     res.type('text/xml').send('<Response></Response>');
   } catch (err) {
     console.error('[twilio/inbound]', err);

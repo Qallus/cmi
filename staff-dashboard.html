@@ -367,6 +367,10 @@
         <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
         Bookings
       </div>
+      <div class="nav-item" onclick="nav('communications',this)">
+        <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M8 10h8M8 14h5"/><path d="M21 12c0 4.418-4.03 8-9 8a10.6 10.6 0 01-4.46-.97L3 20l1.2-3.6A7.1 7.1 0 013 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+        Communications
+      </div>
       <div class="nav-item" onclick="nav('quotes',this)">
         <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
         Quotes &amp; Leads
@@ -1084,6 +1088,36 @@
         </form>
       </section>
 
+      <!-- -- COMMUNICATIONS -- -->
+      <section id="sec-communications" class="section">
+        <div class="flex items-start justify-between gap-4 mb-5">
+          <div>
+            <p class="text-[10px] uppercase tracking-widest text-neutral-500 font-medium">Client Relations</p>
+            <h2 class="font-display text-2xl text-neutral-100 mt-0.5">Communications</h2>
+            <p class="text-sm text-neutral-500 mt-2 max-w-3xl">Send and review SMS and email conversations connected to clients, vendors, subcontractors, and project contacts.</p>
+          </div>
+          <button onclick="commLoadAll()" class="crm-toolbar-btn" style="padding:7px 12px">Refresh</button>
+        </div>
+        <div class="flex flex-wrap gap-2 mb-5">
+          <button id="commTabSms" class="chip selected" onclick="commSwitchTab('sms')">Single SMS</button>
+          <button id="commTabBulk" class="chip" onclick="commSwitchTab('bulk')">Bulk SMS</button>
+          <button id="commTabEmail" class="chip" onclick="commSwitchTab('email')">Email</button>
+          <button id="commTabHistory" class="chip" onclick="commSwitchTab('history')">Inbox / History</button>
+        </div>
+        <div id="commPanelSms" class="comm-panel grid lg:grid-cols-[0.9fr_1.1fr] gap-5">
+          <div class="card p-5 space-y-4"><p class="text-[10px] uppercase tracking-widest text-neutral-500 font-medium">Outbound SMS</p><div><label class="form-label">Contact</label><select id="commSmsContact" class="form-input" onchange="commFillContact('sms')"><option value="">Select contact...</option></select></div><div><label class="form-label">Phone</label><input id="commSmsTo" class="form-input" placeholder="+14805551234" /></div><div><label class="form-label">Message</label><textarea id="commSmsBody" class="form-input" rows="6" maxlength="1500" placeholder="Type an SMS message..."></textarea></div><button onclick="commSendSMS()" class="px-5 py-2.5 rounded-lg text-white text-sm font-medium hover:opacity-90" style="background:var(--gold)">Send SMS</button><p id="commSmsStatus" class="text-xs text-neutral-500"></p></div>
+          <div class="card p-5"><div class="flex items-center justify-between mb-3"><p class="text-[10px] uppercase tracking-widest text-neutral-500 font-medium">Recent SMS</p><button onclick="commLoadMessages('sms')" class="crm-toolbar-btn" style="padding:5px 9px;font-size:11px">Reload</button></div><div id="commSmsHistory" class="space-y-3 text-sm text-neutral-400">Loading SMS history...</div></div>
+        </div>
+        <div id="commPanelBulk" class="comm-panel hidden grid lg:grid-cols-[0.9fr_1.1fr] gap-5">
+          <div class="card p-5 space-y-4"><p class="text-[10px] uppercase tracking-widest text-neutral-500 font-medium">Bulk SMS</p><div><label class="form-label">Campaign Name</label><input id="commBulkName" class="form-input" placeholder="Vendor schedule update" /></div><div><label class="form-label">Recipients</label><textarea id="commBulkRecipients" class="form-input" rows="7" placeholder="Paste phone numbers, one per line or comma-separated"></textarea></div><div><label class="form-label">Message</label><textarea id="commBulkBody" class="form-input" rows="6" placeholder="Type the bulk SMS message..."></textarea></div><button onclick="commSendBulkSMS()" class="px-5 py-2.5 rounded-lg text-white text-sm font-medium hover:opacity-90" style="background:var(--gold)">Send Bulk SMS</button><p id="commBulkStatus" class="text-xs text-neutral-500"></p></div>
+          <div class="card p-5 text-sm text-neutral-400 leading-6"><p class="text-[10px] uppercase tracking-widest text-neutral-500 font-medium mb-3">Bulk Notes</p><p>Bulk sends create a campaign record and send each recipient through the Twilio backend. Opt-outs are checked by the server before each SMS.</p><p class="mt-3">Use this for vendor, subcontractor, and client updates where the message is appropriate for every recipient.</p></div>
+        </div>
+        <div id="commPanelEmail" class="comm-panel hidden grid lg:grid-cols-[0.9fr_1.1fr] gap-5">
+          <div class="card p-5 space-y-4"><p class="text-[10px] uppercase tracking-widest text-neutral-500 font-medium">Outbound Email</p><div><label class="form-label">Contact</label><select id="commEmailContact" class="form-input" onchange="commFillContact('email')"><option value="">Select contact...</option></select></div><div><label class="form-label">Email</label><input id="commEmailTo" class="form-input" placeholder="client@example.com" /></div><div><label class="form-label">Subject</label><input id="commEmailSubject" class="form-input" placeholder="Project update" /></div><div><label class="form-label">Message</label><textarea id="commEmailBody" class="form-input" rows="8" placeholder="Type an email..."></textarea></div><button onclick="commSendEmail()" class="px-5 py-2.5 rounded-lg text-white text-sm font-medium hover:opacity-90" style="background:var(--gold)">Send Email</button><p id="commEmailStatus" class="text-xs text-neutral-500"></p></div>
+          <div class="card p-5"><div class="flex items-center justify-between mb-3"><p class="text-[10px] uppercase tracking-widest text-neutral-500 font-medium">Recent Email</p><button onclick="commLoadMessages('email')" class="crm-toolbar-btn" style="padding:5px 9px;font-size:11px">Reload</button></div><div id="commEmailHistory" class="space-y-3 text-sm text-neutral-400">Loading email history...</div></div>
+        </div>
+        <div id="commPanelHistory" class="comm-panel hidden grid lg:grid-cols-2 gap-5"><div class="card p-5"><p class="text-[10px] uppercase tracking-widest text-neutral-500 font-medium mb-3">SMS Inbox / Outbox</p><div id="commAllSmsHistory" class="space-y-3 text-sm text-neutral-400">Loading...</div></div><div class="card p-5"><p class="text-[10px] uppercase tracking-widest text-neutral-500 font-medium mb-3">Email Inbox / Outbox</p><div id="commAllEmailHistory" class="space-y-3 text-sm text-neutral-400">Loading...</div></div></div>
+      </section>
       <!-- -- QUOTES -- -->
       <section id="sec-quotes" class="section">
         <div class="mb-5">
@@ -2058,7 +2092,7 @@ function pagerHTML(section, page, pages, total) {
 }
 function changePage(section, dir) {
   PAGE[section] = Math.max(1, PAGE[section] + dir);
-  const map = { portfolio: renderProjects, blog: renderBlog, clients: renderClients, bookings: renderBookings, quotes: renderQuotes };
+  const map = { portfolio: renderProjects, blog: renderBlog, clients: renderClients, bookings: renderBookings, communications: loadCommunications, quotes: renderQuotes };
   if (map[section]) map[section]();
 }
 
@@ -2198,7 +2232,7 @@ let DOC_FILTER    = 'all';
 const TITLES = {
   overview:'Overview', portfolio:'Portfolio', 'add-project':'New Project',
   projects:'Projects', blog:'Blog', 'add-blog':'New Post', clients:'Contacts',
-  bookings:'Bookings', 'add-booking':'Add Appointment', quotes:'Quotes & Leads', 'add-quote':'Add Quote', team:'Team',
+  bookings:'Bookings', 'add-booking':'Add Appointment', communications:'Communications', quotes:'Quotes & Leads', 'add-quote':'Add Quote', team:'Team',
   'add-team':'Add Team Member', documents:'Documents',
   'new-contract':'New Contract', 'new-sow':'New Scope of Work',
   agent:'Agent', settings:'Settings',
@@ -5936,6 +5970,155 @@ function updateDocStats() {
   });
 }
 
+let COMM_CONTACTS = [];
+let COMM_LOADED = false;
+
+function commSwitchTab(tab) {
+  ['sms','bulk','email','history'].forEach(name => {
+    const panel = document.getElementById('commPanel' + (name === 'sms' ? 'Sms' : name.charAt(0).toUpperCase() + name.slice(1)));
+    const btn = document.getElementById('commTab' + (name === 'sms' ? 'Sms' : name.charAt(0).toUpperCase() + name.slice(1)));
+    if (panel) panel.classList.toggle('hidden', name !== tab);
+    if (btn) btn.classList.toggle('selected', name === tab);
+  });
+  if (tab === 'history') commLoadAllMessages();
+}
+
+async function loadCommunications() {
+  if (!COMM_LOADED) await commLoadAll();
+}
+
+async function commLoadAll() {
+  await Promise.all([commLoadContacts(), commLoadMessages('sms'), commLoadMessages('email')]);
+  COMM_LOADED = true;
+}
+
+async function commLoadContacts() {
+  try {
+    const res = await fetch('/api/contacts', { headers: authHeaders(), credentials: 'include' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Could not load contacts');
+    COMM_CONTACTS = data.contacts || [];
+    commRenderContactSelect('commSmsContact');
+    commRenderContactSelect('commEmailContact');
+  } catch (e) {
+    console.warn('[communications] contacts:', e.message);
+  }
+}
+
+function commRenderContactSelect(id) {
+  const select = document.getElementById(id);
+  if (!select) return;
+  select.innerHTML = '<option value="">Select contact...</option>' + COMM_CONTACTS.map((c, i) => {
+    const name = [c.first_name, c.last_name].filter(Boolean).join(' ') || c.company || c.email || c.phone || 'Contact';
+    const meta = c.type ? ' - ' + c.type : '';
+    return '<option value="' + i + '">' + escHtml(name + meta) + '</option>';
+  }).join('');
+}
+
+function commFillContact(kind) {
+  const select = document.getElementById(kind === 'sms' ? 'commSmsContact' : 'commEmailContact');
+  const c = COMM_CONTACTS[Number(select.value)];
+  if (!c) return;
+  if (kind === 'sms') document.getElementById('commSmsTo').value = c.phone || '';
+  if (kind === 'email') document.getElementById('commEmailTo').value = c.email || '';
+}
+
+async function commSendSMS() {
+  const to = document.getElementById('commSmsTo').value.trim();
+  const body = document.getElementById('commSmsBody').value.trim();
+  const status = document.getElementById('commSmsStatus');
+  const contact = COMM_CONTACTS[Number(document.getElementById('commSmsContact').value)] || null;
+  if (!to || !body) { status.textContent = 'Phone and message are required.'; status.style.color = '#f87171'; return; }
+  status.textContent = 'Sending SMS...'; status.style.color = 'var(--text-muted)';
+  try {
+    const res = await fetch(MESSAGING_API + '/send', { method:'POST', headers: authHeaders({ 'Content-Type':'application/json' }), credentials:'include', body: JSON.stringify({ to, body, contact_id: contact?.id || null, channel:'sms' }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'SMS failed');
+    status.textContent = 'SMS sent.'; status.style.color = '#4ade80';
+    document.getElementById('commSmsBody').value = '';
+    await commLoadMessages('sms');
+  } catch (e) {
+    status.textContent = 'Error: ' + e.message; status.style.color = '#f87171';
+  }
+}
+
+async function commSendBulkSMS() {
+  const name = document.getElementById('commBulkName').value.trim() || 'Bulk SMS ' + new Date().toLocaleString();
+  const body = document.getElementById('commBulkBody').value.trim();
+  const raw = document.getElementById('commBulkRecipients').value;
+  const status = document.getElementById('commBulkStatus');
+  const recipients = raw.split(/[\n,;]/).map(v => v.trim()).filter(Boolean);
+  if (!recipients.length || !body) { status.textContent = 'Recipients and message are required.'; status.style.color = '#f87171'; return; }
+  status.textContent = 'Creating campaign and sending ' + recipients.length + ' SMS messages...'; status.style.color = 'var(--text-muted)';
+  let sent = 0, failed = 0;
+  try {
+    await fetch(MESSAGING_API + '/bulk', { method:'POST', headers: authHeaders({ 'Content-Type':'application/json' }), credentials:'include', body: JSON.stringify({ name, body, segment: { manual_recipients: recipients } }) });
+    for (const to of recipients) {
+      const res = await fetch(MESSAGING_API + '/send', { method:'POST', headers: authHeaders({ 'Content-Type':'application/json' }), credentials:'include', body: JSON.stringify({ to, body, channel:'sms' }) });
+      if (res.ok) sent++; else failed++;
+    }
+    status.textContent = 'Bulk send complete. Sent: ' + sent + '. Failed: ' + failed + '.';
+    status.style.color = failed ? '#fbbf24' : '#4ade80';
+    await commLoadMessages('sms');
+  } catch (e) {
+    status.textContent = 'Error: ' + e.message; status.style.color = '#f87171';
+  }
+}
+
+async function commSendEmail() {
+  const to = document.getElementById('commEmailTo').value.trim();
+  const subject = document.getElementById('commEmailSubject').value.trim();
+  const body = document.getElementById('commEmailBody').value.trim();
+  const status = document.getElementById('commEmailStatus');
+  const contact = COMM_CONTACTS[Number(document.getElementById('commEmailContact').value)] || null;
+  if (!to || !body) { status.textContent = 'Email and message are required.'; status.style.color = '#f87171'; return; }
+  status.textContent = 'Sending email...'; status.style.color = 'var(--text-muted)';
+  try {
+    const res = await fetch('/api/email/send', { method:'POST', headers: authHeaders({ 'Content-Type':'application/json' }), credentials:'include', body: JSON.stringify({ to, subject, body, contact_id: contact?.id || null }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Email failed');
+    status.textContent = 'Email sent.'; status.style.color = '#4ade80';
+    document.getElementById('commEmailBody').value = '';
+    await commLoadMessages('email');
+  } catch (e) {
+    status.textContent = 'Error: ' + e.message; status.style.color = '#f87171';
+  }
+}
+
+async function commLoadMessages(channel) {
+  try {
+    const res = await fetch('/api/messages?channel=' + encodeURIComponent(channel) + '&limit=50', { headers: authHeaders(), credentials:'include' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Could not load messages');
+    const html = commMessagesHTML(data.messages || []);
+    if (channel === 'sms') {
+      const a = document.getElementById('commSmsHistory'); if (a) a.innerHTML = html;
+      const b = document.getElementById('commAllSmsHistory'); if (b) b.innerHTML = html;
+    } else {
+      const a = document.getElementById('commEmailHistory'); if (a) a.innerHTML = html;
+      const b = document.getElementById('commAllEmailHistory'); if (b) b.innerHTML = html;
+    }
+  } catch (e) {
+    const msg = '<p class="text-sm text-red-300">' + escHtml(e.message) + '</p>';
+    const id = channel === 'sms' ? 'commSmsHistory' : 'commEmailHistory';
+    const el = document.getElementById(id); if (el) el.innerHTML = msg;
+  }
+}
+
+async function commLoadAllMessages() {
+  await Promise.all([commLoadMessages('sms'), commLoadMessages('email')]);
+}
+
+function commMessagesHTML(messages) {
+  if (!messages.length) return '<p class="text-sm text-neutral-500">No messages yet.</p>';
+  return messages.map(m => {
+    const c = m.contacts || {};
+    const name = [c.first_name, c.last_name].filter(Boolean).join(' ') || c.email || c.phone || m.to_address || m.from_address || 'Unknown';
+    const dir = m.direction === 'inbound' ? 'Inbound' : 'Outbound';
+    const dt = m.created_at ? new Date(m.created_at).toLocaleString() : '';
+    return '<div class="p-3 rounded-lg" style="border:1px solid var(--border);background:var(--surface-2)"><div class="flex items-center justify-between gap-3 mb-1"><span class="font-medium text-neutral-200">' + escHtml(name) + '</span><span class="badge ' + (m.direction === 'inbound' ? 'b-blue' : 'b-green') + ' text-[10px]">' + dir + '</span></div><p class="text-xs text-neutral-500 mb-2">' + escHtml(dt + ' - ' + (m.status || '')) + '</p><p class="text-sm text-neutral-300 whitespace-pre-wrap">' + escHtml(m.body || '') + '</p></div>';
+  }).join('');
+}
 // --- Auth / Session -------------------------------------------
 async function runHermesAgent() {
   const runType = document.getElementById('agentRunType').value;
