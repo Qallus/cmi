@@ -980,11 +980,19 @@
             <div><label class="form-label">Last Name</label><input id="acLastName" class="form-input text-sm" placeholder="Last" /></div>
             <div class="col-span-2"><label class="form-label">Email *</label><input id="acEmail" type="email" class="form-input text-sm" placeholder="email@example.com" /></div>
             <div class="col-span-2"><label class="form-label">Phone</label><input id="acPhone" class="form-input text-sm" placeholder="+1 (555) 000-0000" /></div>
-            <div class="col-span-2"><label class="form-label">Status</label>
+            <div><label class="form-label">Type</label>
+              <select id="acType" class="form-input text-sm">
+                <option value="Lead">Lead</option>
+                <option value="Client">Client</option>
+                <option value="Vendor">Vendor</option>
+                <option value="Sub Contractor">Sub Contractor</option>
+              </select>
+            </div>
+            <div><label class="form-label">Status</label>
               <select id="acStatus" class="form-input text-sm">
-                <option value="subscribed">Subscribed</option>
+                <option value="active">Active</option>
                 <option value="pending">Pending</option>
-                <option value="unsubscribed">Unsubscribed</option>
+                <option value="inactive">Inactive</option>
               </select>
             </div>
             <p id="acStatus-msg" class="col-span-2 text-xs" style="color:var(--text-muted)"></p>
@@ -4364,6 +4372,37 @@ function parseCRMList(data, key) {
   return [];
 }
 
+function normalizeSupabaseContact(c) {
+  const name = [c.first_name, c.last_name].filter(Boolean).join(' ').trim();
+  return {
+    ...c,
+    full_name: name || c.email || c.phone || 'Contact',
+    status: c.status || 'active',
+    lists: c.type ? [{ title: c.type }] : [{ title: 'Dashboard' }],
+    tags: c.source ? [{ title: c.source }] : [],
+    _source: 'supabase',
+  };
+}
+
+async function loadSupabaseContacts() {
+  const res = await fetch('/api/contacts', { headers: authHeaders(), credentials: 'include' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || 'Could not load Supabase contacts');
+  return (data.contacts || []).map(normalizeSupabaseContact);
+}
+
+function mergeContacts(primary, secondary) {
+  const seen = new Set(primary.map(c => String(c.email || c.id || '').toLowerCase()).filter(Boolean));
+  const merged = primary.slice();
+  secondary.forEach(c => {
+    const key = String(c.email || c.id || '').toLowerCase();
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    merged.push(c);
+  });
+  return merged;
+}
+
 async function loadCRMInit() {
   // Load contacts immediately � don't wait for filters
   loadCRMContacts(1);
@@ -4423,13 +4462,28 @@ async function loadCRMContacts(page) {
       CRM_CONTACTS = [];
       CRM_TOTAL    = 0;
     }
+    try {
+      const localContacts = await loadSupabaseContacts();
+      CRM_CONTACTS = mergeContacts(CRM_CONTACTS, localContacts);
+      CRM_TOTAL = Math.max(CRM_TOTAL, CRM_CONTACTS.length);
+    } catch(e) {
+      console.warn('Supabase contacts merge error:', e.message);
+    }
     renderCRMTable();
     renderCRMPager();
     // Update "All" chip count after first load
     updateCRMAllChip();
   } catch(e) {
     console.error('CRM contacts error:', e);
-    showCRMError('Failed to load contacts: ' + e.message);
+    try {
+      CRM_CONTACTS = await loadSupabaseContacts();
+      CRM_TOTAL = CRM_CONTACTS.length;
+      renderCRMTable();
+      renderCRMPager();
+      updateCRMAllChip();
+    } catch(localErr) {
+      showCRMError('Failed to load contacts: ' + localErr.message);
+    }
   }
 }
 
@@ -4444,6 +4498,7 @@ function showCRMError(msg) {
 
 const CRM_STATUS_BADGE = {
   subscribed:'b-green', unsubscribed:'b-neutral', pending:'b-amber',
+  active:'b-green', inactive:'b-neutral',
   bounced:'b-red', complained:'b-red', converting:'b-blue',
 };
 
@@ -4725,7 +4780,7 @@ async function sendSMSNow() {
       method: 'POST',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
       credentials: 'include',
-      body: JSON.stringify({ to, body, contact_id: CRM_ACTIVE_CONTACT?.id || null, channel: 'sms' }),
+      body: JSON.stringify({ to, body, contact_id: CRM_ACTIVE_CONTACT?.id || null, contact: CRM_ACTIVE_CONTACT, channel: 'sms' }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.message || 'Message send failed');
@@ -4738,7 +4793,10 @@ async function sendSMSNow() {
 // -- Add Contact -------------------------------------------------
 function openAddContactModal() {
   ['acFirstName','acLastName','acEmail','acPhone'].forEach(id => { const el = document.getElementById(id); if(el) el.value=''; });
-  document.getElementById('acStatus').value = 'subscribed';
+  buildCustomSelect('acType');
+  buildCustomSelect('acStatus');
+  setCustomSelect('acType', 'Lead');
+  setCustomSelect('acStatus', 'active');
   document.getElementById('acStatus-msg').textContent = '';
   document.getElementById('crmAddModal').style.display = 'flex';
 }
@@ -4749,28 +4807,31 @@ async function submitAddContact() {
   const email = document.getElementById('acEmail').value.trim();
   const msgEl = document.getElementById('acStatus-msg');
   if (!email) { msgEl.textContent = 'Email is required.'; msgEl.style.color='#f87171'; return; }
-  msgEl.textContent = 'Creating�'; msgEl.style.color='var(--text-muted)';
+  msgEl.textContent = 'Creating...'; msgEl.style.color='var(--text-muted)';
   try {
-    const res = await fetch(CRM_BASE + '/subscribers', {
+    const res = await fetch('/api/contacts', {
       method: 'POST',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
+      credentials: 'include',
       body: JSON.stringify({
         first_name: document.getElementById('acFirstName').value.trim(),
         last_name:  document.getElementById('acLastName').value.trim(),
         email,
         phone:      document.getElementById('acPhone').value.trim(),
+        type:       document.getElementById('acType').value,
         status:     document.getElementById('acStatus').value,
+        source:     'Dashboard',
       }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.message || 'HTTP ' + res.status);
-    msgEl.textContent = 'Contact created!'; msgEl.style.color='#4ade80';
-    setTimeout(() => { closeAddContactModal(); loadCRMContacts(1); }, 1200);
+    msgEl.textContent = 'Contact saved to Supabase.'; msgEl.style.color='#4ade80';
+    COMM_LOADED = false;
+    setTimeout(() => { closeAddContactModal(); loadCRMContacts(1); }, 900);
   } catch(e) {
     msgEl.textContent = 'Error: ' + e.message; msgEl.style.color='#f87171';
   }
 }
-
 // -- Export CSV --------------------------------------------------
 async function crmExportCSV() {
   const btn = event.currentTarget;
@@ -6009,12 +6070,14 @@ async function commLoadContacts() {
       if (all.length >= (sub?.total || contacts.length) || contacts.length < perPage) break;
       page++;
     }
-    COMM_CONTACTS = all.length ? all : CRM_CONTACTS;
+    const localContacts = await loadSupabaseContacts().catch(() => []);
+    COMM_CONTACTS = mergeContacts(all.length ? all : CRM_CONTACTS, localContacts);
     commRenderContactSelect('commSmsContact');
     commRenderContactSelect('commEmailContact');
   } catch (e) {
     console.warn('[communications] contacts:', e.message);
-    COMM_CONTACTS = CRM_CONTACTS || [];
+    const localContacts = await loadSupabaseContacts().catch(() => []);
+    COMM_CONTACTS = mergeContacts(CRM_CONTACTS || [], localContacts);
     commRenderContactSelect('commSmsContact');
     commRenderContactSelect('commEmailContact');
   }

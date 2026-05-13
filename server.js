@@ -143,8 +143,7 @@ async function resolveMessageContact(body = {}) {
   const source = body.contact || {};
   const email = String(source.email || body.email || '').trim().toLowerCase();
   if (email) {
-    return supabaseUpsertContact({
-      fluent_crm_id: Number(source.id) || null,
+    const payload = {
       first_name: source.first_name || '',
       last_name: source.last_name || '',
       email,
@@ -152,9 +151,12 @@ async function resolveMessageContact(body = {}) {
       company: source.company || null,
       type: source.type || 'Lead',
       status: source.status || 'active',
-      source: 'FluentCRM',
+      source: source.source || (source._source === 'supabase' ? 'Dashboard' : 'FluentCRM'),
       last_activity: new Date().toISOString(),
-    });
+    };
+    const fluentId = Number(source.id);
+    if (Number.isFinite(fluentId)) payload.fluent_crm_id = fluentId;
+    return supabaseUpsertContact(payload);
   }
 
   const phone = normalizePhone(source.phone || body.to || '');
@@ -446,6 +448,32 @@ app.get('/api/contacts', requireStaff, async (req, res) => {
     res.json({ contacts: data || [] });
   } catch (err) {
     res.status(500).json({ message: err.message || 'Contacts load failed' });
+  }
+});
+
+app.post('/api/contacts', requireStaff, async (req, res) => {
+  try {
+    if (!supabase) return res.status(503).json({ message: 'Supabase is not configured' });
+    const body = req.body || {};
+    const email = String(body.email || '').trim().toLowerCase();
+    if (!email) return res.status(400).json({ message: 'Email is required' });
+
+    const allowedTypes = new Set(['Client', 'Lead', 'Vendor', 'Sub Contractor']);
+    const contact = await supabaseUpsertContact({
+      first_name: String(body.first_name || '').trim(),
+      last_name: String(body.last_name || '').trim(),
+      email,
+      phone: body.phone || null,
+      company: body.company || null,
+      type: allowedTypes.has(body.type) ? body.type : 'Lead',
+      status: body.status || 'active',
+      source: body.source || 'Dashboard',
+      notes: body.notes || null,
+      last_activity: new Date().toISOString(),
+    });
+    res.json({ ok: true, contact });
+  } catch (err) {
+    res.status(500).json({ message: err.message || 'Contact save failed' });
   }
 });
 
