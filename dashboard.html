@@ -191,17 +191,10 @@
 </div>
 
 <script>
-// --- Staff credentials ----------------------------------------
-// Per-user passwords. Users without an explicit password fall back to STAFF_CODE.
-const STAFF = {
-  'jw@channelcast.io':             { name: 'J. Waters',      password: null },
-  'jwaters@qallus.co':             { name: 'J. Waters',      password: null },
-  'mike@constructedmatter.com':    { name: 'Mike Fadden',    password: null },
-  'brandon@constructedmatter.com': { name: 'Brandon Fadden', password: 'CMI-Brandon-2026' },
-  'joe@constructedmatter.com':     { name: 'Joe Ballard',    password: 'CMI-Joe-2026' },
-};
-// Shared fallback access code (used when password: null above)
-const STAFF_CODE = 'qafn SAYK VJlm zRYt WuWG HOxk';
+// --- Auth config ----------------------------------------------
+// Production auth must be handled server-side. The endpoint should validate
+// credentials, set/return a short-lived session token, and include role/name.
+const AUTH_ENDPOINT = '/api/auth/login';
 
 // --- Theme ----------------------------------------------------
 const FAVICON_DARK  = 'https://wp-constructedmatter-com-985548.hostingersite.com/wp-content/uploads/2026/03/cmi_favicon_white.png';
@@ -229,7 +222,7 @@ function showError(msg) {
 function clearError() { document.getElementById('errorBox').style.display = 'none'; }
 
 // --- Login ----------------------------------------------------
-function handleLogin() {
+async function handleLogin() {
   clearError();
   const email    = document.getElementById('emailInput').value.trim().toLowerCase();
   const password = document.getElementById('passwordInput').value.trim();
@@ -237,33 +230,30 @@ function handleLogin() {
   if (!email)    { showError('Please enter your email address.'); return; }
   if (!password) { showError('Please enter your password.'); return; }
 
-  const staffEntry = STAFF[email];
+  try {
+    const res = await fetch(AUTH_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.token) throw new Error(data.message || 'Incorrect email or password.');
 
-  if (staffEntry) {
-    // Determine which password to check against
-    const expected = (staffEntry.password || STAFF_CODE).replace(/\s+/g,' ').trim();
-    const entered  = password.replace(/\s+/g,' ').trim();
+    localStorage.setItem('cmi-auth-token', data.token);
+    localStorage.setItem('cmi-user-name',  data.name || formatName(email));
+    localStorage.setItem('cmi-user-role',  data.role || 'client');
+    localStorage.setItem('cmi-user-email', email);
 
-    if (entered === expected) {
-      localStorage.setItem('cmi-auth-token', 'staff-session');
-      localStorage.setItem('cmi-user-name',  staffEntry.name);
-      localStorage.setItem('cmi-user-role',  'staff');
-      localStorage.setItem('cmi-user-email', email);
+    if ((data.role || '').toLowerCase() === 'staff') {
       window.location.href = 'staff-dashboard.html';
     } else {
-      showError('Incorrect password. Please try again.');
+      showClientPanel(data.name || formatName(email));
     }
-  } else {
-    // Unknown email ? client/vendor placeholder
-    const name = formatName(email);
-    localStorage.setItem('cmi-auth-token', 'client-session');
-    localStorage.setItem('cmi-user-name',  name);
-    localStorage.setItem('cmi-user-role',  'client');
-    localStorage.setItem('cmi-user-email', email);
-    showClientPanel(name);
+  } catch (err) {
+    showError(err.message || 'Login failed. Please try again.');
   }
 }
-
 function formatName(email) {
   const local = email.split('@')[0].replace(/[._-]/g,' ');
   return local.replace(/\b\w/g, c => c.toUpperCase());

@@ -230,8 +230,8 @@
     // Registration
     // NOTE: This form posts to WordPress REST API (/wp-json/wp/v2/users) and also to FluentCRM.
     // In production, wire the WP_API_URL to your WordPress instance.
-    const WP_API_URL = 'https://wp.constructedmatter.com/wp-json/wp/v2/users';
-    const FLUENT_WEBHOOK = 'https://wp.constructedmatter.com/?fluentcrm=1&route=contact&hash=d1125c3e-8e7c-4324-8b87-d7442013e870';
+    const WP_API_URL = '/api/auth/register';
+    const FLUENT_WEBHOOK = '/api/auth/register';
 
     document.getElementById('registerForm').addEventListener('submit', async (e) => {
       e.preventDefault();

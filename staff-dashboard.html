@@ -387,6 +387,10 @@
         <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0014.586 3H5a2 2 0 00-2 2z"/><path d="M14 3v5a1 1 0 001 1h5"/><path d="M9 12h6M9 16h4"/></svg>
         Documents
       </div>
+      <div class="nav-item" onclick="nav('agent',this)">
+        <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M12 3v3m0 12v3M4.22 4.22l2.12 2.12m11.32 11.32l2.12 2.12M3 12h3m12 0h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/><circle cx="12" cy="12" r="4"/></svg>
+        Agent
+      </div>
       <div class="nav-divider"></div>
       <div class="nav-item" onclick="nav('settings',this)">
         <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -1664,6 +1668,41 @@
         </form>
       </section>
 
+      <!-- -- AGENT -- -->
+      <section id="sec-agent" class="section">
+        <div class="mb-5">
+          <p class="text-[10px] uppercase tracking-widest text-neutral-500 font-medium">Hermes Agent</p>
+          <h2 class="font-display text-2xl text-neutral-100 mt-0.5">Agent</h2>
+          <p class="text-sm text-neutral-500 mt-2 max-w-2xl">Draft project updates, SMS replies, client summaries, and internal next steps. Hermes drafts are saved for review and do not send messages automatically.</p>
+        </div>
+        <div class="grid lg:grid-cols-[0.9fr_1.1fr] gap-5">
+          <div class="card p-5 space-y-4">
+            <div>
+              <label class="form-label">Task</label>
+              <select id="agentRunType" class="form-input">
+                <option value="general">General Assistant</option>
+                <option value="draft_project_update">Draft Project Update</option>
+                <option value="draft_sms_reply">Draft SMS Reply</option>
+                <option value="summarize_client_thread">Summarize Client Thread</option>
+                <option value="next_steps">Suggest Next Steps</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label">Prompt</label>
+              <textarea id="agentPrompt" class="form-input" rows="10" placeholder="Ask Hermes to draft an update, summarize a conversation, or prepare a client-facing reply..."></textarea>
+            </div>
+            <button id="agentRunBtn" onclick="runHermesAgent()" class="px-5 py-2.5 rounded-lg bg-cmi-gold-dark text-white text-sm font-medium hover:opacity-90">Run Agent</button>
+            <p id="agentStatus" class="text-xs text-neutral-500"></p>
+          </div>
+          <div class="card p-5">
+            <div class="flex items-center justify-between mb-3">
+              <p class="text-[10px] uppercase tracking-widest text-neutral-500 font-medium">Draft Output</p>
+              <button onclick="copyAgentOutput()" class="crm-toolbar-btn" style="padding:5px 9px;font-size:11px">Copy</button>
+            </div>
+            <pre id="agentOutput" class="text-sm leading-6 whitespace-pre-wrap text-neutral-300 min-h-[360px]" style="font-family:inherit">Hermes output will appear here.</pre>
+          </div>
+        </div>
+      </section>
       <!-- -- SETTINGS -- -->
       <section id="sec-settings" class="section">
         <div class="mb-5">
@@ -1673,19 +1712,19 @@
         <div class="max-w-2xl space-y-5">
           <div class="card p-5 space-y-4">
             <p class="text-[10px] uppercase tracking-widest text-neutral-500 font-medium">WordPress API</p>
-            <div><label class="form-label">Site URL</label><input class="form-input" value="https://wp.constructedmatter.com" /></div>
-            <div><label class="form-label">Username</label><input class="form-input" value="jwaters@qallus.co" /></div>
-            <div><label class="form-label">App Password</label><input type="password" class="form-input" value="HFKb 1Ksz VhQG ysYu QrmV A2TN" /></div>
+            <div><label class="form-label">Site URL</label><input class="form-input" value="/api/wp-json" /></div>
+            <div><label class="form-label">Username</label><input class="form-input" value="Configured in Coolify" /></div>
+            <div><label class="form-label">App Password</label><input type="password" class="form-input" value="Configured in Coolify" /></div>
             <button class="px-5 py-2 rounded-lg bg-cmi-gold-dark text-white text-sm font-medium hover:opacity-90" onclick="showToast('API settings saved')">Save Settings</button>
           </div>
           <div class="card p-5 space-y-4">
             <p class="text-[10px] uppercase tracking-widest text-neutral-500 font-medium">Notification Email</p>
-            <div><label class="form-label">Send Alerts To</label><input class="form-input" value="mike@strategicincomegroup.com" /></div>
+            <div><label class="form-label">Send Alerts To</label><input class="form-input" value="Configured in Coolify" /></div>
             <button class="px-5 py-2 rounded-lg bg-cmi-gold-dark text-white text-sm font-medium hover:opacity-90" onclick="showToast('Notification email saved')">Save</button>
           </div>
           <div class="card p-5 space-y-4">
             <p class="text-[10px] uppercase tracking-widest text-neutral-500 font-medium">FluentCRM Webhook</p>
-            <div><label class="form-label">Webhook URL</label><input class="form-input text-xs" value="https://wp.constructedmatter.com/?fluentcrm=1&route=contact&hash=d1125c3e-8e7c-4324-8b87-d7442013e870" /></div>
+            <div><label class="form-label">Webhook URL</label><input class="form-input text-xs" value="/api/leads/contact" /></div>
             <button class="px-5 py-2 rounded-lg bg-cmi-gold-dark text-white text-sm font-medium hover:opacity-90" onclick="showToast('Webhook URL updated')">Update Webhook</button>
           </div>
         </div>
@@ -1945,8 +1984,15 @@
 
 <script>
 // --- Config ---------------------------------------------------
-const WP_BASE = 'https://wp-constructedmatter-com-985548.hostingersite.com/wp-json';
-const WP_AUTH = 'Basic ' + btoa('jwaters@qallus.co:vtEQ fWMK oQcd C3sB M9PM e9K2');
+// Browser code talks only to same-origin backend proxies. The backend injects
+// WordPress, FluentCRM, Fluent Boards, Twilio, and Hermes secrets server-side.
+const WP_BASE = '/api/wp-json';
+const MESSAGING_API = '/api/messages';
+const HERMES_API = '/api/hermes';
+function authHeaders(extra = {}) {
+  const token = localStorage.getItem('cmi-auth-token');
+  return Object.assign({}, extra, token ? { Authorization: 'Bearer ' + token } : {});
+}
 
 // --- Supabase Client ------------------------------------------
 const SB_URL  = 'https://uoerzrmeibavqgisfzso.supabase.co';
@@ -2155,7 +2201,7 @@ const TITLES = {
   bookings:'Bookings', 'add-booking':'Add Appointment', quotes:'Quotes & Leads', 'add-quote':'Add Quote', team:'Team',
   'add-team':'Add Team Member', documents:'Documents',
   'new-contract':'New Contract', 'new-sow':'New Scope of Work',
-  settings:'Settings',
+  agent:'Agent', settings:'Settings',
 };
 
 const CTX_ACTIONS = {
@@ -2389,10 +2435,10 @@ async function loadBlogData() {
   if (tb) tb.innerHTML = '<tr><td colspan="5" class="py-8 text-center text-sm" style="color:var(--text-muted)">Loading posts…</td></tr>';
   try {
     const [postsRes, catsRes, tagsRes, usersRes] = await Promise.all([
-      fetch(WP_BASE + '/wp/v2/posts?per_page=100&status=any&_embed', { headers: { Authorization: WP_AUTH } }),
-      fetch(WP_BASE + '/wp/v2/categories?per_page=100', { headers: { Authorization: WP_AUTH } }),
-      fetch(WP_BASE + '/wp/v2/tags?per_page=100', { headers: { Authorization: WP_AUTH } }),
-      fetch(WP_BASE + '/wp/v2/users?per_page=100', { headers: { Authorization: WP_AUTH } }),
+      fetch(WP_BASE + '/wp/v2/posts?per_page=100&status=any&_embed', { headers: authHeaders() }),
+      fetch(WP_BASE + '/wp/v2/categories?per_page=100', { headers: authHeaders() }),
+      fetch(WP_BASE + '/wp/v2/tags?per_page=100', { headers: authHeaders() }),
+      fetch(WP_BASE + '/wp/v2/users?per_page=100', { headers: authHeaders() }),
     ]);
     WP_POSTS     = postsRes.ok ? await postsRes.json() : [];
     WP_CATS_LIST = catsRes.ok  ? await catsRes.json()  : [];
@@ -2582,7 +2628,7 @@ async function loadFBBookings() {
 
   // Event types still come from Fluent Booking REST API (calendars endpoint works)
   try {
-    const r = await fetch(FB_BOOK_BASE + '/calendars?per_page=50', { headers: { Authorization: WP_AUTH } });
+    const r = await fetch(FB_BOOK_BASE + '/calendars?per_page=50', { headers: authHeaders() });
     if (r.ok) {
       const d = await r.json();
       if (d.calendars && Array.isArray(d.calendars.data)) FB_CALENDARS = d.calendars.data;
@@ -2952,7 +2998,7 @@ async function bkSendConfirmation(id) {
   try {
     const res = await fetch(FB_BOOK_BASE + '/bookings/' + id + '/confirmation-email', {
       method: 'POST',
-      headers: { Authorization: WP_AUTH },
+      headers: authHeaders(),
     });
     showToast(res.ok ? 'Confirmation email sent' : 'Could not send email (check Fluent Booking settings)');
   } catch(e) { showToast('Network error: ' + e.message); }
@@ -3286,7 +3332,7 @@ async function loadTeam() {
   grid.innerHTML = '<div class="col-span-4 py-12 text-center text-sm" style="color:var(--text-muted)">Loading team members�</div>';
   try {
     const res = await fetch(WP_BASE + '/wp/v2/team-member?per_page=100', {
-      headers: { Authorization: WP_AUTH }
+      headers: authHeaders()
     });
     if (!res.ok) throw new Error('API ' + res.status);
     WP_TEAM = await res.json();
@@ -3304,7 +3350,7 @@ async function loadTeam() {
     if (ids.size) {
       const mr = await fetch(
         WP_BASE + '/wp/v2/media?include=' + [...ids].join(',') + '&per_page=100&_fields=id,source_url',
-        { headers: { Authorization: WP_AUTH } }
+        { headers: authHeaders() }
       );
       if (mr.ok) (await mr.json()).forEach(m => { WP_MEDIA_MAP[m.id] = m.source_url; });
     }
@@ -3459,7 +3505,7 @@ async function saveTeamMember() {
 
     const res = await fetch(WP_BASE + '/wp/v2/team-member/' + id, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: WP_AUTH },
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ title: (first + ' ' + last).trim() || 'Team Member', meta })
     });
 
@@ -3723,7 +3769,7 @@ async function submitProject(e) {
 async function uploadMedia(file) {
   const fd = new FormData(); fd.append('file', file);
   const res = await fetch(WP_BASE + '/wp/v2/media', {
-    method: 'POST', headers: { 'Authorization': WP_AUTH, 'Content-Disposition': 'attachment; filename="' + file.name + '"' },
+    method: 'POST', headers: authHeaders({ 'Content-Disposition': 'attachment; filename="' + file.name + '"' }),
     body: fd
   });
   if (res.ok) { const d = await res.json(); return d.id; }
@@ -3793,7 +3839,7 @@ async function submitBlogPost(forceDraft) {
     const method = editingId ? 'PUT' : 'POST';
 
     const res = await fetch(url, {
-      method, headers: { 'Content-Type': 'application/json', 'Authorization': WP_AUTH },
+      method, headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(payload),
     });
 
@@ -3843,7 +3889,7 @@ async function deleteBlogPost(id) {
   if (!confirm('Move this post to trash?')) return;
   try {
     const res = await fetch(WP_BASE + '/wp/v2/posts/' + id, {
-      method: 'DELETE', headers: { Authorization: WP_AUTH },
+      method: 'DELETE', headers: authHeaders(),
     });
     if (res.ok) {
       WP_POSTS = WP_POSTS.filter(p => p.id !== id);
@@ -3954,7 +4000,7 @@ async function submitTeamMember(e) {
 
     const res = await fetch(WP_BASE + '/wp/v2/team-member', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: WP_AUTH },
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         title:  (first + ' ' + last).trim() || 'Team Member',
         status: 'publish',
@@ -4255,11 +4301,7 @@ async function submitTeamMember(e) {
 // --- FluentCRM ---------------------------------------------------
 const CRM_BASE = WP_BASE + '/fluent-crm/v2';
 
-// Twilio config (optional � set to enable in-dashboard SMS)
-const TWILIO_ACCOUNT_SID  = '';   // e.g. 'ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
-const TWILIO_AUTH_TOKEN   = '';   // Your Twilio Auth Token
-const TWILIO_FROM_NUMBER  = '';   // e.g. '+15005550006'
-
+// Twilio is handled by the same-origin messaging backend.
 let CRM_CONTACTS    = [];
 let CRM_LISTS       = [];
 let CRM_TAGS        = [];
@@ -4297,8 +4339,8 @@ async function loadCRMInit() {
 async function loadCRMFilters() {
   try {
     const [listsRes, tagsRes] = await Promise.all([
-      fetch(CRM_BASE + '/lists?per_page=200', { headers: { Authorization: WP_AUTH } }),
-      fetch(CRM_BASE + '/tags?per_page=200',  { headers: { Authorization: WP_AUTH } }),
+      fetch(CRM_BASE + '/lists?per_page=200', { headers: authHeaders() }),
+      fetch(CRM_BASE + '/tags?per_page=200',  { headers: authHeaders() }),
     ]);
     if (listsRes.ok) {
       const ld = await listsRes.json();
@@ -4329,7 +4371,7 @@ async function loadCRMContacts(page) {
     if (CRM_FILTER_TAG)    url += '&tag_id='  + CRM_FILTER_TAG;
     if (CRM_FILTER_STATUS) url += '&status='  + CRM_FILTER_STATUS;
 
-    const res = await fetch(url, { headers: { Authorization: WP_AUTH } });
+    const res = await fetch(url, { headers: authHeaders() });
     if (res.status === 401 || res.status === 403) { showCRMAuthError(); return; }
     if (!res.ok) throw new Error('HTTP ' + res.status);
 
@@ -4493,7 +4535,7 @@ async function openCRMContact(id) {
   let contact = CRM_CONTACTS.find(c => c.id == id);
   if (!contact) {
     try {
-      const r = await fetch(CRM_BASE + '/subscribers/' + id + '?with[]=lists&with[]=tags', { headers: { Authorization: WP_AUTH } });
+      const r = await fetch(CRM_BASE + '/subscribers/' + id + '?with[]=lists&with[]=tags', { headers: authHeaders() });
       if (r.ok) { const d = await r.json(); contact = d.subscriber || d; }
     } catch(e) { console.warn('contact fetch error', e); }
   }
@@ -4598,7 +4640,7 @@ async function saveCRMContact() {
   try {
     const res = await fetch(CRM_BASE + '/subscribers/' + id, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json', Authorization: WP_AUTH },
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(payload),
     });
     if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -4641,36 +4683,22 @@ async function sendSMSNow() {
   const statusEl = document.getElementById('smsStatus');
   if (!body) { statusEl.textContent = 'Please enter a message.'; statusEl.style.color='#f87171'; return; }
 
-  if (TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN && TWILIO_FROM_NUMBER) {
-    // Send via Twilio REST API
-    statusEl.textContent = 'Sending�'; statusEl.style.color='var(--text-muted)';
-    try {
-      const params = new URLSearchParams({ To: to, From: TWILIO_FROM_NUMBER, Body: body });
-      const res = await fetch('https://api.twilio.com/2010-04-01/Accounts/' + TWILIO_ACCOUNT_SID + '/Messages.json', {
-        method: 'POST',
-        headers: {
-          Authorization: 'Basic ' + btoa(TWILIO_ACCOUNT_SID + ':' + TWILIO_AUTH_TOKEN),
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: params.toString(),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        statusEl.textContent = 'Sent! SID: ' + data.sid; statusEl.style.color='#4ade80';
-        setTimeout(closeSmsModal, 2000);
-      } else {
-        throw new Error(data.message || 'Twilio error');
-      }
-    } catch(e) {
-      statusEl.textContent = 'Failed: ' + e.message; statusEl.style.color='#f87171';
-    }
-  } else {
-    // Fallback: open native SMS app
-    closeSmsModal();
-    window.open('sms:' + encodeURIComponent(to) + '?body=' + encodeURIComponent(body));
+  statusEl.textContent = 'Sending...'; statusEl.style.color='var(--text-muted)';
+  try {
+    const res = await fetch(MESSAGING_API + '/send', {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      credentials: 'include',
+      body: JSON.stringify({ to, body, contact_id: CRM_ACTIVE_CONTACT?.id || null, channel: 'sms' }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Message send failed');
+    statusEl.textContent = 'Sent'; statusEl.style.color='#4ade80';
+    setTimeout(closeSmsModal, 1200);
+  } catch(e) {
+    statusEl.textContent = 'Failed: ' + e.message; statusEl.style.color='#f87171';
   }
 }
-
 // -- Add Contact -------------------------------------------------
 function openAddContactModal() {
   ['acFirstName','acLastName','acEmail','acPhone'].forEach(id => { const el = document.getElementById(id); if(el) el.value=''; });
@@ -4689,7 +4717,7 @@ async function submitAddContact() {
   try {
     const res = await fetch(CRM_BASE + '/subscribers', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: WP_AUTH },
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         first_name: document.getElementById('acFirstName').value.trim(),
         last_name:  document.getElementById('acLastName').value.trim(),
@@ -4723,7 +4751,7 @@ async function crmExportCSV() {
       if (CRM_FILTER_LIST)   url += '&list_id=' + CRM_FILTER_LIST;
       if (CRM_FILTER_TAG)    url += '&tag_id='  + CRM_FILTER_TAG;
       if (CRM_FILTER_STATUS) url += '&status='  + CRM_FILTER_STATUS;
-      const res = await fetch(url, { headers: { Authorization: WP_AUTH } });
+      const res = await fetch(url, { headers: authHeaders() });
       if (!res.ok) break;
       const data = await res.json();
       const sub = data.subscribers;
@@ -4797,7 +4825,7 @@ function crmImportCSV(input) {
         if (!payload.email) { errors++; continue; }
         const res = await fetch(CRM_BASE + '/subscribers', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: WP_AUTH },
+          headers: authHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify(payload),
         });
         if (res.ok) success++; else errors++;
@@ -4818,7 +4846,7 @@ function showCRMAuthError() {
           '<svg style="width:20px;height:20px;color:#f87171" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>' +
         '</div>' +
         '<div><h3 class="font-medium mb-1" style="color:var(--text)">Authentication Required</h3>' +
-        '<p class="text-sm" style="color:var(--text-muted)">API credentials could not be verified. Check WP_AUTH in the dashboard source.</p></div>' +
+        '<p class="text-sm" style="color:var(--text-muted)">API credentials could not be verified. Check the /api/wp-json proxy and backend CMS credentials.</p></div>' +
       '</div>' +
     '</div></td></tr>';
 }
@@ -4911,7 +4939,7 @@ async function loadFBBoards() {
   const wrap = document.getElementById('fb-content-wrap');
   if (wrap) wrap.innerHTML = '<div class="py-20 text-center text-sm" style="color:var(--text-muted)">Loading boards�</div>';
   try {
-    const res = await fetch(FB_BASE + '/projects', { headers: { Authorization: WP_AUTH } });
+    const res = await fetch(FB_BASE + '/projects', { headers: authHeaders() });
     console.log('[FB] /projects status:', res.status);
     if (res.status === 401 || res.status === 403) { showFBAuthError('Auth failed (HTTP ' + res.status + ')'); return; }
     if (!res.ok) { showFBError('Boards API returned HTTP ' + res.status); return; }
@@ -4951,7 +4979,7 @@ async function loadAllFBTasks() {
   // Load tasks from every board simultaneously
   const results = await Promise.all(
     FB_BOARDS.map(b =>
-      fetch(FB_BASE + '/projects/' + b.id + '/tasks?per_page=500', { headers: { Authorization: WP_AUTH } })
+      fetch(FB_BASE + '/projects/' + b.id + '/tasks?per_page=500', { headers: authHeaders() })
         .then(r => { console.log('[FB] tasks for board', b.id, 'status:', r.status); return r.json(); })
         .then(d => {
           console.log('[FB] tasks for board', b.id, ':', d);
@@ -5299,7 +5327,7 @@ async function saveFBTaskChanges() {
   try {
     const res = await fetch(FB_BASE + '/projects/' + boardId + '/tasks/' + id, {
       method: 'PUT',
-      headers: { 'Content-Type':'application/json', Authorization: WP_AUTH },
+      headers: authHeaders({ 'Content-Type':'application/json' }),
       body: JSON.stringify({ stage_id: stageId, priority: priority || null, due_at: dueDate || null }),
     });
     if (res.ok) {
@@ -5909,6 +5937,40 @@ function updateDocStats() {
 }
 
 // --- Auth / Session -------------------------------------------
+async function runHermesAgent() {
+  const runType = document.getElementById('agentRunType').value;
+  const prompt = document.getElementById('agentPrompt').value.trim();
+  const status = document.getElementById('agentStatus');
+  const output = document.getElementById('agentOutput');
+  const btn = document.getElementById('agentRunBtn');
+  if (!prompt) { status.textContent = 'Enter a prompt first.'; status.style.color = '#f87171'; return; }
+  status.textContent = 'Hermes is drafting...'; status.style.color = 'var(--text-muted)';
+  btn.disabled = true;
+  try {
+    const res = await fetch(HERMES_API + '/runs', {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      credentials: 'include',
+      body: JSON.stringify({ run_type: runType, input: { prompt } }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Hermes request failed');
+    output.textContent = data.output?.content || data.output?.message || JSON.stringify(data.output || data, null, 2);
+    status.textContent = data.run_id ? 'Draft saved. Run ID: ' + data.run_id : 'Draft complete.';
+    status.style.color = '#4ade80';
+  } catch (e) {
+    status.textContent = 'Error: ' + e.message;
+    status.style.color = '#f87171';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function copyAgentOutput() {
+  const text = document.getElementById('agentOutput').textContent || '';
+  await navigator.clipboard.writeText(text);
+  showToast('Agent output copied');
+}
 function logout() {
   ['cmi-auth-token','cmi-user-name','cmi-user-role','cmi-user-email'].forEach(k => localStorage.removeItem(k));
   window.location.href = 'dashboard.html';
@@ -6106,8 +6168,25 @@ function initDocumentFormControls() {
   _docPickersReady = true;
 }
 
+async function requireStaffSession() {
+  const token = localStorage.getItem('cmi-auth-token');
+  if (!token) { window.location.replace('dashboard.html'); return false; }
+  try {
+    const res = await fetch('/api/auth/session', { headers: authHeaders(), credentials: 'include' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || (data.role || '').toLowerCase() !== 'staff') throw new Error('Invalid session');
+    if (data.name) localStorage.setItem('cmi-user-name', data.name);
+    if (data.email) localStorage.setItem('cmi-user-email', data.email);
+    return true;
+  } catch (e) {
+    ['cmi-auth-token','cmi-user-name','cmi-user-role','cmi-user-email'].forEach(k => localStorage.removeItem(k));
+    window.location.replace('dashboard.html');
+    return false;
+  }
+}
 async function init() {
   applyTheme(localStorage.getItem('cmi-theme') || 'dark');
+  if (!await requireStaffSession()) return;
   // Show logged-in user in sidebar
   const name = localStorage.getItem('cmi-user-name') || '';
   const parts = name.trim().split(' ');

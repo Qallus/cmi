@@ -789,8 +789,8 @@
   buildContactSelect('source');
 
   // -- Contact Form Submission --
-  const FLUENT_WEBHOOK = 'https://wp.constructedmatter.com/?fluentcrm=1&route=contact&hash=d1125c3e-8e7c-4324-8b87-d7442013e870';
-  const EMAIL_ENDPOINT = ''; // Server-side mailer endpoint, wire up when backend is ready
+  const FLUENT_WEBHOOK = '/api/leads/contact';
+  const EMAIL_ENDPOINT = ''; // Email notification is sent by the backend lead endpoint
   const NOTIFY_EMAIL   = 'hello@constructedmatter.com';
   const NOTIFY_BCC     = 'jeremy@constructedmatter.com';
 

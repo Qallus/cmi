@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Project Updates | Constructed Matter</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: { gold: '#C9A46E', ink: '#111111' },
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] }
+        }
+      }
+    };
+  </script>
+</head>
+<body class="bg-neutral-950 text-neutral-100 min-h-screen">
+  <header class="border-b border-white/10 bg-neutral-950/90 backdrop-blur">
+    <div class="mx-auto flex max-w-6xl items-center justify-between px-5 py-4">
+      <a href="/" class="text-sm font-semibold tracking-[0.2em] uppercase">Constructed Matter</a>
+      <button id="shareBtn" class="hidden rounded-md border border-white/15 px-3 py-2 text-sm text-neutral-200 hover:border-gold hover:text-gold">Share</button>
+    </div>
+  </header>
+
+  <main class="mx-auto max-w-6xl px-5 py-8">
+    <div id="loading" class="py-24 text-center text-sm text-neutral-400">Loading project...</div>
+    <div id="error" class="hidden rounded-lg border border-red-400/30 bg-red-500/10 p-5 text-sm text-red-200"></div>
+
+    <article id="project" class="hidden">
+      <section class="grid gap-8 lg:grid-cols-[1.4fr_0.6fr]">
+        <div>
+          <p id="phase" class="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-gold"></p>
+          <h1 id="title" class="text-4xl font-semibold tracking-tight md:text-5xl"></h1>
+          <p id="summary" class="mt-5 max-w-3xl text-base leading-7 text-neutral-300"></p>
+        </div>
+        <aside class="rounded-lg border border-white/10 bg-white/[0.03] p-5">
+          <dl class="space-y-4 text-sm">
+            <div><dt class="text-neutral-500">Project Manager</dt><dd id="manager" class="mt-1 text-neutral-100"></dd></div>
+            <div><dt class="text-neutral-500">Target Date</dt><dd id="target" class="mt-1 text-neutral-100"></dd></div>
+            <div><dt class="text-neutral-500">Progress</dt><dd id="progressText" class="mt-1 text-neutral-100"></dd></div>
+          </dl>
+          <div class="mt-5 h-2 overflow-hidden rounded-full bg-white/10">
+            <div id="progressBar" class="h-full rounded-full bg-gold" style="width:0%"></div>
+          </div>
+        </aside>
+      </section>
+
+      <section class="mt-10">
+        <h2 class="text-lg font-semibold">Milestones</h2>
+        <div id="milestones" class="mt-4 grid gap-3 md:grid-cols-2"></div>
+      </section>
+
+      <section class="mt-10">
+        <h2 class="text-lg font-semibold">Latest Updates</h2>
+        <div id="updates" class="mt-4 space-y-5"></div>
+      </section>
+    </article>
+  </main>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+    const slug = params.get('slug') || window.location.pathname.split('/').filter(Boolean).pop();
+    const endpoint = token ? '/api/share/' + encodeURIComponent(token) : '/api/client-projects/' + encodeURIComponent(slug || '');
+
+    function fmtDate(value) {
+      if (!value) return 'TBD';
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    function text(id, value) {
+      document.getElementById(id).textContent = value || '';
+    }
+
+    function render(project) {
+      document.title = (project.title || 'Project Updates') + ' | Constructed Matter';
+      text('phase', project.phase || project.public_status || 'Project');
+      text('title', project.title);
+      text('summary', project.summary);
+      text('manager', project.project_manager || 'CMI Team');
+      text('target', fmtDate(project.target_date));
+      const pct = Math.max(0, Math.min(100, Number(project.percent_complete || 0)));
+      text('progressText', pct + '% complete');
+      document.getElementById('progressBar').style.width = pct + '%';
+
+      const milestones = project.milestones || [];
+      document.getElementById('milestones').innerHTML = milestones.length ? milestones.map(m => (
+        '<div class="rounded-lg border border-white/10 bg-white/[0.03] p-4">' +
+          '<div class="flex items-center justify-between gap-4">' +
+            '<h3 class="font-medium">' + escapeHtml(m.title) + '</h3>' +
+            '<span class="rounded-full border border-white/10 px-2 py-1 text-xs text-neutral-300">' + escapeHtml(m.status || 'upcoming') + '</span>' +
+          '</div>' +
+          (m.description ? '<p class="mt-2 text-sm leading-6 text-neutral-400">' + escapeHtml(m.description) + '</p>' : '') +
+          '<p class="mt-3 text-xs text-neutral-500">' + escapeHtml(fmtDate(m.due_date || m.completed_at)) + '</p>' +
+        '</div>'
+      )).join('') : '<p class="text-sm text-neutral-500">No milestones published yet.</p>';
+
+      const updates = project.updates || [];
+      document.getElementById('updates').innerHTML = updates.length ? updates.map(u => (
+        '<section class="rounded-lg border border-white/10 bg-white/[0.03] p-5">' +
+          '<div class="flex flex-wrap items-start justify-between gap-3">' +
+            '<h3 class="text-xl font-semibold">' + escapeHtml(u.title) + '</h3>' +
+            '<time class="text-xs text-neutral-500">' + escapeHtml(fmtDate(u.published_at || u.created_at)) + '</time>' +
+          '</div>' +
+          (u.body ? '<p class="mt-3 whitespace-pre-line text-sm leading-7 text-neutral-300">' + escapeHtml(u.body) + '</p>' : '') +
+          renderMedia(u.media || []) +
+        '</section>'
+      )).join('') : '<p class="text-sm text-neutral-500">No updates published yet.</p>';
+
+      document.getElementById('loading').classList.add('hidden');
+      document.getElementById('project').classList.remove('hidden');
+      const shareBtn = document.getElementById('shareBtn');
+      if (navigator.share || navigator.clipboard) shareBtn.classList.remove('hidden');
+      shareBtn.addEventListener('click', async () => {
+        if (navigator.share) await navigator.share({ title: project.title, url: window.location.href });
+        else await navigator.clipboard.writeText(window.location.href);
+      });
+    }
+
+    function renderMedia(media) {
+      if (!media.length) return '';
+      return '<div class="mt-4 grid gap-3 sm:grid-cols-2">' + media.map(item => (
+        item.media_type === 'video'
+          ? '<video controls class="aspect-video w-full rounded-md bg-black" src="' + escapeAttr(item.media_url) + '"></video>'
+          : '<img class="aspect-video w-full rounded-md object-cover" src="' + escapeAttr(item.media_url) + '" alt="' + escapeAttr(item.caption || 'Project update media') + '" />'
+      )).join('') + '</div>';
+    }
+
+    function escapeHtml(value) {
+      return String(value || '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+    }
+    function escapeAttr(value) { return escapeHtml(value); }
+
+    fetch(endpoint, { credentials: 'include' })
+      .then(async res => {
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.message || 'This project link is unavailable.');
+        render(data.project || data);
+      })
+      .catch(err => {
+        document.getElementById('loading').classList.add('hidden');
+        const error = document.getElementById('error');
+        error.textContent = err.message;
+        error.classList.remove('hidden');
+      });
+  </script>
+</body>
+</html>

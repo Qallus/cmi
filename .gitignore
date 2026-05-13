@@ -6,6 +6,10 @@ __pycache__/
 venv/
 *.egg-info/
 
+# Node
+node_modules/
+npm-debug.log*
+
 # OS
 .DS_Store
 Thumbs.db
