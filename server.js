@@ -6,6 +6,7 @@ import multer from 'multer';
 import nodemailer from 'nodemailer';
 import OpenAI from 'openai';
 import twilio from 'twilio';
+import WebSocket from 'ws';
 import QRCode from 'qrcode';
 import { createClient } from '@supabase/supabase-js';
 import path from 'node:path';
@@ -31,6 +32,7 @@ for (const key of required) {
 const supabase = process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY
   ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
       auth: { persistSession: false },
+      realtime: { transport: WebSocket },
     })
   : null;
 
