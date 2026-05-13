@@ -123,7 +123,12 @@
             <span>Password</span>
             <span id="pwHint" class="normal-case font-normal" style="color:var(--text-muted);font-size:10px;letter-spacing:0">Staff password</span>
           </label>
-          <input id="passwordInput" type="password" class="form-input" placeholder="Enter your password" autocomplete="current-password" onkeydown="if(event.key==='Enter')handleLogin()" />
+                    <div style="position:relative">
+            <input id="passwordInput" type="password" class="form-input" style="padding-right:46px" placeholder="Enter your password" autocomplete="current-password" onkeydown="if(event.key==='Enter')handleLogin()" />
+            <button type="button" id="passwordToggle" onclick="togglePasswordVisibility()" aria-label="Show password" title="Show password" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);width:28px;height:28px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-muted);display:flex;align-items:center;justify-content:center;cursor:pointer">
+              <svg id="passwordToggleIcon" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
         </div>
         <div id="errorBox" class="error-box"></div>
         <button id="signInBtn" onclick="handleLogin()" class="btn-gold">Sign In</button>
@@ -259,6 +264,19 @@ function formatName(email) {
   return local.replace(/\b\w/g, c => c.toUpperCase());
 }
 
+function togglePasswordVisibility() {
+  const input = document.getElementById('passwordInput');
+  const btn = document.getElementById('passwordToggle');
+  const icon = document.getElementById('passwordToggleIcon');
+  const showing = input.type === 'text';
+  input.type = showing ? 'password' : 'text';
+  btn.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+  btn.title = showing ? 'Show password' : 'Hide password';
+  icon.innerHTML = showing
+    ? '<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>'
+    : '<path d="M3 3l18 18"/><path d="M10.58 10.58A2 2 0 0012 14a2 2 0 001.42-.58"/><path d="M9.88 5.18A10.5 10.5 0 0112 5c6.5 0 10 7 10 7a18.7 18.7 0 01-3.21 4.32"/><path d="M6.11 6.11C3.49 7.88 2 12 2 12s3.5 7 10 7a10.8 10.8 0 004.2-.84"/>';
+  input.focus();
+}
 function showClientPanel(name) {
   document.getElementById('loginPanel').classList.add('hidden');
   const cp = document.getElementById('clientPanel');
