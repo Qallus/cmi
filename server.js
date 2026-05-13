@@ -96,6 +96,10 @@ function normalizePhone(phone) {
   return String(phone || '').replace(/[^\d+]/g, '');
 }
 
+function isUuid(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ''));
+}
+
 function splitName(name = '') {
   const parts = String(name).trim().split(/\s+/).filter(Boolean);
   return {
@@ -127,6 +131,38 @@ async function supabaseUpsertContact(payload) {
     .single();
   if (error) throw error;
   return data;
+}
+
+async function resolveMessageContact(body = {}) {
+  if (!supabase) return null;
+  if (isUuid(body.contact_id)) {
+    const { data } = await supabase.from('contacts').select('*').eq('id', body.contact_id).maybeSingle();
+    if (data) return data;
+  }
+
+  const source = body.contact || {};
+  const email = String(source.email || body.email || '').trim().toLowerCase();
+  if (email) {
+    return supabaseUpsertContact({
+      fluent_crm_id: Number(source.id) || null,
+      first_name: source.first_name || '',
+      last_name: source.last_name || '',
+      email,
+      phone: source.phone || body.to || null,
+      company: source.company || null,
+      type: source.type || 'Lead',
+      status: source.status || 'active',
+      source: 'FluentCRM',
+      last_activity: new Date().toISOString(),
+    });
+  }
+
+  const phone = normalizePhone(source.phone || body.to || '');
+  if (phone) {
+    const { data } = await supabase.from('contacts').select('*').eq('phone', phone).maybeSingle();
+    if (data) return data;
+  }
+  return null;
 }
 
 async function forwardToFluentCRM(payload) {
@@ -482,14 +518,15 @@ app.post('/api/messages/send', requireStaff, async (req, res) => {
     }
 
     const sent = await twilioClient.messages.create(messagePayload);
+    const contact = await resolveMessageContact(req.body);
     const thread = await findOrCreateThread({
-      contact_id: req.body.contact_id || null,
+      contact_id: contact?.id || null,
       client_project_id: req.body.client_project_id || null,
       channel: 'sms',
     });
     const row = await supabaseInsert('messages', {
       thread_id: thread?.id || null,
-      contact_id: req.body.contact_id || null,
+      contact_id: contact?.id || null,
       direction: 'outbound',
       channel: 'sms',
       from_address: sent.from || process.env.TWILIO_FROM_NUMBER || null,
@@ -533,15 +570,16 @@ app.post('/api/email/send', requireStaff, async (req, res) => {
     if (!to || !body) return res.status(400).json({ message: 'Recipient and body are required' });
 
     const sent = await sendMail({ to, subject, body });
+    const contact = await resolveMessageContact(req.body);
     const thread = await findOrCreateThread({
-      contact_id: req.body.contact_id || null,
+      contact_id: contact?.id || null,
       client_project_id: req.body.client_project_id || null,
       channel: 'email',
       subject,
     });
     const row = await supabaseInsert('messages', {
       thread_id: thread?.id || null,
-      contact_id: req.body.contact_id || null,
+      contact_id: contact?.id || null,
       direction: 'outbound',
       channel: 'email',
       from_address: process.env.MAIL_FROM || process.env.SMTP_USER || null,

@@ -295,12 +295,13 @@
     /* === Custom select === */
     .cmi-sel-wrap{position:relative;}
     .cmi-sel-trigger{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--surface-2);border:1px solid var(--border-lg);border-radius:8px;padding:11px 14px;font-size:14px;color:var(--text);font-family:'Roboto',sans-serif;cursor:pointer;text-align:left;outline:none;transition:border-color .2s;}
+    .cmi-sel-trigger span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
     .cmi-sel-trigger:hover{border-color:var(--border-md);}
     .cmi-sel-trigger.open,.cmi-sel-trigger:focus{border-color:var(--gold);}
     .cmi-sel-trigger.placeholder{color:var(--text-weak);}
     .cmi-sel-chevron{flex-shrink:0;color:var(--text-muted);transition:transform .2s;}
     .cmi-sel-trigger.open .cmi-sel-chevron{transform:rotate(180deg);}
-    .cmi-sel-menu{display:none;position:absolute;top:calc(100% + 5px);left:0;right:0;z-index:500;background:var(--surface);border:1px solid var(--border-card);border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,.28);overflow:hidden;padding:4px;}
+    .cmi-sel-menu{display:none;position:absolute;top:calc(100% + 5px);left:0;right:0;z-index:500;background:var(--surface);border:1px solid var(--border-card);border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,.28);overflow-y:auto;max-height:280px;padding:4px;}
     .cmi-sel-menu.open{display:block;}
     .cmi-sel-opt{padding:9px 12px;font-size:13px;color:var(--text);border-radius:7px;cursor:pointer;transition:background .12s,color .12s;}
     .cmi-sel-opt:hover{background:var(--gold-alpha);color:var(--gold);}
@@ -2281,6 +2282,7 @@ function nav(id, el) {
   // Lazy-load data on first navigation to each section
   if (id === 'projects' && !FB_LOADED)  loadFBBoards();
   if (id === 'clients'  && !CRM_LOADED) loadCRMInit();
+  if (id === 'communications') loadCommunications();
 }
 
 // --- Toast ----------------------------------------------------
@@ -5994,25 +5996,40 @@ async function commLoadAll() {
 
 async function commLoadContacts() {
   try {
-    const res = await fetch('/api/contacts', { headers: authHeaders(), credentials: 'include' });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.message || 'Could not load contacts');
-    COMM_CONTACTS = data.contacts || [];
+    let all = [];
+    let page = 1;
+    const perPage = 100;
+    while (true) {
+      const res = await fetch(CRM_BASE + '/subscribers?per_page=' + perPage + '&page=' + page + '&with[]=lists&with[]=tags', { headers: authHeaders(), credentials: 'include' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || 'Could not load contacts');
+      const sub = data.subscribers;
+      const contacts = sub?.data || (Array.isArray(sub) ? sub : []);
+      all = all.concat(contacts);
+      if (all.length >= (sub?.total || contacts.length) || contacts.length < perPage) break;
+      page++;
+    }
+    COMM_CONTACTS = all.length ? all : CRM_CONTACTS;
     commRenderContactSelect('commSmsContact');
     commRenderContactSelect('commEmailContact');
   } catch (e) {
     console.warn('[communications] contacts:', e.message);
+    COMM_CONTACTS = CRM_CONTACTS || [];
+    commRenderContactSelect('commSmsContact');
+    commRenderContactSelect('commEmailContact');
   }
 }
 
 function commRenderContactSelect(id) {
   const select = document.getElementById(id);
   if (!select) return;
+  destroyCustomSelect(id);
   select.innerHTML = '<option value="">Select contact...</option>' + COMM_CONTACTS.map((c, i) => {
-    const name = [c.first_name, c.last_name].filter(Boolean).join(' ') || c.company || c.email || c.phone || 'Contact';
-    const meta = c.type ? ' - ' + c.type : '';
-    return '<option value="' + i + '">' + escHtml(name + meta) + '</option>';
+    const name = c.full_name || [c.first_name, c.last_name].filter(Boolean).join(' ') || c.company || c.email || c.phone || 'Contact';
+    const meta = c.phone || c.email || c.status || '';
+    return '<option value="' + i + '">' + escHtml(name + (meta ? ' - ' + meta : '')) + '</option>';
   }).join('');
+  buildCustomSelect(id);
 }
 
 function commFillContact(kind) {
@@ -6031,7 +6048,7 @@ async function commSendSMS() {
   if (!to || !body) { status.textContent = 'Phone and message are required.'; status.style.color = '#f87171'; return; }
   status.textContent = 'Sending SMS...'; status.style.color = 'var(--text-muted)';
   try {
-    const res = await fetch(MESSAGING_API + '/send', { method:'POST', headers: authHeaders({ 'Content-Type':'application/json' }), credentials:'include', body: JSON.stringify({ to, body, contact_id: contact?.id || null, channel:'sms' }) });
+    const res = await fetch(MESSAGING_API + '/send', { method:'POST', headers: authHeaders({ 'Content-Type':'application/json' }), credentials:'include', body: JSON.stringify({ to, body, contact, channel:'sms' }) });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.message || 'SMS failed');
     status.textContent = 'SMS sent.'; status.style.color = '#4ade80';
@@ -6074,7 +6091,7 @@ async function commSendEmail() {
   if (!to || !body) { status.textContent = 'Email and message are required.'; status.style.color = '#f87171'; return; }
   status.textContent = 'Sending email...'; status.style.color = 'var(--text-muted)';
   try {
-    const res = await fetch('/api/email/send', { method:'POST', headers: authHeaders({ 'Content-Type':'application/json' }), credentials:'include', body: JSON.stringify({ to, subject, body, contact_id: contact?.id || null }) });
+    const res = await fetch('/api/email/send', { method:'POST', headers: authHeaders({ 'Content-Type':'application/json' }), credentials:'include', body: JSON.stringify({ to, subject, body, contact }) });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.message || 'Email failed');
     status.textContent = 'Email sent.'; status.style.color = '#4ade80';
