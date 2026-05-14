@@ -6047,6 +6047,8 @@ function commSwitchTab(tab) {
 }
 
 async function loadCommunications() {
+  buildCustomSelect('commSmsContact');
+  buildCustomSelect('commEmailContact');
   if (!COMM_LOADED) await commLoadAll();
 }
 
