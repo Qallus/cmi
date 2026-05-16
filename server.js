@@ -159,6 +159,96 @@ function teamRowFromProfilePayload(body = {}, email) {
   };
 }
 
+function userRoleFromType(value) {
+  const normalized = String(value || '').toLowerCase().replace(/[\s-]+/g, '_');
+  if (normalized === 'sub_contractor') return 'subcontractor';
+  return safeRole(normalized);
+}
+
+function contactTypeForRole(role) {
+  return {
+    client: 'Client',
+    vendor: 'Vendor',
+    subcontractor: 'Sub Contractor',
+  }[role] || 'Lead';
+}
+
+function parseCsvRows(text = '') {
+  const rows = [];
+  let row = [];
+  let cell = '';
+  let quoted = false;
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i];
+    const next = text[i + 1];
+    if (char === '"' && quoted && next === '"') {
+      cell += '"';
+      i += 1;
+    } else if (char === '"') {
+      quoted = !quoted;
+    } else if (char === ',' && !quoted) {
+      row.push(cell);
+      cell = '';
+    } else if ((char === '\n' || char === '\r') && !quoted) {
+      if (char === '\r' && next === '\n') i += 1;
+      row.push(cell);
+      if (row.some(value => String(value).trim())) rows.push(row);
+      row = [];
+      cell = '';
+    } else {
+      cell += char;
+    }
+  }
+  row.push(cell);
+  if (row.some(value => String(value).trim())) rows.push(row);
+  if (rows.length < 2) return [];
+  const headers = rows.shift().map(h => String(h || '').trim().toLowerCase().replace(/[\s-]+/g, '_'));
+  return rows.map(values => Object.fromEntries(headers.map((h, index) => [h, String(values[index] || '').trim()])));
+}
+
+async function sendInviteSms({ to, name, role }) {
+  const phone = normalizePhone(to);
+  if (!phone) return { skipped: true, reason: 'No phone number' };
+  if (!twilioClient) return { skipped: true, reason: 'Twilio is not configured' };
+  const body = `Constructed Matter has invited ${name || 'you'} to the CMI ${role || 'user'} portal. Visit ${process.env.DASHBOARD_URL || process.env.PUBLIC_SITE_URL || 'https://my.constructedmatter.com/dashboard.html'} to sign in or register.`;
+  const payload = { to: phone, body };
+  if (process.env.TWILIO_MESSAGING_SERVICE_SID) payload.messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
+  else payload.from = process.env.TWILIO_FROM_NUMBER;
+  return twilioClient.messages.create(payload);
+}
+
+async function notifyInvite({ email, phone, name, role, notify_email, notify_sms }) {
+  const result = { email_status: 'not_requested', sms_status: 'not_requested' };
+  if (notify_email && email) {
+    try {
+      await sendMail({
+        to: email,
+        subject: 'You have been invited to the CMI portal',
+        body: [
+          `Hi ${name || 'there'},`,
+          '',
+          `Constructed Matter has invited you to the CMI ${role || 'user'} portal.`,
+          `Sign in or register here: ${process.env.DASHBOARD_URL || process.env.PUBLIC_SITE_URL || 'https://my.constructedmatter.com/dashboard.html'}`,
+          '',
+          'Constructed Matter, Inc.',
+        ].join('\n'),
+      });
+      result.email_status = 'sent';
+    } catch (err) {
+      result.email_status = `error: ${err.message}`;
+    }
+  }
+  if (notify_sms && phone) {
+    try {
+      const sent = await sendInviteSms({ to: phone, name, role });
+      result.sms_status = sent?.skipped ? 'skipped' : 'sent';
+    } catch (err) {
+      result.sms_status = `error: ${err.message}`;
+    }
+  }
+  return result;
+}
+
 function wpAuthHeader() {
   const user = process.env.WP_BASIC_USER;
   const pass = process.env.WP_BASIC_APP_PASSWORD;
@@ -614,6 +704,186 @@ app.post('/api/staff-users/invite', requireSuperAdmin, async (req, res) => {
     res.json({ ok: true, user: data, message: 'Access record created. Add this user to STAFF_USERS_JSON or Supabase Auth to enable login.' });
   } catch (err) {
     res.status(500).json({ message: err.message || 'Staff invite failed' });
+  }
+});
+
+async function createUserInviteRecord(body, invitedByEmail) {
+  if (!supabase) throw new Error('Supabase is not configured');
+  const role = userRoleFromType(body.role || body.type || 'client');
+  const email = String(body.email || '').trim().toLowerCase();
+  const phone = String(body.phone || '').trim();
+  const name = String(body.name || body.display_name || '').trim();
+  const split = splitName(name);
+  const title = String(body.title || '').trim();
+  const notify_email = Boolean(body.notify_email);
+  const notify_sms = Boolean(body.notify_sms);
+  let staffUser = null;
+  let contact = null;
+
+  if (role === 'staff' || role === 'super_admin') {
+    if (!email) throw new Error('Email is required for staff and super admin users');
+    const { data: org } = await supabase.from('organizations').select('id').eq('slug', 'constructed-matter').maybeSingle();
+    const payload = {
+      organization_id: org?.id || null,
+      email,
+      phone: phone || null,
+      first_name: body.first_name || split.first_name,
+      last_name: body.last_name || split.last_name,
+      display_name: name || email,
+      title: title || null,
+      role_slug: role,
+      status: 'invited',
+      invited_at: new Date().toISOString(),
+    };
+    const { data, error } = await supabase
+      .from('staff_users')
+      .upsert(payload, { onConflict: 'email' })
+      .select('id,email,display_name,title,role_slug,status,phone')
+      .single();
+    if (error) throw error;
+    staffUser = data;
+  } else {
+    if (!email && !phone) throw new Error('Email or phone is required');
+    const payload = {
+      first_name: body.first_name || split.first_name,
+      last_name: body.last_name || split.last_name,
+      email: email || null,
+      phone: phone || null,
+      type: contactTypeForRole(role),
+      company: body.company || null,
+      status: 'Invited',
+      source: 'Dashboard User Invite',
+      last_activity: new Date().toISOString(),
+    };
+    const { data, error } = email
+      ? await supabase.from('contacts').upsert(payload, { onConflict: 'email' }).select().single()
+      : await supabase.from('contacts').insert(payload).select().single();
+    if (error) throw error;
+    contact = data;
+  }
+
+  const notify = await notifyInvite({ email, phone, name, role, notify_email, notify_sms });
+  if (staffUser?.id && (notify_email || notify_sms)) {
+    await supabase.from('staff_users').update({
+      invite_email_sent_at: notify.email_status === 'sent' ? new Date().toISOString() : null,
+      invite_sms_sent_at: notify.sms_status === 'sent' ? new Date().toISOString() : null,
+      updated_at: new Date().toISOString(),
+    }).eq('id', staffUser.id);
+  }
+  const { data: invite } = await supabase.from('user_invites').insert({
+    email: email || null,
+    phone: phone || null,
+    name: name || null,
+    role_slug: role,
+    contact_id: contact?.id || null,
+    staff_user_id: staffUser?.id || null,
+    notify_email,
+    notify_sms,
+    email_status: notify.email_status,
+    sms_status: notify.sms_status,
+    invited_by_email: invitedByEmail || null,
+  }).select().single();
+
+  return { role, staff_user: staffUser, contact, invite, notifications: notify };
+}
+
+app.post('/api/users/invite', requireSuperAdmin, async (req, res) => {
+  try {
+    const result = await createUserInviteRecord(req.body || {}, req.user.email);
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    res.status(500).json({ message: err.message || 'User invite failed' });
+  }
+});
+
+app.post('/api/users/import', requireSuperAdmin, async (req, res) => {
+  try {
+    const rows = Array.isArray(req.body.users) ? req.body.users : parseCsvRows(req.body.csv || '');
+    if (!rows.length) return res.status(400).json({ message: 'No users found to import' });
+    const results = [];
+    for (const row of rows.slice(0, 500)) {
+      try {
+        results.push({ ok: true, result: await createUserInviteRecord({
+          role: row.role || row.type || row.user_type,
+          name: row.name || row.full_name || row.display_name,
+          first_name: row.first_name,
+          last_name: row.last_name,
+          title: row.title,
+          company: row.company,
+          email: row.email,
+          phone: row.phone,
+          notify_email: ['true','yes','1'].includes(String(row.notify_email || '').toLowerCase()),
+          notify_sms: ['true','yes','1'].includes(String(row.notify_sms || '').toLowerCase()),
+        }, req.user.email) });
+      } catch (err) {
+        results.push({ ok: false, email: row.email || '', message: err.message });
+      }
+    }
+    res.json({ ok: true, imported: results.filter(r => r.ok).length, failed: results.filter(r => !r.ok).length, results });
+  } catch (err) {
+    res.status(500).json({ message: err.message || 'User import failed' });
+  }
+});
+
+app.get('/api/site-content', requireSuperAdmin, async (_req, res) => {
+  try {
+    if (!supabase) return res.status(503).json({ message: 'Supabase is not configured' });
+    const { data, error } = await supabase.from('site_content_blocks').select('*').order('type').order('key');
+    if (error) throw error;
+    res.json({ blocks: data || [] });
+  } catch (err) {
+    res.status(500).json({ message: err.message || 'Site content load failed' });
+  }
+});
+
+app.get('/api/public/site-content', async (req, res) => {
+  try {
+    if (!supabase) return res.status(503).json({ message: 'Supabase is not configured' });
+    const page = String(req.query.page || '').trim();
+    const { data, error } = await supabase
+      .from('site_content_blocks')
+      .select('*')
+      .eq('enabled', true)
+      .order('type')
+      .order('key');
+    if (error) throw error;
+    const blocks = page
+      ? (data || []).filter(block => (block.pages || []).includes('*') || (block.pages || []).includes(page))
+      : (data || []);
+    res.json({ blocks });
+  } catch (err) {
+    res.status(500).json({ message: err.message || 'Site content load failed' });
+  }
+});
+
+app.put('/api/site-content/:key', requireSuperAdmin, async (req, res) => {
+  try {
+    if (!supabase) return res.status(503).json({ message: 'Supabase is not configured' });
+    const key = String(req.params.key || '').trim().toLowerCase().replace(/[^a-z0-9_.-]+/g, '-');
+    if (!key) return res.status(400).json({ message: 'Content key is required' });
+    const type = ['hero','notification','cta'].includes(req.body.type) ? req.body.type : 'hero';
+    const pages = Array.isArray(req.body.pages)
+      ? req.body.pages
+      : String(req.body.pages || '').split(',').map(v => v.trim()).filter(Boolean);
+    const payload = {
+      key,
+      type,
+      title: req.body.title || null,
+      subtitle: req.body.subtitle || null,
+      body: req.body.body || null,
+      button_label: req.body.button_label || null,
+      button_url: req.body.button_url || null,
+      image_url: req.body.image_url || null,
+      enabled: req.body.enabled !== false,
+      pages,
+      metadata: req.body.metadata && typeof req.body.metadata === 'object' ? req.body.metadata : {},
+      updated_at: new Date().toISOString(),
+    };
+    const { data, error } = await supabase.from('site_content_blocks').upsert(payload, { onConflict: 'key' }).select().single();
+    if (error) throw error;
+    res.json({ ok: true, block: data });
+  } catch (err) {
+    res.status(500).json({ message: err.message || 'Site content save failed' });
   }
 });
 

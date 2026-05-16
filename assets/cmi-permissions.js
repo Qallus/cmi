@@ -147,6 +147,7 @@
     { id: 'portfolio', label: 'Portfolio', permissions: ['projects.view_all'] },
     { id: 'blog', label: 'Blog', permissions: ['projects.view_all'] },
     { id: 'team', label: 'Team', permissions: ['users.view'] },
+    { id: 'site-content', label: 'Site Content', permissions: ['settings.manage'] },
     { id: 'documents', label: 'Documents', permissions: ['documents.view'] },
     { id: 'settings', label: 'Settings', permissions: ['settings.manage'] },
   ];
