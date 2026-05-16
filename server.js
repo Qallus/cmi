@@ -93,6 +93,15 @@ function requireStaff(req, res, next) {
   });
 }
 
+function requireSuperAdmin(req, res, next) {
+  requireAuth(req, res, () => {
+    if (String(req.user.role || '').toLowerCase() !== 'super_admin') {
+      return res.status(403).json({ message: 'Super Admin access required' });
+    }
+    next();
+  });
+}
+
 function normalizePhone(phone) {
   return String(phone || '').replace(/[^\d+]/g, '');
 }
@@ -475,6 +484,26 @@ app.post('/api/contacts', requireStaff, async (req, res) => {
     res.json({ ok: true, contact });
   } catch (err) {
     res.status(500).json({ message: err.message || 'Contact save failed' });
+  }
+});
+
+app.get('/api/users', requireSuperAdmin, async (_req, res) => {
+  try {
+    if (!supabase) return res.status(503).json({ message: 'Supabase is not configured' });
+    const directory = staffUsers().map(user => ({
+      email: String(user.email || '').toLowerCase(),
+      name: user.name || user.email || '',
+      role: user.role || 'staff',
+    })).filter(user => user.email);
+    const { data, error } = await supabase
+      .from('contacts')
+      .select('id,first_name,last_name,email,phone,type,company,status,last_activity')
+      .order('last_activity', { ascending: false, nullsFirst: false })
+      .limit(500);
+    if (error) throw error;
+    res.json({ users: directory, contacts: data || [] });
+  } catch (err) {
+    res.status(500).json({ message: err.message || 'Users load failed' });
   }
 });
 

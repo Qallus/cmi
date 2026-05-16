@@ -138,6 +138,7 @@
 
   const NAV_ITEMS = [
     { id: 'overview', label: 'Overview', permissions: ['profile.view'] },
+    { id: 'users', label: 'Users', permissions: ['users.view'] },
     { id: 'clients', label: 'Contacts', permissions: ['contacts.view'] },
     { id: 'projects', label: 'Projects', permissions: ['projects.view_all', 'projects.view_assigned'] },
     { id: 'bookings', label: 'Bookings', permissions: ['calendars.view'] },
