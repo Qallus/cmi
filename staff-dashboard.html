@@ -357,6 +357,10 @@
         <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
         Overview
       </div>
+      <div class="nav-item" onclick="nav('profile',this)">
+        <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M15.75 6.75a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"/><path d="M4.5 20.25a8.25 8.25 0 0115 0"/></svg>
+        My Profile
+      </div>
       <div class="nav-item" onclick="nav('users',this)">
         <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
         Users
@@ -547,6 +551,27 @@
               <button id="overviewHermesBtn" onclick="overviewHermesDraft()" class="px-4 py-2 rounded-lg text-white text-sm font-medium hover:opacity-90" style="background:var(--gold)">Quick Draft</button>
               <p id="overviewHermesStatus" class="text-xs text-neutral-500"></p>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- -- MY PROFILE -- -->
+      <section id="sec-profile" class="section">
+        <div class="flex flex-wrap items-start justify-between gap-4 mb-5">
+          <div>
+            <p class="text-[10px] uppercase tracking-widest text-neutral-500 font-medium">Staff Account</p>
+            <h2 class="font-display text-2xl text-neutral-100 mt-0.5">My Public Team Profile</h2>
+            <p class="text-sm text-neutral-500 mt-2 max-w-3xl">Update the public Team profile connected to your staff login. Changes save to Supabase and are marked for the public-site sync flow.</p>
+          </div>
+          <button onclick="openMyTeamProfile()" class="px-5 py-2.5 rounded-lg text-white text-sm font-medium hover:opacity-90" style="background:var(--gold)">Edit Public Profile</button>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          <div class="lg:col-span-2 card p-5">
+            <div id="myProfileSummary" class="text-sm text-neutral-500">Loading your profile...</div>
+          </div>
+          <div class="card p-5">
+            <p class="text-[10px] uppercase tracking-widest text-neutral-500 font-medium mb-3">Profile Access</p>
+            <div id="myProfileAccess" class="space-y-2 text-sm text-neutral-400"></div>
           </div>
         </div>
       </section>
@@ -2328,7 +2353,7 @@ let DOC_FILTER    = 'all';
 
 // --- Navigation -----------------------------------------------
 const TITLES = {
-  overview:'Overview', users:'Users', portfolio:'Portfolio', 'add-project':'New Project',
+  overview:'Overview', profile:'My Profile', users:'Users', portfolio:'Portfolio', 'add-project':'New Project',
   projects:'Projects', blog:'Blog', 'add-blog':'New Post', clients:'Contacts',
   bookings:'Bookings', 'add-booking':'Add Appointment', communications:'Communications', quotes:'Quotes & Leads', 'add-quote':'Add Quote', team:'Team',
   'add-team':'Add Team Member', documents:'Documents',
@@ -2356,6 +2381,7 @@ let DASHBOARD_USER = null;
 
 const SECTION_PERMISSIONS = {
   overview: ['profile.view'],
+  profile: ['profile.edit'],
   users: ['users.view'],
   clients: ['contacts.view'],
   projects: ['projects.view_all', 'projects.view_assigned'],
@@ -2363,7 +2389,7 @@ const SECTION_PERMISSIONS = {
   quotes: ['quotes.view'],
   portfolio: ['projects.view_all'],
   blog: ['projects.view_all'],
-  team: ['users.view', 'projects.view_all'],
+  team: ['users.view'],
   documents: ['documents.view'],
   settings: ['settings.manage'],
   'add-project': ['projects.create'],
@@ -2448,6 +2474,7 @@ function nav(id, el) {
     }
   }
   // Lazy-load data on first navigation to each section
+  if (id === 'profile') loadMyTeamProfile();
   if (id === 'users') loadUsers();
   if (id === 'projects' && !FB_LOADED)  loadFBBoards();
   if (id === 'clients'  && !CRM_LOADED) loadCRMInit();
@@ -2724,6 +2751,95 @@ function openLinkedTeamProfile(id) {
     return;
   }
   openTeamModal(member.id);
+}
+
+let MY_TEAM_PROFILE_ID = null;
+let MY_PROFILE_LOADED = false;
+
+function profilePlaceholderFromUser() {
+  const user = getDashboardUser();
+  const parts = String(user.name || '').trim().split(/\s+/).filter(Boolean);
+  return {
+    id: 'my-profile',
+    _source: 'profile',
+    slug: '',
+    title: { rendered: user.name || 'Staff Member' },
+    meta: {
+      first_name: parts[0] || '',
+      last_name: parts.slice(1).join(' '),
+      nickname: '',
+      job_title: user.title || '',
+      phone_number: '',
+      email_address: user.email || '',
+      linkedIn_url: '',
+      bio: '',
+      key_attributes: [],
+      schedule: '',
+      employee_profile_photo_url: '',
+      employee_secondary_photo_url: '',
+      wp_post_id: null,
+    },
+  };
+}
+
+function upsertLocalTeamProfile(member) {
+  const index = WP_TEAM.findIndex(t => String(t.id) === String(member.id));
+  if (index > -1) WP_TEAM[index] = member;
+  else WP_TEAM.push(member);
+}
+
+function renderMyProfileSummary(member, staffUser) {
+  const summary = document.getElementById('myProfileSummary');
+  const access = document.getElementById('myProfileAccess');
+  if (!summary || !access) return;
+  const meta = member?.meta || {};
+  const name = [meta.first_name, meta.last_name].filter(Boolean).join(' ') || teamTitleText(member?.title) || getDashboardUser().name || 'Staff Member';
+  const photo = meta.employee_profile_photo_url
+    ? '<img src="' + escAttr(meta.employee_profile_photo_url) + '" alt="" class="rounded-xl object-cover" style="width:88px;height:88px;border:1px solid var(--border-card)" />'
+    : '<div class="rounded-xl flex items-center justify-center text-lg font-semibold text-white" style="width:88px;height:88px;background:var(--gold)">' + escHtml(name.split(' ').map(p => p[0]).join('').slice(0,2).toUpperCase() || '?') + '</div>';
+  summary.innerHTML =
+    '<div class="flex flex-wrap items-start gap-4">' +
+      photo +
+      '<div class="min-w-0 flex-1">' +
+        '<p class="text-lg font-display text-neutral-100">' + escHtml(name) + '</p>' +
+        '<p class="text-sm text-neutral-400 mt-1">' + escHtml(meta.job_title || 'CMI Staff') + '</p>' +
+        '<p class="text-sm text-neutral-500 mt-3 leading-6">' + escHtml(meta.bio || 'No public bio has been added yet.') + '</p>' +
+      '</div>' +
+    '</div>';
+  access.innerHTML =
+    '<p><span class="text-neutral-500">Login:</span> ' + escHtml(getDashboardUser().email || '-') + '</p>' +
+    '<p><span class="text-neutral-500">Access:</span> ' + escHtml(staffUser?.status || 'active') + '</p>' +
+    '<p><span class="text-neutral-500">Team Link:</span> ' + (member && member.id !== 'my-profile' ? 'Linked' : 'Ready to create') + '</p>';
+}
+
+async function loadMyTeamProfile(force = false) {
+  if (MY_PROFILE_LOADED && !force) return;
+  const summary = document.getElementById('myProfileSummary');
+  if (summary) summary.textContent = 'Loading your profile...';
+  try {
+    const res = await fetch('/api/me/team-profile', { headers: authHeaders(), credentials: 'include' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Profile load failed');
+    const member = data.team_profile ? teamFromSupabase(data.team_profile) : profilePlaceholderFromUser();
+    MY_TEAM_PROFILE_ID = member.id;
+    upsertLocalTeamProfile(member);
+    renderMyProfileSummary(member, data.staff_user);
+    MY_PROFILE_LOADED = true;
+  } catch (e) {
+    if (summary) summary.textContent = 'Could not load your public profile: ' + e.message;
+  }
+}
+
+async function openMyTeamProfile() {
+  await loadMyTeamProfile(true);
+  const member = WP_TEAM.find(t => String(t.id) === String(MY_TEAM_PROFILE_ID)) || profilePlaceholderFromUser();
+  upsertLocalTeamProfile(member);
+  MY_TEAM_PROFILE_ID = member.id;
+  openTeamModal(member.id);
+}
+
+function currentUserIsSuperAdmin() {
+  return String(getDashboardUser().role || '').toLowerCase() === 'super_admin';
 }
 
 function setOverviewValue(id, value) {
@@ -4556,7 +4672,7 @@ function openTeamModal(id) {
       accessBadge.className = 'badge b-neutral text-[10px]';
     }
     if (accessSummary) accessSummary.textContent = meta.email_address ? 'No staff access record is linked yet.' : 'Add an email address before creating staff access.';
-    if (inviteBtn) inviteBtn.style.display = meta.email_address ? '' : 'none';
+    if (inviteBtn) inviteBtn.style.display = (currentUserIsSuperAdmin() && meta.email_address) ? '' : 'none';
   }
 
   document.getElementById('tmProfilePreviewWrap').innerHTML   = profUrl ? '<img src="' + escAttr(profUrl) + '" class="thumb-preview mb-2" />' : '';
@@ -4621,7 +4737,7 @@ async function confirmDeleteTeamMember() {
 async function saveTeamMember() {
   const id = document.getElementById('tmId').value;
   if (!id) return;
-  if (!sb) { showToast('Supabase not connected'); return; }
+  if (currentUserIsSuperAdmin() && !sb) { showToast('Supabase not connected'); return; }
   const existing = WP_TEAM.find(t => String(t.id) === String(id));
   const oldMeta = existing?.meta || {};
   const btn = document.getElementById('tmSaveBtn');
@@ -4656,13 +4772,32 @@ async function saveTeamMember() {
       WP_MEDIA_MAP[uploaded.id] = uploaded.url;
     }
     const row = teamToSupabaseRow(id, meta);
-    const data = await saveTeamRow(row);
+    let data;
+    if (currentUserIsSuperAdmin()) {
+      data = await saveTeamRow(row);
+    } else {
+      const res = await fetch('/api/me/team-profile', {
+        method: 'PUT',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        credentials: 'include',
+        body: JSON.stringify(row),
+      });
+      const apiData = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(apiData.message || 'Profile save failed');
+      data = apiData.team_profile;
+      MY_PROFILE_LOADED = false;
+    }
     const updated = teamFromSupabase(data);
     const idx = WP_TEAM.findIndex(t => String(t.id) === String(id));
     if (idx !== -1) WP_TEAM[idx] = updated; else WP_TEAM.push(updated);
     renderTeamCards();
+    if (!currentUserIsSuperAdmin()) {
+      MY_TEAM_PROFILE_ID = updated.id;
+      renderMyProfileSummary(updated, { status: 'active' });
+      loadMyTeamProfile(true).catch(() => {});
+    }
     closeTeamModal();
-    showToast('Team member saved to Supabase');
+    showToast(currentUserIsSuperAdmin() ? 'Team member saved to Supabase' : 'Public profile saved');
   } catch(e) {
     console.error('Team save failed:', e);
     showToast('Could not save team member: ' + (e.message || e));

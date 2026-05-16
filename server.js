@@ -123,6 +123,42 @@ function safeRole(value) {
   return ['super_admin', 'staff', 'subcontractor', 'vendor', 'client'].includes(role) ? role : 'staff';
 }
 
+function slugify(value = '') {
+  return String(value || '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'team-member';
+}
+
+function teamRowFromProfilePayload(body = {}, email) {
+  const firstName = String(body.first_name || '').trim();
+  const lastName = String(body.last_name || '').trim();
+  const name = String(body.name || `${firstName} ${lastName}`.trim() || email || 'Team Member').trim();
+  const attrs = Array.isArray(body.attributes_json) ? body.attributes_json : [];
+  return {
+    name,
+    slug: slugify(name),
+    first_name: firstName,
+    last_name: lastName,
+    nickname: body.nickname || '',
+    role: body.role || body.job_title || '',
+    bio: body.bio || '',
+    email: email || body.email || '',
+    phone: body.phone || '',
+    linkedin_url: body.linkedin_url || '',
+    profile_photo: body.profile_photo || '',
+    secondary_photo: body.secondary_photo || '',
+    attributes: attrs.map(a => (typeof a === 'object' ? a.title : a)).filter(Boolean),
+    attributes_json: attrs,
+    availability: typeof body.schedule === 'string' ? body.schedule : (body.availability || ''),
+    schedule_json: Array.isArray(body.schedule_json) ? body.schedule_json : null,
+    status: 'active',
+    sync_status: 'pending',
+    updated_at: new Date().toISOString(),
+  };
+}
+
 function wpAuthHeader() {
   const user = process.env.WP_BASIC_USER;
   const pass = process.env.WP_BASIC_APP_PASSWORD;
@@ -578,6 +614,77 @@ app.post('/api/staff-users/invite', requireSuperAdmin, async (req, res) => {
     res.json({ ok: true, user: data, message: 'Access record created. Add this user to STAFF_USERS_JSON or Supabase Auth to enable login.' });
   } catch (err) {
     res.status(500).json({ message: err.message || 'Staff invite failed' });
+  }
+});
+
+app.get('/api/me/team-profile', requireStaff, async (req, res) => {
+  try {
+    if (!supabase) return res.status(503).json({ message: 'Supabase is not configured' });
+    const email = String(req.user.email || '').trim().toLowerCase();
+    if (!email) return res.status(400).json({ message: 'Session email is required' });
+
+    const { data: staffRow } = await supabase
+      .from('staff_users')
+      .select('id,email,display_name,title,role_slug,status,team_member_id,team_members(*)')
+      .eq('email', email)
+      .maybeSingle();
+
+    let teamProfile = Array.isArray(staffRow?.team_members) ? staffRow.team_members[0] : staffRow?.team_members;
+    if (!teamProfile) {
+      const { data: byEmail } = await supabase
+        .from('team_members')
+        .select('*')
+        .ilike('email', email)
+        .maybeSingle();
+      teamProfile = byEmail || null;
+    }
+
+    res.json({ staff_user: staffRow || null, team_profile: teamProfile || null });
+  } catch (err) {
+    res.status(500).json({ message: err.message || 'Profile load failed' });
+  }
+});
+
+app.put('/api/me/team-profile', requireStaff, async (req, res) => {
+  try {
+    if (!supabase) return res.status(503).json({ message: 'Supabase is not configured' });
+    const email = String(req.user.email || '').trim().toLowerCase();
+    if (!email) return res.status(400).json({ message: 'Session email is required' });
+
+    const { data: staffRow } = await supabase
+      .from('staff_users')
+      .select('id,email,team_member_id')
+      .eq('email', email)
+      .maybeSingle();
+
+    let existingId = staffRow?.team_member_id || null;
+    if (!existingId) {
+      const { data: existingByEmail } = await supabase
+        .from('team_members')
+        .select('id')
+        .ilike('email', email)
+        .maybeSingle();
+      existingId = existingByEmail?.id || null;
+    }
+
+    const row = teamRowFromProfilePayload(req.body, email);
+    if (!existingId) row.slug = slugify(`${row.name}-${email.split('@')[0]}`);
+    const saveQuery = existingId
+      ? supabase.from('team_members').update(row).eq('id', existingId).select().single()
+      : supabase.from('team_members').insert(row).select().single();
+    const { data, error } = await saveQuery;
+    if (error) throw error;
+
+    if (staffRow?.id && data?.id && staffRow.team_member_id !== data.id) {
+      await supabase
+        .from('staff_users')
+        .update({ team_member_id: data.id, updated_at: new Date().toISOString() })
+        .eq('id', staffRow.id);
+    }
+
+    res.json({ ok: true, team_profile: data });
+  } catch (err) {
+    res.status(500).json({ message: err.message || 'Profile save failed' });
   }
 });
 

@@ -138,6 +138,7 @@
 
   const NAV_ITEMS = [
     { id: 'overview', label: 'Overview', permissions: ['profile.view'] },
+    { id: 'profile', label: 'My Profile', permissions: ['profile.edit'] },
     { id: 'users', label: 'Users', permissions: ['users.view'] },
     { id: 'clients', label: 'Contacts', permissions: ['contacts.view'] },
     { id: 'projects', label: 'Projects', permissions: ['projects.view_all', 'projects.view_assigned'] },
@@ -145,7 +146,7 @@
     { id: 'quotes', label: 'Quotes & Leads', permissions: ['quotes.view'] },
     { id: 'portfolio', label: 'Portfolio', permissions: ['projects.view_all'] },
     { id: 'blog', label: 'Blog', permissions: ['projects.view_all'] },
-    { id: 'team', label: 'Team', permissions: ['users.view', 'projects.view_all'] },
+    { id: 'team', label: 'Team', permissions: ['users.view'] },
     { id: 'documents', label: 'Documents', permissions: ['documents.view'] },
     { id: 'settings', label: 'Settings', permissions: ['settings.manage'] },
   ];
