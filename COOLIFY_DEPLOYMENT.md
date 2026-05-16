@@ -54,6 +54,8 @@ IMAP_USER=<temporary mailbox>
 IMAP_PASS=<temporary mailbox password>
 ```
 
+`STAFF_USERS_JSON` is the live login source for `/api/auth/login`. Add the CMI admins and staff in Coolify with their real passwords or `password_hash` values. Do not commit that JSON with real passwords to Git.
+
 ## Supabase
 
 Run in this order:

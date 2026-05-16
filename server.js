@@ -85,7 +85,8 @@ function requireAuth(req, res, next) {
 
 function requireStaff(req, res, next) {
   requireAuth(req, res, () => {
-    if ((req.user.role || '').toLowerCase() !== 'staff') {
+    const role = String(req.user.role || '').toLowerCase();
+    if (role !== 'staff' && role !== 'super_admin') {
       return res.status(403).json({ message: 'Staff access required' });
     }
     next();
