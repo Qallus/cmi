@@ -118,6 +118,11 @@ function splitName(name = '') {
   };
 }
 
+function safeRole(value) {
+  const role = String(value || 'staff').toLowerCase();
+  return ['super_admin', 'staff', 'subcontractor', 'vendor', 'client'].includes(role) ? role : 'staff';
+}
+
 function wpAuthHeader() {
   const user = process.env.WP_BASIC_USER;
   const pass = process.env.WP_BASIC_APP_PASSWORD;
@@ -490,20 +495,89 @@ app.post('/api/contacts', requireStaff, async (req, res) => {
 app.get('/api/users', requireSuperAdmin, async (_req, res) => {
   try {
     if (!supabase) return res.status(503).json({ message: 'Supabase is not configured' });
-    const directory = staffUsers().map(user => ({
+    const envUsers = staffUsers().map(user => ({
       email: String(user.email || '').toLowerCase(),
       name: user.name || user.email || '',
-      role: user.role || 'staff',
+      role: safeRole(user.role),
+      status: 'active',
+      source: 'env',
     })).filter(user => user.email);
+
+    let dbStaff = [];
+    const staffRes = await supabase
+      .from('staff_users')
+      .select('id,email,display_name,title,role_slug,status,team_member_id,team_members(id,name,slug,role,email)')
+      .order('display_name', { ascending: true });
+    if (staffRes.error) {
+      console.warn('[users/staff_users]', staffRes.error.message);
+    } else {
+      dbStaff = staffRes.data || [];
+    }
+
+    const byEmail = new Map();
+    envUsers.forEach(user => byEmail.set(user.email, user));
+    dbStaff.forEach(row => {
+      const email = String(row.email || '').toLowerCase();
+      if (!email) return;
+      const existing = byEmail.get(email) || {};
+      const linkedTeam = Array.isArray(row.team_members) ? row.team_members[0] : row.team_members;
+      byEmail.set(email, {
+        ...existing,
+        id: row.id,
+        email,
+        name: existing.name || row.display_name || email,
+        title: row.title || existing.title || '',
+        role: safeRole(existing.role || row.role_slug),
+        status: existing.status === 'active' ? 'active' : (row.status || 'invited'),
+        source: existing.source === 'env' ? 'env+db' : 'db',
+        team_member_id: row.team_member_id || null,
+        team_member: linkedTeam || null,
+      });
+    });
+
     const { data, error } = await supabase
       .from('contacts')
       .select('id,first_name,last_name,email,phone,type,company,status,last_activity')
       .order('last_activity', { ascending: false, nullsFirst: false })
       .limit(500);
     if (error) throw error;
-    res.json({ users: directory, contacts: data || [] });
+    res.json({ users: [...byEmail.values()], contacts: data || [] });
   } catch (err) {
     res.status(500).json({ message: err.message || 'Users load failed' });
+  }
+});
+
+app.post('/api/staff-users/invite', requireSuperAdmin, async (req, res) => {
+  try {
+    if (!supabase) return res.status(503).json({ message: 'Supabase is not configured' });
+    const email = String(req.body.email || '').trim().toLowerCase();
+    if (!email) return res.status(400).json({ message: 'Email is required' });
+    const name = String(req.body.name || '').trim();
+    const split = splitName(name);
+    const role = safeRole(req.body.role || 'staff');
+    const teamMemberId = isUuid(req.body.team_member_id) ? req.body.team_member_id : null;
+    const { data: org } = await supabase.from('organizations').select('id').eq('slug', 'constructed-matter').maybeSingle();
+    const payload = {
+      organization_id: org?.id || null,
+      email,
+      first_name: req.body.first_name || split.first_name,
+      last_name: req.body.last_name || split.last_name,
+      display_name: name || email,
+      title: req.body.title || null,
+      role_slug: role,
+      status: 'invited',
+      team_member_id: teamMemberId,
+      invited_at: new Date().toISOString(),
+    };
+    const { data, error } = await supabase
+      .from('staff_users')
+      .upsert(payload, { onConflict: 'email' })
+      .select('id,email,display_name,title,role_slug,status,team_member_id')
+      .single();
+    if (error) throw error;
+    res.json({ ok: true, user: data, message: 'Access record created. Add this user to STAFF_USERS_JSON or Supabase Auth to enable login.' });
+  } catch (err) {
+    res.status(500).json({ message: err.message || 'Staff invite failed' });
   }
 });
 

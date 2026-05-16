@@ -564,8 +564,8 @@
         <div id="userRoleTabs" class="flex flex-wrap gap-2 mb-5"></div>
         <div class="card overflow-hidden">
           <table class="data-table">
-            <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Company</th><th>Status</th><th>Source</th></tr></thead>
-            <tbody id="usersTableBody"><tr><td colspan="6" class="text-center py-10 text-sm" style="color:var(--text-muted)">Loading users...</td></tr></tbody>
+            <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Company</th><th>Status</th><th>Linked Team Profile</th><th>Source</th></tr></thead>
+            <tbody id="usersTableBody"><tr><td colspan="7" class="text-center py-10 text-sm" style="color:var(--text-muted)">Loading users...</td></tr></tbody>
           </table>
         </div>
       </section>
@@ -1353,6 +1353,10 @@
             <div><label class="form-label">Phone</label><input name="phone_number" type="tel" class="form-input" placeholder="(480) 555-0000" /></div>
             <div><label class="form-label">Email</label><input name="email_address" type="email" class="form-input" placeholder="name@cmi.com" /></div>
           </div>
+          <label class="flex items-start gap-3 text-sm text-neutral-400" style="cursor:pointer">
+            <input name="create_staff_user" type="checkbox" class="mt-1" />
+            <span>Create a Staff access record and link it to this public team profile. Login is enabled after the user is added to Coolify <code>STAFF_USERS_JSON</code> or Supabase Auth.</span>
+          </label>
           <div><label class="form-label">LinkedIn URL</label><input name="linkedIn_url" type="url" class="form-input" placeholder="https://linkedin.com/in/�" /></div>
           <div><label class="form-label">Bio</label><textarea name="bio" class="form-input" rows="4" placeholder="Professional background and role at CMI�"></textarea></div>
           <div>
@@ -1902,6 +1906,17 @@
       <div>
         <label class="form-label">Schedule</label>
         <input id="tmSchedule" class="form-input" placeholder="e.g. Mon�Fri 7am�4pm" />
+      </div>
+      <div class="card p-4 space-y-3" style="background:var(--surface-2)">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <p class="text-[10px] uppercase tracking-widest text-neutral-500 font-medium">Platform Access</p>
+            <p id="tmAccessSummary" class="text-sm text-neutral-300 mt-1">Checking access...</p>
+          </div>
+          <span id="tmAccessBadge" class="badge b-neutral text-[10px]">No Login</span>
+        </div>
+        <button type="button" id="tmInviteBtn" onclick="inviteTeamMemberAccess()" class="crm-toolbar-btn" style="display:none">Create Staff Access</button>
+        <p id="tmInviteStatus" class="text-xs text-neutral-500"></p>
       </div>
       <!-- Profile Photo -->
       <div>
@@ -2612,17 +2627,25 @@ async function loadUsers(force) {
   renderUserTabs();
   renderUsersTable();
   updateOverviewStats();
+  if (WP_TEAM.length) renderTeamCards();
 }
 
 function userRowsForTab(tab) {
   if (tab === 'super_admin' || tab === 'staff') {
     return USERS_DATA.users.filter(u => String(u.role || '').toLowerCase() === tab).map(u => ({
+      ...(() => {
+        const fallbackTeam = findTeamProfileByEmail(u.email);
+        return {
+          team_member: u.team_member || (fallbackTeam ? { id: fallbackTeam.id, name: teamTitleText(fallbackTeam.title), slug: fallbackTeam.slug } : null),
+          team_member_id: u.team_member_id || fallbackTeam?.id || null,
+        };
+      })(),
       name: u.name || u.email,
       email: u.email,
       phone: '',
       company: 'Constructed Matter, Inc.',
-      status: 'Active',
-      source: tab === 'super_admin' ? 'Super Admin' : 'Staff',
+      status: u.status || 'active',
+      source: u.source || (tab === 'super_admin' ? 'Super Admin' : 'Staff'),
     }));
   }
   const typeMap = { client:'Client', subcontractor:'Sub Contractor', vendor:'Vendor' };
@@ -2633,7 +2656,15 @@ function userRowsForTab(tab) {
     company: c.company || '',
     status: c.status || 'active',
     source: c.type || '',
+    team_member: null,
+    team_member_id: null,
   }));
+}
+
+function findTeamProfileByEmail(email) {
+  const key = String(email || '').toLowerCase();
+  if (!key) return null;
+  return WP_TEAM.find(t => String(t.meta?.email_address || '').toLowerCase() === key) || null;
 }
 
 function renderUserTabs() {
@@ -2657,20 +2688,42 @@ function renderUsersTable() {
   if (!tb) return;
   const rows = userRowsForTab(USER_ACTIVE_TAB);
   if (!rows.length) {
-    tb.innerHTML = '<tr><td colspan="6" class="text-center py-10 text-sm" style="color:var(--text-muted)">No records found for this role.</td></tr>';
+    tb.innerHTML = '<tr><td colspan="7" class="text-center py-10 text-sm" style="color:var(--text-muted)">No records found for this role.</td></tr>';
     return;
   }
   tb.innerHTML = rows.map(row => {
     const initials = (row.name || row.email || '?').split(' ').filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0,2) || '?';
+    const linkedProfile = row.team_member
+      ? '<button onclick="openLinkedTeamProfile(\'' + escAttr(row.team_member_id || row.team_member.id) + '\')" class="crm-toolbar-btn" style="padding:4px 9px;font-size:11px">' + escHtml(row.team_member.name || 'Team Profile') + '</button>'
+      : '<span style="color:var(--text-weak);font-size:12px">Not linked</span>';
     return '<tr>' +
       '<td><div class="flex items-center gap-2.5"><div class="w-8 h-8 rounded-full flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0" style="background:var(--gold)">' + escHtml(initials) + '</div><span class="font-medium text-[13px]" style="color:var(--text)">' + escHtml(row.name) + '</span></div></td>' +
       '<td>' + (row.email ? '<a href="mailto:' + escAttr(row.email) + '" style="color:var(--text-sub);text-decoration:none;font-size:13px">' + escHtml(row.email) + '</a>' : '<span style="color:var(--text-weak)">-</span>') + '</td>' +
       '<td style="color:var(--text-muted);font-size:13px">' + escHtml(row.phone || '-') + '</td>' +
       '<td style="color:var(--text-muted);font-size:13px">' + escHtml(row.company || '-') + '</td>' +
       '<td><span class="badge b-neutral text-[10px]">' + escHtml(row.status || '-') + '</span></td>' +
+      '<td>' + linkedProfile + '</td>' +
       '<td style="color:var(--text-muted);font-size:13px">' + escHtml(row.source || '-') + '</td>' +
     '</tr>';
   }).join('');
+}
+
+function findStaffAccessForTeam(meta, teamId) {
+  const email = String(meta?.email_address || '').toLowerCase();
+  return (USERS_DATA.users || []).find(u =>
+    (teamId && String(u.team_member_id || '') === String(teamId)) ||
+    (email && String(u.email || '').toLowerCase() === email)
+  ) || null;
+}
+
+function openLinkedTeamProfile(id) {
+  const member = WP_TEAM.find(t => String(t.id) === String(id));
+  if (!member) {
+    nav('team', document.querySelector('.nav-item[onclick*="team"]'));
+    showToast('Open Team and reload profiles to edit this member.');
+    return;
+  }
+  openTeamModal(member.id);
 }
 
 function setOverviewValue(id, value) {
@@ -4416,6 +4469,10 @@ function renderTeamCards() {
     const profUrl = meta.employee_profile_photo_url || WP_MEDIA_MAP[+(meta.employee_profile_photo || 0)] || '';
     const secUrl  = meta.employee_secondary_photo_url || WP_MEDIA_MAP[+(meta.employee_secondary_photo || 0)] || '';
     const safeId  = escAttr(String(m.id));
+    const access = findStaffAccessForTeam(meta, m.id);
+    const accessLabel = access ? (access.role === 'super_admin' ? 'Super Admin' : 'Staff') : 'No Login';
+    const loginLabel = access ? (access.status || 'active') : 'No Login';
+    const accessClass = access ? 'b-green' : 'b-neutral';
 
     const photo = profUrl
       ? '<div class="mx-auto mb-3 rounded-full overflow-hidden" style="width:72px;height:72px;border:2px solid var(--border-card)">' +
@@ -4430,6 +4487,7 @@ function renderTeamCards() {
       photo +
       '<p class="font-medium text-neutral-100 text-sm mb-0.5">' + escHtml(name) + '</p>' +
       '<p class="text-xs text-neutral-500 mb-4">' + escHtml(role) + '</p>' +
+      '<div class="mb-4 flex flex-wrap justify-center gap-1.5"><span class="badge ' + accessClass + ' text-[10px]">' + escHtml(accessLabel) + '</span><span class="badge b-neutral text-[10px]">' + escHtml(loginLabel) + '</span></div>' +
       '<div class="flex justify-center gap-2" onclick="event.stopPropagation()">' +
         '<button type="button" class="team-edit-btn text-xs px-3 py-1.5 rounded-md text-neutral-400 hover:text-white transition-colors" data-team-id="' + safeId + '" style="border:1px solid var(--border-lg)">Edit</button>' +
         (slug ? '<a href="team/' + escAttr(slug) + '.html" target="_blank" class="text-xs px-3 py-1.5 rounded-md text-neutral-400 hover:text-white transition-colors" style="border:1px solid var(--border-lg);text-decoration:none">View</a>' : '') +
@@ -4478,6 +4536,28 @@ function openTeamModal(id) {
   document.getElementById('tmSchedule').value = Array.isArray(sched)
     ? sched.map(s => typeof s === 'object' ? Object.values(s)[0] : s).join(', ')
     : (sched || '');
+  const access = findStaffAccessForTeam(meta, m.id);
+  const accessBadge = document.getElementById('tmAccessBadge');
+  const accessSummary = document.getElementById('tmAccessSummary');
+  const inviteBtn = document.getElementById('tmInviteBtn');
+  const inviteStatus = document.getElementById('tmInviteStatus');
+  if (inviteStatus) inviteStatus.textContent = '';
+  if (access) {
+    const label = access.role === 'super_admin' ? 'Super Admin' : 'Staff';
+    if (accessBadge) {
+      accessBadge.textContent = label;
+      accessBadge.className = 'badge b-green text-[10px]';
+    }
+    if (accessSummary) accessSummary.textContent = (access.status || 'active') + ' access record linked to ' + access.email + '.';
+    if (inviteBtn) inviteBtn.style.display = 'none';
+  } else {
+    if (accessBadge) {
+      accessBadge.textContent = 'No Login';
+      accessBadge.className = 'badge b-neutral text-[10px]';
+    }
+    if (accessSummary) accessSummary.textContent = meta.email_address ? 'No staff access record is linked yet.' : 'Add an email address before creating staff access.';
+    if (inviteBtn) inviteBtn.style.display = meta.email_address ? '' : 'none';
+  }
 
   document.getElementById('tmProfilePreviewWrap').innerHTML   = profUrl ? '<img src="' + escAttr(profUrl) + '" class="thumb-preview mb-2" />' : '';
   document.getElementById('tmSecondaryPreviewWrap').innerHTML = secUrl  ? '<img src="' + escAttr(secUrl)  + '" class="thumb-preview mb-2" />' : '';
@@ -4592,6 +4672,51 @@ async function saveTeamMember() {
   }
 }
 
+async function inviteTeamMemberAccess() {
+  const id = document.getElementById('tmId').value;
+  const member = WP_TEAM.find(t => String(t.id) === String(id));
+  if (!member) return;
+  const meta = member.meta || {};
+  const email = document.getElementById('tmEmail').value.trim();
+  const status = document.getElementById('tmInviteStatus');
+  if (!email) {
+    status.textContent = 'Add an email address before creating staff access.';
+    status.style.color = '#f87171';
+    return;
+  }
+  status.textContent = 'Creating staff access record...';
+  status.style.color = 'var(--text-muted)';
+  try {
+    const first = document.getElementById('tmFirst').value.trim();
+    const last = document.getElementById('tmLast').value.trim();
+    const title = document.getElementById('tmTitle').value.trim();
+    const res = await fetch('/api/staff-users/invite', {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      credentials: 'include',
+      body: JSON.stringify({
+        team_member_id: id,
+        email,
+        first_name: first,
+        last_name: last,
+        name: [first, last].filter(Boolean).join(' ') || teamTitleText(member.title),
+        title,
+        role: 'staff',
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Could not create staff access');
+    USERS_LOADED = false;
+    await loadUsers(true);
+    openTeamModal(id);
+    status.textContent = data.message || 'Staff access record created.';
+    status.style.color = '#4ade80';
+  } catch (e) {
+    status.textContent = 'Error: ' + e.message;
+    status.style.color = '#f87171';
+  }
+}
+
 async function submitTeamMember(e) {
   e.preventDefault();
   if (!sb) { showToast('Supabase not connected'); return; }
@@ -4628,12 +4753,34 @@ async function submitTeamMember(e) {
     }
     const row = teamToSupabaseRow(null, meta);
     const data = await saveTeamRow(row);
-    WP_TEAM.push(teamFromSupabase(data));
+    const created = teamFromSupabase(data);
+    WP_TEAM.push(created);
+    if (form.create_staff_user && form.create_staff_user.checked && meta.email_address) {
+      const res = await fetch('/api/staff-users/invite', {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        credentials: 'include',
+        body: JSON.stringify({
+          team_member_id: data.id,
+          email: meta.email_address,
+          first_name: meta.first_name,
+          last_name: meta.last_name,
+          name: [meta.first_name, meta.last_name].filter(Boolean).join(' '),
+          title: meta.job_title,
+          role: 'staff',
+        }),
+      });
+      const inviteData = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(inviteData.message || 'Team profile saved, but staff access could not be created');
+      USERS_LOADED = false;
+      await loadUsers(true);
+    }
     renderTeamCards();
     form.reset();
     document.getElementById('teamAttrRepeater').innerHTML = '';
     document.getElementById('teamPhotoPreview').innerHTML = '';
     document.getElementById('teamSecondaryPreview').innerHTML = '';
+    if (form.create_staff_user) form.create_staff_user.checked = false;
     addTeamAttrRow('teamAttrRepeater');
     showToast('Team member saved to Supabase');
     nav('team', document.querySelector('.nav-item[onclick*="team"]'));
