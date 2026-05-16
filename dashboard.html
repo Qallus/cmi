@@ -6,7 +6,7 @@
     document.documentElement.className=t;
     // Already logged in? Route immediately
     var role=localStorage.getItem('cmi-user-role');
-    if(role==='staff'){window.location.replace('staff-dashboard.html');}
+    if(role==='staff'||role==='super_admin'){window.location.replace('staff-dashboard.html');}
   })();
 </script>
 <head>
@@ -14,6 +14,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Sign In, Constructed Matter</title>
   <link id="favicon" rel="icon" type="image/png" href="https://wp-constructedmatter-com-985548.hostingersite.com/wp-content/uploads/2026/03/cmi_favicon_white.png" />
+  <script src="assets/cmi-permissions.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -245,12 +246,15 @@ async function handleLogin() {
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.token) throw new Error(data.message || 'Incorrect email or password.');
 
+    const resolvedRole = window.CMI_PERMISSIONS
+      ? CMI_PERMISSIONS.roleForEmail(email, data.role || 'client')
+      : (data.role || 'client');
     localStorage.setItem('cmi-auth-token', data.token);
     localStorage.setItem('cmi-user-name',  data.name || formatName(email));
-    localStorage.setItem('cmi-user-role',  data.role || 'client');
+    localStorage.setItem('cmi-user-role',  resolvedRole);
     localStorage.setItem('cmi-user-email', email);
 
-    if ((data.role || '').toLowerCase() === 'staff') {
+    if (resolvedRole === 'staff' || resolvedRole === 'super_admin') {
       window.location.href = 'staff-dashboard.html';
     } else {
       showClientPanel(data.name || formatName(email));

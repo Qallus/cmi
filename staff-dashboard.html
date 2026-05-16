@@ -8,6 +8,7 @@
   <link id="favicon" rel="icon" type="image/png" href="https://wp-constructedmatter-com-985548.hostingersite.com/wp-content/uploads/2026/03/cmi_favicon_white.png" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="assets/cmi-permissions.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -411,7 +412,7 @@
         <div id="sidebarAvatar" class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0" style="background:var(--gold)">??</div>
         <div class="min-w-0 flex-1">
           <p id="sidebarName" class="text-sm font-medium text-neutral-200 truncate">Loading�</p>
-          <p class="text-[11px] text-neutral-500 truncate">CMI Staff</p>
+          <p id="sidebarRole" class="text-[11px] text-neutral-500 truncate">CMI Staff</p>
         </div>
         <button onclick="logout()" title="Log out" class="theme-btn flex-shrink-0" style="width:28px;height:28px">
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
@@ -2248,22 +2249,91 @@ const TITLES = {
 };
 
 const CTX_ACTIONS = {
-  portfolio:  { label: '+ Add Portfolio',   action: () => openNewProject() },
-  bookings:   { label: '+ Add Appointment', action: () => nav('add-booking', null) },
-  clients:    { label: '+ Add Contact',     action: () => openNewContact() },
-  quotes:     { label: 'Add Quote',         action: () => openNewQuote() },
-  blog:       { label: '+ Add Post',        action: () => nav('add-blog', null) },
-  team:       { label: 'Add Member',        action: () => nav('add-team', null) },
+  portfolio:  { label: '+ Add Portfolio',   permission: 'projects.create', action: () => openNewProject() },
+  bookings:   { label: '+ Add Appointment', permission: 'calendars.manage', action: () => nav('add-booking', null) },
+  clients:    { label: '+ Add Contact',     permission: 'contacts.create', action: () => openNewContact() },
+  quotes:     { label: 'Add Quote',         permission: 'quotes.create', action: () => openNewQuote() },
+  blog:       { label: '+ Add Post',        permission: 'projects.edit', action: () => nav('add-blog', null) },
+  team:       { label: 'Add Member',        permission: 'users.create', action: () => nav('add-team', null) },
 };
 
 function ctxAction() {
   const ctx = CTX_ACTIONS[_currentSection];
-  if (ctx) ctx.action();
+  const user = getDashboardUser();
+  if (ctx && (!ctx.permission || canUser(user, ctx.permission))) ctx.action();
 }
 
 let _currentSection = 'overview';
+let DASHBOARD_USER = null;
+
+const SECTION_PERMISSIONS = {
+  overview: ['profile.view'],
+  clients: ['contacts.view'],
+  projects: ['projects.view_all', 'projects.view_assigned'],
+  bookings: ['calendars.view'],
+  quotes: ['quotes.view'],
+  portfolio: ['projects.view_all'],
+  blog: ['projects.view_all'],
+  team: ['users.view', 'projects.view_all'],
+  documents: ['documents.view'],
+  settings: ['settings.manage'],
+  'add-project': ['projects.create'],
+  'add-blog': ['projects.edit'],
+  'add-booking': ['calendars.manage'],
+  'add-quote': ['quotes.create'],
+  'add-team': ['users.create'],
+  'new-contract': ['documents.create'],
+  'new-sow': ['sows.create'],
+};
+
+function getDashboardUser() {
+  if (DASHBOARD_USER) return DASHBOARD_USER;
+  DASHBOARD_USER = window.CMI_PERMISSIONS
+    ? CMI_PERMISSIONS.getCurrentUser()
+    : {
+        email: localStorage.getItem('cmi-user-email') || '',
+        role: localStorage.getItem('cmi-user-role') || 'staff',
+        name: localStorage.getItem('cmi-user-name') || '',
+        label: 'CMI Staff',
+        title: '',
+      };
+  localStorage.setItem('cmi-user-role', DASHBOARD_USER.role);
+  if (DASHBOARD_USER.name) localStorage.setItem('cmi-user-name', DASHBOARD_USER.name);
+  return DASHBOARD_USER;
+}
+
+function canUser(user, permission) {
+  return window.CMI_PERMISSIONS
+    ? CMI_PERMISSIONS.hasPermission(user.role, permission)
+    : true;
+}
+
+function canAccessSection(id) {
+  const required = SECTION_PERMISSIONS[id];
+  if (!required || !required.length) return true;
+  const user = getDashboardUser();
+  return window.CMI_PERMISSIONS
+    ? CMI_PERMISSIONS.hasAnyPermission(user.role, required)
+    : true;
+}
+
+function applyRoleNavigation() {
+  const user = getDashboardUser();
+  document.querySelectorAll('#sidebar .nav-item[onclick]').forEach(item => {
+    const onclick = item.getAttribute('onclick') || '';
+    const match = onclick.match(/nav\('([^']+)'/);
+    if (!match) return;
+    item.style.display = canAccessSection(match[1]) ? '' : 'none';
+  });
+  const roleEl = document.getElementById('sidebarRole');
+  if (roleEl) roleEl.textContent = user.title || user.label || 'CMI Staff';
+}
 
 function nav(id, el) {
+  if (!canAccessSection(id)) {
+    showToast('You do not have permission to access that section.');
+    return;
+  }
   _currentSection = id;
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   const sec = document.getElementById('sec-' + id);
@@ -2280,7 +2350,8 @@ function nav(id, el) {
   const lbl = document.getElementById('ctxActionLabel');
   if (btn && lbl) {
     const ctx = CTX_ACTIONS[id];
-    if (ctx) {
+    const user = getDashboardUser();
+    if (ctx && (!ctx.permission || canUser(user, ctx.permission))) {
       lbl.textContent = ctx.label;
       btn.style.display = 'flex';
     } else {
@@ -6439,9 +6510,14 @@ async function requireStaffSession() {
   try {
     const res = await fetch('/api/auth/session', { headers: authHeaders(), credentials: 'include' });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok || (data.role || '').toLowerCase() !== 'staff') throw new Error('Invalid session');
+    const resolvedRole = window.CMI_PERMISSIONS
+      ? CMI_PERMISSIONS.roleForEmail(data.email || localStorage.getItem('cmi-user-email'), data.role || 'client')
+      : (data.role || 'client');
+    if (!res.ok || (resolvedRole !== 'staff' && resolvedRole !== 'super_admin')) throw new Error('Invalid session');
     if (data.name) localStorage.setItem('cmi-user-name', data.name);
     if (data.email) localStorage.setItem('cmi-user-email', data.email);
+    localStorage.setItem('cmi-user-role', resolvedRole);
+    DASHBOARD_USER = null;
     return true;
   } catch (e) {
     ['cmi-auth-token','cmi-user-name','cmi-user-role','cmi-user-email'].forEach(k => localStorage.removeItem(k));
@@ -6453,11 +6529,15 @@ async function init() {
   applyTheme(localStorage.getItem('cmi-theme') || 'dark');
   if (!await requireStaffSession()) return;
   // Show logged-in user in sidebar
-  const name = localStorage.getItem('cmi-user-name') || '';
+  const user = getDashboardUser();
+  const name = user.name || localStorage.getItem('cmi-user-name') || '';
   const parts = name.trim().split(' ');
   const initials = ((parts[0]||'')[0]||'') + ((parts[parts.length-1]||'')[0]||'');
   document.getElementById('sidebarAvatar').textContent = initials.toUpperCase() || '?';
   document.getElementById('sidebarName').textContent   = name || 'Staff Member';
+  const roleEl = document.getElementById('sidebarRole');
+  if (roleEl) roleEl.textContent = user.title || user.label || 'CMI Staff';
+  applyRoleNavigation();
   renderActivity();
   renderQuickActions();
   buildProjectFilters();

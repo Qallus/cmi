@@ -24,6 +24,7 @@ desktop.ini
 .env
 .env.*
 *.env
+!.env.example
 secrets.json
 
 # Claude / MCP
