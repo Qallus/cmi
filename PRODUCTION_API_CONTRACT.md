@@ -1,6 +1,6 @@
 # Constructed Matter Production API Contract
 
-This static frontend now expects same-origin backend endpoints. The backend must hold all WordPress, FluentCRM, Fluent Boards, Twilio, Supabase service-role, email, and Hermes Agent secrets.
+This static frontend now expects same-origin backend endpoints. The backend must hold all WordPress, FluentCRM, Fluent Boards, Twilio, Supabase service-role, email, and Bolt Agent secrets.
 
 ## Required Environment Variables
 
@@ -15,8 +15,8 @@ TWILIO_ACCOUNT_SID=
 TWILIO_AUTH_TOKEN=
 TWILIO_MESSAGING_SERVICE_SID=
 TWILIO_FROM_NUMBER=
-HERMES_AGENT_URL=https://agent.constructedmatter.com
-HERMES_AGENT_API_KEY=
+BOLT_AGENT_URL=https://agent.constructedmatter.com
+BOLT_AGENT_API_KEY=
 SESSION_SECRET=
 NOTIFY_EMAIL=
 NOTIFY_BCC=
@@ -98,7 +98,7 @@ Create/update:
 - Supabase `quotes` when project fields are present
 - FluentCRM contact/list/tags
 - Email notification
-- Optional Hermes follow-up suggestion
+- Optional Bolt follow-up suggestion
 
 ### `POST /api/leads/quote`
 
@@ -108,7 +108,7 @@ Create/update:
 - Supabase `quotes`
 - FluentCRM contact/list/tags/custom fields
 - Email notification
-- Optional project intake Hermes summary
+- Optional project intake Bolt summary
 
 ### `POST /api/notifications/email`
 
@@ -171,7 +171,7 @@ Behavior:
 - Match phone to `contacts`.
 - Insert inbound `messages`.
 - Create/update `message_threads`.
-- Trigger Hermes summary/reply suggestion.
+- Trigger Bolt summary/reply suggestion.
 
 ### `POST /api/twilio/status-callback`
 
@@ -182,16 +182,16 @@ Behavior:
 - Validate Twilio signature.
 - Update `messages.status`, `sent_at`, `delivered_at`, `error_message`.
 
-## Hermes Agent
+## Bolt Agent
 
-### `POST /api/hermes/runs`
+### `POST /api/bolt/runs`
 
-Uses the OpenAI-compatible Hermes API:
+Uses the OpenAI-compatible Bolt API:
 
 ```js
 new OpenAI({
-  baseURL: `${HERMES_AGENT_URL}/v1`,
-  apiKey: HERMES_AGENT_API_KEY
+  baseURL: `${BOLT_AGENT_URL}/v1`,
+  apiKey: BOLT_AGENT_API_KEY
 })
 ```
 
@@ -214,12 +214,12 @@ Behavior:
 
 - Require staff session.
 - Insert `hermes_agent_runs`.
-- Call Hermes Agent service.
+- Call Bolt Agent service.
 - Store prompt/messages/output.
 - Return generated draft and `run_id`.
 - Any outbound communication must be `needs_approval` first.
 
-### `POST /api/hermes/runs/:id/approve`
+### `POST /api/bolt/runs/:id/approve`
 
 Approves a proposed draft/message/update and optionally publishes/sends it.
 
@@ -245,13 +245,13 @@ Create expiring/revocable share link and optional QR code.
 
 ### `POST /api/client-projects/:id/updates`
 
-Create draft/published update. Supports Hermes-generated drafts and SMS/email notifications.
+Create draft/published update. Supports Bolt-generated drafts and SMS/email notifications.
 
 ## Production Security Checklist
 
-- Never expose WordPress Basic Auth, Twilio Auth Token, Supabase service role, or Hermes key in HTML.
+- Never expose WordPress Basic Auth, Twilio Auth Token, Supabase service role, or Bolt key in HTML.
 - Rotate any secrets that were previously committed or shipped.
 - Run `supabase/production_extensions.sql` and verify anon CRUD policies are gone.
 - Enforce HTTPS.
 - Add request rate limiting to auth, leads, messaging, and Twilio webhooks.
-- Log all sends, webhooks, Hermes outputs, approvals, and share-link scans.
+- Log all sends, webhooks, Bolt outputs, approvals, and share-link scans.

@@ -42,12 +42,12 @@
 - Add dashboard navigation items for:
   - Messages
   - Bulk Campaigns
-  - Hermes Agent
+  - Bolt Agent
   - Client Projects
   - Share Links / QR Codes
 - Add staff UI for creating project updates.
 - Add staff UI for creating share links and QR codes.
-- Add Hermes draft button on project update form.
+- Add Bolt draft button on project update form.
 - Add delivery status badges to contact SMS history.
 - Add opt-out handling for inbound `STOP`, `STOPALL`, `UNSUBSCRIBE`, `CANCEL`, `END`, and `QUIT`.
 
@@ -57,12 +57,12 @@
 - Add rate limiting to auth, lead forms, messaging, and webhooks.
 - Add Twilio signature validation.
 - Add webhook replay protection.
-- Add audit logs for all staff sends and Hermes approvals.
+- Add audit logs for all staff sends and Bolt approvals.
 
 ## Known Production Gaps
 
 - This repo is currently static HTML. The new frontend expects a same-origin backend.
 - Supabase service-role operations must not be performed in browser JavaScript.
-- Hermes Agent cannot safely send messages without approval records.
+- Bolt Agent cannot safely send messages without approval records.
 - Bulk messaging must honor opt-out rules and Twilio throughput limits.
 - Client project links require token expiration/revocation checks server-side.

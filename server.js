@@ -40,10 +40,12 @@ const twilioClient = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_T
   ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
   : null;
 
-const hermes = process.env.HERMES_AGENT_URL && process.env.HERMES_AGENT_API_KEY
+const boltAgentUrl = process.env.BOLT_AGENT_URL || process.env.HERMES_AGENT_URL;
+const boltAgentKey = process.env.BOLT_AGENT_API_KEY || process.env.HERMES_AGENT_API_KEY;
+const boltAgent = boltAgentUrl && boltAgentKey
   ? new OpenAI({
-      baseURL: `${process.env.HERMES_AGENT_URL.replace(/\/$/, '')}/v1`,
-      apiKey: process.env.HERMES_AGENT_API_KEY,
+      baseURL: `${boltAgentUrl.replace(/\/$/, '')}/v1`,
+      apiKey: boltAgentKey,
     })
   : null;
 
@@ -1254,7 +1256,7 @@ app.post('/api/client-projects/:id/updates', requireStaff, async (req, res) => {
   }
 });
 
-app.post('/api/hermes/runs', requireStaff, async (req, res) => {
+app.post(['/api/bolt/runs', '/api/hermes/runs'], requireStaff, async (req, res) => {
   try {
     const runType = req.body.run_type || 'general';
     const input = req.body.input || {};
@@ -1264,7 +1266,7 @@ app.post('/api/hermes/runs', requireStaff, async (req, res) => {
           {
             role: 'system',
             content: [
-              'You are Hermes Agent for Constructed Matter, Inc.',
+              'You are Bolt Agent for Constructed Matter, Inc. also known as CMI.',
               'Help staff draft clear construction client updates, SMS replies, project summaries, and operational next steps.',
               'Do not claim a message was sent or an update was published. Drafts require staff approval.',
             ].join(' '),
@@ -1285,9 +1287,9 @@ app.post('/api/hermes/runs', requireStaff, async (req, res) => {
       input: { ...input, messages },
     });
 
-    let output = { message: 'Hermes Agent endpoint is not configured.' };
-    if (hermes) {
-      const completion = await hermes.chat.completions.create({
+    let output = { message: 'Bolt Agent endpoint is not configured.' };
+    if (boltAgent) {
+      const completion = await boltAgent.chat.completions.create({
         model: 'hermes-agent',
         messages,
       });
@@ -1309,11 +1311,11 @@ app.post('/api/hermes/runs', requireStaff, async (req, res) => {
     }
     res.json({ ok: true, run_id: run?.id, output });
   } catch (err) {
-    res.status(500).json({ message: err.message || 'Hermes run failed' });
+    res.status(500).json({ message: err.message || 'Bolt run failed' });
   }
 });
 
-app.post('/api/hermes/runs/:id/approve', requireStaff, async (req, res) => {
+app.post(['/api/bolt/runs/:id/approve', '/api/hermes/runs/:id/approve'], requireStaff, async (req, res) => {
   try {
     if (!supabase) return res.status(503).json({ message: 'Supabase is not configured' });
     const { data, error } = await supabase
@@ -1325,7 +1327,7 @@ app.post('/api/hermes/runs/:id/approve', requireStaff, async (req, res) => {
     if (error) throw error;
     res.json({ ok: true, run: data });
   } catch (err) {
-    res.status(500).json({ message: err.message || 'Hermes approval failed' });
+    res.status(500).json({ message: err.message || 'Bolt approval failed' });
   }
 });
 

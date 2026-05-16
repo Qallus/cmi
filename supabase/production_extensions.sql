@@ -2,7 +2,7 @@
 -- CMI Production Extensions
 -- Run after supabase/schema.sql.
 -- Covers: client project pages, share links, QR codes, SMS,
--- bulk messaging, inbound Twilio webhooks, and Hermes Agent audit.
+-- bulk messaging, inbound Twilio webhooks, and Bolt Agent audit.
 -- ============================================================
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
@@ -198,7 +198,7 @@ CREATE TABLE IF NOT EXISTS twilio_webhook_events (
 );
 
 -- ------------------------------------------------------------
--- Hermes Agent
+-- Bolt Agent
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS hermes_agent_runs (
   id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
