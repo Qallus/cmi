@@ -212,11 +212,17 @@ async function sendInviteSms({ to, name, role }) {
   const phone = normalizePhone(to);
   if (!phone) return { skipped: true, reason: 'No phone number' };
   if (!twilioClient) return { skipped: true, reason: 'Twilio is not configured' };
-  const body = `Constructed Matter has invited ${name || 'you'} to the CMI ${role || 'user'} portal. Visit ${process.env.DASHBOARD_URL || process.env.PUBLIC_SITE_URL || 'https://my.constructedmatter.com/dashboard.html'} to sign in or register.`;
+  const body = `Constructed Matter has invited ${name || 'you'} to the CMI ${role || 'user'} portal. Visit ${portalLoginUrl()} to sign in or register.`;
   const payload = { to: phone, body };
   if (process.env.TWILIO_MESSAGING_SERVICE_SID) payload.messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
   else payload.from = process.env.TWILIO_FROM_NUMBER;
   return twilioClient.messages.create(payload);
+}
+
+function portalLoginUrl() {
+  const configured = process.env.DASHBOARD_URL || process.env.APP_URL || process.env.PUBLIC_SITE_URL || 'https://my.constructedmatter.com';
+  const base = String(configured).replace(/\/$/, '');
+  return /\.html(?:[?#].*)?$/i.test(base) ? base : `${base}/dashboard.html`;
 }
 
 async function notifyInvite({ email, phone, name, role, notify_email, notify_sms }) {
@@ -230,7 +236,7 @@ async function notifyInvite({ email, phone, name, role, notify_email, notify_sms
           `Hi ${name || 'there'},`,
           '',
           `Constructed Matter has invited you to the CMI ${role || 'user'} portal.`,
-          `Sign in or register here: ${process.env.DASHBOARD_URL || process.env.PUBLIC_SITE_URL || 'https://my.constructedmatter.com/dashboard.html'}`,
+          `Sign in or register here: ${portalLoginUrl()}`,
           '',
           'Constructed Matter, Inc.',
         ].join('\n'),
@@ -626,6 +632,7 @@ app.get('/api/users', requireSuperAdmin, async (_req, res) => {
     const envUsers = staffUsers().map(user => ({
       email: String(user.email || '').toLowerCase(),
       name: user.name || user.email || '',
+      phone: user.phone || '',
       role: safeRole(user.role),
       status: 'active',
       source: 'env',
@@ -634,7 +641,7 @@ app.get('/api/users', requireSuperAdmin, async (_req, res) => {
     let dbStaff = [];
     const staffRes = await supabase
       .from('staff_users')
-      .select('id,email,display_name,title,role_slug,status,team_member_id,team_members(id,name,slug,role,email)')
+      .select('id,email,display_name,title,role_slug,status,phone,team_member_id,team_members(id,name,slug,role,email)')
       .order('display_name', { ascending: true });
     if (staffRes.error) {
       console.warn('[users/staff_users]', staffRes.error.message);
@@ -654,6 +661,7 @@ app.get('/api/users', requireSuperAdmin, async (_req, res) => {
         id: row.id,
         email,
         name: existing.name || row.display_name || email,
+        phone: row.phone || existing.phone || '',
         title: row.title || existing.title || '',
         role: safeRole(existing.role || row.role_slug),
         status: existing.status === 'active' ? 'active' : (row.status || 'invited'),
@@ -692,6 +700,7 @@ app.post('/api/staff-users/invite', requireSuperAdmin, async (req, res) => {
       last_name: req.body.last_name || split.last_name,
       display_name: name || email,
       title: req.body.title || null,
+      phone: req.body.phone || null,
       role_slug: role,
       status: 'invited',
       team_member_id: teamMemberId,
@@ -700,7 +709,7 @@ app.post('/api/staff-users/invite', requireSuperAdmin, async (req, res) => {
     const { data, error } = await supabase
       .from('staff_users')
       .upsert(payload, { onConflict: 'email' })
-      .select('id,email,display_name,title,role_slug,status,team_member_id')
+      .select('id,email,display_name,title,role_slug,status,phone,team_member_id')
       .single();
     if (error) throw error;
     res.json({ ok: true, user: data, message: 'Access record created. Add this user to STAFF_USERS_JSON or Supabase Auth to enable login.' });

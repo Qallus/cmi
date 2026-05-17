@@ -2727,7 +2727,7 @@ const USER_TABS = [
 async function loadUsers(force) {
   if (USERS_LOADED && !force) { renderUserTabs(); renderUsersTable(); return; }
   const tb = document.getElementById('usersTableBody');
-  if (tb) tb.innerHTML = '<tr><td colspan="6" class="text-center py-10 text-sm" style="color:var(--text-muted)">Loading users...</td></tr>';
+  if (tb) tb.innerHTML = '<tr><td colspan="7" class="text-center py-10 text-sm" style="color:var(--text-muted)">Loading users...</td></tr>';
   try {
     const res = await fetch('/api/users', { headers: authHeaders(), credentials:'include' });
     const data = await res.json().catch(() => ({}));
@@ -2736,7 +2736,7 @@ async function loadUsers(force) {
     USERS_LOADED = true;
   } catch (e) {
     USERS_DATA = { users: [], contacts: [] };
-    if (tb) tb.innerHTML = '<tr><td colspan="6" class="text-center py-10 text-sm" style="color:#f87171">' + escHtml(e.message) + '</td></tr>';
+    if (tb) tb.innerHTML = '<tr><td colspan="7" class="text-center py-10 text-sm" style="color:#f87171">' + escHtml(e.message) + '</td></tr>';
     renderUserTabs();
     updateOverviewStats();
     return;
@@ -2759,7 +2759,7 @@ function userRowsForTab(tab) {
       })(),
       name: u.name || u.email,
       email: u.email,
-      phone: '',
+      phone: u.phone || '',
       company: 'Constructed Matter, Inc.',
       status: u.status || 'active',
       source: u.source || (tab === 'super_admin' ? 'Super Admin' : 'Staff'),
