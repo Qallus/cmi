@@ -613,7 +613,11 @@
           <div class="card p-5">
             <p class="text-[10px] uppercase tracking-widest text-neutral-500 font-medium mb-4">Import Users / Types</p>
             <p class="text-xs text-neutral-500 mb-3">CSV headers: name, email, phone, role, title, company, notify_email, notify_sms.</p>
-            <input id="userImportFile" type="file" accept=".csv,text/csv" class="form-input text-sm mb-3" onchange="readUserImportFile(this)" />
+            <div class="flex flex-wrap items-center gap-3 mb-3">
+              <input id="userImportFile" type="file" accept=".csv,text/csv" class="sr-only" onchange="readUserImportFile(this)" />
+              <button type="button" onclick="document.getElementById('userImportFile').click()" class="crm-toolbar-btn">Choose CSV</button>
+              <span id="userImportFileName" class="text-sm text-neutral-500">No file selected</span>
+            </div>
             <textarea id="userImportCsv" class="form-input" rows="6" placeholder="name,email,phone,role,title,company&#10;Jane Client,jane@example.com,+14805550123,client,,"></textarea>
             <button onclick="importUsersCsv()" class="mt-3 px-5 py-2.5 rounded-lg text-white text-sm font-medium hover:opacity-90" style="background:var(--gold)">Import Users</button>
             <p id="userImportStatus" class="text-xs text-neutral-500 mt-3"></p>
@@ -2859,6 +2863,8 @@ async function submitUserInvite(event) {
 function readUserImportFile(input) {
   const file = input.files?.[0];
   if (!file) return;
+  const label = document.getElementById('userImportFileName');
+  if (label) label.textContent = file.name;
   const reader = new FileReader();
   reader.onload = () => { document.getElementById('userImportCsv').value = String(reader.result || ''); };
   reader.readAsText(file);
