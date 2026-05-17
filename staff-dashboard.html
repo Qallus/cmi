@@ -595,7 +595,7 @@
             <p class="text-[10px] uppercase tracking-widest text-neutral-500 font-medium mb-4">Add / Invite User</p>
             <form id="userInviteForm" onsubmit="submitUserInvite(event)" class="space-y-4">
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div><label class="form-label">User Type</label><select name="role" class="form-input"><option value="staff">Staff</option><option value="super_admin">Super Admin</option><option value="client">Client</option><option value="subcontractor">Sub-Contractor</option><option value="vendor">Vendor</option></select></div>
+                <div><label class="form-label">User Type</label><select id="userInviteRole" name="role" class="form-input"><option value="staff">Staff</option><option value="super_admin">Super Admin</option><option value="client">Client</option><option value="subcontractor">Sub-Contractor</option><option value="vendor">Vendor</option></select></div>
                 <div><label class="form-label">Name</label><input name="name" class="form-input" placeholder="Full name" /></div>
                 <div><label class="form-label">Email</label><input name="email" type="email" class="form-input" placeholder="name@example.com" /></div>
                 <div><label class="form-label">Phone</label><input name="phone" type="tel" class="form-input" placeholder="+14805551234" /></div>
@@ -2846,6 +2846,7 @@ async function submitUserInvite(event) {
     status.textContent = 'Invite created. Email: ' + (data.notifications?.email_status || 'not requested') + '; SMS: ' + (data.notifications?.sms_status || 'not requested') + '.';
     status.style.color = '#4ade80';
     form.reset();
+    setCustomSelect('userInviteRole', 'staff');
     if (form.notify_email) form.notify_email.checked = true;
     USERS_LOADED = false;
     await loadUsers(true);
@@ -7331,6 +7332,7 @@ async function init() {
   if (canUser(getDashboardUser(), 'users.view')) loadUsers().catch(() => {});
   updateOverviewStats();
   // Clients loaded lazily via nav() ? loadCRMInit()
+  buildCustomSelect('userInviteRole');
   initBookingPickers();
 }
 
