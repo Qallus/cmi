@@ -187,6 +187,19 @@ function contactTypeForRole(role) {
   }[role] || 'Lead';
 }
 
+function roleFromContactType(type) {
+  const normalized = String(type || '').toLowerCase();
+  if (normalized === 'sub contractor' || normalized === 'subcontractor') return 'subcontractor';
+  if (normalized === 'vendor') return 'vendor';
+  if (normalized === 'client') return 'client';
+  return 'client';
+}
+
+function safeUserStatus(value, fallback = 'active') {
+  const status = String(value || fallback).toLowerCase();
+  return ['invited', 'active', 'disabled', 'archived'].includes(status) ? status : fallback;
+}
+
 function parseCsvRows(text = '') {
   const rows = [];
   let row = [];
@@ -929,6 +942,175 @@ app.post('/api/users/invite', requireSuperAdmin, async (req, res) => {
   try {
     const result = await createUserInviteRecord(req.body || {}, req.user.email);
     res.json({ ok: true, ...result });
+  } catch (err) {
+    res.status(500).json({ message: err.message || 'User invite failed' });
+  }
+});
+
+app.put('/api/users/:entity/:id', requireSuperAdmin, async (req, res) => {
+  try {
+    if (!supabase) return res.status(503).json({ message: 'Supabase is not configured' });
+    const entity = String(req.params.entity || '').toLowerCase();
+    const id = String(req.params.id || '');
+    if (!isUuid(id)) return res.status(400).json({ message: 'Valid user id is required' });
+    const body = req.body || {};
+    const email = String(body.email || '').trim().toLowerCase();
+    const phone = String(body.phone || '').trim();
+    const name = String(body.name || body.display_name || '').trim();
+    const split = splitName(name);
+
+    if (entity === 'staff') {
+      if (!email) return res.status(400).json({ message: 'Email is required' });
+      const role = safeRole(body.role || 'staff');
+      if (!['staff', 'super_admin'].includes(role)) return res.status(400).json({ message: 'Staff users can only be Staff or Super Admin' });
+      const payload = {
+        email,
+        phone: phone || null,
+        first_name: body.first_name || split.first_name,
+        last_name: body.last_name || split.last_name,
+        display_name: name || email,
+        title: body.title || null,
+        role_slug: role,
+        status: safeUserStatus(body.status, 'active'),
+        updated_at: new Date().toISOString(),
+      };
+      const { data, error } = await supabase
+        .from('staff_users')
+        .update(payload)
+        .eq('id', id)
+        .select('id,email,display_name,title,role_slug,status,phone,team_member_id')
+        .single();
+      if (error) throw error;
+      return res.json({ ok: true, user: data });
+    }
+
+    if (entity === 'contact') {
+      if (!email && !phone) return res.status(400).json({ message: 'Email or phone is required' });
+      const role = userRoleFromType(body.role || 'client');
+      if (!['client', 'vendor', 'subcontractor'].includes(role)) return res.status(400).json({ message: 'Contact users must be Client, Vendor, or Subcontractor' });
+      const payload = {
+        first_name: body.first_name || split.first_name,
+        last_name: body.last_name || split.last_name,
+        email: email || null,
+        phone: phone || null,
+        company: body.company || null,
+        type: contactTypeForRole(role),
+        status: safeUserStatus(body.status, 'active'),
+        last_activity: new Date().toISOString(),
+      };
+      const { data, error } = await supabase
+        .from('contacts')
+        .update(payload)
+        .eq('id', id)
+        .select('id,first_name,last_name,email,phone,type,company,status,last_activity')
+        .single();
+      if (error) throw error;
+      return res.json({ ok: true, contact: data });
+    }
+
+    res.status(400).json({ message: 'Unsupported user type' });
+  } catch (err) {
+    res.status(500).json({ message: err.message || 'User update failed' });
+  }
+});
+
+app.delete('/api/users/:entity/:id', requireSuperAdmin, async (req, res) => {
+  try {
+    if (!supabase) return res.status(503).json({ message: 'Supabase is not configured' });
+    const entity = String(req.params.entity || '').toLowerCase();
+    const id = String(req.params.id || '');
+    if (!isUuid(id)) return res.status(400).json({ message: 'Valid user id is required' });
+    if (entity === 'staff') {
+      const { data, error } = await supabase
+        .from('staff_users')
+        .update({ status: 'archived', updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .select('id,email,status')
+        .single();
+      if (error) throw error;
+      return res.json({ ok: true, user: data });
+    }
+    if (entity === 'contact') {
+      const { data, error } = await supabase
+        .from('contacts')
+        .update({ status: 'archived', last_activity: new Date().toISOString() })
+        .eq('id', id)
+        .select('id,email,status')
+        .single();
+      if (error) throw error;
+      return res.json({ ok: true, contact: data });
+    }
+    res.status(400).json({ message: 'Unsupported user type' });
+  } catch (err) {
+    res.status(500).json({ message: err.message || 'User delete failed' });
+  }
+});
+
+app.post('/api/users/:entity/:id/invite', requireSuperAdmin, async (req, res) => {
+  try {
+    if (!supabase) return res.status(503).json({ message: 'Supabase is not configured' });
+    const entity = String(req.params.entity || '').toLowerCase();
+    const id = String(req.params.id || '');
+    if (!isUuid(id)) return res.status(400).json({ message: 'Valid user id is required' });
+    let email = '';
+    let phone = '';
+    let name = '';
+    let role = 'client';
+    let contactId = null;
+    let staffUserId = null;
+
+    if (entity === 'staff') {
+      const { data, error } = await supabase
+        .from('staff_users')
+        .select('id,email,phone,display_name,role_slug')
+        .eq('id', id)
+        .single();
+      if (error) throw error;
+      staffUserId = data.id;
+      email = data.email || '';
+      phone = data.phone || '';
+      name = data.display_name || email;
+      role = safeRole(data.role_slug);
+    } else if (entity === 'contact') {
+      const { data, error } = await supabase
+        .from('contacts')
+        .select('id,first_name,last_name,email,phone,type,company')
+        .eq('id', id)
+        .single();
+      if (error) throw error;
+      contactId = data.id;
+      email = data.email || '';
+      phone = data.phone || '';
+      name = [data.first_name, data.last_name].filter(Boolean).join(' ') || data.company || email || phone;
+      role = roleFromContactType(data.type);
+    } else {
+      return res.status(400).json({ message: 'Unsupported user type' });
+    }
+
+    const body = req.body || {};
+    const notify_email = body.notify_email !== false && Boolean(email);
+    const notify_sms = Boolean(body.notify_sms) && Boolean(phone);
+    const notifications = await notifyInvite({ email, phone, name, role, notify_email, notify_sms });
+    if (staffUserId) {
+      const staffInvitePatch = { updated_at: new Date().toISOString() };
+      if (notifications.email_status === 'sent') staffInvitePatch.invite_email_sent_at = new Date().toISOString();
+      if (notifications.sms_status === 'sent') staffInvitePatch.invite_sms_sent_at = new Date().toISOString();
+      await supabase.from('staff_users').update(staffInvitePatch).eq('id', staffUserId);
+    }
+    await supabase.from('user_invites').insert({
+      email: email || null,
+      phone: phone || null,
+      name: name || null,
+      role_slug: role,
+      contact_id: contactId,
+      staff_user_id: staffUserId,
+      notify_email,
+      notify_sms,
+      email_status: notifications.email_status,
+      sms_status: notifications.sms_status,
+      invited_by_email: req.user.email || null,
+    });
+    res.json({ ok: true, notifications });
   } catch (err) {
     res.status(500).json({ message: err.message || 'User invite failed' });
   }

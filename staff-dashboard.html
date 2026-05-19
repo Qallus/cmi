@@ -300,6 +300,9 @@
     #crmSmsModal{position:fixed;inset:0;z-index:400;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);}
     #crmSmsModal.open{display:flex;}
     #crmSmsCard{width:100%;max-width:460px;border-radius:14px;background:var(--surface);border:1px solid var(--border-card);box-shadow:0 24px 60px rgba(0,0,0,.5);}
+    #userModal{position:fixed;inset:0;z-index:420;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,.62);backdrop-filter:blur(4px);}
+    #userModal.open{display:flex;}
+    #userModalPanel{width:100%;max-width:620px;max-height:92vh;overflow-y:auto;border-radius:14px;background:var(--surface);border:1px solid var(--border-card);box-shadow:0 26px 70px rgba(0,0,0,.55);}
 
     /* === Custom select === */
     .cmi-sel-wrap{position:relative;}
@@ -634,11 +637,45 @@
         <div id="userRoleTabs" class="flex flex-wrap gap-2 mb-5"></div>
         <div class="card overflow-hidden">
           <table class="data-table">
-            <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Company</th><th>Status</th><th>Linked Team Profile</th><th>Source</th></tr></thead>
-            <tbody id="usersTableBody"><tr><td colspan="7" class="text-center py-10 text-sm" style="color:var(--text-muted)">Loading users...</td></tr></tbody>
+            <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Company</th><th>Status</th><th>Linked Team Profile</th><th>Source</th><th>Actions</th></tr></thead>
+            <tbody id="usersTableBody"><tr><td colspan="8" class="text-center py-10 text-sm" style="color:var(--text-muted)">Loading users...</td></tr></tbody>
           </table>
         </div>
       </section>
+
+      <div id="userModal">
+        <div id="userModalPanel">
+          <div class="flex items-start justify-between gap-4 p-5" style="border-bottom:1px solid var(--border)">
+            <div>
+              <p class="text-[10px] uppercase tracking-widest text-neutral-500 font-medium">User Management</p>
+              <h3 class="font-display text-xl text-neutral-100 mt-1">Edit User</h3>
+              <p id="userEditSub" class="text-xs text-neutral-500 mt-1"></p>
+            </div>
+            <button onclick="closeUserModal()" class="crm-toolbar-btn" style="padding:6px 9px">Close</button>
+          </div>
+          <form id="userEditForm" onsubmit="submitUserEdit(event)" class="p-5 space-y-4">
+            <input type="hidden" name="entity" />
+            <input type="hidden" name="id" />
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div><label class="form-label">User Type</label><select id="userEditRole" name="role" class="form-input"></select></div>
+              <div><label class="form-label">Status</label><select id="userEditStatus" name="status" class="form-input"><option value="invited">Invited</option><option value="active">Active</option><option value="disabled">Disabled</option><option value="archived">Archived</option></select></div>
+              <div><label class="form-label">Name</label><input name="name" class="form-input" placeholder="Full name" /></div>
+              <div><label class="form-label">Email</label><input name="email" type="email" class="form-input" placeholder="name@example.com" /></div>
+              <div><label class="form-label">Phone</label><input name="phone" type="tel" class="form-input" placeholder="+14805551234" /></div>
+              <div><label class="form-label">Title</label><input name="title" class="form-input" placeholder="Project Manager" /></div>
+              <div class="sm:col-span-2"><label class="form-label">Company</label><input name="company" class="form-input" placeholder="Company / organization" /></div>
+            </div>
+            <p id="userEditStatusText" class="text-xs text-neutral-500"></p>
+            <div class="flex flex-wrap justify-between gap-3 pt-2">
+              <button type="button" onclick="resendUserInviteFromModal()" class="crm-toolbar-btn">Send Invite</button>
+              <div class="flex flex-wrap gap-3">
+                <button type="button" onclick="closeUserModal()" class="crm-toolbar-btn">Cancel</button>
+                <button class="px-5 py-2.5 rounded-lg text-white text-sm font-medium hover:opacity-90" style="background:var(--gold)">Save User</button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
 
       <!-- -- PORTFOLIO -- -->
       <section id="sec-portfolio" class="section">
@@ -2728,6 +2765,8 @@ function renderUpcoming() {
 let USERS_DATA = { users: [], contacts: [] };
 let USERS_LOADED = false;
 let USER_ACTIVE_TAB = 'super_admin';
+let USER_VISIBLE_ROWS = [];
+let USER_EDIT_INDEX = -1;
 const USER_TABS = [
   { key:'super_admin', label:'Super Admin' },
   { key:'staff', label:'Staff' },
@@ -2739,7 +2778,7 @@ const USER_TABS = [
 async function loadUsers(force) {
   if (USERS_LOADED && !force) { renderUserTabs(); renderUsersTable(); return; }
   const tb = document.getElementById('usersTableBody');
-  if (tb) tb.innerHTML = '<tr><td colspan="7" class="text-center py-10 text-sm" style="color:var(--text-muted)">Loading users...</td></tr>';
+  if (tb) tb.innerHTML = '<tr><td colspan="8" class="text-center py-10 text-sm" style="color:var(--text-muted)">Loading users...</td></tr>';
   try {
     const res = await fetch('/api/users', { headers: authHeaders(), credentials:'include' });
     const data = await res.json().catch(() => ({}));
@@ -2761,7 +2800,7 @@ async function loadUsers(force) {
 
 function userRowsForTab(tab) {
   if (tab === 'super_admin' || tab === 'staff') {
-    return USERS_DATA.users.filter(u => String(u.role || '').toLowerCase() === tab).map(u => ({
+    return USERS_DATA.users.filter(u => String(u.role || '').toLowerCase() === tab && String(u.status || '').toLowerCase() !== 'archived').map(u => ({
       ...(() => {
         const fallbackTeam = findTeamProfileByEmail(u.email);
         return {
@@ -2775,16 +2814,24 @@ function userRowsForTab(tab) {
       company: 'Constructed Matter, Inc.',
       status: u.status || 'active',
       source: u.source || (tab === 'super_admin' ? 'Super Admin' : 'Staff'),
+      role: tab,
+      entity: u.id ? 'staff' : 'env',
+      id: u.id || '',
+      title: u.title || '',
     }));
   }
   const typeMap = { client:'Client', subcontractor:'Sub Contractor', vendor:'Vendor' };
-  return USERS_DATA.contacts.filter(c => String(c.type || '').toLowerCase() === typeMap[tab].toLowerCase()).map(c => ({
+  return USERS_DATA.contacts.filter(c => String(c.type || '').toLowerCase() === typeMap[tab].toLowerCase() && String(c.status || '').toLowerCase() !== 'archived').map(c => ({
+    id: c.id || '',
+    entity: 'contact',
+    role: tab,
     name: [c.first_name, c.last_name].filter(Boolean).join(' ') || c.company || c.email || 'Contact',
     email: c.email || '',
     phone: c.phone || '',
     company: c.company || '',
     status: c.status || 'active',
     source: c.type || '',
+    title: c.title || '',
     team_member: null,
     team_member_id: null,
   }));
@@ -2816,15 +2863,23 @@ function renderUsersTable() {
   const tb = document.getElementById('usersTableBody');
   if (!tb) return;
   const rows = userRowsForTab(USER_ACTIVE_TAB);
+  USER_VISIBLE_ROWS = rows;
   if (!rows.length) {
-    tb.innerHTML = '<tr><td colspan="7" class="text-center py-10 text-sm" style="color:var(--text-muted)">No records found for this role.</td></tr>';
+    tb.innerHTML = '<tr><td colspan="8" class="text-center py-10 text-sm" style="color:var(--text-muted)">No records found for this role.</td></tr>';
     return;
   }
-  tb.innerHTML = rows.map(row => {
+  tb.innerHTML = rows.map((row, index) => {
     const initials = (row.name || row.email || '?').split(' ').filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0,2) || '?';
     const linkedProfile = row.team_member
       ? '<button onclick="openLinkedTeamProfile(\'' + escAttr(row.team_member_id || row.team_member.id) + '\')" class="crm-toolbar-btn" style="padding:4px 9px;font-size:11px">' + escHtml(row.team_member.name || 'Team Profile') + '</button>'
       : '<span style="color:var(--text-weak);font-size:12px">Not linked</span>';
+    const canModify = row.entity !== 'env' && row.id;
+    const actions =
+      '<div class="flex flex-wrap gap-1.5">' +
+        (canModify ? '<button onclick="openUserEdit(' + index + ')" class="crm-toolbar-btn" style="padding:4px 8px;font-size:11px">Edit</button>' : '') +
+        '<button onclick="resendUserInvite(' + index + ')" class="crm-toolbar-btn" style="padding:4px 8px;font-size:11px">Invite</button>' +
+        (canModify ? '<button onclick="deleteUserRow(' + index + ')" class="crm-toolbar-btn" style="padding:4px 8px;font-size:11px;color:#f87171;border-color:rgba(248,113,113,.35)">Delete</button>' : '') +
+      '</div>';
     return '<tr>' +
       '<td><div class="flex items-center gap-2.5"><div class="w-8 h-8 rounded-full flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0" style="background:var(--gold)">' + escHtml(initials) + '</div><span class="font-medium text-[13px]" style="color:var(--text)">' + escHtml(row.name) + '</span></div></td>' +
       '<td>' + (row.email ? '<a href="mailto:' + escAttr(row.email) + '" style="color:var(--text-sub);text-decoration:none;font-size:13px">' + escHtml(row.email) + '</a>' : '<span style="color:var(--text-weak)">-</span>') + '</td>' +
@@ -2833,8 +2888,160 @@ function renderUsersTable() {
       '<td><span class="badge b-neutral text-[10px]">' + escHtml(row.status || '-') + '</span></td>' +
       '<td>' + linkedProfile + '</td>' +
       '<td style="color:var(--text-muted);font-size:13px">' + escHtml(row.source || '-') + '</td>' +
+      '<td>' + actions + '</td>' +
     '</tr>';
   }).join('');
+}
+
+function roleLabel(value) {
+  return (USER_TABS.find(t => t.key === value) || {}).label || value;
+}
+
+function populateUserRoleSelect(row) {
+  const select = document.getElementById('userEditRole');
+  destroyCustomSelect('userEditRole');
+  destroyCustomSelect('userEditStatus');
+  const options = row.entity === 'staff'
+    ? [{ value:'staff', label:'Staff' }, { value:'super_admin', label:'Super Admin' }]
+    : [{ value:'client', label:'Client' }, { value:'subcontractor', label:'Sub-Contractor' }, { value:'vendor', label:'Vendor' }];
+  select.innerHTML = options.map(opt => '<option value="' + opt.value + '">' + escHtml(opt.label) + '</option>').join('');
+  select.value = row.role || USER_ACTIVE_TAB;
+  document.getElementById('userEditStatus').value = String(row.status || 'active').toLowerCase();
+  buildCustomSelect('userEditRole');
+  buildCustomSelect('userEditStatus');
+  setCustomSelect('userEditRole', select.value);
+  setCustomSelect('userEditStatus', document.getElementById('userEditStatus').value);
+}
+
+function openUserEdit(index) {
+  const row = USER_VISIBLE_ROWS[index];
+  if (!row || !row.id || row.entity === 'env') return;
+  USER_EDIT_INDEX = index;
+  const form = document.getElementById('userEditForm');
+  form.elements.entity.value = row.entity;
+  form.elements.id.value = row.id;
+  form.elements.name.value = row.name || '';
+  form.elements.email.value = row.email || '';
+  form.elements.phone.value = row.phone || '';
+  form.elements.title.value = row.title || '';
+  form.elements.company.value = row.company || '';
+  document.getElementById('userEditSub').textContent = roleLabel(row.role) + ' - ' + (row.email || row.phone || row.name || '');
+  document.getElementById('userEditStatusText').textContent = '';
+  populateUserRoleSelect(row);
+  document.getElementById('userModal').classList.add('open');
+}
+
+function closeUserModal() {
+  document.getElementById('userModal').classList.remove('open');
+  USER_EDIT_INDEX = -1;
+}
+
+async function submitUserEdit(event) {
+  event.preventDefault();
+  const form = event.target;
+  const status = document.getElementById('userEditStatusText');
+  const entity = form.elements.entity.value;
+  const id = form.elements.id.value;
+  status.textContent = 'Saving user...';
+  status.style.color = 'var(--text-muted)';
+  const payload = Object.fromEntries(new FormData(form).entries());
+  try {
+    const res = await fetch('/api/users/' + encodeURIComponent(entity) + '/' + encodeURIComponent(id), {
+      method: 'PUT',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      credentials: 'include',
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'User save failed');
+    status.textContent = 'Saved.';
+    status.style.color = '#4ade80';
+    USERS_LOADED = false;
+    await loadUsers(true);
+    setTimeout(closeUserModal, 500);
+  } catch (e) {
+    status.textContent = 'Error: ' + e.message;
+    status.style.color = '#f87171';
+  }
+}
+
+async function resendUserInvite(index) {
+  const row = USER_VISIBLE_ROWS[index];
+  if (!row) return;
+  if (!row.email && !row.phone) { showToast('This user needs an email or phone before inviting.'); return; }
+  if (row.entity === 'env' || !row.id) {
+    await resendInviteByPayload(row);
+    return;
+  }
+  try {
+    showToast('Sending invite...');
+    const res = await fetch('/api/users/' + encodeURIComponent(row.entity) + '/' + encodeURIComponent(row.id) + '/invite', {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      credentials: 'include',
+      body: JSON.stringify({ notify_email: Boolean(row.email), notify_sms: Boolean(row.phone) }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Invite failed');
+    showToast('Invite sent. Email: ' + (data.notifications?.email_status || 'not requested') + '; SMS: ' + (data.notifications?.sms_status || 'not requested') + '.');
+    USERS_LOADED = false;
+    await loadUsers(true);
+  } catch (e) {
+    showToast('Invite failed: ' + e.message);
+  }
+}
+
+async function resendInviteByPayload(row) {
+  try {
+    showToast('Sending invite...');
+    const res = await fetch('/api/users/invite', {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      credentials: 'include',
+      body: JSON.stringify({
+        role: row.role || USER_ACTIVE_TAB,
+        name: row.name,
+        email: row.email,
+        phone: row.phone,
+        title: row.title,
+        company: row.company,
+        notify_email: Boolean(row.email),
+        notify_sms: Boolean(row.phone),
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Invite failed');
+    showToast('Invite sent.');
+    USERS_LOADED = false;
+    await loadUsers(true);
+  } catch (e) {
+    showToast('Invite failed: ' + e.message);
+  }
+}
+
+function resendUserInviteFromModal() {
+  if (USER_EDIT_INDEX < 0) return;
+  resendUserInvite(USER_EDIT_INDEX);
+}
+
+async function deleteUserRow(index) {
+  const row = USER_VISIBLE_ROWS[index];
+  if (!row || !row.id || row.entity === 'env') return;
+  if (!confirm('Delete this user from active access? This will archive the record and preserve history.')) return;
+  try {
+    const res = await fetch('/api/users/' + encodeURIComponent(row.entity) + '/' + encodeURIComponent(row.id), {
+      method: 'DELETE',
+      headers: authHeaders(),
+      credentials: 'include',
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Delete failed');
+    showToast('User archived.');
+    USERS_LOADED = false;
+    await loadUsers(true);
+  } catch (e) {
+    showToast('Delete failed: ' + e.message);
+  }
 }
 
 async function submitUserInvite(event) {
