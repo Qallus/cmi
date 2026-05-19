@@ -104,7 +104,7 @@
           <div>
             <div class="flex items-center justify-between mb-1.5">
               <label class="cmi-label mb-0" for="password">Password <span class="text-red-400">*</span></label>
-              <a href="/reset-password" class="text-xs text-cmi-gold-light dark:text-cmi-gold-dark hover:underline">Forgot password?</a>
+              <a href="forgot-password.html" class="text-xs text-cmi-gold-light dark:text-cmi-gold-dark hover:underline">Forgot password?</a>
             </div>
             <input id="password" name="password" type="password" required placeholder="Your password" class="cmi-input" />
           </div>
@@ -164,8 +164,6 @@
       toastTimer = setTimeout(() => { toast.className = type; }, 5000);
     }
 
-    // NOTE: Login posts to WordPress cookie auth endpoint.
-    // Wire to /wp-login.php or a custom REST endpoint.
     document.getElementById('loginForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const email = document.getElementById('email').value.trim();
@@ -176,14 +174,28 @@
       const label = document.getElementById('submitLabel');
       const arrow = document.getElementById('submitArrow');
       const spinner = document.getElementById('submitSpinner');
-      btn.disabled = true; label.textContent = 'Logging in-'; arrow.classList.add('hidden'); spinner.classList.remove('hidden');
+      btn.disabled = true; label.textContent = 'Logging in...'; arrow.classList.add('hidden'); spinner.classList.remove('hidden');
 
       try {
-        // Placeholder, wire to WP JWT/cookie auth in production
-        // const res = await fetch('/wp-json/jwt-auth/v1/token', { method: 'POST', ... });
-        showToast('Login functionality requires WordPress backend integration.', 'error');
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ email, password }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.token) throw new Error(data.message || 'Incorrect email or password.');
+        localStorage.setItem('cmi-auth-token', data.token);
+        localStorage.setItem('cmi-user-email', data.email || email);
+        localStorage.setItem('cmi-user-name', data.name || email);
+        localStorage.setItem('cmi-user-role', data.role || 'staff');
+        showToast('Signed in. Redirecting...', 'success');
+        setTimeout(() => {
+          const role = String(data.role || '').toLowerCase();
+          window.location.href = (role === 'staff' || role === 'super_admin') ? 'staff-dashboard.html' : 'dashboard.html';
+        }, 400);
       } catch (err) {
-        showToast('Something went wrong. Please try again.', 'error');
+        showToast(err.message || 'Something went wrong. Please try again.', 'error');
       } finally {
         btn.disabled = false; label.textContent = 'Log In'; arrow.classList.remove('hidden'); spinner.classList.add('hidden');
       }

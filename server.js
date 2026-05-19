@@ -9,6 +9,7 @@ import twilio from 'twilio';
 import WebSocket from 'ws';
 import QRCode from 'qrcode';
 import { createClient } from '@supabase/supabase-js';
+import crypto from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -93,6 +94,17 @@ function requireStaff(req, res, next) {
     }
     next();
   });
+}
+
+function hashResetToken(token) {
+  return crypto.createHash('sha256').update(String(token || '')).digest('hex');
+}
+
+function resetPasswordUrl(token) {
+  const configured = process.env.DASHBOARD_URL || process.env.APP_URL || process.env.PUBLIC_SITE_URL || 'https://my.constructedmatter.com';
+  const base = String(configured).replace(/\/$/, '');
+  const root = /\.html(?:[?#].*)?$/i.test(base) ? base.replace(/\/[^/]*$/, '') : base;
+  return `${root}/reset-password.html?token=${encodeURIComponent(token)}`;
 }
 
 function requireSuperAdmin(req, res, next) {
@@ -373,19 +385,40 @@ app.get('/health', (_req, res) => {
   res.json({ ok: true, service: 'cmi-web', time: new Date().toISOString() });
 });
 
+async function findDbPortalUser(email) {
+  if (!supabase || !email) return null;
+  const { data, error } = await supabase
+    .from('staff_users')
+    .select('id,email,display_name,first_name,last_name,role_slug,status,password_hash')
+    .eq('email', email)
+    .maybeSingle();
+  if (error) {
+    console.warn('[auth/staff_users]', error.message);
+    return null;
+  }
+  return data || null;
+}
+
 app.post('/api/auth/login', async (req, res) => {
   const email = String(req.body.email || '').trim().toLowerCase();
   const password = String(req.body.password || '');
-  const user = staffUsers().find(u => String(u.email || '').toLowerCase() === email);
-  if (!user || !password) return res.status(401).json({ message: 'Incorrect email or password.' });
+  const envUser = staffUsers().find(u => String(u.email || '').toLowerCase() === email);
+  const dbUser = await findDbPortalUser(email);
+  if ((!envUser && !dbUser) || !password) return res.status(401).json({ message: 'Incorrect email or password.' });
+  if (dbUser && ['disabled', 'archived'].includes(String(dbUser.status || '').toLowerCase())) {
+    return res.status(403).json({ message: 'This account is not active.' });
+  }
 
-  const stored = String(user.password_hash || user.password || '');
-  const ok = user.password_hash
-    ? await bcrypt.compare(password, stored)
-    : password === stored;
+  let ok = false;
+  if (envUser) {
+    const stored = String(envUser.password_hash || envUser.password || '');
+    ok = envUser.password_hash ? await bcrypt.compare(password, stored) : password === stored;
+  }
+  if (!ok && dbUser?.password_hash) ok = await bcrypt.compare(password, String(dbUser.password_hash));
   if (!ok) return res.status(401).json({ message: 'Incorrect email or password.' });
 
-  const sessionUser = { email, name: user.name || email, role: user.role || 'staff' };
+  const displayName = envUser?.name || dbUser?.display_name || `${dbUser?.first_name || ''} ${dbUser?.last_name || ''}`.trim() || email;
+  const sessionUser = { email, name: displayName, role: envUser?.role || dbUser?.role_slug || 'staff' };
   const token = signSession(sessionUser);
   res.cookie(sessionCookie, token, {
     httpOnly: true,
@@ -394,6 +427,100 @@ app.post('/api/auth/login', async (req, res) => {
     maxAge: 12 * 60 * 60 * 1000,
   });
   res.json({ token, ...sessionUser });
+});
+
+app.post('/api/auth/forgot-password', async (req, res) => {
+  const email = String(req.body.email || '').trim().toLowerCase();
+  const generic = { ok: true, message: 'If an account exists, a reset link will be sent.' };
+  if (!email || !email.includes('@')) return res.json(generic);
+
+  try {
+    const envUser = staffUsers().find(u => String(u.email || '').toLowerCase() === email);
+    const dbUser = await findDbPortalUser(email);
+    if (!envUser && !dbUser) return res.json(generic);
+    if (dbUser && ['disabled', 'archived'].includes(String(dbUser.status || '').toLowerCase())) return res.json(generic);
+    if (!supabase) {
+      console.warn('[auth/forgot-password] Supabase is not configured; cannot persist reset token.');
+      return res.json(generic);
+    }
+
+    const rawToken = crypto.randomBytes(32).toString('base64url');
+    const tokenHash = hashResetToken(rawToken);
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    await supabase.from('password_reset_tokens').insert({
+      email,
+      token_hash: tokenHash,
+      staff_user_id: dbUser?.id || null,
+      expires_at: expiresAt,
+      requested_ip: req.ip || null,
+    });
+
+    await sendMail({
+      to: email,
+      subject: 'Reset your CMI portal password',
+      body: [
+        `Hi ${envUser?.name || dbUser?.display_name || 'there'},`,
+        '',
+        'We received a request to reset your Constructed Matter portal password.',
+        `Reset your password here: ${resetPasswordUrl(rawToken)}`,
+        '',
+        'This link expires in 1 hour. If you did not request this, you can ignore this email.',
+        '',
+        'Constructed Matter, Inc.',
+      ].join('\n'),
+    }).catch(err => console.warn('[auth/forgot-password mail]', err.message));
+
+    res.json(generic);
+  } catch (err) {
+    console.warn('[auth/forgot-password]', err.message);
+    res.json(generic);
+  }
+});
+
+app.post('/api/auth/reset-password', async (req, res) => {
+  const token = String(req.body.token || '').trim();
+  const password = String(req.body.password || '');
+  if (!token) return res.status(400).json({ message: 'Reset token is required.' });
+  if (password.length < 8) return res.status(400).json({ message: 'Password must be at least 8 characters.' });
+  if (!supabase) return res.status(503).json({ message: 'Password reset is not configured.' });
+
+  try {
+    const tokenHash = hashResetToken(token);
+    const { data: reset, error } = await supabase
+      .from('password_reset_tokens')
+      .select('id,email,staff_user_id,expires_at,used_at')
+      .eq('token_hash', tokenHash)
+      .maybeSingle();
+    if (error) throw error;
+    if (!reset || reset.used_at) return res.status(400).json({ message: 'This reset link is invalid or has already been used.' });
+    if (new Date(reset.expires_at).getTime() < Date.now()) return res.status(400).json({ message: 'This reset link has expired.' });
+
+    const passwordHash = await bcrypt.hash(password, 12);
+    const user = reset.staff_user_id
+      ? { id: reset.staff_user_id }
+      : await findDbPortalUser(String(reset.email || '').toLowerCase());
+    if (!user?.id) return res.status(400).json({ message: 'No portal account was found for this reset link.' });
+
+    const { error: updateError } = await supabase
+      .from('staff_users')
+      .update({
+        password_hash: passwordHash,
+        password_set_at: new Date().toISOString(),
+        status: 'active',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', user.id);
+    if (updateError) throw updateError;
+
+    await supabase
+      .from('password_reset_tokens')
+      .update({ used_at: new Date().toISOString() })
+      .eq('id', reset.id);
+
+    res.json({ ok: true, message: 'Password updated. You can sign in now.' });
+  } catch (err) {
+    res.status(500).json({ message: err.message || 'Password reset failed.' });
+  }
 });
 
 app.get('/api/auth/session', requireAuth, (req, res) => {
