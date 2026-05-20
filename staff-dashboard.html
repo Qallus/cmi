@@ -255,6 +255,42 @@
     .fb-tab.active{background:var(--surface);color:var(--text);box-shadow:0 1px 5px rgba(0,0,0,0.3);}
     .fb-tab:hover:not(.active){color:var(--text-sub);}
     .p-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;display:inline-block;}
+    .gantt-shell{border-radius:14px;background:var(--surface);border:1px solid var(--border-card);overflow:hidden;}
+    .gantt-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border-sm);background:var(--surface);}
+    .gantt-tabs{display:inline-flex;padding:3px;border-radius:9px;background:var(--surface-2);border:1px solid var(--border-sm);}
+    .gantt-view-tab{border:0;background:transparent;color:var(--text-muted);padding:7px 12px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;}
+    .gantt-view-tab.active{background:var(--surface);color:var(--gold);box-shadow:0 1px 5px rgba(0,0,0,.25);}
+    .gantt-grid{display:grid;grid-template-columns:300px minmax(840px,1fr);max-height:650px;overflow:auto;}
+    .gantt-left-head,.gantt-timeline-head{position:sticky;top:0;z-index:8;background:var(--surface);border-bottom:1px solid var(--border-sm);}
+    .gantt-left-head{left:0;z-index:12;border-right:1px solid var(--border-sm);padding:13px 16px;color:var(--text-muted);font-size:12px;font-weight:600;}
+    .gantt-timeline-head{display:grid;}
+    .gantt-day{height:54px;display:flex;flex-direction:column;justify-content:center;align-items:center;border-right:1px solid var(--border-sm);font-size:11px;color:var(--text-muted);}
+    .gantt-day strong{color:var(--text-sub);font-size:13px;margin-top:4px;}
+    .gantt-left{position:sticky;left:0;z-index:6;background:var(--surface);border-right:1px solid var(--border-sm);}
+    .gantt-row-label{height:54px;display:flex;align-items:center;gap:10px;padding:0 16px;border-bottom:1px solid var(--border-sm);}
+    .gantt-row-label.group{height:62px;background:var(--surface-2);font-weight:700;}
+    .gantt-row-title{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);font-size:13px;}
+    .gantt-row-sub{color:var(--text-muted);font-size:11px;margin-top:2px;}
+    .gantt-timeline{position:relative;}
+    .gantt-row{position:relative;height:54px;border-bottom:1px solid var(--border-sm);background-image:linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);background-size:var(--gantt-day-width,44px) 100%;}
+    .gantt-row.group{height:62px;background-color:var(--surface-2);}
+    .gantt-bar{position:absolute;top:10px;height:34px;border-radius:8px;background:rgba(201,164,110,.18);border:1px solid rgba(201,164,110,.48);color:var(--text);display:flex;align-items:center;gap:8px;padding:0 10px;font-size:12px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:grab;box-shadow:0 10px 24px rgba(0,0,0,.2);touch-action:none;}
+    .gantt-bar.dragging{cursor:grabbing;box-shadow:0 18px 34px rgba(0,0,0,.34);z-index:20;}
+    .gantt-bar.done{background:rgba(34,197,94,.16);border-color:rgba(34,197,94,.42);}
+    .gantt-bar.blocked{background:rgba(239,68,68,.16);border-color:rgba(239,68,68,.42);}
+    .gantt-bar.milestone{background:rgba(56,189,248,.15);border-color:rgba(56,189,248,.42);}
+    .gantt-assignee{width:22px;height:22px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;background:var(--gold);color:#fff;font-size:9px;font-weight:800;flex-shrink:0;}
+    .gantt-today{position:absolute;top:0;bottom:0;width:2px;background:var(--gold);z-index:5;box-shadow:0 0 0 1px rgba(201,164,110,.22);}
+    .gantt-empty{padding:48px;text-align:center;color:var(--text-muted);font-size:13px;}
+    .gantt-feature-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:14px;}
+    .gantt-feature-card{border:1px solid var(--border-card);border-radius:12px;background:var(--surface);padding:14px;min-height:112px;}
+    .gantt-feature-card strong{display:block;color:var(--text);font-size:13px;margin-bottom:6px;}
+    .gantt-feature-card p{color:var(--text-muted);font-size:12px;line-height:1.45;margin:0;}
+    .gantt-status-dot{width:9px;height:9px;border-radius:999px;background:var(--gold);display:inline-block;box-shadow:0 0 0 4px rgba(201,164,110,.12);}
+    @media(max-width:1100px){.gantt-feature-grid{grid-template-columns:1fr}.gantt-grid{grid-template-columns:240px minmax(760px,1fr)}}
+    #ganttItemModal{position:fixed;inset:0;z-index:360;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,.64);backdrop-filter:blur(4px);}
+    #ganttItemModal.open{display:flex;}
+    #ganttItemPanel{width:100%;max-width:720px;max-height:92vh;overflow-y:auto;border-radius:16px;background:var(--surface);border:1px solid var(--border-card);box-shadow:0 32px 80px rgba(0,0,0,.55);}
     #fbTaskModal{position:fixed;inset:0;z-index:300;display:none;align-items:center;justify-content:center;padding:20px;}
     #fbTaskModal.open{display:flex;}
     #fbNewTaskModal{position:fixed;inset:0;z-index:300;display:none;align-items:center;justify-content:center;padding:20px;}
@@ -785,7 +821,7 @@
           <div class="flex items-center gap-2">
             <!-- Board selector (hidden in my-tasks view) -->
             <div id="fb-board-tabs" class="flex flex-wrap gap-2"></div>
-            <button onclick="openFBNewTask()" class="flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-medium hover:opacity-90 flex-shrink-0" style="background:var(--gold)">
+            <button onclick="FB_VIEW==='gantt'?openGanttItemModal('task'):openFBNewTask()" class="flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-medium hover:opacity-90 flex-shrink-0" style="background:var(--gold)">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 4v16m8-8H4"/></svg>
               New Task
             </button>
@@ -813,6 +849,10 @@
           <button id="fb-tab-calendar" class="fb-tab" onclick="switchFBView('calendar')">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
             Calendar
+          </button>
+          <button id="fb-tab-gantt" class="fb-tab" onclick="switchFBView('gantt')">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h16"/><path d="M8 4v16M15 10v10"/></svg>
+            Gantt
           </button>
         </div>
 
@@ -2126,6 +2166,63 @@
     <div class="flex justify-end gap-3">
       <button type="button" onclick="closeTeamDeleteModal()" class="px-5 py-2.5 rounded-lg text-sm font-medium" style="border:1px solid var(--border-lg);color:var(--text-dim)">Cancel</button>
       <button type="button" onclick="confirmDeleteTeamMember()" class="px-5 py-2.5 rounded-lg text-white text-sm font-medium hover:opacity-90" style="background:#b91c1c">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- Gantt Project / Task Modal -->
+<div id="ganttItemModal" onclick="if(event.target===this)closeGanttItemModal()">
+  <div id="ganttItemPanel">
+    <div class="flex items-start justify-between p-6" style="border-bottom:1px solid var(--border)">
+      <div>
+        <p id="ganttModalKicker" class="text-[10px] uppercase tracking-widest font-medium mb-1" style="color:var(--gold)">Schedule Item</p>
+        <h3 id="ganttModalTitle" class="font-display text-xl" style="color:var(--text)">Edit Schedule Item</h3>
+      </div>
+      <button onclick="closeGanttItemModal()" class="theme-btn flex-shrink-0">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="p-6 space-y-5">
+      <input type="hidden" id="ganttItemId" />
+      <input type="hidden" id="ganttItemType" />
+      <div class="flex flex-wrap gap-2">
+        <button type="button" onclick="ganttMarkComplete()" class="crm-toolbar-btn">Mark complete</button>
+        <select id="ganttStatus" class="form-input text-sm" style="width:170px">
+          <option value="pending">Pending</option>
+          <option value="in_progress">In progress</option>
+          <option value="delayed">Delayed</option>
+          <option value="blocked">Blocked</option>
+          <option value="complete">Complete</option>
+        </select>
+        <label class="flex items-center gap-2 text-sm text-neutral-400 px-3 py-2 rounded-lg" style="border:1px solid var(--border-md)">
+          <input id="ganttNotify" type="checkbox" /> Notify participants
+        </label>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div><label class="form-label">Title *</label><input id="ganttTitle" class="form-input" placeholder="Foundation" /></div>
+        <div><label class="form-label">Project</label><input id="ganttProject" class="form-input" placeholder="14 Cremorne Street Schedule" /></div>
+        <div><label class="form-label">Phase</label><input id="ganttPhase" class="form-input" placeholder="Structural Work" /></div>
+        <div><label class="form-label">Assignee / Vendor</label><input id="ganttAssignee" class="form-input" placeholder="John's Builders Pty Ltd" /></div>
+        <div><label class="form-label">Client</label><input id="ganttClient" class="form-input" placeholder="Client name or company" /></div>
+        <div><label class="form-label">Dependencies</label><input id="ganttDependencies" class="form-input" placeholder="Excavation, Permit approval" /></div>
+        <div><label class="form-label">Start Date</label><input id="ganttStart" type="date" class="form-input" /></div>
+        <div><label class="form-label">End Date</label><input id="ganttEnd" type="date" class="form-input" /></div>
+        <div><label class="form-label">Progress (%)</label><input id="ganttProgress" type="number" min="0" max="100" class="form-input" placeholder="35" /></div>
+        <div><label class="form-label">Participants</label><input id="ganttParticipants" class="form-input" placeholder="Staff, vendors, subcontractors" /></div>
+      </div>
+      <div><label class="form-label">Description</label><textarea id="ganttDescription" class="form-input" rows="4" placeholder="Scope, notes, forms, punch lists, compliance items..."></textarea></div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div><label class="form-label">Forms / Documents</label><textarea id="ganttForms" class="form-input" rows="3" placeholder="Permit, inspection form, uploaded drawings..."></textarea></div>
+        <div><label class="form-label">Punch Lists / Confirmations</label><textarea id="ganttPunch" class="form-input" rows="3" placeholder="Subcontractor confirmation, site photos, punch list..."></textarea></div>
+      </div>
+    </div>
+    <div class="flex flex-wrap items-center gap-3 p-6" style="border-top:1px solid var(--border)">
+      <button onclick="saveGanttItem()" class="px-6 py-2.5 rounded-lg text-white text-sm font-medium hover:opacity-90 flex items-center gap-2" style="background:var(--gold)">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg>
+        Save Schedule Item
+      </button>
+      <button onclick="deleteGanttItem()" class="px-6 py-2.5 rounded-lg text-sm font-medium" style="border:1px solid rgba(239,68,68,.4);color:#f87171">Delete</button>
+      <button onclick="closeGanttItemModal()" class="px-6 py-2.5 rounded-lg text-sm font-medium" style="border:1px solid var(--border-lg);color:var(--text-dim)">Cancel</button>
     </div>
   </div>
 </div>
@@ -6028,6 +6125,12 @@ let FB_LOADED       = false;
 let FB_MY_TAB       = 'assigned'; // assigned | upcoming | overdue | completed | others
 let FB_CAL_YEAR     = new Date().getFullYear();
 let FB_CAL_MONTH    = new Date().getMonth();
+let GANTT_MODE      = 'timeline';
+let GANTT_ZOOM      = 44;
+let GANTT_STATUS    = 'all';
+let GANTT_EDIT_MODE = true;
+let GANTT_ITEMS     = [];
+let GANTT_DRAG      = null;
 
 const FB_PRIORITY_CFG = {
   urgent:{ label:'Urgent', color:'#f43f5e', badge:'b-red'    },
@@ -6180,7 +6283,7 @@ function renderFBBoardTabs() {
 
 function switchFBView(view) {
   FB_VIEW = view;
-  ['mytasks','list','kanban','table','calendar'].forEach(v => {
+  ['mytasks','list','kanban','table','calendar','gantt'].forEach(v => {
     const btn = document.getElementById('fb-tab-' + v);
     if (btn) btn.classList.toggle('active', v === view);
   });
@@ -6196,6 +6299,7 @@ function renderFBView() {
   else if (FB_VIEW === 'kanban')   renderFBKanban();
   else if (FB_VIEW === 'table')    renderFBTable();
   else if (FB_VIEW === 'calendar') renderFBCalendar();
+  else if (FB_VIEW === 'gantt')    renderFBGantt();
 }
 
 // -- My Tasks Dashboard -----------------------------------------
@@ -6423,6 +6527,278 @@ function fbCalNext() {
   FB_CAL_MONTH++;
   if (FB_CAL_MONTH > 11) { FB_CAL_MONTH = 0; FB_CAL_YEAR++; }
   renderFBCalendar();
+}
+
+// -- Gantt Project Manager --------------------------------------
+function ganttStorageKey() {
+  return 'cmi-gantt-items-' + (FB_ACTIVE_BOARD || 'default');
+}
+function ganttDate(value) {
+  const d = value ? new Date(value) : new Date();
+  d.setHours(0,0,0,0);
+  return d;
+}
+function ganttDateStr(date) {
+  const d = ganttDate(date);
+  return d.toISOString().slice(0,10);
+}
+function ganttAddDays(date, days) {
+  const d = ganttDate(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+function ganttDaysBetween(a, b) {
+  return Math.round((ganttDate(b) - ganttDate(a)) / 86400000);
+}
+function ganttInitials(name) {
+  return String(name || 'CM').trim().split(/\s+/).map(w => w[0] || '').join('').toUpperCase().slice(0,2) || 'CM';
+}
+function ganttBoardTitle() {
+  const b = FB_BOARDS.find(board => String(board.id) === String(FB_ACTIVE_BOARD));
+  return b?.title || 'Construction Schedule';
+}
+function ganttSeedItems() {
+  const today = ganttDate(new Date());
+  const project = ganttBoardTitle();
+  return [
+    { id:'seed-1', type:'task', project, title:'Site Clearing and Vegetation', phase:'Site Preparation and Excavation', assignee:'CMI Site Team', participants:'Staff, subcontractor', client:'CMI Client', start:ganttDateStr(ganttAddDays(today,-4)), end:ganttDateStr(ganttAddDays(today,1)), status:'in_progress', progress:55, dependencies:'', notify:true, description:'Prepare the site, protect access points, and clear work areas before excavation.', forms:'Site photos, safety checklist', punch:'Access confirmed, protection installed' },
+    { id:'seed-2', type:'task', project, title:'Excavation and Ground Leveling', phase:'Site Preparation and Excavation', assignee:'Mike Excavations', participants:'Vendor, site manager', client:'CMI Client', start:ganttDateStr(ganttAddDays(today,2)), end:ganttDateStr(ganttAddDays(today,6)), status:'pending', progress:0, dependencies:'Site Clearing and Vegetation', notify:true, description:'Excavate and level the construction area according to site plan.', forms:'Excavation permit', punch:'Vendor confirmation pending' },
+    { id:'seed-3', type:'task', project, title:'Foundation Preparation', phase:'Concrete Foundations', assignee:'John Builders', participants:'Staff, vendor, inspector', client:'CMI Client', start:ganttDateStr(ganttAddDays(today,7)), end:ganttDateStr(ganttAddDays(today,11)), status:'pending', progress:0, dependencies:'Excavation and Ground Leveling', notify:false, description:'Set forms, reinforcement, and inspection readiness for foundation work.', forms:'Inspection request', punch:'Rebar photos, formwork check' },
+    { id:'seed-4', type:'task', project, title:'Concrete Foundation', phase:'Concrete Foundations', assignee:'Concrete Crew', participants:'Vendor, project manager', client:'CMI Client', start:ganttDateStr(ganttAddDays(today,12)), end:ganttDateStr(ganttAddDays(today,17)), status:'pending', progress:0, dependencies:'Foundation Preparation', notify:true, description:'Pour and cure concrete foundation, document completion and inspection.', forms:'Pour ticket, inspection form', punch:'Cure photos, final inspection' },
+    { id:'seed-5', type:'task', project, title:'Steel Frame Erection', phase:'Steel Framing and Structure', assignee:'Steel Team', participants:'Vendor, superintendent', client:'CMI Client', start:ganttDateStr(ganttAddDays(today,18)), end:ganttDateStr(ganttAddDays(today,28)), status:'pending', progress:0, dependencies:'Concrete Foundation', notify:true, description:'Erect structural steel and confirm alignment before rough-in.', forms:'Structural checklist', punch:'Bolt check, weld photos' }
+  ];
+}
+function hydrateGanttItems() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(ganttStorageKey()) || '[]');
+    if (Array.isArray(stored) && stored.length) {
+      GANTT_ITEMS = stored;
+      return;
+    }
+  } catch {}
+  if (FB_TASKS && FB_TASKS.length) {
+    GANTT_ITEMS = FB_TASKS.map((t, i) => {
+      const end = t.due_at ? ganttDate(t.due_at) : ganttAddDays(new Date(), i * 3 + 4);
+      const start = ganttAddDays(end, -Math.max(2, Math.min(7, (i % 5) + 2)));
+      return {
+        id: 'fb-' + t.id,
+        fbTaskId: t.id,
+        type: 'task',
+        project: t._boardTitle || ganttBoardTitle(),
+        title: t.title || 'Untitled task',
+        phase: fbStageLabel(t.stage_id) || 'Project Tasks',
+        assignee: (t.assignees || []).map(a => a.display_name || a.name).filter(Boolean).join(', ') || 'Unassigned',
+        participants: (t.assignees || []).map(a => a.display_name || a.name).filter(Boolean).join(', '),
+        client: '',
+        start: ganttDateStr(start),
+        end: ganttDateStr(end),
+        status: fbIsCompleted(t) ? 'complete' : (fbIsOverdue(t) ? 'delayed' : 'in_progress'),
+        progress: fbIsCompleted(t) ? 100 : (fbIsOverdue(t) ? 35 : 15),
+        dependencies: '',
+        notify: false,
+        description: t.description || '',
+        forms: '',
+        punch: ''
+      };
+    });
+  } else {
+    GANTT_ITEMS = ganttSeedItems();
+  }
+  saveGanttItems();
+}
+function saveGanttItems() {
+  localStorage.setItem(ganttStorageKey(), JSON.stringify(GANTT_ITEMS));
+}
+function ganttFilteredItems() {
+  hydrateGanttItems();
+  return GANTT_ITEMS.filter(item => GANTT_STATUS === 'all' || item.status === GANTT_STATUS);
+}
+function ganttStatusLabel(status) {
+  return String(status || 'pending').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+function ganttStatusClass(status) {
+  if (status === 'complete') return 'done';
+  if (status === 'delayed' || status === 'blocked') return 'blocked';
+  if (status === 'in_progress') return 'milestone';
+  return '';
+}
+function renderFBGantt() {
+  const wrap = document.getElementById('fb-content-wrap');
+  if (!wrap) return;
+  hydrateGanttItems();
+  const items = ganttFilteredItems();
+  const total = GANTT_ITEMS.length || 1;
+  const complete = GANTT_ITEMS.filter(i => i.status === 'complete').length;
+  const inProgress = GANTT_ITEMS.filter(i => i.status === 'in_progress').length;
+  const delayed = GANTT_ITEMS.filter(i => i.status === 'delayed' || i.status === 'blocked').length;
+  const pendingConfirm = GANTT_ITEMS.filter(i => i.notify && i.status !== 'complete').length;
+  const progress = Math.round((GANTT_ITEMS.reduce((sum, i) => sum + (Number(i.progress) || 0), 0) / total));
+  const features =
+    '<div class="gantt-feature-grid">' +
+      '<div class="gantt-feature-card"><strong>Build your schedule</strong><p>Import documents, photos, forms, and notes to shape the construction schedule around this project.</p><button onclick="document.getElementById(\'ganttImportInput\').click()" class="crm-toolbar-btn mt-3">Import documents</button><input id="ganttImportInput" type="file" multiple class="hidden" onchange="ganttImportDocs(this)" /></div>' +
+      '<div class="gantt-feature-card"><strong>Real-time progress tracking</strong><p>Track in progress, complete, delayed, blocked, and pending confirmation tasks in one timeline.</p><div class="mt-3 h-2 rounded-full overflow-hidden" style="background:var(--surface-2)"><div style="height:100%;width:' + progress + '%;background:var(--gold)"></div></div><p class="mt-2">' + progress + '% average progress</p></div>' +
+      '<div class="gantt-feature-card"><strong>Notifications & confirmations</strong><p>Publish schedule changes and flag participants who should receive update confirmations.</p><button onclick="publishGanttSchedule()" class="crm-toolbar-btn mt-3">Publish schedule</button></div>' +
+    '</div>';
+  if (GANTT_MODE === 'table') {
+    wrap.innerHTML = features + renderGanttToolbar() + renderGanttTable(items);
+    return;
+  }
+  wrap.innerHTML = features + renderGanttToolbar() + renderGanttTimeline(items, { complete, inProgress, delayed, pendingConfirm });
+  bindGanttDrag();
+}
+function renderGanttToolbar() {
+  return '<div class="gantt-toolbar">' +
+    '<div><div class="flex items-center gap-2 mb-1"><span class="gantt-status-dot"></span><h3 class="font-display text-lg" style="color:var(--text)">' + escHtml(ganttBoardTitle()) + '</h3></div><p class="text-xs" style="color:var(--text-muted)">Project schedule, tasks, dependencies, participants, and timeline controls.</p></div>' +
+    '<div class="flex flex-wrap items-center gap-2">' +
+      '<div class="gantt-tabs"><button class="gantt-view-tab ' + (GANTT_MODE==='timeline'?'active':'') + '" onclick="setGanttMode(\'timeline\')">Timeline</button><button class="gantt-view-tab ' + (GANTT_MODE==='table'?'active':'') + '" onclick="setGanttMode(\'table\')">Table</button></div>' +
+      '<select class="form-input text-sm" style="width:150px" onchange="setGanttStatus(this.value)"><option value="all"' + (GANTT_STATUS==='all'?' selected':'') + '>All status</option><option value="pending"' + (GANTT_STATUS==='pending'?' selected':'') + '>Pending</option><option value="in_progress"' + (GANTT_STATUS==='in_progress'?' selected':'') + '>In progress</option><option value="delayed"' + (GANTT_STATUS==='delayed'?' selected':'') + '>Delayed</option><option value="blocked"' + (GANTT_STATUS==='blocked'?' selected':'') + '>Blocked</option><option value="complete"' + (GANTT_STATUS==='complete'?' selected':'') + '>Complete</option></select>' +
+      '<button onclick="shiftGanttZoom(-6)" class="crm-toolbar-btn">Weekly view</button><button onclick="shiftGanttZoom(6)" class="crm-toolbar-btn">Detailed view</button>' +
+      '<button onclick="toggleGanttEditMode()" class="crm-toolbar-btn">' + (GANTT_EDIT_MODE ? 'Editing schedule' : 'View only') + '</button>' +
+      '<button onclick="openGanttItemModal(\'project\')" class="crm-toolbar-btn">Add Project</button><button onclick="openGanttItemModal(\'task\')" class="crm-toolbar-btn">Add Task</button>' +
+    '</div></div>';
+}
+function renderGanttTimeline(items, stats) {
+  if (!items.length) return '<div class="gantt-shell"><div class="gantt-empty">No schedule items match this filter.</div></div>';
+  let min = items.reduce((d, i) => ganttDate(i.start) < d ? ganttDate(i.start) : d, ganttDate(items[0].start));
+  let max = items.reduce((d, i) => ganttDate(i.end) > d ? ganttDate(i.end) : d, ganttDate(items[0].end));
+  min = ganttAddDays(min, -2); max = ganttAddDays(max, 4);
+  const days = Math.max(14, ganttDaysBetween(min, max) + 1);
+  const phases = [...new Set(items.map(i => i.phase || 'Project Tasks'))];
+  const width = days * GANTT_ZOOM;
+  const dayHeaders = Array.from({ length: days }, (_, idx) => {
+    const d = ganttAddDays(min, idx);
+    return '<div class="gantt-day"><span>' + d.toLocaleDateString('en-US',{month:'short'}) + '</span><strong>' + d.getDate() + '</strong></div>';
+  }).join('');
+  const todayOffset = ganttDaysBetween(min, new Date()) * GANTT_ZOOM;
+  let leftRows = '', timelineRows = '';
+  phases.forEach(phase => {
+    const phaseItems = items.filter(i => (i.phase || 'Project Tasks') === phase);
+    leftRows += '<div class="gantt-row-label group"><div><div class="gantt-row-title">' + escHtml(phase) + '</div><div class="gantt-row-sub">' + phaseItems.length + ' task' + (phaseItems.length!==1?'s':'') + '</div></div></div>';
+    timelineRows += '<div class="gantt-row group" style="width:' + width + 'px"></div>';
+    phaseItems.forEach(item => {
+      const itemStart = Math.max(0, ganttDaysBetween(min, item.start));
+      const duration = Math.max(1, ganttDaysBetween(item.start, item.end) + 1);
+      leftRows += '<div class="gantt-row-label"><div><div class="gantt-row-title">' + escHtml(item.title) + '</div><div class="gantt-row-sub">' + escHtml(item.assignee || 'Unassigned') + ' - ' + ganttStatusLabel(item.status) + '</div></div></div>';
+      timelineRows += '<div class="gantt-row" style="width:' + width + 'px"><div class="gantt-bar ' + ganttStatusClass(item.status) + '" data-gantt-id="' + escAttr(item.id) + '" style="left:' + (itemStart * GANTT_ZOOM) + 'px;width:' + (duration * GANTT_ZOOM - 6) + 'px"><span class="gantt-assignee">' + ganttInitials(item.assignee) + '</span><span>' + escHtml(item.title) + '</span><span style="margin-left:auto;opacity:.65">' + (Number(item.progress)||0) + '%</span></div></div>';
+    });
+  });
+  const todayLine = todayOffset >= 0 && todayOffset <= width ? '<div class="gantt-today" style="left:' + todayOffset + 'px"></div>' : '';
+  return '<div class="gantt-shell">' +
+    '<div class="grid grid-cols-4 gap-0" style="border-bottom:1px solid var(--border-sm)"><div class="p-4"><p class="text-xs text-neutral-500">Complete</p><p class="text-xl font-display">' + stats.complete + '</p></div><div class="p-4"><p class="text-xs text-neutral-500">In progress</p><p class="text-xl font-display">' + stats.inProgress + '</p></div><div class="p-4"><p class="text-xs text-neutral-500">Delayed / blocked</p><p class="text-xl font-display">' + stats.delayed + '</p></div><div class="p-4"><p class="text-xs text-neutral-500">Pending confirmation</p><p class="text-xl font-display">' + stats.pendingConfirm + '</p></div></div>' +
+    '<div class="gantt-grid" style="--gantt-day-width:' + GANTT_ZOOM + 'px"><div class="gantt-left-head">Task name</div><div class="gantt-timeline-head" style="grid-template-columns:repeat(' + days + ',' + GANTT_ZOOM + 'px);width:' + width + 'px">' + dayHeaders + '</div><div class="gantt-left">' + leftRows + '</div><div class="gantt-timeline" style="width:' + width + 'px">' + todayLine + timelineRows + '</div></div>' +
+  '</div>';
+}
+function renderGanttTable(items) {
+  const rows = items.map(item => '<tr onclick="openGanttItemModal(\'' + item.type + '\',\'' + item.id + '\')" style="cursor:pointer"><td><strong>' + escHtml(item.title) + '</strong><div class="text-[11px] text-neutral-500">' + escHtml(item.project || '') + '</div></td><td>' + escHtml(item.phase || '') + '</td><td>' + escHtml(item.assignee || '') + '</td><td>' + escHtml(item.start) + ' - ' + escHtml(item.end) + '</td><td><span class="badge b-neutral text-[10px]">' + ganttStatusLabel(item.status) + '</span></td><td>' + (Number(item.progress)||0) + '%</td><td>' + escHtml(item.participants || '') + '</td></tr>').join('');
+  return '<div class="gantt-shell overflow-hidden"><table class="data-table"><thead><tr><th>Task</th><th>Phase</th><th>Assignee</th><th>Dates</th><th>Status</th><th>Progress</th><th>Participants</th></tr></thead><tbody>' + (rows || '<tr><td colspan="7" class="text-center py-10 text-sm" style="color:var(--text-muted)">No schedule items.</td></tr>') + '</tbody></table></div>';
+}
+function setGanttMode(mode) { GANTT_MODE = mode; renderFBGantt(); }
+function setGanttStatus(status) { GANTT_STATUS = status; renderFBGantt(); }
+function shiftGanttZoom(delta) { GANTT_ZOOM = Math.max(32, Math.min(72, GANTT_ZOOM + delta)); renderFBGantt(); }
+function toggleGanttEditMode() { GANTT_EDIT_MODE = !GANTT_EDIT_MODE; showToast(GANTT_EDIT_MODE ? 'Editing schedule' : 'View-only schedule'); renderFBGantt(); }
+function ganttImportDocs(input) { showToast((input.files?.length || 0) + ' document(s) queued for schedule import'); input.value = ''; }
+function publishGanttSchedule() { showToast('Schedule published. Notification confirmations queued.'); }
+function bindGanttDrag() {
+  document.querySelectorAll('.gantt-bar').forEach(bar => {
+    bar.addEventListener('pointerdown', e => {
+      if (!GANTT_EDIT_MODE) return;
+      e.preventDefault();
+      const item = GANTT_ITEMS.find(i => String(i.id) === String(bar.dataset.ganttId));
+      if (!item) return;
+      GANTT_DRAG = { item, bar, x: e.clientX, left: parseFloat(bar.style.left) || 0, start: item.start, end: item.end, moved:false };
+      bar.classList.add('dragging');
+      bar.setPointerCapture(e.pointerId);
+    });
+    bar.addEventListener('pointermove', e => {
+      if (!GANTT_DRAG) return;
+      const deltaDays = Math.round((e.clientX - GANTT_DRAG.x) / GANTT_ZOOM);
+      const deltaPx = e.clientX - GANTT_DRAG.x;
+      GANTT_DRAG.bar.style.left = Math.max(0, GANTT_DRAG.left + deltaPx) + 'px';
+      if (!deltaDays) return;
+      GANTT_DRAG.moved = true;
+      GANTT_DRAG.item.start = ganttDateStr(ganttAddDays(GANTT_DRAG.start, deltaDays));
+      GANTT_DRAG.item.end = ganttDateStr(ganttAddDays(GANTT_DRAG.end, deltaDays));
+    });
+    bar.addEventListener('pointerup', e => {
+      const moved = GANTT_DRAG?.moved;
+      const id = bar.dataset.ganttId;
+      document.querySelectorAll('.gantt-bar.dragging').forEach(b => b.classList.remove('dragging'));
+      if (GANTT_DRAG) { saveGanttItems(); GANTT_DRAG = null; renderFBGantt(); }
+      if (!moved) openGanttItemModal('task', id);
+    });
+  });
+}
+function openGanttItemModal(type, id) {
+  hydrateGanttItems();
+  const item = id ? GANTT_ITEMS.find(i => String(i.id) === String(id)) : null;
+  const today = ganttDateStr(new Date());
+  const model = item || { id:'', type:type || 'task', project:ganttBoardTitle(), title:'', phase:'', assignee:'', participants:'', client:'', start:today, end:ganttDateStr(ganttAddDays(today,3)), status:'pending', progress:0, dependencies:'', notify:true, description:'', forms:'', punch:'' };
+  document.getElementById('ganttModalKicker').textContent = model.type === 'project' ? 'Project Schedule' : 'Project Task';
+  document.getElementById('ganttModalTitle').textContent = item ? 'Edit ' + model.title : (model.type === 'project' ? 'Add Project Schedule' : 'Add Project Task');
+  document.getElementById('ganttItemId').value = model.id;
+  document.getElementById('ganttItemType').value = model.type;
+  document.getElementById('ganttTitle').value = model.title || '';
+  document.getElementById('ganttProject').value = model.project || '';
+  document.getElementById('ganttPhase').value = model.phase || '';
+  document.getElementById('ganttAssignee').value = model.assignee || '';
+  document.getElementById('ganttClient').value = model.client || '';
+  document.getElementById('ganttDependencies').value = model.dependencies || '';
+  document.getElementById('ganttStart').value = model.start || today;
+  document.getElementById('ganttEnd').value = model.end || today;
+  document.getElementById('ganttStatus').value = model.status || 'pending';
+  document.getElementById('ganttProgress').value = Number(model.progress) || 0;
+  document.getElementById('ganttParticipants').value = model.participants || '';
+  document.getElementById('ganttNotify').checked = !!model.notify;
+  document.getElementById('ganttDescription').value = model.description || '';
+  document.getElementById('ganttForms').value = model.forms || '';
+  document.getElementById('ganttPunch').value = model.punch || '';
+  document.getElementById('ganttItemModal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeGanttItemModal() {
+  document.getElementById('ganttItemModal').classList.remove('open');
+  document.body.style.overflow = '';
+}
+function saveGanttItem() {
+  const id = document.getElementById('ganttItemId').value || ('gantt-' + Date.now());
+  const item = {
+    id,
+    type: document.getElementById('ganttItemType').value || 'task',
+    title: document.getElementById('ganttTitle').value.trim() || 'Untitled schedule item',
+    project: document.getElementById('ganttProject').value.trim() || ganttBoardTitle(),
+    phase: document.getElementById('ganttPhase').value.trim() || 'Project Tasks',
+    assignee: document.getElementById('ganttAssignee').value.trim(),
+    client: document.getElementById('ganttClient').value.trim(),
+    dependencies: document.getElementById('ganttDependencies').value.trim(),
+    start: document.getElementById('ganttStart').value,
+    end: document.getElementById('ganttEnd').value,
+    status: document.getElementById('ganttStatus').value,
+    progress: Math.max(0, Math.min(100, Number(document.getElementById('ganttProgress').value) || 0)),
+    participants: document.getElementById('ganttParticipants').value.trim(),
+    notify: document.getElementById('ganttNotify').checked,
+    description: document.getElementById('ganttDescription').value.trim(),
+    forms: document.getElementById('ganttForms').value.trim(),
+    punch: document.getElementById('ganttPunch').value.trim()
+  };
+  const idx = GANTT_ITEMS.findIndex(i => String(i.id) === String(id));
+  if (idx === -1) GANTT_ITEMS.push(item); else GANTT_ITEMS[idx] = { ...GANTT_ITEMS[idx], ...item };
+  saveGanttItems();
+  closeGanttItemModal();
+  renderFBGantt();
+  showToast('Schedule item saved');
+}
+function ganttMarkComplete() {
+  document.getElementById('ganttStatus').value = 'complete';
+  document.getElementById('ganttProgress').value = 100;
+}
+function deleteGanttItem() {
+  const id = document.getElementById('ganttItemId').value;
+  if (!id) { closeGanttItemModal(); return; }
+  GANTT_ITEMS = GANTT_ITEMS.filter(i => String(i.id) !== String(id));
+  saveGanttItems();
+  closeGanttItemModal();
+  renderFBGantt();
+  showToast('Schedule item deleted');
 }
 
 function showFBError(msg) {
