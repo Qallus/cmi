@@ -1,0 +1,1102 @@
+<style>
+/* =========================================================
+   ANTIGRAVITY-STYLE HERO FOR BRICKS BUILDER
+   HTML + CSS + JS in one copy/paste file
+========================================================= */
+
+.ag-hero {
+  --ag-bg: #05070d;
+  --ag-bg-2: #080c16;
+  --ag-text: #f7f9ff;
+  --ag-muted: rgba(247, 249, 255, 0.68);
+  --ag-soft: rgba(247, 249, 255, 0.12);
+  --ag-line: rgba(255, 255, 255, 0.12);
+  --ag-blue: #d8b06f;
+  --ag-cyan: #f0d8ad;
+  --ag-violet: #9e6f2e;
+  --ag-green: #c9a46e;
+  --ag-radius: 28px;
+
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 40%, rgba(201, 164, 110, 0.16), transparent 32%),
+    radial-gradient(circle at 75% 20%, rgba(158, 111, 46, 0.16), transparent 28%),
+    radial-gradient(circle at 20% 75%, rgba(240, 216, 173, 0.1), transparent 30%),
+    linear-gradient(180deg, var(--ag-bg), var(--ag-bg-2));
+  color: var(--ag-text);
+  font-family: Inter, Arial, sans-serif;
+  isolation: isolate;
+}
+
+.ag-hero *,
+.ag-hero *::before,
+.ag-hero *::after {
+  box-sizing: border-box;
+}
+
+.ag-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+
+.ag-cursor-glow {
+  position: absolute;
+  inset: auto;
+  left: var(--cursor-x, 50%);
+  top: var(--cursor-y, 50%);
+  width: 460px;
+  height: 460px;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  border-radius: 999px;
+  background:
+    radial-gradient(circle, rgba(240, 216, 173, 0.16), rgba(201, 164, 110, 0.11) 38%, transparent 68%);
+  filter: blur(10px);
+  opacity: 0.9;
+  z-index: 2;
+  mix-blend-mode: screen;
+  transition: opacity 0.25s ease;
+}
+
+.ag-grid {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  opacity: 0.34;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.07) 1px, transparent 1px);
+  background-size: 72px 72px;
+  mask-image: radial-gradient(circle at center, black 0%, transparent 75%);
+}
+
+.ag-noise {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0.08;
+  background-image:
+    repeating-radial-gradient(circle at 17% 32%, rgba(255,255,255,0.7) 0 1px, transparent 1px 4px);
+  mix-blend-mode: screen;
+}
+
+.cmi-site-header {
+  position: relative;
+  z-index: 20;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  background: rgba(15,15,15,0.82);
+  backdrop-filter: blur(18px);
+}
+
+.cmi-nav-wrap {
+  width: min(1400px, calc(100% - 32px));
+  height: 72px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.cmi-logo {
+  display: inline-flex;
+  align-items: center;
+  color: #fff;
+  text-decoration: none;
+}
+
+.cmi-logo img {
+  display: block;
+  width: auto;
+  height: 36px;
+}
+
+.cmi-desktop-nav,
+.cmi-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.cmi-nav-link,
+.cmi-nav-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  color: rgba(240,237,234,0.78);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-decoration: none;
+  text-transform: uppercase;
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.cmi-nav-link::after,
+.cmi-nav-button::after {
+  content: "";
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 5px;
+  height: 1px;
+  background: #c9a46e;
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform 0.25s ease;
+}
+
+.cmi-nav-link:hover,
+.cmi-nav-button:hover,
+.cmi-nav-group:focus-within .cmi-nav-button,
+.cmi-nav-group:hover .cmi-nav-button {
+  color: #c9a46e;
+}
+
+.cmi-nav-link:hover::after,
+.cmi-nav-button:hover::after,
+.cmi-nav-group:focus-within .cmi-nav-button::after,
+.cmi-nav-group:hover .cmi-nav-button::after {
+  transform: scaleX(1);
+}
+
+.cmi-chevron {
+  width: 14px;
+  height: 14px;
+  opacity: 0.58;
+}
+
+.cmi-nav-group {
+  position: relative;
+}
+
+.cmi-menu {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  width: 680px;
+  padding-top: 12px;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateX(-50%) translateY(8px);
+  transition: opacity 0.22s ease, transform 0.22s ease, visibility 0.22s ease;
+}
+
+.cmi-menu.is-small {
+  left: 0;
+  width: 220px;
+  transform: translateY(8px);
+}
+
+.cmi-nav-group:hover .cmi-menu,
+.cmi-nav-group:focus-within .cmi-menu {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateX(-50%) translateY(0);
+}
+
+.cmi-nav-group:hover .cmi-menu.is-small,
+.cmi-nav-group:focus-within .cmi-menu.is-small {
+  transform: translateY(0);
+}
+
+.cmi-menu-panel {
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px;
+  background: rgba(22,22,22,0.96);
+  box-shadow: 0 24px 80px rgba(0,0,0,0.35);
+  padding: 8px;
+}
+
+.cmi-menu-panel.is-wide {
+  padding: 24px;
+}
+
+.cmi-menu-kicker {
+  margin: 0 0 16px;
+  color: rgba(240,237,234,0.46);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.cmi-menu-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.cmi-menu-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-radius: 8px;
+  color: rgba(240,237,234,0.68);
+  padding: 12px;
+  text-decoration: none;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.cmi-menu-item:hover {
+  background: rgba(255,255,255,0.06);
+  color: #fff;
+}
+
+.cmi-menu-item strong {
+  color: #f0edea;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.cmi-menu-item span {
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.cmi-menu-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  color: rgba(240,237,234,0.48);
+  font-size: 12px;
+}
+
+.cmi-menu-footer a {
+  color: #c9a46e;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.cmi-nav-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 18px;
+  border-radius: 8px;
+  background: #c9a46e;
+  color: #111;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.cmi-nav-cta:hover {
+  opacity: 0.92;
+  transform: translateY(-1px);
+}
+
+.cmi-mobile-trigger,
+.cmi-mobile-close {
+  display: none;
+  border: 0;
+  background: transparent;
+  color: rgba(240,237,234,0.86);
+  cursor: pointer;
+}
+
+.cmi-mobile-trigger {
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.cmi-mobile-trigger span {
+  display: block;
+  width: 20px;
+  height: 1.5px;
+  background: currentColor;
+}
+
+.cmi-mobile-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.25s ease, visibility 0.25s ease;
+}
+
+.cmi-mobile-overlay.open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.cmi-mobile-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.58);
+}
+
+.cmi-mobile-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: min(380px, 86vw);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid rgba(255,255,255,0.1);
+  background: #0f0f0f;
+  transform: translateX(100%);
+  transition: transform 0.3s ease;
+}
+
+.cmi-mobile-overlay.open .cmi-mobile-panel {
+  transform: translateX(0);
+}
+
+.cmi-mobile-head {
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 24px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.cmi-mobile-head img {
+  width: auto;
+  height: 32px;
+}
+
+.cmi-mobile-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  font-size: 28px;
+  line-height: 1;
+}
+
+.cmi-mobile-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 24px 28px;
+}
+
+.cmi-mobile-section {
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.cmi-mobile-toggle,
+.cmi-mobile-link {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 0;
+  background: transparent;
+  color: #f0edea;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  padding: 14px 0;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.cmi-mobile-sub {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.25s ease;
+}
+
+.cmi-mobile-sub.open {
+  max-height: 420px;
+}
+
+.cmi-mobile-sub a {
+  display: block;
+  color: rgba(240,237,234,0.64);
+  font-size: 14px;
+  padding: 10px 0 10px 16px;
+  text-decoration: none;
+}
+
+.cmi-mobile-sub a:hover {
+  color: #c9a46e;
+}
+
+.cmi-mobile-cta {
+  width: 100%;
+  margin-top: 26px;
+}
+
+.ag-hero-inner {
+  position: relative;
+  z-index: 5;
+  width: min(1180px, calc(100% - 32px));
+  min-height: calc(100vh - 92px);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+  padding: clamp(56px, 8vw, 110px) 0 clamp(104px, 11vw, 138px);
+}
+
+.ag-copy {
+  position: relative;
+  z-index: 6;
+  max-width: 980px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.ag-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 24px;
+  padding: 9px 14px;
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 999px;
+  background: rgba(255,255,255,0.055);
+  color: rgba(255,255,255,0.78);
+  font-size: 0.86rem;
+  backdrop-filter: blur(20px);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+}
+
+.ag-pill-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--ag-cyan);
+  box-shadow: 0 0 18px var(--ag-cyan);
+}
+
+.ag-title {
+  margin: 0;
+  color: var(--ag-text);
+  font-size: clamp(4rem, 12vw, 11.5rem);
+  line-height: 0.82;
+  letter-spacing: -0.05em;
+  font-weight: 900;
+}
+
+.ag-title span {
+  display: block;
+}
+
+.ag-title-gradient {
+  background: linear-gradient(90deg, #ffffff, var(--ag-blue), var(--ag-cyan), var(--ag-violet));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 34px rgba(201,164,110,0.28));
+}
+
+.ag-subtitle {
+  max-width: 760px;
+  margin: 28px auto 0;
+  color: var(--ag-muted);
+  font-size: clamp(1.05rem, 2vw, 1.35rem);
+  line-height: 1.65;
+}
+
+.ag-actions {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 34px;
+}
+
+.ag-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 54px;
+  padding: 0 24px;
+  border-radius: 999px;
+  text-decoration: none;
+  font-weight: 850;
+  overflow: hidden;
+  transition: all 0.28s ease;
+}
+
+.ag-btn-primary {
+  color: #06101d;
+  background: #ffffff;
+  box-shadow: 0 22px 70px rgba(255,255,255,0.13);
+}
+
+.ag-btn-primary::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(201,164,110,0.35), transparent);
+  transform: translateX(-120%);
+  transition: transform 0.6s ease;
+}
+
+.ag-btn-primary:hover::before {
+  transform: translateX(120%);
+}
+
+.ag-btn-secondary {
+  color: #ffffff;
+  border: 1px solid var(--ag-line);
+  background: rgba(255,255,255,0.055);
+  backdrop-filter: blur(18px);
+}
+
+.ag-btn:hover {
+  transform: translateY(-3px);
+}
+
+.ag-stage {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  display: grid;
+  place-items: center;
+}
+
+.ag-orbit {
+  position: absolute;
+  width: min(72vw, 760px);
+  aspect-ratio: 1;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.1);
+  animation: agSpin 24s linear infinite;
+  opacity: 0.78;
+}
+
+.ag-orbit::before,
+.ag-orbit::after {
+  content: "";
+  position: absolute;
+  width: 13px;
+  height: 13px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow:
+    0 0 24px rgba(255,255,255,0.9),
+    0 0 60px rgba(201,164,110,0.65);
+}
+
+.ag-orbit::before {
+  top: 13%;
+  left: 18%;
+}
+
+.ag-orbit::after {
+  bottom: 10%;
+  right: 24%;
+  background: var(--ag-cyan);
+}
+
+.ag-orbit:nth-child(2) {
+  width: min(58vw, 610px);
+  transform: rotate(52deg);
+  animation-duration: 30s;
+  animation-direction: reverse;
+  border-color: rgba(240,216,173,0.13);
+}
+
+.ag-orbit:nth-child(3) {
+  width: min(42vw, 460px);
+  transform: rotate(-28deg);
+  animation-duration: 18s;
+  border-color: rgba(158,111,46,0.14);
+}
+
+@keyframes agSpin {
+  from { rotate: 0deg; }
+  to { rotate: 360deg; }
+}
+
+.ag-floating-card {
+  position: absolute;
+  z-index: 6;
+  width: min(280px, 34vw);
+  padding: 16px;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 22px;
+  background: rgba(10, 14, 24, 0.52);
+  color: rgba(255,255,255,0.82);
+  backdrop-filter: blur(24px);
+  box-shadow: 0 24px 80px rgba(0,0,0,0.3);
+  animation: agFloat 5.5s ease-in-out infinite;
+}
+
+.ag-floating-card strong {
+  display: block;
+  color: #ffffff;
+  margin-bottom: 6px;
+}
+
+.ag-floating-card p {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.ag-card-one {
+  left: clamp(16px, 7vw, 90px);
+  bottom: clamp(80px, 15vh, 150px);
+}
+
+.ag-card-two {
+  right: clamp(16px, 7vw, 90px);
+  top: clamp(140px, 24vh, 220px);
+  animation-delay: -1.8s;
+}
+
+@keyframes agFloat {
+  0%, 100% { transform: translateY(0) rotate(-1deg); }
+  50% { transform: translateY(-18px) rotate(1deg); }
+}
+
+@media (max-width: 900px) {
+  .cmi-desktop-nav,
+  .cmi-nav-actions .cmi-nav-cta {
+    display: none;
+  }
+
+  .cmi-mobile-trigger {
+    display: inline-flex;
+  }
+
+  .ag-floating-card {
+    display: none;
+  }
+
+  .ag-orbit {
+    width: 92vw;
+  }
+
+  .ag-orbit:nth-child(2) {
+    width: 72vw;
+  }
+
+  .ag-orbit:nth-child(3) {
+    width: 54vw;
+  }
+}
+
+@media (max-width: 640px) {
+  .ag-hero-inner {
+    min-height: calc(100vh - 80px);
+    padding-top: 34px;
+    padding-bottom: 116px;
+  }
+
+  .ag-title {
+    font-size: clamp(4.2rem, 20vw, 6rem);
+  }
+
+  .ag-subtitle {
+    font-size: 1rem;
+  }
+
+  .ag-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ag-btn {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ag-orbit,
+  .ag-floating-card {
+    animation: none !important;
+  }
+}
+</style>
+
+<section class="ag-hero" id="agHero">
+  <canvas class="ag-canvas" id="agParticleCanvas" aria-hidden="true"></canvas>
+  <div class="ag-grid" aria-hidden="true"></div>
+  <div class="ag-cursor-glow" aria-hidden="true"></div>
+  <div class="ag-noise" aria-hidden="true"></div>
+
+  <header class="cmi-site-header" id="cmiHeroHeader">
+    <div class="cmi-nav-wrap">
+      <a class="cmi-logo" href="index.html" aria-label="Constructed Matter Home">
+        <img src="https://wp-constructedmatter-com-985548.hostingersite.com/wp-content/uploads/2026/03/CMI_Logo_White.svg" alt="Constructed Matter" />
+      </a>
+
+      <nav class="cmi-desktop-nav" aria-label="Primary navigation">
+        <div class="cmi-nav-group">
+          <button class="cmi-nav-button" type="button">
+            Discover
+            <svg class="cmi-chevron" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <div class="cmi-menu is-small">
+            <div class="cmi-menu-panel">
+              <a class="cmi-menu-item" href="about.html"><strong>About Us</strong></a>
+              <a class="cmi-menu-item" href="team.html"><strong>Our Team</strong></a>
+              <a class="cmi-menu-item" href="resources.html"><strong>Resources</strong></a>
+              <a class="cmi-menu-item" href="contact.html"><strong>Contact</strong></a>
+            </div>
+          </div>
+        </div>
+
+        <div class="cmi-nav-group">
+          <button class="cmi-nav-button" type="button">
+            Services
+            <svg class="cmi-chevron" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <div class="cmi-menu">
+            <div class="cmi-menu-panel is-wide">
+              <p class="cmi-menu-kicker">Our Services</p>
+              <div class="cmi-menu-grid">
+                <a class="cmi-menu-item" href="services/residential.html"><strong>Residential</strong><span>Custom homes built with precision and care.</span></a>
+                <a class="cmi-menu-item" href="services/commercial.html"><strong>Commercial</strong><span>Functional spaces for modern business.</span></a>
+                <a class="cmi-menu-item" href="services/adu.html"><strong>ADU</strong><span>Accessory dwelling units and turnkey solutions.</span></a>
+                <a class="cmi-menu-item" href="services/project-management.html"><strong>Renovations and Additions</strong><span>End-to-end oversight and coordination.</span></a>
+                <a class="cmi-menu-item" href="services/interior-design.html"><strong>Architectural and Design Coordination</strong><span>Curated details aligned from concept through build.</span></a>
+                <a class="cmi-menu-item" href="services/new-construction.html"><strong>New Construction</strong><span>Ground-up builds from foundation to finish.</span></a>
+              </div>
+              <div class="cmi-menu-footer">
+                <span>Not sure where to start?</span>
+                <a href="quote.html">Let's Build Together</a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <a class="cmi-nav-link" href="portfolio.html">Portfolio</a>
+        <a class="cmi-nav-link" href="contact.html">Contact</a>
+      </nav>
+
+      <div class="cmi-nav-actions">
+        <a class="cmi-nav-cta" href="quote.html">Let's Build Together</a>
+        <button class="cmi-mobile-trigger" id="cmiMobileMenuBtn" type="button" aria-label="Open menu" aria-controls="cmiMobileOverlay" aria-expanded="false">
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div class="cmi-mobile-overlay" id="cmiMobileOverlay" aria-hidden="true">
+    <div class="cmi-mobile-backdrop" id="cmiMobileBackdrop"></div>
+    <div class="cmi-mobile-panel" role="dialog" aria-modal="true" aria-label="Mobile navigation">
+      <div class="cmi-mobile-head">
+        <img src="https://wp-constructedmatter-com-985548.hostingersite.com/wp-content/uploads/2026/03/CMI_Logo_White.svg" alt="Constructed Matter" />
+        <button class="cmi-mobile-close" id="cmiMobileCloseBtn" type="button" aria-label="Close menu">&times;</button>
+      </div>
+      <div class="cmi-mobile-body">
+        <div class="cmi-mobile-section">
+          <button class="cmi-mobile-toggle" type="button" data-cmi-mobile-toggle="discover">Discover <span>+</span></button>
+          <div class="cmi-mobile-sub" id="cmiMobileDiscover">
+            <a href="about.html">About Us</a>
+            <a href="team.html">Our Team</a>
+            <a href="resources.html">Resources</a>
+            <a href="contact.html">Contact</a>
+          </div>
+        </div>
+        <div class="cmi-mobile-section">
+          <button class="cmi-mobile-toggle" type="button" data-cmi-mobile-toggle="services">Services <span>+</span></button>
+          <div class="cmi-mobile-sub" id="cmiMobileServices">
+            <a href="services/residential.html">Residential</a>
+            <a href="services/commercial.html">Commercial</a>
+            <a href="services/adu.html">ADU</a>
+            <a href="services/project-management.html">Renovations and Additions</a>
+            <a href="services/interior-design.html">Architectural and Design Coordination</a>
+            <a href="services/new-construction.html">New Construction</a>
+          </div>
+        </div>
+        <a class="cmi-mobile-link" href="portfolio.html">Portfolio</a>
+        <a class="cmi-mobile-link" href="contact.html">Contact</a>
+        <a class="cmi-nav-cta cmi-mobile-cta" href="quote.html">Let's Build Together</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="ag-stage" aria-hidden="true">
+    <div class="ag-orbit"></div>
+    <div class="ag-orbit"></div>
+    <div class="ag-orbit"></div>
+  </div>
+
+  <div class="ag-floating-card ag-card-one">
+    <strong>Design-build clarity</strong>
+    <p>Residential, commercial, ADU, and interior projects coordinated from first concept to final walkthrough.</p>
+  </div>
+
+  <div class="ag-floating-card ag-card-two">
+    <strong>Built for Arizona</strong>
+    <p>Modern spaces shaped around climate, craft, permitting, materials, and the way people actually live and work.</p>
+  </div>
+
+  <div class="ag-hero-inner">
+    <div class="ag-copy">
+      <div class="ag-pill">
+        <span class="ag-pill-dot"></span>
+        <span>Arizona construction and design-build services</span>
+      </div>
+
+      <h1 class="ag-title">
+        <span>Building What</span>
+        <span class="ag-title-gradient">Matters Most</span>
+      </h1>
+
+      <p class="ag-subtitle">
+        Constructed Matter brings construction, design coordination, project management, and precise execution together
+        for homes, commercial spaces, ADUs, renovations, and ground-up builds across Arizona.
+      </p>
+
+      <div class="ag-actions">
+        <a class="ag-btn ag-btn-primary" href="#start">Let's Build Together</a>
+        <a class="ag-btn ag-btn-secondary" href="#portfolio">View Our Work</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+(function () {
+  const overlay = document.getElementById("cmiMobileOverlay");
+  const openBtn = document.getElementById("cmiMobileMenuBtn");
+  const closeBtn = document.getElementById("cmiMobileCloseBtn");
+  const backdrop = document.getElementById("cmiMobileBackdrop");
+
+  if (!overlay || !openBtn || !closeBtn || !backdrop) return;
+
+  function openMenu() {
+    overlay.classList.add("open");
+    overlay.setAttribute("aria-hidden", "false");
+    openBtn.setAttribute("aria-expanded", "true");
+    document.body.style.overflow = "hidden";
+  }
+
+  function closeMenu() {
+    overlay.classList.remove("open");
+    overlay.setAttribute("aria-hidden", "true");
+    openBtn.setAttribute("aria-expanded", "false");
+    document.body.style.overflow = "";
+  }
+
+  openBtn.addEventListener("click", openMenu);
+  closeBtn.addEventListener("click", closeMenu);
+  backdrop.addEventListener("click", closeMenu);
+
+  overlay.querySelectorAll("[data-cmi-mobile-toggle]").forEach(function (toggle) {
+    toggle.addEventListener("click", function () {
+      const target = toggle.getAttribute("data-cmi-mobile-toggle") === "services"
+        ? document.getElementById("cmiMobileServices")
+        : document.getElementById("cmiMobileDiscover");
+      const marker = toggle.querySelector("span");
+
+      if (!target) return;
+
+      target.classList.toggle("open");
+      if (marker) marker.textContent = target.classList.contains("open") ? "-" : "+";
+    });
+  });
+})();
+
+(function () {
+  const hero = document.getElementById("agHero");
+  const canvas = document.getElementById("agParticleCanvas");
+
+  if (!hero || !canvas) return;
+
+  const ctx = canvas.getContext("2d");
+  let width = 0;
+  let height = 0;
+  let particles = [];
+  let rafId = null;
+
+  const pointer = {
+    x: window.innerWidth / 2,
+    y: window.innerHeight / 2,
+    active: false
+  };
+
+  const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  function resizeCanvas() {
+    const rect = hero.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+    width = rect.width;
+    height = rect.height;
+
+    canvas.width = Math.floor(width * dpr);
+    canvas.height = Math.floor(height * dpr);
+    canvas.style.width = width + "px";
+    canvas.style.height = height + "px";
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    createParticles();
+  }
+
+  function createParticles() {
+    const area = width * height;
+    const count = Math.min(180, Math.max(70, Math.floor(area / 10500)));
+
+    particles = Array.from({ length: count }, function (_, index) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 0.12 + Math.random() * 0.38;
+
+      return {
+        x: Math.random() * width,
+        y: Math.random() * height,
+        baseX: Math.random() * width,
+        baseY: Math.random() * height,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        radius: Math.random() * 1.8 + 0.7,
+        alpha: Math.random() * 0.5 + 0.18,
+        hue: index % 3
+      };
+    });
+  }
+
+  function getParticleColor(particle, alphaBoost) {
+    const alpha = Math.min(1, particle.alpha + alphaBoost);
+
+  if (particle.hue === 0) return `rgba(201, 164, 110, ${alpha})`;
+  if (particle.hue === 1) return `rgba(240, 216, 173, ${alpha})`;
+  return `rgba(158, 111, 46, ${alpha})`;
+  }
+
+  function drawConnections() {
+    const maxDistance = 115;
+
+    for (let i = 0; i < particles.length; i++) {
+      for (let j = i + 1; j < particles.length; j++) {
+        const a = particles[i];
+        const b = particles[j];
+        const dx = a.x - b.x;
+        const dy = a.y - b.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        if (distance < maxDistance) {
+          const opacity = (1 - distance / maxDistance) * 0.16;
+          ctx.beginPath();
+          ctx.strokeStyle = `rgba(255,255,255,${opacity})`;
+          ctx.lineWidth = 1;
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, b.y);
+          ctx.stroke();
+        }
+      }
+    }
+  }
+
+  function animate() {
+    ctx.clearRect(0, 0, width, height);
+
+    const heroRect = hero.getBoundingClientRect();
+    const localPointerX = pointer.x - heroRect.left;
+    const localPointerY = pointer.y - heroRect.top;
+
+    particles.forEach(function (p) {
+      p.x += p.vx;
+      p.y += p.vy;
+
+      if (p.x < -20 || p.x > width + 20) p.vx *= -1;
+      if (p.y < -20 || p.y > height + 20) p.vy *= -1;
+
+      const dx = p.x - localPointerX;
+      const dy = p.y - localPointerY;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      const influence = 150;
+
+      let alphaBoost = 0;
+
+      if (pointer.active && distance < influence) {
+        const force = (1 - distance / influence);
+        const angle = Math.atan2(dy, dx);
+
+        p.x += Math.cos(angle) * force * 2.8;
+        p.y += Math.sin(angle) * force * 2.8;
+
+        alphaBoost = force * 0.55;
+      }
+
+      ctx.beginPath();
+      ctx.fillStyle = getParticleColor(p, alphaBoost);
+      ctx.shadowColor = getParticleColor(p, 0.4);
+      ctx.shadowBlur = pointer.active && distance < influence ? 18 : 6;
+      ctx.arc(p.x, p.y, p.radius + alphaBoost * 1.8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    });
+
+    drawConnections();
+
+    if (!prefersReducedMotion) {
+      rafId = requestAnimationFrame(animate);
+    }
+  }
+
+  function updateCursorVars(event) {
+    const rect = hero.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+
+    pointer.x = event.clientX;
+    pointer.y = event.clientY;
+    pointer.active = true;
+
+    hero.style.setProperty("--cursor-x", x + "px");
+    hero.style.setProperty("--cursor-y", y + "px");
+  }
+
+  hero.addEventListener("pointermove", updateCursorVars);
+
+  hero.addEventListener("pointerenter", function () {
+    pointer.active = true;
+  });
+
+  hero.addEventListener("pointerleave", function () {
+    pointer.active = false;
+  });
+
+  window.addEventListener("resize", function () {
+    cancelAnimationFrame(rafId);
+    resizeCanvas();
+    animate();
+  });
+
+  resizeCanvas();
+  animate();
+})();
+</script>

@@ -314,31 +314,52 @@
       line-height: 1;
     }
 
-    /* -- Hide scrollbar on project carousel -- */
-    #projectScroll::-webkit-scrollbar { display: none; }
+    /* -- Featured Projects: standard drag slider -- */
+    #projectsWrapper { height: auto !important; }
+    #projectsSticky {
+      position: relative !important;
+      overflow: hidden !important;
+    }
+    #projectSliderViewport {
+      --project-slider-left: 1.5rem;
+      width: calc(100% - var(--project-slider-left));
+      margin-left: var(--project-slider-left);
+      overflow: hidden;
+    }
+    #projectTrack {
+      overflow-x: auto;
+      overflow-y: hidden;
+      scroll-snap-type: x mandatory;
+      scroll-behavior: smooth;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      cursor: grab;
+      transform: none !important;
+    }
+    #projectTrack.dragging {
+      cursor: grabbing;
+      scroll-behavior: auto;
+      user-select: none;
+    }
+    #projectTrack::-webkit-scrollbar { display: none; }
+    #projectTrack .project-card {
+      scroll-snap-align: start;
+    }
 
-    /* -- Featured Projects: mobile slider -- */
+    @media (min-width: 1024px) {
+      #projectSliderViewport {
+        --project-slider-left: max(2.5rem, calc((100vw - 1400px) / 2 + 2.5rem));
+      }
+    }
+
     @media (max-width: 1023px) {
-      #projectsWrapper { height: auto !important; }
       #projectsSticky {
-        position: static !important;
         height: auto !important;
         overflow: visible !important;
         padding: 56px 0 40px !important;
       }
-      #projectTrack {
-        overflow-x: scroll !important;
-        scroll-snap-type: x mandatory !important;
-        -webkit-overflow-scrolling: touch;
-        scrollbar-width: none;
-        padding-left: 24px !important;
-        padding-right: 24px !important;
-        transform: none !important;
-        gap: 16px !important;
-      }
-      #projectTrack::-webkit-scrollbar { display: none; }
+      #projectTrack { gap: 16px !important; }
       #projectTrack .project-card {
-        scroll-snap-align: start;
         width: 82vw !important;
       }
     }
@@ -699,7 +720,7 @@
 
 
 <!-- --------------------------------------------------------------------
-     3. FEATURED PROJECTS (Scroll-driven horizontal slide)
+     3. FEATURED PROJECTS
      -------------------------------------------------------------------- -->
 <div id="projectsWrapper" class="relative bg-cmi-light dark:bg-cmi-dark grid-paper">
   <section id="projectsSticky" class="sticky top-0 h-screen overflow-hidden flex flex-col justify-center">
@@ -718,8 +739,8 @@
     </div>
 
     <!-- Horizontal Track -->
-    <div class="relative w-full overflow-hidden">
-      <div id="projectTrack" class="flex gap-5 pl-6 lg:pl-[max(24px,calc((100vw-1400px)/2+40px))] pr-[30vw] will-change-transform">
+    <div id="projectSliderViewport" class="relative">
+      <div id="projectTrack" class="flex gap-5 will-change-transform">
 
         <!-- Project 1, Ambassador ADU -->
         <div class="project-card relative rounded-2xl overflow-hidden flex-shrink-0 w-[340px] sm:w-[420px] lg:w-[500px] aspect-[3/4] group cursor-pointer"
@@ -933,8 +954,8 @@
       </div>
     </div>
 
-    <!-- Mobile slider controls -->
-    <div class="proj-slider-controls items-center justify-between px-6 mt-6">
+    <!-- Slider controls -->
+    <div class="proj-slider-controls max-w-[1400px] mx-auto px-6 lg:px-10 w-full items-center justify-between mt-6">
       <button id="projPrev" aria-label="Previous project"
         class="w-9 h-9 rounded-full flex items-center justify-center border transition-colors"
         style="border-color:var(--cmi-border-md);color:var(--cmi-text)"
@@ -1661,7 +1682,7 @@
   <!-- YouTube video background -->
   <div class="absolute inset-0 overflow-hidden pointer-events-none">
     <iframe id="ctaYT"
-            src="https://www.youtube.com/embed/fyprwuHlCg8?autoplay=1&mute=1&loop=1&playlist=fyprwuHlCg8&controls=0&disablekb=1&modestbranding=1&playsinline=1&rel=0&enablejsapi=1"
+            src="https://www.youtube.com/embed/fyprwuHlCg8?autoplay=1&mute=1&controls=0&disablekb=1&modestbranding=1&playsinline=1&rel=0&enablejsapi=1"
             allow="autoplay; encrypted-media"
             allowfullscreen
             class="absolute"
@@ -1689,6 +1710,61 @@
     </div>
   </div>
 </section>
+
+<script>
+(function () {
+  var clipDurationMs = 18000;
+  var ctaPlayer = null;
+  var restartTimer = null;
+
+  function clearRestartTimer() {
+    if (restartTimer) {
+      window.clearTimeout(restartTimer);
+      restartTimer = null;
+    }
+  }
+
+  function restartClip(player) {
+    clearRestartTimer();
+    player.seekTo(0, true);
+    player.mute();
+    player.playVideo();
+    restartTimer = window.setTimeout(function () {
+      restartClip(player);
+    }, clipDurationMs);
+  }
+
+  function initCtaVideo() {
+    var iframe = document.getElementById('ctaYT');
+    if (!iframe || !window.YT || !window.YT.Player) return;
+
+    ctaPlayer = new window.YT.Player('ctaYT', {
+      events: {
+        onReady: function (event) {
+          restartClip(event.target);
+        },
+        onStateChange: function (event) {
+          if (event.data === window.YT.PlayerState.ENDED) restartClip(event.target);
+        }
+      }
+    });
+  }
+
+  window.onYouTubeIframeAPIReady = function () {
+    initCtaVideo();
+  };
+
+  if (window.YT && window.YT.Player) {
+    initCtaVideo();
+    return;
+  }
+
+  var apiScript = document.createElement('script');
+  apiScript.src = 'https://www.youtube.com/iframe_api';
+  apiScript.async = true;
+  document.head.appendChild(apiScript);
+})();
+</script>
 
 
 <!-- --------------------------------------------------------------------
@@ -1930,7 +2006,7 @@
   }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
   fadeEls.forEach((el) => fadeObserver.observe(el));
 
-  // -- Project Horizontal Scroll / Mobile Slider --
+  // -- Featured Projects Slider --
   const projectsWrapper = document.getElementById('projectsWrapper');
   const projectTrack    = document.getElementById('projectTrack');
   const projectProgress = document.getElementById('projectProgress');
@@ -1940,38 +2016,18 @@
   const projCards       = Array.from(projectTrack.querySelectorAll('.project-card'));
   let activeSlide = 0;
 
-  function isMobile() { return window.innerWidth < 1024; }
+  let isPointerDown = false;
+  let dragStarted = false;
+  let dragStartX = 0;
+  let dragStartScroll = 0;
 
-  // -- Desktop: scroll-driven horizontal translate --
-  function setupProjectScroll() {
-    if (isMobile()) {
-      projectsWrapper.style.height = '';
-      projectTrack.style.transform = '';
-      setupMobileSlider();
+  function setupProjectSlider() {
+    if (projectsWrapper) projectsWrapper.style.height = '';
+    projectTrack.style.transform = '';
+    if (!projDots || projDots.childElementCount) {
+      updateSliderState();
       return;
     }
-    const trackWidth     = projectTrack.scrollWidth;
-    const viewportWidth  = window.innerWidth;
-    const scrollDistance = Math.max(0, trackWidth - viewportWidth);
-    projectsWrapper.style.height = (window.innerHeight + Math.max(0, scrollDistance)) + 'px';
-  }
-
-  function onProjectScroll() {
-    if (isMobile()) return;
-    const rect            = projectsWrapper.getBoundingClientRect();
-    const trackWidth      = projectTrack.scrollWidth;
-    const viewportWidth   = window.innerWidth;
-    const scrollDistance  = Math.max(0, trackWidth - viewportWidth);
-    const wrapperScrollable = Math.max(0, projectsWrapper.offsetHeight - window.innerHeight);
-    if (wrapperScrollable <= 0) return;
-    const progress = Math.min(1, Math.max(0, -rect.top / wrapperScrollable));
-    projectTrack.style.transform = `translateX(${-progress * scrollDistance}px)`;
-    if (projectProgress) projectProgress.style.width = (progress * 100) + '%';
-  }
-
-  // -- Mobile: touch swipe slider --
-  function setupMobileSlider() {
-    if (!projDots) return;
     projDots.innerHTML = '';
     projCards.forEach((_, i) => {
       const d = document.createElement('button');
@@ -1980,40 +2036,87 @@
       d.addEventListener('click', () => scrollToSlide(i));
       projDots.appendChild(d);
     });
-    projectTrack.addEventListener('scroll', onMobileScroll, { passive: true });
+    updateSliderState();
   }
 
   function scrollToSlide(i) {
     if (!projCards[i]) return;
-    projCards[i].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
     activeSlide = i;
-    updateDots();
+    projectTrack.scrollTo({
+      left: projCards[i].offsetLeft - projectTrack.offsetLeft,
+      behavior: 'smooth'
+    });
+    updateSliderState();
   }
 
-  function onMobileScroll() {
+  function updateSliderState() {
     if (!projCards.length) return;
-    const gap       = 16;
-    const cardWidth = projCards[0].offsetWidth + gap;
-    activeSlide     = Math.min(projCards.length, 1, Math.round(projectTrack.scrollLeft / cardWidth));
-    updateDots();
-  }
+    const trackLeft = projectTrack.getBoundingClientRect().left;
+    let closestIndex = 0;
+    let closestDistance = Infinity;
 
-  function updateDots() {
+    projCards.forEach((card, index) => {
+      const distance = Math.abs(card.getBoundingClientRect().left - trackLeft);
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        closestIndex = index;
+      }
+    });
+
+    activeSlide = closestIndex;
     if (!projDots) return;
     projDots.querySelectorAll('.proj-dot').forEach((d, i) => {
       d.classList.toggle('active', i === activeSlide);
     });
+
+    if (projectProgress) {
+      const maxScroll = Math.max(1, projectTrack.scrollWidth - projectTrack.clientWidth);
+      projectProgress.style.width = Math.min(100, Math.max(0, (projectTrack.scrollLeft / maxScroll) * 100)) + '%';
+    }
   }
 
-  if (projPrev) projPrev.addEventListener('click', () => scrollToSlide(Math.max(0, activeSlide, 1)));
-  if (projNext) projNext.addEventListener('click', () => scrollToSlide(Math.min(projCards.length, 1, activeSlide + 1)));
+  function endDrag() {
+    if (!isPointerDown) return;
+    isPointerDown = false;
+    projectTrack.classList.remove('dragging');
+    window.setTimeout(() => {
+      dragStarted = false;
+    }, 0);
+  }
 
-  setupProjectScroll();
-  window.addEventListener('resize', () => {
-    if (!isMobile()) projectTrack.style.transform = '';
-    setupProjectScroll();
+  projectTrack.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0) return;
+    isPointerDown = true;
+    dragStarted = false;
+    dragStartX = event.clientX;
+    dragStartScroll = projectTrack.scrollLeft;
+    projectTrack.classList.add('dragging');
+    projectTrack.setPointerCapture(event.pointerId);
   });
-  window.addEventListener('scroll', onProjectScroll, { passive: true });
+
+  projectTrack.addEventListener('pointermove', (event) => {
+    if (!isPointerDown) return;
+    const delta = event.clientX - dragStartX;
+    if (Math.abs(delta) > 4) dragStarted = true;
+    projectTrack.scrollLeft = dragStartScroll - delta;
+  });
+
+  projectTrack.addEventListener('pointerup', endDrag);
+  projectTrack.addEventListener('pointercancel', endDrag);
+  projectTrack.addEventListener('mouseleave', endDrag);
+  projectTrack.addEventListener('click', (event) => {
+    if (!dragStarted) return;
+    event.preventDefault();
+    event.stopPropagation();
+  }, true);
+
+  projectTrack.addEventListener('scroll', updateSliderState, { passive: true });
+
+  if (projPrev) projPrev.addEventListener('click', () => scrollToSlide(Math.max(0, activeSlide - 1)));
+  if (projNext) projNext.addEventListener('click', () => scrollToSlide(Math.min(projCards.length - 1, activeSlide + 1)));
+
+  setupProjectSlider();
+  window.addEventListener('resize', setupProjectSlider);
 
   // -- Hero Image, random pick on page load --
   (function() {
