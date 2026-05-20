@@ -766,6 +766,43 @@ app.post('/api/contacts', requireStaff, async (req, res) => {
   }
 });
 
+app.post('/api/projects/fluent-sync', requireStaff, async (req, res) => {
+  try {
+    if (!supabase) return res.status(503).json({ message: 'Supabase is not configured' });
+    const tasks = Array.isArray(req.body?.tasks) ? req.body.tasks : [];
+    const rows = tasks.map(task => {
+      const fluentTaskId = Number.parseInt(task.id, 10);
+      if (!Number.isFinite(fluentTaskId)) return null;
+      const fluentBoardId = Number.parseInt(task.board_id || task._boardId, 10);
+      const assignees = Array.isArray(task.assignees)
+        ? task.assignees.map(a => a.display_name || a.full_name || a.name || a.email).filter(Boolean)
+        : [];
+      return {
+        fluent_board_id: Number.isFinite(fluentBoardId) ? fluentBoardId : null,
+        fluent_task_id: fluentTaskId,
+        title: String(task.title || 'Untitled FluentBoards task').trim(),
+        description: task.description || null,
+        status: task.status || 'active',
+        stage: task.stage_title || (task.stage_id ? String(task.stage_id) : null),
+        priority: ['low', 'medium', 'high', 'urgent'].includes(String(task.priority || '').toLowerCase())
+          ? String(task.priority).toLowerCase()
+          : 'medium',
+        due_date: task.due_at ? new Date(task.due_at).toISOString().slice(0, 10) : null,
+        board_name: task.board_title || task._boardTitle || null,
+        assignees,
+        tags: Array.isArray(task.labels) ? task.labels.map(l => l.title || l.name).filter(Boolean) : [],
+        updated_at: new Date().toISOString(),
+      };
+    }).filter(Boolean);
+    if (!rows.length) return res.json({ ok: true, count: 0 });
+    const { error } = await supabase.from('projects').upsert(rows, { onConflict: 'fluent_task_id' });
+    if (error) throw error;
+    res.json({ ok: true, count: rows.length });
+  } catch (err) {
+    res.status(500).json({ message: err.message || 'Project sync failed' });
+  }
+});
+
 app.get('/api/users', requireSuperAdmin, async (_req, res) => {
   try {
     if (!supabase) return res.status(503).json({ message: 'Supabase is not configured' });
@@ -1571,6 +1608,107 @@ app.post('/api/client-projects/:id/updates', requireStaff, async (req, res) => {
     res.json({ ok: true, update });
   } catch (err) {
     res.status(500).json({ message: err.message || 'Update create failed' });
+  }
+});
+
+function normalizeSchedulePayload(body = {}, user = {}) {
+  const title = String(body.title || '').trim();
+  if (!title) throw new Error('Schedule item title is required.');
+
+  const startDate = body.start_date || body.start;
+  const endDate = body.end_date || body.end || startDate;
+  if (!startDate || !endDate) throw new Error('Start and end dates are required.');
+
+  const progress = Math.max(0, Math.min(100, Number(body.progress) || 0));
+  const status = ['pending', 'in_progress', 'delayed', 'blocked', 'complete'].includes(String(body.status || ''))
+    ? String(body.status)
+    : 'pending';
+  const type = ['project', 'phase', 'task', 'milestone'].includes(String(body.type || ''))
+    ? String(body.type)
+    : 'task';
+
+  return {
+    board_id: body.board_id ? String(body.board_id) : null,
+    fluent_task_id: body.fluent_task_id ? String(body.fluent_task_id) : null,
+    project_id: isUuid(body.project_id) ? body.project_id : null,
+    client_project_id: isUuid(body.client_project_id) ? body.client_project_id : null,
+    type,
+    project_title: body.project_title || body.project || null,
+    title,
+    phase: body.phase || null,
+    assignee: body.assignee || null,
+    client: body.client || null,
+    participants: body.participants || null,
+    dependencies: body.dependencies || null,
+    start_date: startDate,
+    end_date: endDate,
+    status,
+    progress,
+    notify: Boolean(body.notify),
+    description: body.description || null,
+    forms: body.forms || null,
+    punch: body.punch || null,
+    metadata: body.metadata && typeof body.metadata === 'object' ? body.metadata : {},
+    updated_by: user.email || null,
+  };
+}
+
+app.get('/api/project-schedule-items', requireStaff, async (req, res) => {
+  try {
+    if (!supabase) return res.status(503).json({ message: 'Supabase is not configured' });
+    let query = supabase.from('project_schedule_items').select('*').order('start_date', { ascending: true });
+    if (req.query.board_id) query = query.eq('board_id', String(req.query.board_id));
+    if (req.query.project_id && isUuid(req.query.project_id)) query = query.eq('project_id', req.query.project_id);
+    if (req.query.client_project_id && isUuid(req.query.client_project_id)) query = query.eq('client_project_id', req.query.client_project_id);
+    const { data, error } = await query;
+    if (error) throw error;
+    res.json({ items: data || [] });
+  } catch (err) {
+    res.status(500).json({ message: err.message || 'Schedule items load failed' });
+  }
+});
+
+app.post('/api/project-schedule-items', requireStaff, async (req, res) => {
+  try {
+    if (!supabase) return res.status(503).json({ message: 'Supabase is not configured' });
+    const payload = normalizeSchedulePayload(req.body, req.user);
+    payload.created_by = req.user.email || null;
+    const { data, error } = await supabase.from('project_schedule_items').insert(payload).select().single();
+    if (error) throw error;
+    res.json({ ok: true, item: data });
+  } catch (err) {
+    res.status(500).json({ message: err.message || 'Schedule item create failed' });
+  }
+});
+
+app.put('/api/project-schedule-items/:id', requireStaff, async (req, res) => {
+  try {
+    if (!supabase) return res.status(503).json({ message: 'Supabase is not configured' });
+    if (!isUuid(req.params.id)) return res.status(400).json({ message: 'Valid schedule item id is required.' });
+    const payload = normalizeSchedulePayload(req.body, req.user);
+    payload.updated_at = new Date().toISOString();
+    const { data, error } = await supabase
+      .from('project_schedule_items')
+      .update(payload)
+      .eq('id', req.params.id)
+      .select()
+      .single();
+    if (error) throw error;
+    res.json({ ok: true, item: data });
+  } catch (err) {
+    res.status(500).json({ message: err.message || 'Schedule item update failed' });
+  }
+});
+
+app.delete('/api/project-schedule-items/:id', requireStaff, async (req, res) => {
+  try {
+    if (!supabase) return res.status(503).json({ message: 'Supabase is not configured' });
+    if (!isUuid(req.params.id)) return res.status(400).json({ message: 'Valid schedule item id is required.' });
+    const { error } = await supabase.from('project_schedule_items').delete().eq('id', req.params.id);
+    if (error) throw error;
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ message: err.message || 'Schedule item delete failed' });
   }
 });
 

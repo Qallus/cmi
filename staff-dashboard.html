@@ -4933,6 +4933,7 @@ async function submitBlogPost(forceDraft) {
 
     if (res.ok) {
       const saved = await res.json();
+      await upsertBlogPostToSupabase(saved, { excerpt, content: postContent, status });
       const idx = WP_POSTS.findIndex(p => p.id === saved.id);
       if (idx >= 0) WP_POSTS[idx] = saved; else WP_POSTS.unshift(saved);
       const msg = status === 'publish' ? 'Post published!' : status === 'future' ? 'Post scheduled!' : 'Saved as draft';
@@ -4949,6 +4950,25 @@ async function submitBlogPost(forceDraft) {
   } finally {
     if (btn) { btn.textContent = origLabel; btn.disabled = false; }
   }
+}
+
+async function upsertBlogPostToSupabase(post, fallback = {}) {
+  if (!sb || !post) return;
+  const row = {
+    wp_post_id: post.id || null,
+    title: post.title?.rendered || post.title || fallback.title || 'Untitled post',
+    slug: post.slug || null,
+    category: Array.isArray(post.categories) ? post.categories.join(',') : null,
+    excerpt: post.excerpt?.rendered || fallback.excerpt || '',
+    content: post.content?.rendered || fallback.content || '',
+    featured_image: post.featured_media ? String(post.featured_media) : null,
+    author: post.author ? String(post.author) : null,
+    status: post.status || fallback.status || 'draft',
+    published_at: post.date_gmt || post.date || null,
+    updated_at: new Date().toISOString()
+  };
+  const { error } = await sb.from('blog_posts').upsert(row, { onConflict:'wp_post_id' });
+  if (error) console.warn('Supabase blog mirror failed:', error);
 }
 
 function resetBlogForm() {
@@ -4981,6 +5001,7 @@ async function deleteBlogPost(id) {
     });
     if (res.ok) {
       WP_POSTS = WP_POSTS.filter(p => p.id !== id);
+      if (sb) await sb.from('blog_posts').update({ status:'trash', updated_at:new Date().toISOString() }).eq('wp_post_id', id);
       renderBlog();
       showToast('Post moved to trash');
     } else {
@@ -6131,6 +6152,8 @@ let GANTT_STATUS    = 'all';
 let GANTT_EDIT_MODE = true;
 let GANTT_ITEMS     = [];
 let GANTT_DRAG      = null;
+let GANTT_LOADED_KEY = null;
+let GANTT_LOADING    = false;
 
 const FB_PRIORITY_CFG = {
   urgent:{ label:'Urgent', color:'#f43f5e', badge:'b-red'    },
@@ -6257,6 +6280,39 @@ async function loadAllFBTasks() {
   FB_TASKS = FB_ALL_TASKS.filter(t => String(t._boardId) === String(FB_ACTIVE_BOARD));
   // Re-check stages if not loaded yet
   if (!FB_STAGES.length && FB_ALL_STAGES[FB_ACTIVE_BOARD]) FB_STAGES = FB_ALL_STAGES[FB_ACTIVE_BOARD];
+  syncFBTasksToSupabase();
+}
+
+async function syncFBTasksToSupabase() {
+  if (!FB_ALL_TASKS.length) return;
+  const tasks = FB_ALL_TASKS.map(t => ({
+    id: t.id,
+    board_id: t._boardId,
+    board_title: t._boardTitle,
+    title: t.title,
+    description: t.description,
+    status: t.status,
+    stage_id: t.stage_id,
+    stage_title: fbStageLabelAll(t._boardId, t.stage_id),
+    priority: t.priority,
+    due_at: t.due_at,
+    assignees: t.assignees || [],
+    labels: t.labels || []
+  }));
+  try {
+    const res = await fetch('/api/projects/fluent-sync', {
+      method:'POST',
+      headers: authHeaders({ 'Content-Type':'application/json' }),
+      credentials:'include',
+      body: JSON.stringify({ tasks })
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      console.warn('[FB] Supabase project sync failed:', data.message || res.status);
+    }
+  } catch (err) {
+    console.warn('[FB] Supabase project sync failed:', err.message);
+  }
 }
 
 async function loadFBTasks(boardId) {
@@ -6530,8 +6586,8 @@ function fbCalNext() {
 }
 
 // -- Gantt Project Manager --------------------------------------
-function ganttStorageKey() {
-  return 'cmi-gantt-items-' + (FB_ACTIVE_BOARD || 'default');
+function ganttBoardKey() {
+  return String(FB_ACTIVE_BOARD || 'default');
 }
 function ganttDate(value) {
   const d = value ? new Date(value) : new Date();
@@ -6568,16 +6624,60 @@ function ganttSeedItems() {
     { id:'seed-5', type:'task', project, title:'Steel Frame Erection', phase:'Steel Framing and Structure', assignee:'Steel Team', participants:'Vendor, superintendent', client:'CMI Client', start:ganttDateStr(ganttAddDays(today,18)), end:ganttDateStr(ganttAddDays(today,28)), status:'pending', progress:0, dependencies:'Concrete Foundation', notify:true, description:'Erect structural steel and confirm alignment before rough-in.', forms:'Structural checklist', punch:'Bolt check, weld photos' }
   ];
 }
-function hydrateGanttItems() {
-  try {
-    const stored = JSON.parse(localStorage.getItem(ganttStorageKey()) || '[]');
-    if (Array.isArray(stored) && stored.length) {
-      GANTT_ITEMS = stored;
-      return;
-    }
-  } catch {}
+function mapScheduleRow(row) {
+  return {
+    id: row.id,
+    type: row.type || 'task',
+    board_id: row.board_id || '',
+    fluent_task_id: row.fluent_task_id || '',
+    project_id: row.project_id || '',
+    client_project_id: row.client_project_id || '',
+    project: row.project_title || '',
+    title: row.title || '',
+    phase: row.phase || '',
+    assignee: row.assignee || '',
+    participants: row.participants || '',
+    client: row.client || '',
+    start: row.start_date || '',
+    end: row.end_date || row.start_date || '',
+    status: row.status || 'pending',
+    progress: Number(row.progress) || 0,
+    dependencies: row.dependencies || '',
+    notify: !!row.notify,
+    description: row.description || '',
+    forms: row.forms || '',
+    punch: row.punch || '',
+    metadata: row.metadata || {}
+  };
+}
+function ganttItemPayload(item) {
+  return {
+    board_id: item.board_id || ganttBoardKey(),
+    fluent_task_id: item.fluent_task_id || null,
+    project_id: item.project_id || null,
+    client_project_id: item.client_project_id || null,
+    type: item.type || 'task',
+    project_title: item.project || ganttBoardTitle(),
+    title: item.title,
+    phase: item.phase,
+    assignee: item.assignee,
+    client: item.client,
+    participants: item.participants,
+    dependencies: item.dependencies,
+    start_date: item.start,
+    end_date: item.end,
+    status: item.status,
+    progress: item.progress,
+    notify: item.notify,
+    description: item.description,
+    forms: item.forms,
+    punch: item.punch,
+    metadata: item.metadata || {}
+  };
+}
+function ganttTaskSeeds() {
   if (FB_TASKS && FB_TASKS.length) {
-    GANTT_ITEMS = FB_TASKS.map((t, i) => {
+    return FB_TASKS.map((t, i) => {
       const end = t.due_at ? ganttDate(t.due_at) : ganttAddDays(new Date(), i * 3 + 4);
       const start = ganttAddDays(end, -Math.max(2, Math.min(7, (i % 5) + 2)));
       return {
@@ -6601,16 +6701,59 @@ function hydrateGanttItems() {
         punch: ''
       };
     });
-  } else {
-    GANTT_ITEMS = ganttSeedItems();
   }
-  saveGanttItems();
+  return ganttSeedItems();
 }
-function saveGanttItems() {
-  localStorage.setItem(ganttStorageKey(), JSON.stringify(GANTT_ITEMS));
+function isGanttUuid(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ''));
+}
+async function loadGanttItems(force) {
+  const key = ganttBoardKey();
+  if (!force && GANTT_LOADED_KEY === key) return;
+  if (GANTT_LOADING) return;
+  GANTT_LOADING = true;
+  try {
+    const res = await fetch('/api/project-schedule-items?board_id=' + encodeURIComponent(key), { headers: authHeaders() });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    GANTT_ITEMS = Array.isArray(data.items) ? data.items.map(mapScheduleRow) : [];
+    GANTT_LOADED_KEY = key;
+  } catch (err) {
+    console.warn('[Gantt] Supabase load failed:', err.message);
+    showToast('Could not load schedule from Supabase.');
+    GANTT_ITEMS = [];
+    GANTT_LOADED_KEY = key;
+  } finally {
+    GANTT_LOADING = false;
+  }
+}
+async function persistGanttItem(item) {
+  const isUpdate = isGanttUuid(item.id);
+  const url = isUpdate ? '/api/project-schedule-items/' + encodeURIComponent(item.id) : '/api/project-schedule-items';
+  const res = await fetch(url, {
+    method: isUpdate ? 'PUT' : 'POST',
+    headers: authHeaders({ 'Content-Type':'application/json' }),
+    body: JSON.stringify(ganttItemPayload(item))
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || 'Could not save schedule item');
+  const saved = mapScheduleRow(data.item);
+  const idx = GANTT_ITEMS.findIndex(i => String(i.id) === String(item.id));
+  if (idx === -1) GANTT_ITEMS.push(saved); else GANTT_ITEMS[idx] = saved;
+  return saved;
+}
+async function seedGanttSchedule() {
+  try {
+    const seeds = ganttTaskSeeds().map(seed => ({ ...seed, id:'', board_id:ganttBoardKey(), project:seed.project || ganttBoardTitle() }));
+    for (const seed of seeds) await persistGanttItem(seed);
+    await renderFBGantt(true);
+    showToast('Starter schedule saved to Supabase');
+  } catch (err) {
+    console.warn('[Gantt] Seed failed:', err.message);
+    showToast(err.message || 'Could not create starter schedule');
+  }
 }
 function ganttFilteredItems() {
-  hydrateGanttItems();
   return GANTT_ITEMS.filter(item => GANTT_STATUS === 'all' || item.status === GANTT_STATUS);
 }
 function ganttStatusLabel(status) {
@@ -6622,10 +6765,13 @@ function ganttStatusClass(status) {
   if (status === 'in_progress') return 'milestone';
   return '';
 }
-function renderFBGantt() {
+async function renderFBGantt(forceLoad) {
   const wrap = document.getElementById('fb-content-wrap');
   if (!wrap) return;
-  hydrateGanttItems();
+  if (!GANTT_ITEMS.length && GANTT_LOADED_KEY !== ganttBoardKey()) {
+    wrap.innerHTML = '<div class="card p-10 text-center text-sm" style="color:var(--text-muted)">Loading schedule from Supabase...</div>';
+  }
+  await loadGanttItems(forceLoad);
   const items = ganttFilteredItems();
   const total = GANTT_ITEMS.length || 1;
   const complete = GANTT_ITEMS.filter(i => i.status === 'complete').length;
@@ -6635,7 +6781,7 @@ function renderFBGantt() {
   const progress = Math.round((GANTT_ITEMS.reduce((sum, i) => sum + (Number(i.progress) || 0), 0) / total));
   const features =
     '<div class="gantt-feature-grid">' +
-      '<div class="gantt-feature-card"><strong>Build your schedule</strong><p>Import documents, photos, forms, and notes to shape the construction schedule around this project.</p><button onclick="document.getElementById(\'ganttImportInput\').click()" class="crm-toolbar-btn mt-3">Import documents</button><input id="ganttImportInput" type="file" multiple class="hidden" onchange="ganttImportDocs(this)" /></div>' +
+      '<div class="gantt-feature-card"><strong>Build your schedule</strong><p>Import documents, photos, forms, and notes to shape the construction schedule around this project.</p><button onclick="document.getElementById(\'ganttImportInput\').click()" class="crm-toolbar-btn mt-3">Import documents</button><button onclick="seedGanttSchedule()" class="crm-toolbar-btn mt-3 ml-2">Use starter schedule</button><input id="ganttImportInput" type="file" multiple class="hidden" onchange="ganttImportDocs(this)" /></div>' +
       '<div class="gantt-feature-card"><strong>Real-time progress tracking</strong><p>Track in progress, complete, delayed, blocked, and pending confirmation tasks in one timeline.</p><div class="mt-3 h-2 rounded-full overflow-hidden" style="background:var(--surface-2)"><div style="height:100%;width:' + progress + '%;background:var(--gold)"></div></div><p class="mt-2">' + progress + '% average progress</p></div>' +
       '<div class="gantt-feature-card"><strong>Notifications & confirmations</strong><p>Publish schedule changes and flag participants who should receive update confirmations.</p><button onclick="publishGanttSchedule()" class="crm-toolbar-btn mt-3">Publish schedule</button></div>' +
     '</div>';
@@ -6719,17 +6865,28 @@ function bindGanttDrag() {
       GANTT_DRAG.item.start = ganttDateStr(ganttAddDays(GANTT_DRAG.start, deltaDays));
       GANTT_DRAG.item.end = ganttDateStr(ganttAddDays(GANTT_DRAG.end, deltaDays));
     });
-    bar.addEventListener('pointerup', e => {
+    bar.addEventListener('pointerup', async e => {
       const moved = GANTT_DRAG?.moved;
       const id = bar.dataset.ganttId;
+      const item = GANTT_DRAG?.item;
       document.querySelectorAll('.gantt-bar.dragging').forEach(b => b.classList.remove('dragging'));
-      if (GANTT_DRAG) { saveGanttItems(); GANTT_DRAG = null; renderFBGantt(); }
+      if (GANTT_DRAG) {
+        GANTT_DRAG = null;
+        if (moved && item) {
+          try {
+            await persistGanttItem(item);
+            showToast('Schedule date updated');
+          } catch (err) {
+            showToast(err.message || 'Could not save schedule change');
+          }
+          await renderFBGantt(true);
+        }
+      }
       if (!moved) openGanttItemModal('task', id);
     });
   });
 }
 function openGanttItemModal(type, id) {
-  hydrateGanttItems();
   const item = id ? GANTT_ITEMS.find(i => String(i.id) === String(id)) : null;
   const today = ganttDateStr(new Date());
   const model = item || { id:'', type:type || 'task', project:ganttBoardTitle(), title:'', phase:'', assignee:'', participants:'', client:'', start:today, end:ganttDateStr(ganttAddDays(today,3)), status:'pending', progress:0, dependencies:'', notify:true, description:'', forms:'', punch:'' };
@@ -6759,10 +6916,11 @@ function closeGanttItemModal() {
   document.getElementById('ganttItemModal').classList.remove('open');
   document.body.style.overflow = '';
 }
-function saveGanttItem() {
-  const id = document.getElementById('ganttItemId').value || ('gantt-' + Date.now());
+async function saveGanttItem() {
+  const id = document.getElementById('ganttItemId').value || '';
   const item = {
     id,
+    board_id: ganttBoardKey(),
     type: document.getElementById('ganttItemType').value || 'task',
     title: document.getElementById('ganttTitle').value.trim() || 'Untitled schedule item',
     project: document.getElementById('ganttProject').value.trim() || ganttBoardTitle(),
@@ -6780,25 +6938,38 @@ function saveGanttItem() {
     forms: document.getElementById('ganttForms').value.trim(),
     punch: document.getElementById('ganttPunch').value.trim()
   };
-  const idx = GANTT_ITEMS.findIndex(i => String(i.id) === String(id));
-  if (idx === -1) GANTT_ITEMS.push(item); else GANTT_ITEMS[idx] = { ...GANTT_ITEMS[idx], ...item };
-  saveGanttItems();
-  closeGanttItemModal();
-  renderFBGantt();
-  showToast('Schedule item saved');
+  try {
+    await persistGanttItem(item);
+    closeGanttItemModal();
+    await renderFBGantt(true);
+    showToast('Schedule item saved to Supabase');
+  } catch (err) {
+    showToast(err.message || 'Could not save schedule item');
+  }
 }
 function ganttMarkComplete() {
   document.getElementById('ganttStatus').value = 'complete';
   document.getElementById('ganttProgress').value = 100;
 }
-function deleteGanttItem() {
+async function deleteGanttItem() {
   const id = document.getElementById('ganttItemId').value;
   if (!id) { closeGanttItemModal(); return; }
-  GANTT_ITEMS = GANTT_ITEMS.filter(i => String(i.id) !== String(id));
-  saveGanttItems();
-  closeGanttItemModal();
-  renderFBGantt();
-  showToast('Schedule item deleted');
+  try {
+    if (isGanttUuid(id)) {
+      const res = await fetch('/api/project-schedule-items/' + encodeURIComponent(id), {
+        method:'DELETE',
+        headers: authHeaders()
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || 'Could not delete schedule item');
+    }
+    GANTT_ITEMS = GANTT_ITEMS.filter(i => String(i.id) !== String(id));
+    closeGanttItemModal();
+    await renderFBGantt(true);
+    showToast('Schedule item deleted');
+  } catch (err) {
+    showToast(err.message || 'Could not delete schedule item');
+  }
 }
 
 function showFBError(msg) {
