@@ -2018,6 +2018,7 @@
 
   let isPointerDown = false;
   let dragStarted = false;
+  let suppressProjectClick = false;
   let dragStartX = 0;
   let dragStartScroll = 0;
 
@@ -2079,9 +2080,11 @@
     if (!isPointerDown) return;
     isPointerDown = false;
     projectTrack.classList.remove('dragging');
+    suppressProjectClick = dragStarted;
     window.setTimeout(() => {
+      suppressProjectClick = false;
       dragStarted = false;
-    }, 0);
+    }, 120);
   }
 
   projectTrack.addEventListener('pointerdown', (event) => {
@@ -2105,9 +2108,11 @@
   projectTrack.addEventListener('pointercancel', endDrag);
   projectTrack.addEventListener('mouseleave', endDrag);
   projectTrack.addEventListener('click', (event) => {
-    if (!dragStarted) return;
+    if (!suppressProjectClick) return;
     event.preventDefault();
     event.stopPropagation();
+    suppressProjectClick = false;
+    dragStarted = false;
   }, true);
 
   projectTrack.addEventListener('scroll', updateSliderState, { passive: true });
@@ -2162,9 +2167,12 @@
     document.body.style.overflow = '';
   }
 
-  // Open on card click
+  // Open project details on card / View Project click, unless the user was dragging the slider.
   document.querySelectorAll('.project-card[data-title]').forEach(card => {
-    card.addEventListener('click', () => openModal(card));
+    card.addEventListener('click', () => {
+      if (suppressProjectClick) return;
+      openModal(card);
+    });
   });
 
   // Close on backdrop or X button
