@@ -1670,6 +1670,9 @@ function normalizeSchedulePayload(body = {}, user = {}) {
   const type = ['project', 'phase', 'task', 'milestone'].includes(String(body.type || ''))
     ? String(body.type)
     : 'task';
+  const priority = ['low', 'normal', 'high', 'critical', 'blocking_closeout'].includes(String(body.priority || ''))
+    ? String(body.priority)
+    : 'normal';
 
   return {
     board_id: body.board_id ? String(body.board_id) : null,
@@ -1692,6 +1695,12 @@ function normalizeSchedulePayload(body = {}, user = {}) {
     description: body.description || null,
     forms: body.forms || null,
     punch: body.punch || null,
+    priority,
+    client_visible: Boolean(body.client_visible),
+    internal_notes: body.internal_notes || null,
+    is_blocked: Boolean(body.is_blocked),
+    blocker_reason: body.blocker_reason || null,
+    sort_order: Number.isFinite(Number(body.sort_order)) ? Number(body.sort_order) : 0,
     metadata: body.metadata && typeof body.metadata === 'object' ? body.metadata : {},
     updated_by: user.email || null,
   };
