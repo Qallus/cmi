@@ -287,6 +287,18 @@
     .gantt-feature-card strong{display:block;color:var(--text);font-size:13px;margin-bottom:6px;}
     .gantt-feature-card p{color:var(--text-muted);font-size:12px;line-height:1.45;margin:0;}
     .gantt-status-dot{width:9px;height:9px;border-radius:999px;background:var(--gold);display:inline-block;box-shadow:0 0 0 4px rgba(201,164,110,.12);}
+    .gantt-media-zone{border:1px dashed var(--border-lg);border-radius:10px;background:var(--surface-2);padding:18px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;}
+    .gantt-media-zone:hover{border-color:var(--gold);background:var(--gold-alpha);}
+    .gantt-media-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(108px,1fr));gap:10px;margin-top:12px;}
+    .gantt-media-card{position:relative;overflow:hidden;border-radius:10px;border:1px solid var(--border-sm);background:var(--surface);}
+    .gantt-media-card img,.gantt-media-card video{width:100%;height:86px;object-fit:cover;display:block;background:var(--surface-2);}
+    .gantt-media-card button{position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:999px;background:rgba(0,0,0,.68);color:#fff;border:0;display:flex;align-items:center;justify-content:center;font-size:14px;cursor:pointer;}
+    .gantt-media-meta{padding:7px 8px;color:var(--text-muted);font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .gantt-participant-list{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px;}
+    .gantt-participant-chip{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--border-sm);background:var(--surface-2);color:var(--text-sub);border-radius:999px;padding:5px 8px;font-size:11px;}
+    .gantt-participant-chip button{border:0;background:transparent;color:var(--text-muted);cursor:pointer;font-size:14px;line-height:1;}
+    .gantt-other-panel{display:none;border:1px solid var(--border-sm);border-radius:10px;background:var(--surface-2);padding:12px;margin-top:10px;}
+    .gantt-other-panel.open{display:block;}
     @media(max-width:1100px){.gantt-feature-grid{grid-template-columns:1fr}.gantt-grid{grid-template-columns:240px minmax(760px,1fr)}}
     #ganttItemModal{position:fixed;inset:0;z-index:360;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,.64);backdrop-filter:blur(4px);}
     #ganttItemModal.open{display:flex;}
@@ -2205,15 +2217,44 @@
         <div><label class="form-label">Assignee / Vendor</label><input id="ganttAssignee" class="form-input" placeholder="John's Builders Pty Ltd" /></div>
         <div><label class="form-label">Client</label><input id="ganttClient" class="form-input" placeholder="Client name or company" /></div>
         <div><label class="form-label">Dependencies</label><input id="ganttDependencies" class="form-input" placeholder="Excavation, Permit approval" /></div>
-        <div><label class="form-label">Start Date</label><input id="ganttStart" type="date" class="form-input" /></div>
-        <div><label class="form-label">End Date</label><input id="ganttEnd" type="date" class="form-input" /></div>
+        <div><label class="form-label">Start Date</label><input id="ganttStart" type="text" inputmode="none" class="form-input" placeholder="Select start date" /></div>
+        <div><label class="form-label">End Date</label><input id="ganttEnd" type="text" inputmode="none" class="form-input" placeholder="Select end date" /></div>
         <div><label class="form-label">Progress (%)</label><input id="ganttProgress" type="number" min="0" max="100" class="form-input" placeholder="35" /></div>
-        <div><label class="form-label">Participants</label><input id="ganttParticipants" class="form-input" placeholder="Staff, vendors, subcontractors" /></div>
+        <div>
+          <label class="form-label">Participants</label>
+          <select id="ganttParticipantSelect" class="form-input" onchange="handleGanttParticipantSelect(this.value)">
+            <option value="">Select staff, client, vendor, or subcontractor</option>
+            <option value="other">Other / add participant</option>
+          </select>
+          <input id="ganttParticipants" type="hidden" />
+          <div id="ganttParticipantList" class="gantt-participant-list"></div>
+        </div>
+      </div>
+      <div id="ganttOtherParticipant" class="gantt-other-panel">
+        <p class="text-[10px] uppercase tracking-widest font-medium mb-3" style="color:var(--gold)">Add Participant</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div><label class="form-label">First Name</label><input id="ganttOtherFirst" class="form-input" placeholder="First name" /></div>
+          <div><label class="form-label">Last Name</label><input id="ganttOtherLast" class="form-input" placeholder="Last name" /></div>
+          <div><label class="form-label">Email</label><input id="ganttOtherEmail" type="email" class="form-input" placeholder="name@example.com" /></div>
+          <div><label class="form-label">Phone</label><input id="ganttOtherPhone" type="tel" class="form-input" placeholder="(480) 555-0123" /></div>
+          <div><label class="form-label">Participant Type</label><select id="ganttOtherType" class="form-input"><option value="Staff">Staff</option><option value="Client">Client</option><option value="Sub Contractor">Sub-Contractor</option><option value="Vendor">Vendor</option></select></div>
+        </div>
+        <button type="button" onclick="addGanttOtherParticipant()" class="crm-toolbar-btn mt-3">Add Participant</button>
       </div>
       <div><label class="form-label">Description</label><textarea id="ganttDescription" class="form-input" rows="4" placeholder="Scope, notes, forms, punch lists, compliance items..."></textarea></div>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div><label class="form-label">Forms / Documents</label><textarea id="ganttForms" class="form-input" rows="3" placeholder="Permit, inspection form, uploaded drawings..."></textarea></div>
         <div><label class="form-label">Punch Lists / Confirmations</label><textarea id="ganttPunch" class="form-input" rows="3" placeholder="Subcontractor confirmation, site photos, punch list..."></textarea></div>
+      </div>
+      <div>
+        <label class="form-label">Photos / Videos</label>
+        <div class="gantt-media-zone" onclick="document.getElementById('ganttMediaInput').click()">
+          <svg class="w-6 h-6 mx-auto mb-2" style="color:var(--text-muted)" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01"/><path d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/></svg>
+          <p class="text-sm" style="color:var(--text-dim)">Upload project photos or videos for this schedule item</p>
+          <p class="text-xs mt-1" style="color:var(--text-muted)">Images and short site videos are stored with the task details</p>
+        </div>
+        <input type="file" id="ganttMediaInput" accept="image/*,video/*" multiple class="hidden" onchange="handleGanttMediaFiles(this)" />
+        <div id="ganttMediaPreview" class="gantt-media-grid"></div>
       </div>
     </div>
     <div class="flex flex-wrap items-center gap-3 p-6" style="border-top:1px solid var(--border)">
@@ -6154,6 +6195,12 @@ let GANTT_ITEMS     = [];
 let GANTT_DRAG      = null;
 let GANTT_LOADED_KEY = null;
 let GANTT_LOADING    = false;
+let GANTT_ACTIVE_MEDIA = [];
+let GANTT_PARTICIPANTS = [];
+let GANTT_SELECTED_PARTICIPANTS = [];
+let GANTT_PARTICIPANTS_LOADED = false;
+let _fpGanttStart = null;
+let _fpGanttEnd = null;
 
 const FB_PRIORITY_CFG = {
   urgent:{ label:'Urgent', color:'#f43f5e', badge:'b-red'    },
@@ -6647,7 +6694,9 @@ function mapScheduleRow(row) {
     description: row.description || '',
     forms: row.forms || '',
     punch: row.punch || '',
-    metadata: row.metadata || {}
+    metadata: row.metadata || {},
+    media: Array.isArray(row.metadata?.media) ? row.metadata.media : [],
+    participant_records: Array.isArray(row.metadata?.participants) ? row.metadata.participants : []
   };
 }
 function ganttItemPayload(item) {
@@ -6672,7 +6721,11 @@ function ganttItemPayload(item) {
     description: item.description,
     forms: item.forms,
     punch: item.punch,
-    metadata: item.metadata || {}
+    metadata: {
+      ...(item.metadata || {}),
+      media: Array.isArray(item.media) ? item.media : (Array.isArray(item.metadata?.media) ? item.metadata.media : []),
+      participants: Array.isArray(item.participant_records) ? item.participant_records : []
+    }
   };
 }
 function ganttTaskSeeds() {
@@ -6765,6 +6818,18 @@ function ganttStatusClass(status) {
   if (status === 'in_progress') return 'milestone';
   return '';
 }
+function initGanttControls() {
+  if (typeof flatpickr !== 'undefined') {
+    const cfg = { dateFormat:'Y-m-d', altInput:true, altFormat:'F j, Y', allowInput:false, disableMobile:true };
+    if (_fpGanttStart) { _fpGanttStart.destroy(); _fpGanttStart = null; }
+    if (_fpGanttEnd) { _fpGanttEnd.destroy(); _fpGanttEnd = null; }
+    if (!_fpGanttStart && document.getElementById('ganttStart')) _fpGanttStart = flatpickr('#ganttStart', cfg);
+    if (!_fpGanttEnd && document.getElementById('ganttEnd')) _fpGanttEnd = flatpickr('#ganttEnd', cfg);
+  }
+  buildCustomSelect('ganttStatus');
+  buildCustomSelect('ganttParticipantSelect');
+  buildCustomSelect('ganttOtherType');
+}
 async function renderFBGantt(forceLoad) {
   const wrap = document.getElementById('fb-content-wrap');
   if (!wrap) return;
@@ -6825,7 +6890,8 @@ function renderGanttTimeline(items, stats) {
       const itemStart = Math.max(0, ganttDaysBetween(min, item.start));
       const duration = Math.max(1, ganttDaysBetween(item.start, item.end) + 1);
       leftRows += '<div class="gantt-row-label"><div><div class="gantt-row-title">' + escHtml(item.title) + '</div><div class="gantt-row-sub">' + escHtml(item.assignee || 'Unassigned') + ' - ' + ganttStatusLabel(item.status) + '</div></div></div>';
-      timelineRows += '<div class="gantt-row" style="width:' + width + 'px"><div class="gantt-bar ' + ganttStatusClass(item.status) + '" data-gantt-id="' + escAttr(item.id) + '" style="left:' + (itemStart * GANTT_ZOOM) + 'px;width:' + (duration * GANTT_ZOOM - 6) + 'px"><span class="gantt-assignee">' + ganttInitials(item.assignee) + '</span><span>' + escHtml(item.title) + '</span><span style="margin-left:auto;opacity:.65">' + (Number(item.progress)||0) + '%</span></div></div>';
+      const mediaBadge = item.media && item.media.length ? '<span style="opacity:.68">Media ' + item.media.length + '</span>' : '';
+      timelineRows += '<div class="gantt-row" style="width:' + width + 'px"><div class="gantt-bar ' + ganttStatusClass(item.status) + '" data-gantt-id="' + escAttr(item.id) + '" style="left:' + (itemStart * GANTT_ZOOM) + 'px;width:' + (duration * GANTT_ZOOM - 6) + 'px"><span class="gantt-assignee">' + ganttInitials(item.assignee) + '</span><span>' + escHtml(item.title) + '</span>' + mediaBadge + '<span style="margin-left:auto;opacity:.65">' + (Number(item.progress)||0) + '%</span></div></div>';
     });
   });
   const todayLine = todayOffset >= 0 && todayOffset <= width ? '<div class="gantt-today" style="left:' + todayOffset + 'px"></div>' : '';
@@ -6835,8 +6901,8 @@ function renderGanttTimeline(items, stats) {
   '</div>';
 }
 function renderGanttTable(items) {
-  const rows = items.map(item => '<tr onclick="openGanttItemModal(\'' + item.type + '\',\'' + item.id + '\')" style="cursor:pointer"><td><strong>' + escHtml(item.title) + '</strong><div class="text-[11px] text-neutral-500">' + escHtml(item.project || '') + '</div></td><td>' + escHtml(item.phase || '') + '</td><td>' + escHtml(item.assignee || '') + '</td><td>' + escHtml(item.start) + ' - ' + escHtml(item.end) + '</td><td><span class="badge b-neutral text-[10px]">' + ganttStatusLabel(item.status) + '</span></td><td>' + (Number(item.progress)||0) + '%</td><td>' + escHtml(item.participants || '') + '</td></tr>').join('');
-  return '<div class="gantt-shell overflow-hidden"><table class="data-table"><thead><tr><th>Task</th><th>Phase</th><th>Assignee</th><th>Dates</th><th>Status</th><th>Progress</th><th>Participants</th></tr></thead><tbody>' + (rows || '<tr><td colspan="7" class="text-center py-10 text-sm" style="color:var(--text-muted)">No schedule items.</td></tr>') + '</tbody></table></div>';
+  const rows = items.map(item => '<tr onclick="openGanttItemModal(\'' + item.type + '\',\'' + item.id + '\')" style="cursor:pointer"><td><strong>' + escHtml(item.title) + '</strong><div class="text-[11px] text-neutral-500">' + escHtml(item.project || '') + '</div></td><td>' + escHtml(item.phase || '') + '</td><td>' + escHtml(item.assignee || '') + '</td><td>' + escHtml(item.start) + ' - ' + escHtml(item.end) + '</td><td><span class="badge b-neutral text-[10px]">' + ganttStatusLabel(item.status) + '</span></td><td>' + (Number(item.progress)||0) + '%</td><td>' + ((item.media && item.media.length) || 0) + '</td><td>' + escHtml(item.participants || '') + '</td></tr>').join('');
+  return '<div class="gantt-shell overflow-hidden"><table class="data-table"><thead><tr><th>Task</th><th>Phase</th><th>Assignee</th><th>Dates</th><th>Status</th><th>Progress</th><th>Media</th><th>Participants</th></tr></thead><tbody>' + (rows || '<tr><td colspan="8" class="text-center py-10 text-sm" style="color:var(--text-muted)">No schedule items.</td></tr>') + '</tbody></table></div>';
 }
 function setGanttMode(mode) { GANTT_MODE = mode; renderFBGantt(); }
 function setGanttStatus(status) { GANTT_STATUS = status; renderFBGantt(); }
@@ -6844,6 +6910,146 @@ function shiftGanttZoom(delta) { GANTT_ZOOM = Math.max(32, Math.min(72, GANTT_ZO
 function toggleGanttEditMode() { GANTT_EDIT_MODE = !GANTT_EDIT_MODE; showToast(GANTT_EDIT_MODE ? 'Editing schedule' : 'View-only schedule'); renderFBGantt(); }
 function ganttImportDocs(input) { showToast((input.files?.length || 0) + ' document(s) queued for schedule import'); input.value = ''; }
 function publishGanttSchedule() { showToast('Schedule published. Notification confirmations queued.'); }
+async function uploadGanttMedia(file) {
+  if (!sb) throw new Error('Supabase is not connected.');
+  const ext = (file.name.split('.').pop() || 'bin').toLowerCase();
+  const type = file.type && file.type.startsWith('video/') ? 'video' : 'image';
+  const safeProject = teamSlug(document.getElementById('ganttProject')?.value || ganttBoardTitle() || 'schedule');
+  const path = 'gantt/' + safeProject + '/' + Date.now() + '-' + Math.random().toString(36).slice(2) + '.' + ext;
+  const { error } = await sb.storage.from('portfolio').upload(path, file, { upsert: true, contentType: file.type || 'application/octet-stream' });
+  if (error) throw new Error('Media upload failed: ' + error.message);
+  const url = sb.storage.from('portfolio').getPublicUrl(path).data.publicUrl;
+  return { type, url, path, name:file.name, size:file.size, uploaded_at:new Date().toISOString() };
+}
+async function handleGanttMediaFiles(input) {
+  const files = Array.from(input.files || []);
+  if (!files.length) return;
+  try {
+    showToast('Uploading ' + files.length + ' media file' + (files.length === 1 ? '' : 's') + '...');
+    for (const file of files) {
+      if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) continue;
+      GANTT_ACTIVE_MEDIA.push(await uploadGanttMedia(file));
+    }
+    renderGanttMediaPreview();
+    showToast('Media attached to schedule item');
+  } catch (err) {
+    showToast(err.message || 'Could not upload media');
+  } finally {
+    input.value = '';
+  }
+}
+function renderGanttMediaPreview() {
+  const wrap = document.getElementById('ganttMediaPreview');
+  if (!wrap) return;
+  if (!GANTT_ACTIVE_MEDIA.length) {
+    wrap.innerHTML = '<div class="text-xs" style="color:var(--text-muted)">No media attached yet.</div>';
+    return;
+  }
+  wrap.innerHTML = GANTT_ACTIVE_MEDIA.map((media, index) => {
+    const preview = media.type === 'video'
+      ? '<video src="' + escAttr(media.url) + '" muted playsinline></video>'
+      : '<img src="' + escAttr(media.url) + '" alt="' + escAttr(media.name || 'Schedule media') + '" />';
+    return '<div class="gantt-media-card">' + preview + '<button type="button" onclick="removeGanttMedia(' + index + ')">&times;</button><div class="gantt-media-meta">' + escHtml(media.name || media.type || 'Media') + '</div></div>';
+  }).join('');
+}
+function removeGanttMedia(index) {
+  GANTT_ACTIVE_MEDIA.splice(index, 1);
+  renderGanttMediaPreview();
+}
+function participantLabel(p) {
+  return [p.name, p.type].filter(Boolean).join(' - ');
+}
+function normalizeGanttParticipant(input) {
+  if (!input) return null;
+  if (typeof input === 'string') return { id:'custom:' + input, name:input, type:'Other', email:'', phone:'' };
+  return {
+    id: input.id || ('custom:' + Date.now()),
+    record_id: input.record_id || '',
+    source: input.source || 'custom',
+    type: input.type || 'Other',
+    name: input.name || [input.first_name, input.last_name].filter(Boolean).join(' ').trim() || input.email || input.phone || 'Participant',
+    email: input.email || '',
+    phone: input.phone || '',
+    company: input.company || ''
+  };
+}
+async function loadGanttParticipants(force) {
+  if (GANTT_PARTICIPANTS_LOADED && !force) return;
+  try {
+    const res = await fetch('/api/project-participants', { headers: authHeaders(), credentials:'include' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Could not load participants');
+    GANTT_PARTICIPANTS = Array.isArray(data.participants) ? data.participants : [];
+    GANTT_PARTICIPANTS_LOADED = true;
+  } catch (err) {
+    console.warn('[Gantt] Participants load failed:', err.message);
+    GANTT_PARTICIPANTS = [];
+  }
+}
+function renderGanttParticipantSelect() {
+  const select = document.getElementById('ganttParticipantSelect');
+  if (!select) return;
+  destroyCustomSelect('ganttParticipantSelect');
+  const selected = new Set(GANTT_SELECTED_PARTICIPANTS.map(p => String(p.id)));
+  const options = ['<option value="">Select staff, client, vendor, or subcontractor</option>'];
+  GANTT_PARTICIPANTS
+    .filter(p => !selected.has(String(p.id)))
+    .forEach(p => options.push('<option value="' + escAttr(p.id) + '">' + escHtml(participantLabel(p)) + '</option>'));
+  options.push('<option value="other">Other / add participant</option>');
+  select.innerHTML = options.join('');
+  buildCustomSelect('ganttParticipantSelect');
+}
+function renderGanttParticipantList() {
+  const wrap = document.getElementById('ganttParticipantList');
+  if (!wrap) return;
+  if (!GANTT_SELECTED_PARTICIPANTS.length) {
+    wrap.innerHTML = '<span class="text-xs" style="color:var(--text-muted)">No participants selected.</span>';
+    return;
+  }
+  wrap.innerHTML = GANTT_SELECTED_PARTICIPANTS.map((p, index) =>
+    '<span class="gantt-participant-chip">' + escHtml(participantLabel(p)) + '<button type="button" onclick="removeGanttParticipant(' + index + ')">&times;</button></span>'
+  ).join('');
+}
+function syncGanttParticipantHidden() {
+  const hidden = document.getElementById('ganttParticipants');
+  if (hidden) hidden.value = GANTT_SELECTED_PARTICIPANTS.map(participantLabel).join(', ');
+}
+function handleGanttParticipantSelect(value) {
+  if (!value) return;
+  if (value === 'other') {
+    document.getElementById('ganttOtherParticipant')?.classList.add('open');
+    return;
+  }
+  const participant = GANTT_PARTICIPANTS.find(p => String(p.id) === String(value));
+  if (participant && !GANTT_SELECTED_PARTICIPANTS.some(p => String(p.id) === String(participant.id))) {
+    GANTT_SELECTED_PARTICIPANTS.push(normalizeGanttParticipant(participant));
+    renderGanttParticipantList();
+    renderGanttParticipantSelect();
+    syncGanttParticipantHidden();
+  }
+}
+function removeGanttParticipant(index) {
+  GANTT_SELECTED_PARTICIPANTS.splice(index, 1);
+  renderGanttParticipantList();
+  renderGanttParticipantSelect();
+  syncGanttParticipantHidden();
+}
+function addGanttOtherParticipant() {
+  const first = document.getElementById('ganttOtherFirst').value.trim();
+  const last = document.getElementById('ganttOtherLast').value.trim();
+  const email = document.getElementById('ganttOtherEmail').value.trim();
+  const phone = document.getElementById('ganttOtherPhone').value.trim();
+  const type = document.getElementById('ganttOtherType').value || 'Client';
+  const name = [first, last].filter(Boolean).join(' ').trim();
+  if (!name && !email && !phone) { showToast('Add a name, email, or phone for the participant'); return; }
+  const participant = normalizeGanttParticipant({ id:'custom:' + Date.now(), source:'custom', type, name:name || email || phone, email, phone });
+  GANTT_SELECTED_PARTICIPANTS.push(participant);
+  ['ganttOtherFirst','ganttOtherLast','ganttOtherEmail','ganttOtherPhone'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  document.getElementById('ganttOtherParticipant')?.classList.remove('open');
+  renderGanttParticipantList();
+  renderGanttParticipantSelect();
+  syncGanttParticipantHidden();
+}
 function bindGanttDrag() {
   document.querySelectorAll('.gantt-bar').forEach(bar => {
     bar.addEventListener('pointerdown', e => {
@@ -6886,10 +7092,13 @@ function bindGanttDrag() {
     });
   });
 }
-function openGanttItemModal(type, id) {
+async function openGanttItemModal(type, id) {
   const item = id ? GANTT_ITEMS.find(i => String(i.id) === String(id)) : null;
   const today = ganttDateStr(new Date());
-  const model = item || { id:'', type:type || 'task', project:ganttBoardTitle(), title:'', phase:'', assignee:'', participants:'', client:'', start:today, end:ganttDateStr(ganttAddDays(today,3)), status:'pending', progress:0, dependencies:'', notify:true, description:'', forms:'', punch:'' };
+  const model = item || { id:'', type:type || 'task', project:ganttBoardTitle(), title:'', phase:'', assignee:'', participants:'', client:'', start:today, end:ganttDateStr(ganttAddDays(today,3)), status:'pending', progress:0, dependencies:'', notify:true, description:'', forms:'', punch:'', media:[] };
+  destroyCustomSelect('ganttStatus');
+  destroyCustomSelect('ganttParticipantSelect');
+  destroyCustomSelect('ganttOtherType');
   document.getElementById('ganttModalKicker').textContent = model.type === 'project' ? 'Project Schedule' : 'Project Task';
   document.getElementById('ganttModalTitle').textContent = item ? 'Edit ' + model.title : (model.type === 'project' ? 'Add Project Schedule' : 'Add Project Task');
   document.getElementById('ganttItemId').value = model.id;
@@ -6904,11 +7113,23 @@ function openGanttItemModal(type, id) {
   document.getElementById('ganttEnd').value = model.end || today;
   document.getElementById('ganttStatus').value = model.status || 'pending';
   document.getElementById('ganttProgress').value = Number(model.progress) || 0;
-  document.getElementById('ganttParticipants').value = model.participants || '';
+  const existingParticipants = Array.isArray(model.participant_records) && model.participant_records.length
+    ? model.participant_records
+    : String(model.participants || '').split(',').map(v => v.trim()).filter(Boolean);
+  GANTT_SELECTED_PARTICIPANTS = existingParticipants.map(normalizeGanttParticipant).filter(Boolean);
+  syncGanttParticipantHidden();
   document.getElementById('ganttNotify').checked = !!model.notify;
   document.getElementById('ganttDescription').value = model.description || '';
   document.getElementById('ganttForms').value = model.forms || '';
   document.getElementById('ganttPunch').value = model.punch || '';
+  GANTT_ACTIVE_MEDIA = Array.isArray(model.media) ? [...model.media] : (Array.isArray(model.metadata?.media) ? [...model.metadata.media] : []);
+  await loadGanttParticipants();
+  initGanttControls();
+  renderGanttParticipantSelect();
+  renderGanttParticipantList();
+  if (_fpGanttStart) _fpGanttStart.setDate(model.start || today, true);
+  if (_fpGanttEnd) _fpGanttEnd.setDate(model.end || today, true);
+  renderGanttMediaPreview();
   document.getElementById('ganttItemModal').classList.add('open');
   document.body.style.overflow = 'hidden';
 }
@@ -6932,11 +7153,13 @@ async function saveGanttItem() {
     end: document.getElementById('ganttEnd').value,
     status: document.getElementById('ganttStatus').value,
     progress: Math.max(0, Math.min(100, Number(document.getElementById('ganttProgress').value) || 0)),
-    participants: document.getElementById('ganttParticipants').value.trim(),
+    participants: GANTT_SELECTED_PARTICIPANTS.map(participantLabel).join(', '),
     notify: document.getElementById('ganttNotify').checked,
     description: document.getElementById('ganttDescription').value.trim(),
     forms: document.getElementById('ganttForms').value.trim(),
-    punch: document.getElementById('ganttPunch').value.trim()
+    punch: document.getElementById('ganttPunch').value.trim(),
+    media: [...GANTT_ACTIVE_MEDIA],
+    participant_records: [...GANTT_SELECTED_PARTICIPANTS]
   };
   try {
     await persistGanttItem(item);

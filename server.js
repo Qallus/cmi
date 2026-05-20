@@ -766,6 +766,50 @@ app.post('/api/contacts', requireStaff, async (req, res) => {
   }
 });
 
+app.get('/api/project-participants', requireStaff, async (_req, res) => {
+  try {
+    if (!supabase) return res.status(503).json({ message: 'Supabase is not configured' });
+    const [staffRes, contactsRes] = await Promise.all([
+      supabase
+        .from('staff_users')
+        .select('id,email,display_name,first_name,last_name,phone,title,role_slug,status')
+        .order('display_name', { ascending: true }),
+      supabase
+        .from('contacts')
+        .select('id,first_name,last_name,email,phone,type,company,status')
+        .order('last_name', { ascending: true, nullsFirst: false })
+        .limit(500),
+    ]);
+    if (staffRes.error) throw staffRes.error;
+    if (contactsRes.error) throw contactsRes.error;
+    const staff = (staffRes.data || []).map(row => ({
+      id: `staff:${row.id}`,
+      record_id: row.id,
+      source: 'staff_users',
+      type: row.role_slug === 'super_admin' ? 'Super Admin' : 'Staff',
+      name: row.display_name || `${row.first_name || ''} ${row.last_name || ''}`.trim() || row.email,
+      email: row.email || '',
+      phone: row.phone || '',
+      company: 'Constructed Matter, Inc.',
+      status: row.status || '',
+    }));
+    const contacts = (contactsRes.data || []).map(row => ({
+      id: `contact:${row.id}`,
+      record_id: row.id,
+      source: 'contacts',
+      type: row.type || 'Client',
+      name: `${row.first_name || ''} ${row.last_name || ''}`.trim() || row.company || row.email || row.phone || 'Contact',
+      email: row.email || '',
+      phone: row.phone || '',
+      company: row.company || '',
+      status: row.status || '',
+    }));
+    res.json({ participants: [...staff, ...contacts] });
+  } catch (err) {
+    res.status(500).json({ message: err.message || 'Participant load failed' });
+  }
+});
+
 app.post('/api/projects/fluent-sync', requireStaff, async (req, res) => {
   try {
     if (!supabase) return res.status(503).json({ message: 'Supabase is not configured' });
