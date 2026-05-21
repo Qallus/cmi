@@ -1792,6 +1792,33 @@ app.post('/api/project-schedule-dependencies/bulk', requireStaff, async (req, re
   }
 });
 
+app.put('/api/project-schedule-dependencies/:id', requireStaff, async (req, res) => {
+  try {
+    if (!supabase) return res.status(503).json({ message: 'Supabase is not configured' });
+    if (!isUuid(req.params.id)) return res.status(400).json({ message: 'Valid dependency id is required.' });
+    const updates = {
+      updated_by: req.user.email || null,
+      updated_at: new Date().toISOString(),
+      notes: req.body.notes || null,
+    };
+    if (['finish_to_start', 'start_to_start', 'finish_to_finish', 'start_to_finish'].includes(String(req.body.dependency_type || ''))) {
+      updates.dependency_type = String(req.body.dependency_type);
+    }
+    if (Number.isFinite(Number(req.body.lag_days))) updates.lag_days = Number(req.body.lag_days);
+    if (Object.prototype.hasOwnProperty.call(req.body, 'auto_shift')) updates.auto_shift = Boolean(req.body.auto_shift);
+    const { data, error } = await supabase
+      .from('project_schedule_dependencies')
+      .update(updates)
+      .eq('id', req.params.id)
+      .select()
+      .single();
+    if (error) throw error;
+    res.json({ ok: true, dependency: data });
+  } catch (err) {
+    res.status(500).json({ message: err.message || 'Schedule dependency update failed' });
+  }
+});
+
 app.delete('/api/project-schedule-dependencies/:id', requireStaff, async (req, res) => {
   try {
     if (!supabase) return res.status(503).json({ message: 'Supabase is not configured' });

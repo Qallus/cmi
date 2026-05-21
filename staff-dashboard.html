@@ -280,8 +280,11 @@
     .gantt-timeline{position:relative;}
     .gantt-row{position:relative;height:54px;border-bottom:1px solid var(--border-sm);background-image:linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);background-size:var(--gantt-day-width,44px) 100%;}
     .gantt-row.group{height:62px;background-color:var(--surface-2);}
+    .gantt-row-label.group{cursor:pointer;}
+    .gantt-row-label.group:hover .gantt-row-title{color:var(--gold);}
     .gantt-bar{position:absolute;top:10px;height:34px;border-radius:8px;background:rgba(201,164,110,.18);border:1px solid rgba(201,164,110,.48);color:var(--text);display:flex;align-items:center;gap:8px;padding:0 14px 0 10px;font-size:12px;font-weight:650;white-space:nowrap;overflow:visible;cursor:grab;box-shadow:0 10px 24px rgba(0,0,0,.2);touch-action:none;z-index:7;}
     .gantt-bar-title{min-width:0;overflow:hidden;text-overflow:ellipsis;flex:1 1 auto;}
+    .gantt-bar.risk{border-color:rgba(248,113,113,.7);background:rgba(127,29,29,.34);box-shadow:0 0 0 2px rgba(248,113,113,.12),0 10px 24px rgba(0,0,0,.22);}
     .gantt-bar.dragging{cursor:grabbing;box-shadow:0 18px 34px rgba(0,0,0,.34);z-index:20;}
     .gantt-bar.link-target{border-color:var(--gold);box-shadow:0 0 0 3px rgba(201,164,110,.18),0 18px 34px rgba(0,0,0,.3);}
     .gantt-bar.done{background:rgba(34,197,94,.16);border-color:rgba(34,197,94,.42);}
@@ -297,12 +300,22 @@
     .gantt-today{position:absolute;top:0;bottom:0;width:2px;background:var(--gold);z-index:5;box-shadow:0 0 0 1px rgba(201,164,110,.22);}
     .gantt-dependency-layer{position:absolute;inset:0;pointer-events:none;z-index:8;overflow:visible;}
     .gantt-dependency-line{fill:none;stroke:rgba(201,164,110,.62);stroke-width:2;stroke-linejoin:round;stroke-linecap:round;filter:drop-shadow(0 1px 2px rgba(0,0,0,.3));}
+    .gantt-dependency-line.risk{stroke:rgba(248,113,113,.82);stroke-width:2.4;}
+    .gantt-dependency-hit{fill:none;stroke:transparent;stroke-width:14;pointer-events:stroke;cursor:pointer;}
     .gantt-dependency-dot{fill:var(--gold);stroke:var(--surface);stroke-width:2;filter:drop-shadow(0 1px 2px rgba(0,0,0,.28));}
     .gantt-dependency-rewire{pointer-events:auto;cursor:grab;}
     .gantt-dependency-rewire:hover{fill:#f1c57f;}
     .gantt-dependency-rewire.dragging{cursor:grabbing;}
     .gantt-dependency-draft-layer{position:absolute;inset:0;pointer-events:none;z-index:18;overflow:visible;}
     .gantt-dependency-draft-line{fill:none;stroke:var(--gold);stroke-width:2.5;stroke-linecap:round;stroke-dasharray:6 5;filter:drop-shadow(0 1px 2px rgba(0,0,0,.35));}
+    .gantt-inspector{position:fixed;right:24px;top:92px;z-index:370;width:min(420px,calc(100vw - 32px));border:1px solid var(--border-card);border-radius:14px;background:var(--surface);box-shadow:0 24px 70px rgba(0,0,0,.42);padding:16px;display:none;}
+    .gantt-inspector.open{display:block;}
+    .gantt-inspector-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px;}
+    .gantt-inspector-title{font-family:var(--font-display);font-size:18px;color:var(--text);}
+    .gantt-inspector-copy{color:var(--text-muted);font-size:12px;line-height:1.45;margin-top:4px;}
+    .gantt-inspector-grid{display:grid;grid-template-columns:1fr 120px;gap:10px;margin-top:12px;}
+    .gantt-inspector-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;}
+    .gantt-toggle-chip.active{border-color:var(--gold);background:var(--gold-alpha);color:var(--gold);}
     .gantt-empty{padding:48px;text-align:center;color:var(--text-muted);font-size:13px;}
     .gantt-feature-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:14px;}
     .gantt-feature-card{border:1px solid var(--border-card);border-radius:12px;background:var(--surface);padding:14px;min-height:112px;}
@@ -6264,6 +6277,9 @@ let GANTT_PHASE     = 'all';
 let GANTT_ASSIGNEE  = 'all';
 let GANTT_PRIORITY  = 'all';
 let GANTT_VISIBILITY = 'all';
+let GANTT_SHOW_DEPENDENCIES = true;
+let GANTT_CLIENT_VIEW = false;
+let GANTT_COLLAPSED_PHASES = new Set();
 let GANTT_EDIT_MODE = true;
 let GANTT_ITEMS     = [];
 let GANTT_DEPENDENCIES = [];
@@ -6959,6 +6975,30 @@ async function persistGanttDependencies(targetId, item) {
     .concat((data.dependencies || []).map(mapScheduleDependency));
   return data.dependencies || [];
 }
+async function updateGanttDependency(depId, updates) {
+  if (!isGanttUuid(depId)) throw new Error('Valid dependency id is required');
+  const res = await fetch('/api/project-schedule-dependencies/' + encodeURIComponent(depId), {
+    method: 'PUT',
+    headers: authHeaders({ 'Content-Type':'application/json' }),
+    body: JSON.stringify(updates || {})
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || 'Could not update dependency');
+  const mapped = mapScheduleDependency(data.dependency || {});
+  GANTT_DEPENDENCIES = GANTT_DEPENDENCIES.map(dep => String(dep.id) === String(depId) ? mapped : dep);
+  return mapped;
+}
+async function deleteGanttDependency(depId) {
+  if (!isGanttUuid(depId)) throw new Error('Valid dependency id is required');
+  const res = await fetch('/api/project-schedule-dependencies/' + encodeURIComponent(depId), {
+    method: 'DELETE',
+    headers: authHeaders()
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || 'Could not delete dependency');
+  GANTT_DEPENDENCIES = GANTT_DEPENDENCIES.filter(dep => String(dep.id) !== String(depId));
+  return true;
+}
 async function saveGanttDependencyLink(sourceId, targetId, dependencyType = 'finish_to_start') {
   if (!isGanttUuid(sourceId) || !isGanttUuid(targetId) || String(sourceId) === String(targetId)) return false;
   const target = GANTT_ITEMS.find(item => String(item.id) === String(targetId));
@@ -6978,8 +7018,33 @@ async function saveGanttDependencyLink(sourceId, targetId, dependencyType = 'fin
   await persistGanttDependencies(targetId, target);
   return true;
 }
+async function autoShiftDependentItems(sourceId, deltaDays, visited = new Set()) {
+  if (!deltaDays || visited.has(String(sourceId))) return 0;
+  visited.add(String(sourceId));
+  const dependents = GANTT_DEPENDENCIES.filter(dep => String(dep.source_item_id) === String(sourceId) && dep.auto_shift);
+  let shifted = 0;
+  for (const dep of dependents) {
+    const target = GANTT_ITEMS.find(item => String(item.id) === String(dep.target_item_id));
+    if (!target || visited.has(String(target.id))) continue;
+    target.start = ganttDateStr(ganttAddDays(target.start, deltaDays));
+    target.end = ganttDateStr(ganttAddDays(target.end, deltaDays));
+    await persistGanttItem(target);
+    shifted += 1;
+    shifted += await autoShiftDependentItems(target.id, deltaDays, visited);
+  }
+  return shifted;
+}
 async function moveGanttDependencyLink(depId, sourceId, oldTargetId, newTargetId, dependencyType = 'finish_to_start') {
   if (!isGanttUuid(newTargetId) || String(oldTargetId) === String(newTargetId)) return false;
+  const newTargetAlreadyLinked = GANTT_DEPENDENCIES.some(dep =>
+    String(dep.target_item_id) === String(newTargetId) &&
+    String(dep.source_item_id) === String(sourceId) &&
+    String(dep.dependency_type) === String(dependencyType)
+  );
+  if (newTargetAlreadyLinked) {
+    showToast('Those schedule items are already connected.');
+    return false;
+  }
   const oldTarget = GANTT_ITEMS.find(item => String(item.id) === String(oldTargetId));
   if (oldTarget) {
     GANTT_ACTIVE_DEPENDENCIES = GANTT_DEPENDENCIES
@@ -7002,6 +7067,7 @@ async function seedGanttSchedule() {
 }
 function ganttFilteredItems() {
   return GANTT_ITEMS.filter(item => {
+    if (GANTT_CLIENT_VIEW && !item.client_visible) return false;
     if (GANTT_STATUS !== 'all' && item.status !== GANTT_STATUS) return false;
     if (GANTT_TYPE !== 'all' && item.type !== GANTT_TYPE) return false;
     if (GANTT_PRIORITY !== 'all' && (item.priority || 'normal') !== GANTT_PRIORITY) return false;
@@ -7012,6 +7078,39 @@ function ganttFilteredItems() {
     if (GANTT_VISIBILITY === 'blocked' && !(item.is_blocked || item.status === 'blocked')) return false;
     return true;
   });
+}
+function ganttDependencyMapFromSource() {
+  return GANTT_DEPENDENCIES.reduce((map, dep) => {
+    const key = String(dep.source_item_id || '');
+    if (!map[key]) map[key] = [];
+    map[key].push(dep);
+    return map;
+  }, {});
+}
+function ganttRiskItemIds() {
+  const risk = new Set(GANTT_ITEMS.filter(item =>
+    item.is_blocked ||
+    item.status === 'blocked' ||
+    item.status === 'delayed' ||
+    item.priority === 'critical' ||
+    item.priority === 'blocking_closeout'
+  ).map(item => String(item.id)));
+  const bySource = ganttDependencyMapFromSource();
+  const queue = [...risk];
+  while (queue.length) {
+    const id = queue.shift();
+    (bySource[id] || []).forEach(dep => {
+      const target = String(dep.target_item_id || '');
+      if (target && !risk.has(target)) {
+        risk.add(target);
+        queue.push(target);
+      }
+    });
+  }
+  return risk;
+}
+function ganttDependencyIsRisk(dep, riskIds) {
+  return riskIds.has(String(dep.source_item_id)) || riskIds.has(String(dep.target_item_id));
 }
 function ganttStatusLabel(status) {
   return String(status || 'pending').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
@@ -7124,7 +7223,7 @@ async function renderFBGantt(forceLoad) {
     '<div class="gantt-feature-grid">' +
       '<div class="gantt-feature-card"><strong>Build your schedule</strong><p>Import documents, photos, forms, and notes to shape the construction schedule around this project.</p><button onclick="document.getElementById(\'ganttImportInput\').click()" class="crm-toolbar-btn mt-3">Import documents</button><button onclick="seedGanttSchedule()" class="crm-toolbar-btn mt-3 ml-2">Use starter schedule</button><input id="ganttImportInput" type="file" multiple class="hidden" onchange="ganttImportDocs(this)" /></div>' +
       '<div class="gantt-feature-card"><strong>Real-time progress tracking</strong><p>Track in progress, complete, delayed, blocked, and pending confirmation tasks in one timeline.</p><div class="mt-3 h-2 rounded-full overflow-hidden" style="background:var(--surface-2)"><div style="height:100%;width:' + stats.progress + '%;background:var(--gold)"></div></div><p class="mt-2">' + stats.progress + '% average progress</p></div>' +
-      '<div class="gantt-feature-card"><strong>Project health: ' + stats.health + '</strong><p>' + stats.overdue + ' overdue, ' + stats.blocked + ' blocked, and ' + stats.pendingConfirm + ' pending confirmation.</p><button onclick="publishGanttSchedule()" class="crm-toolbar-btn mt-3">Publish schedule</button></div>' +
+      '<div class="gantt-feature-card"><strong>Project health: ' + stats.health + '</strong><p>' + stats.overdue + ' overdue, ' + stats.blocked + ' blocked, and ' + stats.pendingConfirm + ' pending confirmation.</p><button onclick="publishGanttSchedule()" class="crm-toolbar-btn mt-3">Publish schedule</button><button onclick="focusGanttRisks()" class="crm-toolbar-btn mt-3 ml-2">Show risk chain</button></div>' +
     '</div>';
   if (GANTT_MODE === 'table') {
     wrap.innerHTML = features + renderGanttToolbar() + renderGanttTable(items);
@@ -7148,12 +7247,16 @@ function renderGanttToolbar() {
       ganttFilterSelect('ganttFilterAssignee', 'Assignee', GANTT_ASSIGNEE, [{value:'all',label:'All assignees'}].concat(opts.assignees.map(a => ({ value:a, label:a }))), 'setGanttAssignee') +
       ganttFilterSelect('ganttFilterVisibility', 'Visibility', GANTT_VISIBILITY, [{value:'all',label:'All visibility'},{value:'client',label:'Client visible'},{value:'internal',label:'Internal only'},{value:'blocked',label:'Blocked only'}], 'setGanttVisibility') +
       '<div class="gantt-control-actions"><button onclick="clearGanttFilters()" class="crm-toolbar-btn">Clear filters</button>' +
-      '<button onclick="shiftGanttZoom(-6)" class="crm-toolbar-btn">Weekly view</button><button onclick="shiftGanttZoom(6)" class="crm-toolbar-btn">Detailed view</button>' +
+      '<button onclick="setGanttToday()" class="crm-toolbar-btn">Today</button><button onclick="fitGanttToProject()" class="crm-toolbar-btn">Fit project</button>' +
+      '<button onclick="setGanttScale(\'month\')" class="crm-toolbar-btn">Month</button><button onclick="setGanttScale(\'week\')" class="crm-toolbar-btn">Week</button><button onclick="setGanttScale(\'day\')" class="crm-toolbar-btn">Day</button>' +
+      '<button onclick="toggleGanttDependencies()" class="crm-toolbar-btn gantt-toggle-chip ' + (GANTT_SHOW_DEPENDENCIES ? 'active' : '') + '">Dependencies</button>' +
+      '<button onclick="toggleGanttClientView()" class="crm-toolbar-btn gantt-toggle-chip ' + (GANTT_CLIENT_VIEW ? 'active' : '') + '">Client View</button>' +
       '<button onclick="toggleGanttEditMode()" class="crm-toolbar-btn">' + (GANTT_EDIT_MODE ? 'Editing schedule' : 'View only') + '</button>' +
       '<button onclick="openGanttItemModal(\'project\')" class="crm-toolbar-btn">Add Project</button><button onclick="openGanttItemModal(\'phase\')" class="crm-toolbar-btn">Add Phase</button><button onclick="openGanttItemModal(\'task\')" class="crm-toolbar-btn">Add Task</button><button onclick="openGanttItemModal(\'milestone\')" class="crm-toolbar-btn">Add Milestone</button></div>' +
     '</div></div>';
 }
-function renderGanttDependencySvg(positions, width, height) {
+function renderGanttDependencySvg(positions, width, height, riskIds) {
+  if (!GANTT_SHOW_DEPENDENCIES) return '';
   const visibleIds = new Set(Object.keys(positions));
   const paths = GANTT_DEPENDENCIES
     .filter(dep => visibleIds.has(String(dep.source_item_id)) && visibleIds.has(String(dep.target_item_id)))
@@ -7174,7 +7277,9 @@ function renderGanttDependencySvg(positions, width, height) {
       const sourceId = escAttr(dep.source_item_id || '');
       const targetId = escAttr(dep.target_item_id || '');
       const type = escAttr(dep.dependency_type || 'finish_to_start');
-      return '<path class="gantt-dependency-line" d="' + path + '" />' +
+      const riskClass = ganttDependencyIsRisk(dep, riskIds) ? ' risk' : '';
+      return '<path class="gantt-dependency-hit" d="' + path + '" data-dependency-id="' + id + '"></path>' +
+        '<path class="gantt-dependency-line' + riskClass + '" d="' + path + '" />' +
         '<circle class="gantt-dependency-dot" cx="' + sx + '" cy="' + source.y + '" r="4" />' +
         '<circle class="gantt-dependency-dot gantt-dependency-rewire" cx="' + tx + '" cy="' + target.y + '" r="5" data-dependency-id="' + id + '" data-source-id="' + sourceId + '" data-target-id="' + targetId + '" data-dependency-type="' + type + '"><title>Drag to reconnect this dependency</title></circle>';
     }).join('');
@@ -7200,12 +7305,15 @@ function renderGanttTimeline(items, stats) {
   const todayOffset = ganttDaysBetween(min, new Date()) * dayWidth;
   let leftRows = '', timelineRows = '';
   const positions = {};
+  const riskIds = ganttRiskItemIds();
   let rowTop = 0;
   phases.forEach(phase => {
     const phaseItems = items.filter(i => (i.phase || 'Project Tasks') === phase);
-    leftRows += '<div class="gantt-row-label group"><div><div class="gantt-row-title">' + escHtml(phase) + '</div><div class="gantt-row-sub">' + phaseItems.length + ' schedule item' + (phaseItems.length!==1?'s':'') + '</div></div></div>';
+    const collapsed = GANTT_COLLAPSED_PHASES.has(phase);
+    leftRows += '<div class="gantt-row-label group" onclick="toggleGanttPhaseCollapse(decodeURIComponent(\'' + encodeURIComponent(phase) + '\'))"><div><div class="gantt-row-title">' + (collapsed ? '+ ' : '- ') + escHtml(phase) + '</div><div class="gantt-row-sub">' + phaseItems.length + ' schedule item' + (phaseItems.length!==1?'s':'') + '</div></div></div>';
     timelineRows += '<div class="gantt-row group" style="width:' + width + 'px"></div>';
     rowTop += 62;
+    if (collapsed) return;
     phaseItems.forEach(item => {
       const itemStart = Math.max(0, ganttDaysBetween(min, item.start));
       const duration = Math.max(1, ganttDaysBetween(item.start, item.end) + 1);
@@ -7217,13 +7325,15 @@ function renderGanttTimeline(items, stats) {
       const visibleBadge = item.client_visible ? '<span style="opacity:.68">Client</span>' : '';
       const blockedBadge = item.is_blocked ? '<span style="opacity:.75;color:#f87171">Blocked</span>' : '';
       const typeClass = item.type === 'milestone' ? ' milestone' : '';
+      const riskClass = riskIds.has(String(item.id)) ? ' risk' : '';
+      const assigneeText = GANTT_CLIENT_VIEW ? '' : '<span style="opacity:.68">' + ganttTypeLabel(item.type) + '</span>' + blockedBadge;
       const startHandle = GANTT_EDIT_MODE ? '<span class="gantt-connector-handle start" title="Drag from start to connect this item" data-gantt-source="' + escAttr(item.id) + '" data-gantt-side="start"></span>' : '';
       const endHandle = GANTT_EDIT_MODE ? '<span class="gantt-connector-handle end" title="Drag from end to connect this item" data-gantt-source="' + escAttr(item.id) + '" data-gantt-side="end"></span>' : '';
-      timelineRows += '<div class="gantt-row" style="width:' + width + 'px"><div class="gantt-bar ' + ganttStatusClass(item.status) + typeClass + '" data-gantt-id="' + escAttr(item.id) + '" style="left:' + itemLeft + 'px;width:' + itemWidth + 'px">' + startHandle + '<span class="gantt-assignee">' + ganttInitials(item.assignee) + '</span><span class="gantt-bar-title">' + escHtml(item.title) + '</span><span style="opacity:.68">' + ganttTypeLabel(item.type) + '</span>' + visibleBadge + blockedBadge + mediaBadge + '<span style="margin-left:auto;opacity:.65">' + (Number(item.progress)||0) + '%</span>' + endHandle + '</div></div>';
+      timelineRows += '<div class="gantt-row" style="width:' + width + 'px"><div class="gantt-bar ' + ganttStatusClass(item.status) + typeClass + riskClass + '" data-gantt-id="' + escAttr(item.id) + '" style="left:' + itemLeft + 'px;width:' + itemWidth + 'px">' + startHandle + '<span class="gantt-assignee">' + ganttInitials(GANTT_CLIENT_VIEW ? 'CMI' : item.assignee) + '</span><span class="gantt-bar-title">' + escHtml(item.title) + '</span>' + assigneeText + visibleBadge + mediaBadge + '<span style="margin-left:auto;opacity:.65">' + (Number(item.progress)||0) + '%</span>' + endHandle + '</div></div>';
       rowTop += 54;
     });
   });
-  const dependencySvg = renderGanttDependencySvg(positions, width, rowTop);
+  const dependencySvg = renderGanttDependencySvg(positions, width, rowTop, riskIds);
   const todayLine = todayOffset >= 0 && todayOffset <= width ? '<div class="gantt-today" style="left:' + todayOffset + 'px"></div>' : '';
   return '<div class="gantt-shell">' +
     '<div class="grid grid-cols-5 gap-0" style="border-bottom:1px solid var(--border-sm)"><div class="p-4"><p class="text-xs text-neutral-500">Complete</p><p class="text-xl font-display">' + stats.complete + '</p></div><div class="p-4"><p class="text-xs text-neutral-500">In progress</p><p class="text-xl font-display">' + stats.inProgress + '</p></div><div class="p-4"><p class="text-xs text-neutral-500">Delayed</p><p class="text-xl font-display">' + stats.delayed + '</p></div><div class="p-4"><p class="text-xs text-neutral-500">Blocked</p><p class="text-xl font-display">' + stats.blocked + '</p></div><div class="p-4"><p class="text-xs text-neutral-500">Overdue</p><p class="text-xl font-display">' + stats.overdue + '</p></div></div>' +
@@ -7241,6 +7351,52 @@ function setGanttPhase(phase) { GANTT_PHASE = phase; renderFBGantt(); }
 function setGanttAssignee(assignee) { GANTT_ASSIGNEE = assignee; renderFBGantt(); }
 function setGanttPriority(priority) { GANTT_PRIORITY = priority; renderFBGantt(); }
 function setGanttVisibility(visibility) { GANTT_VISIBILITY = visibility; renderFBGantt(); }
+function setGanttScale(scale) {
+  GANTT_ZOOM = scale === 'day' ? 72 : scale === 'month' ? 24 : 44;
+  renderFBGantt();
+}
+function toggleGanttDependencies() {
+  GANTT_SHOW_DEPENDENCIES = !GANTT_SHOW_DEPENDENCIES;
+  renderFBGantt();
+}
+function toggleGanttClientView() {
+  GANTT_CLIENT_VIEW = !GANTT_CLIENT_VIEW;
+  if (GANTT_CLIENT_VIEW) GANTT_VISIBILITY = 'client';
+  else if (GANTT_VISIBILITY === 'client') GANTT_VISIBILITY = 'all';
+  showToast(GANTT_CLIENT_VIEW ? 'Client schedule view enabled' : 'Internal schedule view enabled');
+  renderFBGantt();
+}
+function toggleGanttPhaseCollapse(phase) {
+  if (GANTT_COLLAPSED_PHASES.has(phase)) GANTT_COLLAPSED_PHASES.delete(phase);
+  else GANTT_COLLAPSED_PHASES.add(phase);
+  renderFBGantt();
+}
+function fitGanttToProject() {
+  const items = ganttFilteredItems();
+  if (!items.length) return;
+  let min = items.reduce((d, i) => ganttDate(i.start) < d ? ganttDate(i.start) : d, ganttDate(items[0].start));
+  let max = items.reduce((d, i) => ganttDate(i.end) > d ? ganttDate(i.end) : d, ganttDate(items[0].end));
+  const days = Math.max(14, ganttDaysBetween(min, max) + 7);
+  const boardWidth = Math.max(900, (document.getElementById('fb-content-wrap')?.clientWidth || 1280) - 320);
+  GANTT_ZOOM = Math.max(22, Math.min(72, Math.floor(boardWidth / days)));
+  renderFBGantt();
+}
+function setGanttToday() {
+  renderFBGantt();
+  setTimeout(() => {
+    const grid = document.querySelector('.gantt-grid');
+    const today = document.querySelector('.gantt-today');
+    if (grid && today) grid.scrollLeft = Math.max(0, today.offsetLeft - Math.floor(grid.clientWidth / 2));
+  }, 40);
+}
+function focusGanttRisks() {
+  const riskIds = ganttRiskItemIds();
+  if (!riskIds.size) { showToast('No delayed, blocked, critical, or closeout risk chain found.'); return; }
+  GANTT_STATUS = 'all';
+  GANTT_SHOW_DEPENDENCIES = true;
+  showToast('Risk chain highlighted on the Gantt chart');
+  renderFBGantt();
+}
 function clearGanttFilters() {
   GANTT_STATUS = 'all';
   GANTT_TYPE = 'all';
@@ -7250,7 +7406,7 @@ function clearGanttFilters() {
   GANTT_VISIBILITY = 'all';
   renderFBGantt();
 }
-function shiftGanttZoom(delta) { GANTT_ZOOM = Math.max(32, Math.min(72, GANTT_ZOOM + delta)); renderFBGantt(); }
+function shiftGanttZoom(delta) { GANTT_ZOOM = Math.max(22, Math.min(72, GANTT_ZOOM + delta)); renderFBGantt(); }
 function toggleGanttEditMode() { GANTT_EDIT_MODE = !GANTT_EDIT_MODE; showToast(GANTT_EDIT_MODE ? 'Editing schedule' : 'View-only schedule'); renderFBGantt(); }
 function ganttImportDocs(input) { showToast((input.files?.length || 0) + ' document(s) queued for schedule import'); input.value = ''; }
 function publishGanttSchedule() { showToast('Schedule published. Notification confirmations queued.'); }
@@ -7602,9 +7758,93 @@ function bindGanttDependencyRewire() {
     });
   });
 }
+function ensureGanttInspector() {
+  let panel = document.getElementById('ganttDependencyInspector');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'ganttDependencyInspector';
+    panel.className = 'gantt-inspector';
+    document.body.appendChild(panel);
+  }
+  return panel;
+}
+function closeGanttDependencyInspector() {
+  const panel = document.getElementById('ganttDependencyInspector');
+  if (panel) panel.classList.remove('open');
+}
+function openGanttDependencyInspector(depId) {
+  const dep = GANTT_DEPENDENCIES.find(row => String(row.id) === String(depId));
+  if (!dep) return;
+  const source = GANTT_ITEMS.find(item => String(item.id) === String(dep.source_item_id));
+  const target = GANTT_ITEMS.find(item => String(item.id) === String(dep.target_item_id));
+  const panel = ensureGanttInspector();
+  panel.innerHTML =
+    '<div class="gantt-inspector-head">' +
+      '<div><div class="gantt-inspector-title">Dependency</div><p class="gantt-inspector-copy">' + escHtml(source?.title || 'Schedule item') + ' -> ' + escHtml(target?.title || 'Schedule item') + '</p></div>' +
+      '<button class="icon-btn" onclick="closeGanttDependencyInspector()">x</button>' +
+    '</div>' +
+    '<input id="ganttInspectorId" type="hidden" value="' + escAttr(dep.id) + '" />' +
+    '<div class="gantt-inspector-grid">' +
+      '<div><label class="form-label">Type</label><select id="ganttInspectorType" class="form-input">' +
+        ganttOptionHtml('finish_to_start', 'Finish to Start', dep.dependency_type) +
+        ganttOptionHtml('start_to_start', 'Start to Start', dep.dependency_type) +
+        ganttOptionHtml('finish_to_finish', 'Finish to Finish', dep.dependency_type) +
+        ganttOptionHtml('start_to_finish', 'Start to Finish', dep.dependency_type) +
+      '</select></div>' +
+      '<div><label class="form-label">Lag Days</label><input id="ganttInspectorLag" type="number" class="form-input" value="' + escAttr(dep.lag_days || 0) + '" /></div>' +
+    '</div>' +
+    '<label class="flex items-center gap-2 text-sm mt-3" style="color:var(--text-muted)"><input id="ganttInspectorAutoShift" type="checkbox" ' + (dep.auto_shift ? 'checked' : '') + ' /> Auto-shift dependent work when predecessor moves</label>' +
+    '<div class="mt-3"><label class="form-label">Notes</label><textarea id="ganttInspectorNotes" class="form-input" rows="3" placeholder="Inspection window, wait time, crew dependency...">' + escHtml(dep.notes || '') + '</textarea></div>' +
+    '<div class="gantt-inspector-actions">' +
+      '<button class="crm-toolbar-btn" onclick="saveGanttDependencyInspector()">Save Dependency</button>' +
+      '<button class="crm-toolbar-btn" onclick="deleteGanttDependencyInspector()" style="color:#f87171">Delete Link</button>' +
+    '</div>';
+  panel.classList.add('open');
+  destroyCustomSelect('ganttInspectorType');
+  buildCustomSelect('ganttInspectorType');
+}
+async function saveGanttDependencyInspector() {
+  const depId = document.getElementById('ganttInspectorId')?.value || '';
+  try {
+    await updateGanttDependency(depId, {
+      dependency_type: document.getElementById('ganttInspectorType')?.value || 'finish_to_start',
+      lag_days: Number(document.getElementById('ganttInspectorLag')?.value || 0),
+      auto_shift: Boolean(document.getElementById('ganttInspectorAutoShift')?.checked),
+      notes: document.getElementById('ganttInspectorNotes')?.value || ''
+    });
+    closeGanttDependencyInspector();
+    await renderFBGantt(true);
+    showToast('Dependency updated');
+  } catch (err) {
+    showToast(err.message || 'Could not update dependency');
+  }
+}
+async function deleteGanttDependencyInspector() {
+  const depId = document.getElementById('ganttInspectorId')?.value || '';
+  try {
+    await deleteGanttDependency(depId);
+    closeGanttDependencyInspector();
+    await renderFBGantt(true);
+    showToast('Dependency deleted');
+  } catch (err) {
+    showToast(err.message || 'Could not delete dependency');
+  }
+}
+function bindGanttDependencyInspector() {
+  document.querySelectorAll('.gantt-dependency-hit,.gantt-dependency-dot').forEach(el => {
+    el.addEventListener('click', e => {
+      if (GANTT_LINK_DRAG) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const depId = el.dataset.dependencyId;
+      if (depId) openGanttDependencyInspector(depId);
+    });
+  });
+}
 function bindGanttDrag() {
   bindGanttDependencyDrag();
   bindGanttDependencyRewire();
+  bindGanttDependencyInspector();
   document.querySelectorAll('.gantt-bar').forEach(bar => {
     bar.addEventListener('pointerdown', e => {
       if (!GANTT_EDIT_MODE) return;
@@ -7624,11 +7864,13 @@ function bindGanttDrag() {
       GANTT_DRAG.bar.style.left = Math.max(0, GANTT_DRAG.left + deltaPx) + 'px';
       if (!deltaDays) return;
       GANTT_DRAG.moved = true;
+      GANTT_DRAG.deltaDays = deltaDays;
       GANTT_DRAG.item.start = ganttDateStr(ganttAddDays(GANTT_DRAG.start, deltaDays));
       GANTT_DRAG.item.end = ganttDateStr(ganttAddDays(GANTT_DRAG.end, deltaDays));
     });
     bar.addEventListener('pointerup', async e => {
       const moved = GANTT_DRAG?.moved;
+      const deltaDays = GANTT_DRAG?.deltaDays || 0;
       const id = bar.dataset.ganttId;
       const item = GANTT_DRAG?.item;
       document.querySelectorAll('.gantt-bar.dragging').forEach(b => b.classList.remove('dragging'));
@@ -7637,7 +7879,8 @@ function bindGanttDrag() {
         if (moved && item) {
           try {
             await persistGanttItem(item);
-            showToast('Schedule date updated');
+            const shifted = await autoShiftDependentItems(item.id, deltaDays);
+            showToast(shifted ? 'Schedule date updated. ' + shifted + ' dependent item' + (shifted === 1 ? '' : 's') + ' shifted.' : 'Schedule date updated');
           } catch (err) {
             showToast(err.message || 'Could not save schedule change');
           }
@@ -7735,6 +7978,7 @@ function closeGanttItemModal() {
 }
 async function saveGanttItem() {
   const id = document.getElementById('ganttItemId').value || '';
+  const previous = id ? GANTT_ITEMS.find(row => String(row.id) === String(id)) : null;
   const item = {
     id,
     board_id: ganttBoardKey(),
@@ -7765,9 +8009,11 @@ async function saveGanttItem() {
   try {
     const saved = await persistGanttItem(item);
     await persistGanttDependencies(saved.id, saved);
+    const deltaDays = previous ? ganttDaysBetween(previous.start, saved.start) : 0;
+    const shifted = deltaDays ? await autoShiftDependentItems(saved.id, deltaDays) : 0;
     closeGanttItemModal();
     await renderFBGantt(true);
-    showToast('Schedule item saved to Supabase');
+    showToast(shifted ? 'Schedule item saved. ' + shifted + ' dependent item' + (shifted === 1 ? '' : 's') + ' shifted.' : 'Schedule item saved to Supabase');
   } catch (err) {
     showToast(err.message || 'Could not save schedule item');
   }
