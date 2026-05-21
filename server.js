@@ -1706,6 +1706,30 @@ function normalizeSchedulePayload(body = {}, user = {}) {
   };
 }
 
+function normalizeScheduleDependencyPayload(body = {}, user = {}) {
+  const source_item_id = body.source_item_id;
+  const target_item_id = body.target_item_id;
+  if (!isUuid(source_item_id) || !isUuid(target_item_id)) {
+    throw new Error('Valid source and target schedule item ids are required.');
+  }
+  if (source_item_id === target_item_id) throw new Error('A schedule item cannot depend on itself.');
+  const dependency_type = ['finish_to_start', 'start_to_start', 'finish_to_finish', 'start_to_finish'].includes(String(body.dependency_type || ''))
+    ? String(body.dependency_type)
+    : 'finish_to_start';
+  return {
+    board_id: body.board_id ? String(body.board_id) : null,
+    project_id: isUuid(body.project_id) ? body.project_id : null,
+    client_project_id: isUuid(body.client_project_id) ? body.client_project_id : null,
+    source_item_id,
+    target_item_id,
+    dependency_type,
+    lag_days: Number.isFinite(Number(body.lag_days)) ? Number(body.lag_days) : 0,
+    auto_shift: Boolean(body.auto_shift),
+    notes: body.notes || null,
+    updated_by: user.email || null,
+  };
+}
+
 app.get('/api/project-schedule-items', requireStaff, async (req, res) => {
   try {
     if (!supabase) return res.status(503).json({ message: 'Supabase is not configured' });
@@ -1718,6 +1742,65 @@ app.get('/api/project-schedule-items', requireStaff, async (req, res) => {
     res.json({ items: data || [] });
   } catch (err) {
     res.status(500).json({ message: err.message || 'Schedule items load failed' });
+  }
+});
+
+app.get('/api/project-schedule-dependencies', requireStaff, async (req, res) => {
+  try {
+    if (!supabase) return res.status(503).json({ message: 'Supabase is not configured' });
+    let query = supabase.from('project_schedule_dependencies').select('*').order('created_at', { ascending: true });
+    if (req.query.board_id) query = query.eq('board_id', String(req.query.board_id));
+    if (req.query.project_id && isUuid(req.query.project_id)) query = query.eq('project_id', req.query.project_id);
+    if (req.query.client_project_id && isUuid(req.query.client_project_id)) query = query.eq('client_project_id', req.query.client_project_id);
+    if (req.query.target_item_id && isUuid(req.query.target_item_id)) query = query.eq('target_item_id', req.query.target_item_id);
+    const { data, error } = await query;
+    if (error) throw error;
+    res.json({ dependencies: data || [] });
+  } catch (err) {
+    res.status(500).json({ message: err.message || 'Schedule dependencies load failed' });
+  }
+});
+
+app.post('/api/project-schedule-dependencies/bulk', requireStaff, async (req, res) => {
+  try {
+    if (!supabase) return res.status(503).json({ message: 'Supabase is not configured' });
+    const targetId = req.body.target_item_id;
+    if (!isUuid(targetId)) return res.status(400).json({ message: 'Valid target schedule item id is required.' });
+    const rows = Array.isArray(req.body.dependencies) ? req.body.dependencies : [];
+    const normalized = rows.map(row => normalizeScheduleDependencyPayload({
+      ...row,
+      target_item_id: targetId,
+      board_id: row.board_id || req.body.board_id,
+      project_id: row.project_id || req.body.project_id,
+      client_project_id: row.client_project_id || req.body.client_project_id,
+    }, req.user));
+    const { error: deleteError } = await supabase
+      .from('project_schedule_dependencies')
+      .delete()
+      .eq('target_item_id', targetId);
+    if (deleteError) throw deleteError;
+    if (!normalized.length) return res.json({ ok: true, dependencies: [] });
+    normalized.forEach(row => { row.created_by = req.user.email || null; });
+    const { data, error } = await supabase
+      .from('project_schedule_dependencies')
+      .insert(normalized)
+      .select();
+    if (error) throw error;
+    res.json({ ok: true, dependencies: data || [] });
+  } catch (err) {
+    res.status(500).json({ message: err.message || 'Schedule dependencies save failed' });
+  }
+});
+
+app.delete('/api/project-schedule-dependencies/:id', requireStaff, async (req, res) => {
+  try {
+    if (!supabase) return res.status(503).json({ message: 'Supabase is not configured' });
+    if (!isUuid(req.params.id)) return res.status(400).json({ message: 'Valid dependency id is required.' });
+    const { error } = await supabase.from('project_schedule_dependencies').delete().eq('id', req.params.id);
+    if (error) throw error;
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ message: err.message || 'Schedule dependency delete failed' });
   }
 });
 

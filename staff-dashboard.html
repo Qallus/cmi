@@ -280,13 +280,15 @@
     .gantt-timeline{position:relative;}
     .gantt-row{position:relative;height:54px;border-bottom:1px solid var(--border-sm);background-image:linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);background-size:var(--gantt-day-width,44px) 100%;}
     .gantt-row.group{height:62px;background-color:var(--surface-2);}
-    .gantt-bar{position:absolute;top:10px;height:34px;border-radius:8px;background:rgba(201,164,110,.18);border:1px solid rgba(201,164,110,.48);color:var(--text);display:flex;align-items:center;gap:8px;padding:0 10px;font-size:12px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:grab;box-shadow:0 10px 24px rgba(0,0,0,.2);touch-action:none;}
+    .gantt-bar{position:absolute;top:10px;height:34px;border-radius:8px;background:rgba(201,164,110,.18);border:1px solid rgba(201,164,110,.48);color:var(--text);display:flex;align-items:center;gap:8px;padding:0 10px;font-size:12px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:grab;box-shadow:0 10px 24px rgba(0,0,0,.2);touch-action:none;z-index:7;}
     .gantt-bar.dragging{cursor:grabbing;box-shadow:0 18px 34px rgba(0,0,0,.34);z-index:20;}
     .gantt-bar.done{background:rgba(34,197,94,.16);border-color:rgba(34,197,94,.42);}
     .gantt-bar.blocked{background:rgba(239,68,68,.16);border-color:rgba(239,68,68,.42);}
     .gantt-bar.milestone{background:rgba(56,189,248,.15);border-color:rgba(56,189,248,.42);}
     .gantt-assignee{width:22px;height:22px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;background:var(--gold);color:#fff;font-size:9px;font-weight:800;flex-shrink:0;}
     .gantt-today{position:absolute;top:0;bottom:0;width:2px;background:var(--gold);z-index:5;box-shadow:0 0 0 1px rgba(201,164,110,.22);}
+    .gantt-dependency-layer{position:absolute;inset:0;pointer-events:none;z-index:3;overflow:visible;}
+    .gantt-dependency-line{fill:none;stroke:rgba(201,164,110,.75);stroke-width:2;stroke-linejoin:round;filter:drop-shadow(0 1px 2px rgba(0,0,0,.3));}
     .gantt-empty{padding:48px;text-align:center;color:var(--text-muted);font-size:13px;}
     .gantt-feature-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:14px;}
     .gantt-feature-card{border:1px solid var(--border-card);border-radius:12px;background:var(--surface);padding:14px;min-height:112px;}
@@ -318,6 +320,12 @@
     .gantt-participant-chip button{border:0;background:transparent;color:var(--text-muted);cursor:pointer;font-size:14px;line-height:1;}
     .gantt-other-panel{display:none;border:1px solid var(--border-sm);border-radius:10px;background:var(--surface-2);padding:12px;margin-top:10px;}
     .gantt-other-panel.open{display:block;}
+    .gantt-dependency-editor{border:1px solid var(--border-sm);border-radius:12px;background:var(--surface-2);padding:13px;}
+    .gantt-dependency-row{display:grid;grid-template-columns:1.4fr 1fr 92px auto;gap:8px;align-items:end;margin-top:10px;}
+    .gantt-dependency-list{display:flex;flex-direction:column;gap:8px;margin-top:12px;}
+    .gantt-dependency-chip{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--border-sm);border-radius:9px;background:var(--surface);padding:9px 10px;font-size:12px;color:var(--text-sub);}
+    .gantt-dependency-chip small{color:var(--text-muted);display:block;margin-top:2px;}
+    .gantt-dependency-chip button{border:0;background:transparent;color:#f87171;cursor:pointer;font-size:12px;}
     @media(max-width:1500px){.gantt-controls{grid-template-columns:repeat(3,minmax(140px,1fr));}.gantt-toolbar{flex-direction:column}.gantt-toolbar-title{max-width:none}.gantt-controls{width:100%;}.gantt-overview{grid-template-columns:repeat(3,minmax(0,1fr));}.gantt-overview-main{grid-column:1 / -1;}}
     @media(max-width:1100px){.gantt-feature-grid{grid-template-columns:1fr}.gantt-grid{grid-template-columns:240px minmax(760px,1fr)}.gantt-controls{grid-template-columns:1fr 1fr;}.gantt-overview{grid-template-columns:1fr 1fr;}}
     #ganttItemModal{position:fixed;inset:0;z-index:360;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,.64);backdrop-filter:blur(4px);}
@@ -2239,7 +2247,7 @@
         <div><label class="form-label">Phase</label><input id="ganttPhase" class="form-input" placeholder="Structural Work" /></div>
         <div><label class="form-label">Assignee / Vendor</label><input id="ganttAssignee" class="form-input" placeholder="John's Builders Pty Ltd" /></div>
         <div><label class="form-label">Client</label><input id="ganttClient" class="form-input" placeholder="Client name or company" /></div>
-        <div><label class="form-label">Dependencies</label><input id="ganttDependencies" class="form-input" placeholder="Excavation, Permit approval" /></div>
+        <div><label class="form-label">Dependency Notes</label><input id="ganttDependencies" class="form-input" placeholder="Notes about blockers or predecessor work" /></div>
         <div><label class="form-label">Start Date</label><input id="ganttStart" type="text" inputmode="none" class="form-input" placeholder="Select start date" /></div>
         <div><label class="form-label">End Date</label><input id="ganttEnd" type="text" inputmode="none" class="form-input" placeholder="Select end date" /></div>
         <div><label class="form-label">Priority</label><select id="ganttPriority" class="form-input"><option value="normal">Normal</option><option value="low">Low</option><option value="high">High</option><option value="critical">Critical</option><option value="blocking_closeout">Blocking Closeout</option></select></div>
@@ -2264,6 +2272,22 @@
           <div><label class="form-label">Participant Type</label><select id="ganttOtherType" class="form-input"><option value="Staff">Staff</option><option value="Client">Client</option><option value="Sub Contractor">Sub-Contractor</option><option value="Vendor">Vendor</option></select></div>
         </div>
         <button type="button" onclick="addGanttOtherParticipant()" class="crm-toolbar-btn mt-3">Add Participant</button>
+      </div>
+      <div class="gantt-dependency-editor">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <p class="text-[10px] uppercase tracking-widest font-medium" style="color:var(--gold)">Task Dependencies</p>
+            <p class="text-xs mt-1" style="color:var(--text-muted)">Connect predecessor steps so the Gantt chart can show visual Buildertrend-style schedule links.</p>
+          </div>
+        </div>
+        <div class="gantt-dependency-row">
+          <div><label class="form-label">Depends On</label><select id="ganttDependencySource" class="form-input"><option value="">Select schedule item</option></select></div>
+          <div><label class="form-label">Type</label><select id="ganttDependencyType" class="form-input"><option value="finish_to_start">Finish to Start</option><option value="start_to_start">Start to Start</option><option value="finish_to_finish">Finish to Finish</option><option value="start_to_finish">Start to Finish</option></select></div>
+          <div><label class="form-label">Lag Days</label><input id="ganttDependencyLag" type="number" class="form-input" value="0" /></div>
+          <button type="button" onclick="addGanttDependency()" class="crm-toolbar-btn">Add Link</button>
+        </div>
+        <label class="flex items-center gap-2 text-sm mt-3" style="color:var(--text-muted)"><input id="ganttDependencyAutoShift" type="checkbox" /> Auto-shift dependent work later</label>
+        <div id="ganttDependencyList" class="gantt-dependency-list"></div>
       </div>
       <div><label class="form-label">Description</label><textarea id="ganttDescription" class="form-input" rows="4" placeholder="Scope, notes, forms, punch lists, compliance items..."></textarea></div>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -6228,6 +6252,8 @@ let GANTT_PRIORITY  = 'all';
 let GANTT_VISIBILITY = 'all';
 let GANTT_EDIT_MODE = true;
 let GANTT_ITEMS     = [];
+let GANTT_DEPENDENCIES = [];
+let GANTT_ACTIVE_DEPENDENCIES = [];
 let GANTT_DRAG      = null;
 let GANTT_LOADED_KEY = null;
 let GANTT_LOADING    = false;
@@ -6741,6 +6767,28 @@ function mapScheduleRow(row) {
     sort_order: Number(row.sort_order) || 0
   };
 }
+function mapScheduleDependency(row) {
+  return {
+    id: row.id || '',
+    board_id: row.board_id || '',
+    project_id: row.project_id || '',
+    client_project_id: row.client_project_id || '',
+    source_item_id: row.source_item_id || '',
+    target_item_id: row.target_item_id || '',
+    dependency_type: row.dependency_type || 'finish_to_start',
+    lag_days: Number(row.lag_days) || 0,
+    auto_shift: !!row.auto_shift,
+    notes: row.notes || ''
+  };
+}
+function ganttDependencyTypeLabel(type) {
+  return {
+    finish_to_start: 'Finish to Start',
+    start_to_start: 'Start to Start',
+    finish_to_finish: 'Finish to Finish',
+    start_to_finish: 'Start to Finish'
+  }[type] || 'Finish to Start';
+}
 function ganttItemPayload(item) {
   return {
     board_id: item.board_id || ganttBoardKey(),
@@ -6819,15 +6867,25 @@ async function loadGanttItems(force) {
   if (GANTT_LOADING) return;
   GANTT_LOADING = true;
   try {
-    const res = await fetch('/api/project-schedule-items?board_id=' + encodeURIComponent(key), { headers: authHeaders() });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
+    const [itemsRes, depsRes] = await Promise.all([
+      fetch('/api/project-schedule-items?board_id=' + encodeURIComponent(key), { headers: authHeaders() }),
+      fetch('/api/project-schedule-dependencies?board_id=' + encodeURIComponent(key), { headers: authHeaders() })
+    ]);
+    if (!itemsRes.ok) throw new Error('HTTP ' + itemsRes.status);
+    const data = await itemsRes.json();
     GANTT_ITEMS = Array.isArray(data.items) ? data.items.map(mapScheduleRow) : [];
+    if (depsRes.ok) {
+      const depData = await depsRes.json();
+      GANTT_DEPENDENCIES = Array.isArray(depData.dependencies) ? depData.dependencies.map(mapScheduleDependency) : [];
+    } else {
+      GANTT_DEPENDENCIES = [];
+    }
     GANTT_LOADED_KEY = key;
   } catch (err) {
     console.warn('[Gantt] Supabase load failed:', err.message);
     showToast('Could not load schedule from Supabase.');
     GANTT_ITEMS = [];
+    GANTT_DEPENDENCIES = [];
     GANTT_LOADED_KEY = key;
   } finally {
     GANTT_LOADING = false;
@@ -6847,6 +6905,37 @@ async function persistGanttItem(item) {
   const idx = GANTT_ITEMS.findIndex(i => String(i.id) === String(item.id));
   if (idx === -1) GANTT_ITEMS.push(saved); else GANTT_ITEMS[idx] = saved;
   return saved;
+}
+async function persistGanttDependencies(targetId, item) {
+  if (!isGanttUuid(targetId)) return [];
+  const payload = {
+    board_id: ganttBoardKey(),
+    project_id: item.project_id || null,
+    client_project_id: item.client_project_id || null,
+    target_item_id: targetId,
+    dependencies: GANTT_ACTIVE_DEPENDENCIES
+      .filter(dep => dep.source_item_id && dep.source_item_id !== targetId)
+      .map(dep => ({
+        board_id: ganttBoardKey(),
+        project_id: item.project_id || null,
+        client_project_id: item.client_project_id || null,
+        source_item_id: dep.source_item_id,
+        dependency_type: dep.dependency_type || 'finish_to_start',
+        lag_days: Number(dep.lag_days) || 0,
+        auto_shift: Boolean(dep.auto_shift),
+        notes: dep.notes || ''
+      }))
+  };
+  const res = await fetch('/api/project-schedule-dependencies/bulk', {
+    method: 'POST',
+    headers: authHeaders({ 'Content-Type':'application/json' }),
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || 'Could not save dependency links');
+  GANTT_DEPENDENCIES = GANTT_DEPENDENCIES.filter(dep => String(dep.target_item_id) !== String(targetId))
+    .concat((data.dependencies || []).map(mapScheduleDependency));
+  return data.dependencies || [];
 }
 async function seedGanttSchedule() {
   try {
@@ -6960,6 +7049,8 @@ function initGanttControls() {
   buildCustomSelect('ganttPriority');
   buildCustomSelect('ganttParticipantSelect');
   buildCustomSelect('ganttOtherType');
+  buildCustomSelect('ganttDependencySource');
+  buildCustomSelect('ganttDependencyType');
 }
 function initGanttFilterControls() {
   ['ganttFilterType','ganttFilterStatus','ganttFilterPriority','ganttFilterPhase','ganttFilterAssignee','ganttFilterVisibility'].forEach(id => {
@@ -7010,6 +7101,27 @@ function renderGanttToolbar() {
       '<button onclick="openGanttItemModal(\'project\')" class="crm-toolbar-btn">Add Project</button><button onclick="openGanttItemModal(\'phase\')" class="crm-toolbar-btn">Add Phase</button><button onclick="openGanttItemModal(\'task\')" class="crm-toolbar-btn">Add Task</button><button onclick="openGanttItemModal(\'milestone\')" class="crm-toolbar-btn">Add Milestone</button></div>' +
     '</div></div>';
 }
+function renderGanttDependencySvg(positions, width, height) {
+  const visibleIds = new Set(Object.keys(positions));
+  const paths = GANTT_DEPENDENCIES
+    .filter(dep => visibleIds.has(String(dep.source_item_id)) && visibleIds.has(String(dep.target_item_id)))
+    .map(dep => {
+      const source = positions[dep.source_item_id];
+      const target = positions[dep.target_item_id];
+      let sx = source.endX + 6;
+      let tx = target.startX - 6;
+      if (dep.dependency_type === 'start_to_start' || dep.dependency_type === 'start_to_finish') sx = source.startX + 6;
+      if (dep.dependency_type === 'finish_to_finish' || dep.dependency_type === 'start_to_finish') tx = target.endX - 6;
+      const mid = Math.max(sx + 18, Math.min(width - 18, (sx + tx) / 2));
+      const path = 'M ' + sx + ' ' + source.y + ' H ' + mid + ' V ' + target.y + ' H ' + tx;
+      return '<path class="gantt-dependency-line" d="' + path + '" marker-end="url(#ganttArrow)" />';
+    }).join('');
+  if (!paths) return '';
+  return '<svg class="gantt-dependency-layer" width="' + width + '" height="' + height + '" viewBox="0 0 ' + width + ' ' + height + '" preserveAspectRatio="none">' +
+    '<defs><marker id="ganttArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(201,164,110,.85)"/></marker></defs>' +
+    paths +
+  '</svg>';
+}
 function renderGanttTimeline(items, stats) {
   if (!items.length) return '<div class="gantt-shell"><div class="gantt-empty">No schedule items match this filter.</div></div>';
   let min = items.reduce((d, i) => ganttDate(i.start) < d ? ganttDate(i.start) : d, ganttDate(items[0].start));
@@ -7026,25 +7138,33 @@ function renderGanttTimeline(items, stats) {
   }).join('');
   const todayOffset = ganttDaysBetween(min, new Date()) * dayWidth;
   let leftRows = '', timelineRows = '';
+  const positions = {};
+  let rowTop = 0;
   phases.forEach(phase => {
     const phaseItems = items.filter(i => (i.phase || 'Project Tasks') === phase);
     leftRows += '<div class="gantt-row-label group"><div><div class="gantt-row-title">' + escHtml(phase) + '</div><div class="gantt-row-sub">' + phaseItems.length + ' schedule item' + (phaseItems.length!==1?'s':'') + '</div></div></div>';
     timelineRows += '<div class="gantt-row group" style="width:' + width + 'px"></div>';
+    rowTop += 62;
     phaseItems.forEach(item => {
       const itemStart = Math.max(0, ganttDaysBetween(min, item.start));
       const duration = Math.max(1, ganttDaysBetween(item.start, item.end) + 1);
+      const itemLeft = itemStart * dayWidth;
+      const itemWidth = Math.max(38, duration * dayWidth - 6);
+      positions[item.id] = { startX: itemLeft, endX: itemLeft + itemWidth, y: rowTop + 27 };
       leftRows += '<div class="gantt-row-label"><div><div class="gantt-row-title">' + escHtml(item.title) + '</div><div class="gantt-row-sub">' + ganttTypeLabel(item.type) + ' - ' + escHtml(item.assignee || 'Unassigned') + ' - ' + ganttStatusLabel(item.status) + '</div></div></div>';
       const mediaBadge = item.media && item.media.length ? '<span style="opacity:.68">Media ' + item.media.length + '</span>' : '';
       const visibleBadge = item.client_visible ? '<span style="opacity:.68">Client</span>' : '';
       const blockedBadge = item.is_blocked ? '<span style="opacity:.75;color:#f87171">Blocked</span>' : '';
       const typeClass = item.type === 'milestone' ? ' milestone' : '';
-      timelineRows += '<div class="gantt-row" style="width:' + width + 'px"><div class="gantt-bar ' + ganttStatusClass(item.status) + typeClass + '" data-gantt-id="' + escAttr(item.id) + '" style="left:' + (itemStart * dayWidth) + 'px;width:' + Math.max(38, duration * dayWidth - 6) + 'px"><span class="gantt-assignee">' + ganttInitials(item.assignee) + '</span><span>' + escHtml(item.title) + '</span><span style="opacity:.68">' + ganttTypeLabel(item.type) + '</span>' + visibleBadge + blockedBadge + mediaBadge + '<span style="margin-left:auto;opacity:.65">' + (Number(item.progress)||0) + '%</span></div></div>';
+      timelineRows += '<div class="gantt-row" style="width:' + width + 'px"><div class="gantt-bar ' + ganttStatusClass(item.status) + typeClass + '" data-gantt-id="' + escAttr(item.id) + '" style="left:' + itemLeft + 'px;width:' + itemWidth + 'px"><span class="gantt-assignee">' + ganttInitials(item.assignee) + '</span><span>' + escHtml(item.title) + '</span><span style="opacity:.68">' + ganttTypeLabel(item.type) + '</span>' + visibleBadge + blockedBadge + mediaBadge + '<span style="margin-left:auto;opacity:.65">' + (Number(item.progress)||0) + '%</span></div></div>';
+      rowTop += 54;
     });
   });
+  const dependencySvg = renderGanttDependencySvg(positions, width, rowTop);
   const todayLine = todayOffset >= 0 && todayOffset <= width ? '<div class="gantt-today" style="left:' + todayOffset + 'px"></div>' : '';
   return '<div class="gantt-shell">' +
     '<div class="grid grid-cols-5 gap-0" style="border-bottom:1px solid var(--border-sm)"><div class="p-4"><p class="text-xs text-neutral-500">Complete</p><p class="text-xl font-display">' + stats.complete + '</p></div><div class="p-4"><p class="text-xs text-neutral-500">In progress</p><p class="text-xl font-display">' + stats.inProgress + '</p></div><div class="p-4"><p class="text-xs text-neutral-500">Delayed</p><p class="text-xl font-display">' + stats.delayed + '</p></div><div class="p-4"><p class="text-xs text-neutral-500">Blocked</p><p class="text-xl font-display">' + stats.blocked + '</p></div><div class="p-4"><p class="text-xs text-neutral-500">Overdue</p><p class="text-xl font-display">' + stats.overdue + '</p></div></div>' +
-    '<div class="gantt-grid" style="--gantt-day-width:' + dayWidth + 'px"><div class="gantt-left-head">Schedule item</div><div class="gantt-timeline-head" style="grid-template-columns:repeat(' + days + ',' + dayWidth + 'px);width:' + width + 'px">' + dayHeaders + '</div><div class="gantt-left">' + leftRows + '</div><div class="gantt-timeline" style="width:' + width + 'px">' + todayLine + timelineRows + '</div></div>' +
+    '<div class="gantt-grid" style="--gantt-day-width:' + dayWidth + 'px"><div class="gantt-left-head">Schedule item</div><div class="gantt-timeline-head" style="grid-template-columns:repeat(' + days + ',' + dayWidth + 'px);width:' + width + 'px">' + dayHeaders + '</div><div class="gantt-left">' + leftRows + '</div><div class="gantt-timeline" style="width:' + width + 'px">' + dependencySvg + todayLine + timelineRows + '</div></div>' +
   '</div>';
 }
 function renderGanttTable(items) {
@@ -7175,6 +7295,56 @@ function syncGanttParticipantHidden() {
   const hidden = document.getElementById('ganttParticipants');
   if (hidden) hidden.value = GANTT_SELECTED_PARTICIPANTS.map(participantLabel).join(', ');
 }
+function renderGanttDependencySourceSelect(currentId) {
+  const select = document.getElementById('ganttDependencySource');
+  if (!select) return;
+  destroyCustomSelect('ganttDependencySource');
+  const selected = new Set(GANTT_ACTIVE_DEPENDENCIES.map(dep => String(dep.source_item_id)));
+  const options = ['<option value="">Select schedule item</option>'];
+  GANTT_ITEMS
+    .filter(item => String(item.id) !== String(currentId) && isGanttUuid(item.id) && !selected.has(String(item.id)))
+    .forEach(item => options.push('<option value="' + escAttr(item.id) + '">' + escHtml(item.title + ' - ' + ganttTypeLabel(item.type)) + '</option>'));
+  select.innerHTML = options.join('');
+  buildCustomSelect('ganttDependencySource');
+}
+function renderGanttDependencyList() {
+  const list = document.getElementById('ganttDependencyList');
+  if (!list) return;
+  if (!GANTT_ACTIVE_DEPENDENCIES.length) {
+    list.innerHTML = '<div class="text-xs" style="color:var(--text-muted)">No predecessor links yet.</div>';
+    return;
+  }
+  list.innerHTML = GANTT_ACTIVE_DEPENDENCIES.map((dep, index) => {
+    const source = GANTT_ITEMS.find(item => String(item.id) === String(dep.source_item_id));
+    const title = source ? source.title : 'Schedule item';
+    const meta = ganttDependencyTypeLabel(dep.dependency_type) + (dep.lag_days ? ' + ' + dep.lag_days + ' day lag' : '') + (dep.auto_shift ? ' - auto-shift' : '');
+    return '<div class="gantt-dependency-chip"><div><strong>' + escHtml(title) + '</strong><small>' + escHtml(meta) + '</small></div><button type="button" onclick="removeGanttDependency(' + index + ')">Remove</button></div>';
+  }).join('');
+}
+function addGanttDependency() {
+  const source = document.getElementById('ganttDependencySource')?.value || '';
+  if (!source) { showToast('Select a predecessor schedule item first.'); return; }
+  if (GANTT_ACTIVE_DEPENDENCIES.some(dep => String(dep.source_item_id) === String(source))) {
+    showToast('That dependency is already linked.');
+    return;
+  }
+  GANTT_ACTIVE_DEPENDENCIES.push({
+    source_item_id: source,
+    dependency_type: document.getElementById('ganttDependencyType')?.value || 'finish_to_start',
+    lag_days: Number(document.getElementById('ganttDependencyLag')?.value || 0),
+    auto_shift: Boolean(document.getElementById('ganttDependencyAutoShift')?.checked),
+    notes: ''
+  });
+  if (document.getElementById('ganttDependencyLag')) document.getElementById('ganttDependencyLag').value = 0;
+  if (document.getElementById('ganttDependencyAutoShift')) document.getElementById('ganttDependencyAutoShift').checked = false;
+  renderGanttDependencySourceSelect(document.getElementById('ganttItemId')?.value || '');
+  renderGanttDependencyList();
+}
+function removeGanttDependency(index) {
+  GANTT_ACTIVE_DEPENDENCIES.splice(index, 1);
+  renderGanttDependencySourceSelect(document.getElementById('ganttItemId')?.value || '');
+  renderGanttDependencyList();
+}
 function handleGanttParticipantSelect(value) {
   if (!value) return;
   if (value === 'other') {
@@ -7289,6 +7459,8 @@ async function openGanttItemModal(type, id) {
   destroyCustomSelect('ganttPriority');
   destroyCustomSelect('ganttParticipantSelect');
   destroyCustomSelect('ganttOtherType');
+  destroyCustomSelect('ganttDependencySource');
+  destroyCustomSelect('ganttDependencyType');
   applyGanttModalTypeCopy(model, Boolean(item));
   document.getElementById('ganttItemId').value = model.id;
   document.getElementById('ganttItemType').value = model.type;
@@ -7318,10 +7490,15 @@ async function openGanttItemModal(type, id) {
   document.getElementById('ganttBlockerReason').value = model.blocker_reason || '';
   toggleGanttBlockedFields();
   GANTT_ACTIVE_MEDIA = Array.isArray(model.media) ? [...model.media] : (Array.isArray(model.metadata?.media) ? [...model.metadata.media] : []);
+  GANTT_ACTIVE_DEPENDENCIES = item
+    ? GANTT_DEPENDENCIES.filter(dep => String(dep.target_item_id) === String(item.id)).map(dep => ({ ...dep }))
+    : [];
   await loadGanttParticipants();
   initGanttControls();
   renderGanttParticipantSelect();
   renderGanttParticipantList();
+  renderGanttDependencySourceSelect(model.id);
+  renderGanttDependencyList();
   if (_fpGanttStart) _fpGanttStart.setDate(model.start || today, true);
   if (_fpGanttEnd) _fpGanttEnd.setDate(model.end || today, true);
   renderGanttMediaPreview();
@@ -7362,7 +7539,8 @@ async function saveGanttItem() {
     participant_records: [...GANTT_SELECTED_PARTICIPANTS]
   };
   try {
-    await persistGanttItem(item);
+    const saved = await persistGanttItem(item);
+    await persistGanttDependencies(saved.id, saved);
     closeGanttItemModal();
     await renderFBGantt(true);
     showToast('Schedule item saved to Supabase');
@@ -7396,6 +7574,7 @@ async function deleteGanttItem() {
       if (!res.ok) throw new Error(data.message || 'Could not delete schedule item');
     }
     GANTT_ITEMS = GANTT_ITEMS.filter(i => String(i.id) !== String(id));
+    GANTT_DEPENDENCIES = GANTT_DEPENDENCIES.filter(dep => String(dep.source_item_id) !== String(id) && String(dep.target_item_id) !== String(id));
     closeGanttItemModal();
     await renderFBGantt(true);
     showToast('Schedule item deleted');
