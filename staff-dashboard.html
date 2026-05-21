@@ -293,6 +293,19 @@
     .gantt-feature-card strong{display:block;color:var(--text);font-size:13px;margin-bottom:6px;}
     .gantt-feature-card p{color:var(--text-muted);font-size:12px;line-height:1.45;margin:0;}
     .gantt-status-dot{width:9px;height:9px;border-radius:999px;background:var(--gold);display:inline-block;box-shadow:0 0 0 4px rgba(201,164,110,.12);}
+    .gantt-overview{display:grid;grid-template-columns:1.15fr repeat(5,minmax(120px,1fr));gap:12px;margin-bottom:14px;}
+    .gantt-overview-main,.gantt-overview-card{border:1px solid var(--border-card);border-radius:12px;background:var(--surface);padding:14px;}
+    .gantt-overview-main{min-height:126px;}
+    .gantt-overview-kicker{font-size:10px;text-transform:uppercase;letter-spacing:.16em;color:var(--text-muted);font-weight:650;}
+    .gantt-overview-title{font-family:var(--font-display);font-size:20px;color:var(--text);margin-top:5px;}
+    .gantt-overview-copy{color:var(--text-muted);font-size:12px;line-height:1.45;margin-top:6px;}
+    .gantt-overview-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:13px;}
+    .gantt-overview-card span{display:block;color:var(--text-muted);font-size:11px;margin-bottom:8px;}
+    .gantt-overview-card strong{display:block;color:var(--text);font-family:var(--font-display);font-size:24px;line-height:1;}
+    .gantt-overview-card small{display:block;color:var(--text-muted);font-size:11px;margin-top:8px;line-height:1.35;}
+    .gantt-health-healthy strong{color:#4ade80;}
+    .gantt-health-watch strong{color:#fbbf24;}
+    .gantt-health-risk strong{color:#f87171;}
     .gantt-media-zone{border:1px dashed var(--border-lg);border-radius:10px;background:var(--surface-2);padding:18px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;}
     .gantt-media-zone:hover{border-color:var(--gold);background:var(--gold-alpha);}
     .gantt-media-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(108px,1fr));gap:10px;margin-top:12px;}
@@ -305,8 +318,8 @@
     .gantt-participant-chip button{border:0;background:transparent;color:var(--text-muted);cursor:pointer;font-size:14px;line-height:1;}
     .gantt-other-panel{display:none;border:1px solid var(--border-sm);border-radius:10px;background:var(--surface-2);padding:12px;margin-top:10px;}
     .gantt-other-panel.open{display:block;}
-    @media(max-width:1500px){.gantt-controls{grid-template-columns:repeat(3,minmax(140px,1fr));}.gantt-toolbar{flex-direction:column}.gantt-toolbar-title{max-width:none}.gantt-controls{width:100%;}}
-    @media(max-width:1100px){.gantt-feature-grid{grid-template-columns:1fr}.gantt-grid{grid-template-columns:240px minmax(760px,1fr)}.gantt-controls{grid-template-columns:1fr 1fr;}}
+    @media(max-width:1500px){.gantt-controls{grid-template-columns:repeat(3,minmax(140px,1fr));}.gantt-toolbar{flex-direction:column}.gantt-toolbar-title{max-width:none}.gantt-controls{width:100%;}.gantt-overview{grid-template-columns:repeat(3,minmax(0,1fr));}.gantt-overview-main{grid-column:1 / -1;}}
+    @media(max-width:1100px){.gantt-feature-grid{grid-template-columns:1fr}.gantt-grid{grid-template-columns:240px minmax(760px,1fr)}.gantt-controls{grid-template-columns:1fr 1fr;}.gantt-overview{grid-template-columns:1fr 1fr;}}
     #ganttItemModal{position:fixed;inset:0;z-index:360;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,.64);backdrop-filter:blur(4px);}
     #ganttItemModal.open{display:flex;}
     #ganttItemPanel{width:100%;max-width:720px;max-height:92vh;overflow-y:auto;border-radius:16px;background:var(--surface);border:1px solid var(--border-card);box-shadow:0 32px 80px rgba(0,0,0,.55);}
@@ -6894,6 +6907,47 @@ function ganttCurrentFilterOptions(items) {
     assignees: ganttUniqueOptions(items.map(i => i.assignee || 'Unassigned')),
   };
 }
+function ganttScheduleStats() {
+  const today = ganttDate(new Date());
+  const soon = ganttAddDays(today, 14);
+  const total = GANTT_ITEMS.length;
+  const tasks = GANTT_ITEMS.filter(i => i.type === 'task');
+  const phases = GANTT_ITEMS.filter(i => i.type === 'phase');
+  const milestones = GANTT_ITEMS.filter(i => i.type === 'milestone');
+  const complete = GANTT_ITEMS.filter(i => i.status === 'complete').length;
+  const inProgress = GANTT_ITEMS.filter(i => i.status === 'in_progress').length;
+  const delayed = GANTT_ITEMS.filter(i => i.status === 'delayed' || i.status === 'blocked').length;
+  const blocked = GANTT_ITEMS.filter(i => i.status === 'blocked' || i.is_blocked).length;
+  const overdue = GANTT_ITEMS.filter(i => i.status !== 'complete' && ganttDate(i.end) < today).length;
+  const clientVisible = GANTT_ITEMS.filter(i => i.client_visible).length;
+  const pendingConfirm = GANTT_ITEMS.filter(i => i.notify && i.status !== 'complete').length;
+  const upcomingMilestones = milestones.filter(i => i.status !== 'complete' && ganttDate(i.start) >= today && ganttDate(i.start) <= soon).length;
+  const upcomingItems = GANTT_ITEMS.filter(i => i.status !== 'complete' && ganttDate(i.start) >= today && ganttDate(i.start) <= soon).length;
+  const progress = total ? Math.round(GANTT_ITEMS.reduce((sum, i) => sum + (Number(i.progress) || 0), 0) / total) : 0;
+  const health = blocked || overdue ? 'At risk' : delayed ? 'Watch' : 'Healthy';
+  return { total, tasks: tasks.length, phases: phases.length, milestones: milestones.length, complete, inProgress, delayed, blocked, overdue, clientVisible, pendingConfirm, upcomingMilestones, upcomingItems, progress, health };
+}
+function renderGanttOverview(stats) {
+  const healthClass = stats.health === 'Healthy' ? 'gantt-health-healthy' : stats.health === 'Watch' ? 'gantt-health-watch' : 'gantt-health-risk';
+  return '<div class="gantt-overview">' +
+    '<div class="gantt-overview-main">' +
+      '<div class="gantt-overview-kicker">Project Management Overview</div>' +
+      '<div class="gantt-overview-title">' + escHtml(ganttBoardTitle()) + '</div>' +
+      '<p class="gantt-overview-copy">Track phases, tasks, milestones, blocked work, client-visible schedule items, and upcoming deadlines from one project command view.</p>' +
+      '<div class="gantt-overview-actions">' +
+        '<button onclick="openGanttItemModal(\'phase\')" class="crm-toolbar-btn">Add Phase</button>' +
+        '<button onclick="openGanttItemModal(\'task\')" class="crm-toolbar-btn">Add Task</button>' +
+        '<button onclick="openGanttItemModal(\'milestone\')" class="crm-toolbar-btn">Add Milestone</button>' +
+        '<button onclick="setGanttVisibility(\'blocked\')" class="crm-toolbar-btn">Review Blockers</button>' +
+      '</div>' +
+    '</div>' +
+    '<div class="gantt-overview-card ' + healthClass + '"><span>Schedule Health</span><strong>' + escHtml(stats.health) + '</strong><small>' + stats.overdue + ' overdue, ' + stats.blocked + ' blocked</small></div>' +
+    '<div class="gantt-overview-card"><span>Active Items</span><strong>' + stats.total + '</strong><small>' + stats.phases + ' phases, ' + stats.tasks + ' tasks</small></div>' +
+    '<div class="gantt-overview-card"><span>Progress</span><strong>' + stats.progress + '%</strong><small>' + stats.complete + ' completed, ' + stats.inProgress + ' active</small></div>' +
+    '<div class="gantt-overview-card"><span>Milestones</span><strong>' + stats.milestones + '</strong><small>' + stats.upcomingMilestones + ' due in next 14 days</small></div>' +
+    '<div class="gantt-overview-card"><span>Client Visible</span><strong>' + stats.clientVisible + '</strong><small>' + stats.pendingConfirm + ' pending notification</small></div>' +
+  '</div>';
+}
 function initGanttControls() {
   if (typeof flatpickr !== 'undefined') {
     const cfg = { dateFormat:'Y-m-d', altInput:true, altFormat:'F j, Y', allowInput:false, disableMobile:true };
@@ -6921,27 +6975,20 @@ async function renderFBGantt(forceLoad) {
   }
   await loadGanttItems(forceLoad);
   const items = ganttFilteredItems();
-  const total = GANTT_ITEMS.length || 1;
-  const complete = GANTT_ITEMS.filter(i => i.status === 'complete').length;
-  const inProgress = GANTT_ITEMS.filter(i => i.status === 'in_progress').length;
-  const delayed = GANTT_ITEMS.filter(i => i.status === 'delayed' || i.status === 'blocked').length;
-  const blocked = GANTT_ITEMS.filter(i => i.status === 'blocked' || i.is_blocked).length;
-  const overdue = GANTT_ITEMS.filter(i => i.status !== 'complete' && ganttDate(i.end) < ganttDate(new Date())).length;
-  const pendingConfirm = GANTT_ITEMS.filter(i => i.notify && i.status !== 'complete').length;
-  const progress = Math.round((GANTT_ITEMS.reduce((sum, i) => sum + (Number(i.progress) || 0), 0) / total));
-  const health = blocked || overdue ? 'At risk' : delayed ? 'Watch' : 'Healthy';
+  const stats = ganttScheduleStats();
   const features =
+    renderGanttOverview(stats) +
     '<div class="gantt-feature-grid">' +
       '<div class="gantt-feature-card"><strong>Build your schedule</strong><p>Import documents, photos, forms, and notes to shape the construction schedule around this project.</p><button onclick="document.getElementById(\'ganttImportInput\').click()" class="crm-toolbar-btn mt-3">Import documents</button><button onclick="seedGanttSchedule()" class="crm-toolbar-btn mt-3 ml-2">Use starter schedule</button><input id="ganttImportInput" type="file" multiple class="hidden" onchange="ganttImportDocs(this)" /></div>' +
-      '<div class="gantt-feature-card"><strong>Real-time progress tracking</strong><p>Track in progress, complete, delayed, blocked, and pending confirmation tasks in one timeline.</p><div class="mt-3 h-2 rounded-full overflow-hidden" style="background:var(--surface-2)"><div style="height:100%;width:' + progress + '%;background:var(--gold)"></div></div><p class="mt-2">' + progress + '% average progress</p></div>' +
-      '<div class="gantt-feature-card"><strong>Project health: ' + health + '</strong><p>' + overdue + ' overdue, ' + blocked + ' blocked, and ' + pendingConfirm + ' pending confirmation.</p><button onclick="publishGanttSchedule()" class="crm-toolbar-btn mt-3">Publish schedule</button></div>' +
+      '<div class="gantt-feature-card"><strong>Real-time progress tracking</strong><p>Track in progress, complete, delayed, blocked, and pending confirmation tasks in one timeline.</p><div class="mt-3 h-2 rounded-full overflow-hidden" style="background:var(--surface-2)"><div style="height:100%;width:' + stats.progress + '%;background:var(--gold)"></div></div><p class="mt-2">' + stats.progress + '% average progress</p></div>' +
+      '<div class="gantt-feature-card"><strong>Project health: ' + stats.health + '</strong><p>' + stats.overdue + ' overdue, ' + stats.blocked + ' blocked, and ' + stats.pendingConfirm + ' pending confirmation.</p><button onclick="publishGanttSchedule()" class="crm-toolbar-btn mt-3">Publish schedule</button></div>' +
     '</div>';
   if (GANTT_MODE === 'table') {
     wrap.innerHTML = features + renderGanttToolbar() + renderGanttTable(items);
     initGanttFilterControls();
     return;
   }
-  wrap.innerHTML = features + renderGanttToolbar() + renderGanttTimeline(items, { complete, inProgress, delayed, blocked, overdue, pendingConfirm });
+  wrap.innerHTML = features + renderGanttToolbar() + renderGanttTimeline(items, stats);
   initGanttFilterControls();
   bindGanttDrag();
 }
