@@ -281,20 +281,26 @@
     .gantt-row{position:relative;height:54px;border-bottom:1px solid var(--border-sm);background-image:linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);background-size:var(--gantt-day-width,44px) 100%;}
     .gantt-row.group{height:62px;background-color:var(--surface-2);}
     .gantt-bar{position:absolute;top:10px;height:34px;border-radius:8px;background:rgba(201,164,110,.18);border:1px solid rgba(201,164,110,.48);color:var(--text);display:flex;align-items:center;gap:8px;padding:0 14px 0 10px;font-size:12px;font-weight:650;white-space:nowrap;overflow:visible;cursor:grab;box-shadow:0 10px 24px rgba(0,0,0,.2);touch-action:none;z-index:7;}
-    .gantt-bar-title{min-width:0;overflow:hidden;text-overflow:ellipsis;}
+    .gantt-bar-title{min-width:0;overflow:hidden;text-overflow:ellipsis;flex:1 1 auto;}
     .gantt-bar.dragging{cursor:grabbing;box-shadow:0 18px 34px rgba(0,0,0,.34);z-index:20;}
     .gantt-bar.link-target{border-color:var(--gold);box-shadow:0 0 0 3px rgba(201,164,110,.18),0 18px 34px rgba(0,0,0,.3);}
     .gantt-bar.done{background:rgba(34,197,94,.16);border-color:rgba(34,197,94,.42);}
     .gantt-bar.blocked{background:rgba(239,68,68,.16);border-color:rgba(239,68,68,.42);}
     .gantt-bar.milestone{background:rgba(56,189,248,.15);border-color:rgba(56,189,248,.42);}
     .gantt-assignee{width:22px;height:22px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;background:var(--gold);color:#fff;font-size:9px;font-weight:800;flex-shrink:0;}
-    .gantt-connector-handle{position:absolute;right:-8px;top:50%;width:15px;height:15px;margin-top:-7.5px;border-radius:999px;background:var(--gold);border:2px solid var(--surface);box-shadow:0 0 0 0 rgba(201,164,110,.45);cursor:crosshair;z-index:12;animation:ganttPulse 1.7s infinite;}
+    .gantt-connector-handle{position:absolute;top:50%;width:15px;height:15px;margin-top:-7.5px;border-radius:999px;background:var(--gold);border:2px solid var(--surface);box-shadow:0 0 0 0 rgba(201,164,110,.45);cursor:crosshair;z-index:12;animation:ganttPulse 1.7s infinite;}
+    .gantt-connector-handle.start{left:-8px;}
+    .gantt-connector-handle.end{right:-8px;}
     .gantt-connector-handle::after{content:"";position:absolute;inset:3px;border-radius:999px;background:#fff;opacity:.8;}
     .gantt-connector-handle:hover{transform:scale(1.1);}
     @keyframes ganttPulse{0%{box-shadow:0 0 0 0 rgba(201,164,110,.45);}70%{box-shadow:0 0 0 8px rgba(201,164,110,0);}100%{box-shadow:0 0 0 0 rgba(201,164,110,0);}}
     .gantt-today{position:absolute;top:0;bottom:0;width:2px;background:var(--gold);z-index:5;box-shadow:0 0 0 1px rgba(201,164,110,.22);}
-    .gantt-dependency-layer{position:absolute;inset:0;pointer-events:none;z-index:3;overflow:visible;}
-    .gantt-dependency-line{fill:none;stroke:rgba(201,164,110,.75);stroke-width:2;stroke-linejoin:round;filter:drop-shadow(0 1px 2px rgba(0,0,0,.3));}
+    .gantt-dependency-layer{position:absolute;inset:0;pointer-events:none;z-index:8;overflow:visible;}
+    .gantt-dependency-line{fill:none;stroke:rgba(201,164,110,.62);stroke-width:2;stroke-linejoin:round;stroke-linecap:round;filter:drop-shadow(0 1px 2px rgba(0,0,0,.3));}
+    .gantt-dependency-dot{fill:var(--gold);stroke:var(--surface);stroke-width:2;filter:drop-shadow(0 1px 2px rgba(0,0,0,.28));}
+    .gantt-dependency-rewire{pointer-events:auto;cursor:grab;}
+    .gantt-dependency-rewire:hover{fill:#f1c57f;}
+    .gantt-dependency-rewire.dragging{cursor:grabbing;}
     .gantt-dependency-draft-layer{position:absolute;inset:0;pointer-events:none;z-index:18;overflow:visible;}
     .gantt-dependency-draft-line{fill:none;stroke:var(--gold);stroke-width:2.5;stroke-linecap:round;stroke-dasharray:6 5;filter:drop-shadow(0 1px 2px rgba(0,0,0,.35));}
     .gantt-empty{padding:48px;text-align:center;color:var(--text-muted);font-size:13px;}
@@ -6972,6 +6978,17 @@ async function saveGanttDependencyLink(sourceId, targetId, dependencyType = 'fin
   await persistGanttDependencies(targetId, target);
   return true;
 }
+async function moveGanttDependencyLink(depId, sourceId, oldTargetId, newTargetId, dependencyType = 'finish_to_start') {
+  if (!isGanttUuid(newTargetId) || String(oldTargetId) === String(newTargetId)) return false;
+  const oldTarget = GANTT_ITEMS.find(item => String(item.id) === String(oldTargetId));
+  if (oldTarget) {
+    GANTT_ACTIVE_DEPENDENCIES = GANTT_DEPENDENCIES
+      .filter(dep => String(dep.target_item_id) === String(oldTargetId) && String(dep.id) !== String(depId))
+      .map(dep => ({ ...dep }));
+    await persistGanttDependencies(oldTargetId, oldTarget);
+  }
+  return saveGanttDependencyLink(sourceId, newTargetId, dependencyType);
+}
 async function seedGanttSchedule() {
   try {
     const seeds = ganttTaskSeeds().map(seed => ({ ...seed, id:'', board_id:ganttBoardKey(), project:seed.project || ganttBoardTitle() }));
@@ -7143,17 +7160,26 @@ function renderGanttDependencySvg(positions, width, height) {
     .map(dep => {
       const source = positions[dep.source_item_id];
       const target = positions[dep.target_item_id];
-      let sx = source.endX + 6;
-      let tx = target.startX - 6;
-      if (dep.dependency_type === 'start_to_start' || dep.dependency_type === 'start_to_finish') sx = source.startX + 6;
-      if (dep.dependency_type === 'finish_to_finish' || dep.dependency_type === 'start_to_finish') tx = target.endX - 6;
-      const mid = Math.max(sx + 18, Math.min(width - 18, (sx + tx) / 2));
+      let sx = source.endX - 1;
+      let tx = target.startX + 1;
+      if (dep.dependency_type === 'start_to_start' || dep.dependency_type === 'start_to_finish') sx = source.startX + 1;
+      if (dep.dependency_type === 'finish_to_finish' || dep.dependency_type === 'start_to_finish') tx = target.endX - 1;
+      const direction = tx >= sx ? 1 : -1;
+      const elbow = Math.max(18, Math.min(72, Math.abs(tx - sx) / 2));
+      const mid = direction > 0
+        ? Math.min(width - 8, Math.max(sx + elbow, (sx + tx) / 2))
+        : Math.max(8, Math.min(sx - elbow, (sx + tx) / 2));
       const path = 'M ' + sx + ' ' + source.y + ' H ' + mid + ' V ' + target.y + ' H ' + tx;
-      return '<path class="gantt-dependency-line" d="' + path + '" marker-end="url(#ganttArrow)" />';
+      const id = escAttr(dep.id || '');
+      const sourceId = escAttr(dep.source_item_id || '');
+      const targetId = escAttr(dep.target_item_id || '');
+      const type = escAttr(dep.dependency_type || 'finish_to_start');
+      return '<path class="gantt-dependency-line" d="' + path + '" />' +
+        '<circle class="gantt-dependency-dot" cx="' + sx + '" cy="' + source.y + '" r="4" />' +
+        '<circle class="gantt-dependency-dot gantt-dependency-rewire" cx="' + tx + '" cy="' + target.y + '" r="5" data-dependency-id="' + id + '" data-source-id="' + sourceId + '" data-target-id="' + targetId + '" data-dependency-type="' + type + '"><title>Drag to reconnect this dependency</title></circle>';
     }).join('');
   if (!paths) return '';
   return '<svg class="gantt-dependency-layer" width="' + width + '" height="' + height + '" viewBox="0 0 ' + width + ' ' + height + '" preserveAspectRatio="none">' +
-    '<defs><marker id="ganttArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(201,164,110,.85)"/></marker></defs>' +
     paths +
   '</svg>';
 }
@@ -7191,7 +7217,9 @@ function renderGanttTimeline(items, stats) {
       const visibleBadge = item.client_visible ? '<span style="opacity:.68">Client</span>' : '';
       const blockedBadge = item.is_blocked ? '<span style="opacity:.75;color:#f87171">Blocked</span>' : '';
       const typeClass = item.type === 'milestone' ? ' milestone' : '';
-      timelineRows += '<div class="gantt-row" style="width:' + width + 'px"><div class="gantt-bar ' + ganttStatusClass(item.status) + typeClass + '" data-gantt-id="' + escAttr(item.id) + '" style="left:' + itemLeft + 'px;width:' + itemWidth + 'px"><span class="gantt-assignee">' + ganttInitials(item.assignee) + '</span><span class="gantt-bar-title">' + escHtml(item.title) + '</span><span style="opacity:.68">' + ganttTypeLabel(item.type) + '</span>' + visibleBadge + blockedBadge + mediaBadge + '<span style="margin-left:auto;opacity:.65">' + (Number(item.progress)||0) + '%</span><span class="gantt-connector-handle" title="Drag to connect this item to another schedule item" data-gantt-source="' + escAttr(item.id) + '"></span></div></div>';
+      const startHandle = GANTT_EDIT_MODE ? '<span class="gantt-connector-handle start" title="Drag from start to connect this item" data-gantt-source="' + escAttr(item.id) + '" data-gantt-side="start"></span>' : '';
+      const endHandle = GANTT_EDIT_MODE ? '<span class="gantt-connector-handle end" title="Drag from end to connect this item" data-gantt-source="' + escAttr(item.id) + '" data-gantt-side="end"></span>' : '';
+      timelineRows += '<div class="gantt-row" style="width:' + width + 'px"><div class="gantt-bar ' + ganttStatusClass(item.status) + typeClass + '" data-gantt-id="' + escAttr(item.id) + '" style="left:' + itemLeft + 'px;width:' + itemWidth + 'px">' + startHandle + '<span class="gantt-assignee">' + ganttInitials(item.assignee) + '</span><span class="gantt-bar-title">' + escHtml(item.title) + '</span><span style="opacity:.68">' + ganttTypeLabel(item.type) + '</span>' + visibleBadge + blockedBadge + mediaBadge + '<span style="margin-left:auto;opacity:.65">' + (Number(item.progress)||0) + '%</span>' + endHandle + '</div></div>';
       rowTop += 54;
     });
   });
@@ -7472,11 +7500,13 @@ function bindGanttDependencyDrag() {
       e.preventDefault();
       e.stopPropagation();
       const sourceId = handle.dataset.ganttSource;
+      const side = handle.dataset.ganttSide || 'end';
       const timeline = handle.closest('.gantt-timeline');
       if (!sourceId || !timeline) return;
       const rect = handle.getBoundingClientRect();
       GANTT_LINK_DRAG = {
         sourceId,
+        dependencyType: side === 'start' ? 'start_to_start' : 'finish_to_start',
         handle,
         timeline,
         start: ganttTimelinePoint(timeline, rect.left + rect.width / 2, rect.top + rect.height / 2)
@@ -7494,6 +7524,7 @@ function bindGanttDependencyDrag() {
       e.preventDefault();
       e.stopPropagation();
       const sourceId = GANTT_LINK_DRAG.sourceId;
+      const dependencyType = GANTT_LINK_DRAG.dependencyType || 'finish_to_start';
       const targetBar = ganttDropTargetAt(e.clientX, e.clientY, sourceId);
       const targetId = targetBar?.dataset.ganttId || '';
       clearGanttLinkDrag();
@@ -7502,7 +7533,7 @@ function bindGanttDependencyDrag() {
         return;
       }
       try {
-        const saved = await saveGanttDependencyLink(sourceId, targetId);
+        const saved = await saveGanttDependencyLink(sourceId, targetId, dependencyType);
         if (saved) {
           await renderFBGantt(true);
           showToast('Schedule items connected');
@@ -7514,8 +7545,66 @@ function bindGanttDependencyDrag() {
     handle.addEventListener('pointercancel', clearGanttLinkDrag);
   });
 }
+function bindGanttDependencyRewire() {
+  document.querySelectorAll('.gantt-dependency-rewire').forEach(dot => {
+    dot.addEventListener('pointerdown', e => {
+      if (!GANTT_EDIT_MODE) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const timeline = dot.closest('.gantt-timeline');
+      const sourceId = dot.dataset.sourceId;
+      if (!timeline || !sourceId) return;
+      dot.classList.add('dragging');
+      GANTT_LINK_DRAG = {
+        mode: 'rewire',
+        depId: dot.dataset.dependencyId || '',
+        sourceId,
+        oldTargetId: dot.dataset.targetId || '',
+        dependencyType: dot.dataset.dependencyType || 'finish_to_start',
+        handle: dot,
+        timeline,
+        start: ganttTimelinePoint(timeline, Number(dot.getAttribute('cx')) + timeline.getBoundingClientRect().left, Number(dot.getAttribute('cy')) + timeline.getBoundingClientRect().top)
+      };
+      dot.setPointerCapture(e.pointerId);
+      updateGanttLinkDraft(e.clientX, e.clientY);
+    });
+    dot.addEventListener('pointermove', e => {
+      if (!GANTT_LINK_DRAG || GANTT_LINK_DRAG.handle !== dot) return;
+      e.preventDefault();
+      updateGanttLinkDraft(e.clientX, e.clientY);
+    });
+    dot.addEventListener('pointerup', async e => {
+      if (!GANTT_LINK_DRAG || GANTT_LINK_DRAG.handle !== dot) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const drag = { ...GANTT_LINK_DRAG };
+      const targetBar = ganttDropTargetAt(e.clientX, e.clientY, drag.sourceId);
+      const targetId = targetBar?.dataset.ganttId || '';
+      dot.classList.remove('dragging');
+      clearGanttLinkDrag();
+      if (!targetId) {
+        showToast('Drop the connector endpoint on another schedule item.');
+        return;
+      }
+      try {
+        const saved = await moveGanttDependencyLink(drag.depId, drag.sourceId, drag.oldTargetId, targetId, drag.dependencyType);
+        if (saved) {
+          await renderFBGantt(true);
+          showToast('Dependency repositioned');
+        }
+      } catch (err) {
+        showToast(err.message || 'Could not reposition dependency');
+      }
+    });
+    dot.addEventListener('pointercancel', () => {
+      dot.classList.remove('dragging');
+      clearGanttLinkDrag();
+    });
+  });
+}
 function bindGanttDrag() {
   bindGanttDependencyDrag();
+  bindGanttDependencyRewire();
   document.querySelectorAll('.gantt-bar').forEach(bar => {
     bar.addEventListener('pointerdown', e => {
       if (!GANTT_EDIT_MODE) return;
