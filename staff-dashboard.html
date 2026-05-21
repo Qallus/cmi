@@ -6201,6 +6201,11 @@ let FB_CAL_MONTH    = new Date().getMonth();
 let GANTT_MODE      = 'timeline';
 let GANTT_ZOOM      = 44;
 let GANTT_STATUS    = 'all';
+let GANTT_TYPE      = 'all';
+let GANTT_PHASE     = 'all';
+let GANTT_ASSIGNEE  = 'all';
+let GANTT_PRIORITY  = 'all';
+let GANTT_VISIBILITY = 'all';
 let GANTT_EDIT_MODE = true;
 let GANTT_ITEMS     = [];
 let GANTT_DRAG      = null;
@@ -6835,7 +6840,17 @@ async function seedGanttSchedule() {
   }
 }
 function ganttFilteredItems() {
-  return GANTT_ITEMS.filter(item => GANTT_STATUS === 'all' || item.status === GANTT_STATUS);
+  return GANTT_ITEMS.filter(item => {
+    if (GANTT_STATUS !== 'all' && item.status !== GANTT_STATUS) return false;
+    if (GANTT_TYPE !== 'all' && item.type !== GANTT_TYPE) return false;
+    if (GANTT_PRIORITY !== 'all' && (item.priority || 'normal') !== GANTT_PRIORITY) return false;
+    if (GANTT_PHASE !== 'all' && (item.phase || 'Project Tasks') !== GANTT_PHASE) return false;
+    if (GANTT_ASSIGNEE !== 'all' && (item.assignee || 'Unassigned') !== GANTT_ASSIGNEE) return false;
+    if (GANTT_VISIBILITY === 'client' && !item.client_visible) return false;
+    if (GANTT_VISIBILITY === 'internal' && item.client_visible) return false;
+    if (GANTT_VISIBILITY === 'blocked' && !(item.is_blocked || item.status === 'blocked')) return false;
+    return true;
+  });
 }
 function ganttStatusLabel(status) {
   return String(status || 'pending').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
@@ -6845,6 +6860,32 @@ function ganttStatusClass(status) {
   if (status === 'delayed' || status === 'blocked') return 'blocked';
   if (status === 'in_progress') return 'milestone';
   return '';
+}
+function ganttTypeLabel(type) {
+  return {
+    project: 'Project',
+    phase: 'Phase',
+    task: 'Task',
+    milestone: 'Milestone'
+  }[type] || 'Task';
+}
+function ganttUniqueOptions(values) {
+  return [...new Set(values.map(v => String(v || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+}
+function ganttOptionHtml(value, label, selectedValue) {
+  return '<option value="' + escAttr(value) + '"' + (String(selectedValue) === String(value) ? ' selected' : '') + '>' + escHtml(label) + '</option>';
+}
+function ganttFilterSelect(id, label, value, options, handler) {
+  return '<label class="text-[10px] uppercase tracking-widest" style="color:var(--text-muted)">' + label +
+    '<select id="' + id + '" class="form-input text-sm mt-1" style="width:150px" onchange="' + handler + '(this.value)">' +
+      options.map(opt => ganttOptionHtml(opt.value, opt.label, value)).join('') +
+    '</select></label>';
+}
+function ganttCurrentFilterOptions(items) {
+  return {
+    phases: ganttUniqueOptions(items.map(i => i.phase || 'Project Tasks')),
+    assignees: ganttUniqueOptions(items.map(i => i.assignee || 'Unassigned')),
+  };
 }
 function initGanttControls() {
   if (typeof flatpickr !== 'undefined') {
@@ -6890,14 +6931,21 @@ async function renderFBGantt(forceLoad) {
   bindGanttDrag();
 }
 function renderGanttToolbar() {
+  const opts = ganttCurrentFilterOptions(GANTT_ITEMS);
   return '<div class="gantt-toolbar">' +
     '<div><div class="flex items-center gap-2 mb-1"><span class="gantt-status-dot"></span><h3 class="font-display text-lg" style="color:var(--text)">' + escHtml(ganttBoardTitle()) + '</h3></div><p class="text-xs" style="color:var(--text-muted)">Project schedule, tasks, dependencies, participants, and timeline controls.</p></div>' +
     '<div class="flex flex-wrap items-center gap-2">' +
       '<div class="gantt-tabs"><button class="gantt-view-tab ' + (GANTT_MODE==='timeline'?'active':'') + '" onclick="setGanttMode(\'timeline\')">Timeline</button><button class="gantt-view-tab ' + (GANTT_MODE==='table'?'active':'') + '" onclick="setGanttMode(\'table\')">Table</button></div>' +
-      '<select class="form-input text-sm" style="width:150px" onchange="setGanttStatus(this.value)"><option value="all"' + (GANTT_STATUS==='all'?' selected':'') + '>All status</option><option value="pending"' + (GANTT_STATUS==='pending'?' selected':'') + '>Pending</option><option value="in_progress"' + (GANTT_STATUS==='in_progress'?' selected':'') + '>In progress</option><option value="delayed"' + (GANTT_STATUS==='delayed'?' selected':'') + '>Delayed</option><option value="blocked"' + (GANTT_STATUS==='blocked'?' selected':'') + '>Blocked</option><option value="complete"' + (GANTT_STATUS==='complete'?' selected':'') + '>Complete</option></select>' +
+      ganttFilterSelect('ganttFilterType', 'Type', GANTT_TYPE, [{value:'all',label:'All types'},{value:'project',label:'Projects'},{value:'phase',label:'Phases'},{value:'task',label:'Tasks'},{value:'milestone',label:'Milestones'}], 'setGanttType') +
+      ganttFilterSelect('ganttFilterStatus', 'Status', GANTT_STATUS, [{value:'all',label:'All status'},{value:'pending',label:'Pending'},{value:'in_progress',label:'In progress'},{value:'delayed',label:'Delayed'},{value:'blocked',label:'Blocked'},{value:'complete',label:'Complete'}], 'setGanttStatus') +
+      ganttFilterSelect('ganttFilterPriority', 'Priority', GANTT_PRIORITY, [{value:'all',label:'All priority'},{value:'low',label:'Low'},{value:'normal',label:'Normal'},{value:'high',label:'High'},{value:'critical',label:'Critical'},{value:'blocking_closeout',label:'Blocking closeout'}], 'setGanttPriority') +
+      ganttFilterSelect('ganttFilterPhase', 'Phase', GANTT_PHASE, [{value:'all',label:'All phases'}].concat(opts.phases.map(p => ({ value:p, label:p }))), 'setGanttPhase') +
+      ganttFilterSelect('ganttFilterAssignee', 'Assignee', GANTT_ASSIGNEE, [{value:'all',label:'All assignees'}].concat(opts.assignees.map(a => ({ value:a, label:a }))), 'setGanttAssignee') +
+      ganttFilterSelect('ganttFilterVisibility', 'Visibility', GANTT_VISIBILITY, [{value:'all',label:'All visibility'},{value:'client',label:'Client visible'},{value:'internal',label:'Internal only'},{value:'blocked',label:'Blocked only'}], 'setGanttVisibility') +
+      '<button onclick="clearGanttFilters()" class="crm-toolbar-btn">Clear filters</button>' +
       '<button onclick="shiftGanttZoom(-6)" class="crm-toolbar-btn">Weekly view</button><button onclick="shiftGanttZoom(6)" class="crm-toolbar-btn">Detailed view</button>' +
       '<button onclick="toggleGanttEditMode()" class="crm-toolbar-btn">' + (GANTT_EDIT_MODE ? 'Editing schedule' : 'View only') + '</button>' +
-      '<button onclick="openGanttItemModal(\'project\')" class="crm-toolbar-btn">Add Project</button><button onclick="openGanttItemModal(\'task\')" class="crm-toolbar-btn">Add Task</button>' +
+      '<button onclick="openGanttItemModal(\'project\')" class="crm-toolbar-btn">Add Project</button><button onclick="openGanttItemModal(\'phase\')" class="crm-toolbar-btn">Add Phase</button><button onclick="openGanttItemModal(\'task\')" class="crm-toolbar-btn">Add Task</button><button onclick="openGanttItemModal(\'milestone\')" class="crm-toolbar-btn">Add Milestone</button>' +
     '</div></div>';
 }
 function renderGanttTimeline(items, stats) {
@@ -6916,30 +6964,45 @@ function renderGanttTimeline(items, stats) {
   let leftRows = '', timelineRows = '';
   phases.forEach(phase => {
     const phaseItems = items.filter(i => (i.phase || 'Project Tasks') === phase);
-    leftRows += '<div class="gantt-row-label group"><div><div class="gantt-row-title">' + escHtml(phase) + '</div><div class="gantt-row-sub">' + phaseItems.length + ' task' + (phaseItems.length!==1?'s':'') + '</div></div></div>';
+    leftRows += '<div class="gantt-row-label group"><div><div class="gantt-row-title">' + escHtml(phase) + '</div><div class="gantt-row-sub">' + phaseItems.length + ' schedule item' + (phaseItems.length!==1?'s':'') + '</div></div></div>';
     timelineRows += '<div class="gantt-row group" style="width:' + width + 'px"></div>';
     phaseItems.forEach(item => {
       const itemStart = Math.max(0, ganttDaysBetween(min, item.start));
       const duration = Math.max(1, ganttDaysBetween(item.start, item.end) + 1);
-      leftRows += '<div class="gantt-row-label"><div><div class="gantt-row-title">' + escHtml(item.title) + '</div><div class="gantt-row-sub">' + escHtml(item.assignee || 'Unassigned') + ' - ' + ganttStatusLabel(item.status) + '</div></div></div>';
+      leftRows += '<div class="gantt-row-label"><div><div class="gantt-row-title">' + escHtml(item.title) + '</div><div class="gantt-row-sub">' + ganttTypeLabel(item.type) + ' - ' + escHtml(item.assignee || 'Unassigned') + ' - ' + ganttStatusLabel(item.status) + '</div></div></div>';
       const mediaBadge = item.media && item.media.length ? '<span style="opacity:.68">Media ' + item.media.length + '</span>' : '';
       const visibleBadge = item.client_visible ? '<span style="opacity:.68">Client</span>' : '';
       const blockedBadge = item.is_blocked ? '<span style="opacity:.75;color:#f87171">Blocked</span>' : '';
-      timelineRows += '<div class="gantt-row" style="width:' + width + 'px"><div class="gantt-bar ' + ganttStatusClass(item.status) + '" data-gantt-id="' + escAttr(item.id) + '" style="left:' + (itemStart * GANTT_ZOOM) + 'px;width:' + (duration * GANTT_ZOOM - 6) + 'px"><span class="gantt-assignee">' + ganttInitials(item.assignee) + '</span><span>' + escHtml(item.title) + '</span>' + visibleBadge + blockedBadge + mediaBadge + '<span style="margin-left:auto;opacity:.65">' + (Number(item.progress)||0) + '%</span></div></div>';
+      const typeClass = item.type === 'milestone' ? ' milestone' : '';
+      timelineRows += '<div class="gantt-row" style="width:' + width + 'px"><div class="gantt-bar ' + ganttStatusClass(item.status) + typeClass + '" data-gantt-id="' + escAttr(item.id) + '" style="left:' + (itemStart * GANTT_ZOOM) + 'px;width:' + (duration * GANTT_ZOOM - 6) + 'px"><span class="gantt-assignee">' + ganttInitials(item.assignee) + '</span><span>' + escHtml(item.title) + '</span><span style="opacity:.68">' + ganttTypeLabel(item.type) + '</span>' + visibleBadge + blockedBadge + mediaBadge + '<span style="margin-left:auto;opacity:.65">' + (Number(item.progress)||0) + '%</span></div></div>';
     });
   });
   const todayLine = todayOffset >= 0 && todayOffset <= width ? '<div class="gantt-today" style="left:' + todayOffset + 'px"></div>' : '';
   return '<div class="gantt-shell">' +
     '<div class="grid grid-cols-5 gap-0" style="border-bottom:1px solid var(--border-sm)"><div class="p-4"><p class="text-xs text-neutral-500">Complete</p><p class="text-xl font-display">' + stats.complete + '</p></div><div class="p-4"><p class="text-xs text-neutral-500">In progress</p><p class="text-xl font-display">' + stats.inProgress + '</p></div><div class="p-4"><p class="text-xs text-neutral-500">Delayed</p><p class="text-xl font-display">' + stats.delayed + '</p></div><div class="p-4"><p class="text-xs text-neutral-500">Blocked</p><p class="text-xl font-display">' + stats.blocked + '</p></div><div class="p-4"><p class="text-xs text-neutral-500">Overdue</p><p class="text-xl font-display">' + stats.overdue + '</p></div></div>' +
-    '<div class="gantt-grid" style="--gantt-day-width:' + GANTT_ZOOM + 'px"><div class="gantt-left-head">Task name</div><div class="gantt-timeline-head" style="grid-template-columns:repeat(' + days + ',' + GANTT_ZOOM + 'px);width:' + width + 'px">' + dayHeaders + '</div><div class="gantt-left">' + leftRows + '</div><div class="gantt-timeline" style="width:' + width + 'px">' + todayLine + timelineRows + '</div></div>' +
+    '<div class="gantt-grid" style="--gantt-day-width:' + GANTT_ZOOM + 'px"><div class="gantt-left-head">Schedule item</div><div class="gantt-timeline-head" style="grid-template-columns:repeat(' + days + ',' + GANTT_ZOOM + 'px);width:' + width + 'px">' + dayHeaders + '</div><div class="gantt-left">' + leftRows + '</div><div class="gantt-timeline" style="width:' + width + 'px">' + todayLine + timelineRows + '</div></div>' +
   '</div>';
 }
 function renderGanttTable(items) {
-  const rows = items.map(item => '<tr onclick="openGanttItemModal(\'' + item.type + '\',\'' + item.id + '\')" style="cursor:pointer"><td><strong>' + escHtml(item.title) + '</strong><div class="text-[11px] text-neutral-500">' + escHtml(item.project || '') + '</div></td><td>' + escHtml(item.phase || '') + '</td><td>' + escHtml(item.assignee || '') + '</td><td>' + escHtml(item.start) + ' - ' + escHtml(item.end) + '</td><td><span class="badge b-neutral text-[10px]">' + ganttStatusLabel(item.status) + '</span></td><td>' + escHtml(item.priority || 'normal') + '</td><td>' + (item.client_visible ? 'Yes' : 'No') + '</td><td>' + (Number(item.progress)||0) + '%</td><td>' + ((item.media && item.media.length) || 0) + '</td><td>' + escHtml(item.participants || '') + '</td></tr>').join('');
-  return '<div class="gantt-shell overflow-hidden"><table class="data-table"><thead><tr><th>Task</th><th>Phase</th><th>Assignee</th><th>Dates</th><th>Status</th><th>Priority</th><th>Client</th><th>Progress</th><th>Media</th><th>Participants</th></tr></thead><tbody>' + (rows || '<tr><td colspan="10" class="text-center py-10 text-sm" style="color:var(--text-muted)">No schedule items.</td></tr>') + '</tbody></table></div>';
+  const rows = items.map(item => '<tr onclick="openGanttItemModal(\'' + item.type + '\',\'' + item.id + '\')" style="cursor:pointer"><td><strong>' + escHtml(item.title) + '</strong><div class="text-[11px] text-neutral-500">' + escHtml(item.project || '') + '</div></td><td>' + ganttTypeLabel(item.type) + '</td><td>' + escHtml(item.phase || '') + '</td><td>' + escHtml(item.assignee || '') + '</td><td>' + escHtml(item.start) + ' - ' + escHtml(item.end) + '</td><td><span class="badge b-neutral text-[10px]">' + ganttStatusLabel(item.status) + '</span></td><td>' + escHtml(item.priority || 'normal') + '</td><td>' + (item.client_visible ? 'Yes' : 'No') + '</td><td>' + (Number(item.progress)||0) + '%</td><td>' + ((item.media && item.media.length) || 0) + '</td><td>' + escHtml(item.participants || '') + '</td></tr>').join('');
+  return '<div class="gantt-shell overflow-hidden"><table class="data-table"><thead><tr><th>Item</th><th>Type</th><th>Phase</th><th>Assignee</th><th>Dates</th><th>Status</th><th>Priority</th><th>Client</th><th>Progress</th><th>Media</th><th>Participants</th></tr></thead><tbody>' + (rows || '<tr><td colspan="11" class="text-center py-10 text-sm" style="color:var(--text-muted)">No schedule items.</td></tr>') + '</tbody></table></div>';
 }
 function setGanttMode(mode) { GANTT_MODE = mode; renderFBGantt(); }
 function setGanttStatus(status) { GANTT_STATUS = status; renderFBGantt(); }
+function setGanttType(type) { GANTT_TYPE = type; renderFBGantt(); }
+function setGanttPhase(phase) { GANTT_PHASE = phase; renderFBGantt(); }
+function setGanttAssignee(assignee) { GANTT_ASSIGNEE = assignee; renderFBGantt(); }
+function setGanttPriority(priority) { GANTT_PRIORITY = priority; renderFBGantt(); }
+function setGanttVisibility(visibility) { GANTT_VISIBILITY = visibility; renderFBGantt(); }
+function clearGanttFilters() {
+  GANTT_STATUS = 'all';
+  GANTT_TYPE = 'all';
+  GANTT_PHASE = 'all';
+  GANTT_ASSIGNEE = 'all';
+  GANTT_PRIORITY = 'all';
+  GANTT_VISIBILITY = 'all';
+  renderFBGantt();
+}
 function shiftGanttZoom(delta) { GANTT_ZOOM = Math.max(32, Math.min(72, GANTT_ZOOM + delta)); renderFBGantt(); }
 function toggleGanttEditMode() { GANTT_EDIT_MODE = !GANTT_EDIT_MODE; showToast(GANTT_EDIT_MODE ? 'Editing schedule' : 'View-only schedule'); renderFBGantt(); }
 function ganttImportDocs(input) { showToast((input.files?.length || 0) + ' document(s) queued for schedule import'); input.value = ''; }
@@ -7122,20 +7185,46 @@ function bindGanttDrag() {
           await renderFBGantt(true);
         }
       }
-      if (!moved) openGanttItemModal('task', id);
+      if (!moved) openGanttItemModal(item?.type || 'task', id);
     });
   });
+}
+function ganttDefaultModel(type, today) {
+  const normalizedType = ['project', 'phase', 'task', 'milestone'].includes(type) ? type : 'task';
+  const base = { id:'', type: normalizedType, project:ganttBoardTitle(), title:'', phase:'', assignee:'', participants:'', client:'', start:today, end:ganttDateStr(ganttAddDays(today,3)), status:'pending', progress:0, dependencies:'', notify:true, description:'', forms:'', punch:'', media:[] };
+  if (normalizedType === 'project') {
+    return { ...base, title:ganttBoardTitle(), phase:'Project Setup', end:ganttDateStr(ganttAddDays(today,30)), description:'Overall project schedule container.' };
+  }
+  if (normalizedType === 'phase') {
+    return { ...base, phase:'New Phase', title:'New Phase', end:ganttDateStr(ganttAddDays(today,14)), description:'Major project timeline phase.' };
+  }
+  if (normalizedType === 'milestone') {
+    return { ...base, title:'New Milestone', phase:'Project Milestones', end:today, progress:0, description:'Key project checkpoint or client-visible date.' };
+  }
+  return base;
+}
+function applyGanttModalTypeCopy(model, isEditing) {
+  const typeLabel = ganttTypeLabel(model.type);
+  document.getElementById('ganttModalKicker').textContent = typeLabel + ' Schedule Item';
+  document.getElementById('ganttModalTitle').textContent = isEditing ? 'Edit ' + model.title : 'Add ' + typeLabel;
+  const title = document.getElementById('ganttTitle');
+  const phase = document.getElementById('ganttPhase');
+  const assignee = document.getElementById('ganttAssignee');
+  const deps = document.getElementById('ganttDependencies');
+  if (title) title.placeholder = model.type === 'phase' ? 'Pre-Construction' : model.type === 'milestone' ? 'Permit Approved' : 'Foundation';
+  if (phase) phase.placeholder = model.type === 'phase' ? 'Pre-Construction' : 'Structural Work';
+  if (assignee) assignee.placeholder = model.type === 'milestone' ? 'Project Manager' : 'Johns Builders Pty Ltd';
+  if (deps) deps.placeholder = model.type === 'milestone' ? 'Inspection request, permit package' : 'Excavation, Permit approval';
 }
 async function openGanttItemModal(type, id) {
   const item = id ? GANTT_ITEMS.find(i => String(i.id) === String(id)) : null;
   const today = ganttDateStr(new Date());
-  const model = item || { id:'', type:type || 'task', project:ganttBoardTitle(), title:'', phase:'', assignee:'', participants:'', client:'', start:today, end:ganttDateStr(ganttAddDays(today,3)), status:'pending', progress:0, dependencies:'', notify:true, description:'', forms:'', punch:'', media:[] };
+  const model = item || ganttDefaultModel(type, today);
   destroyCustomSelect('ganttStatus');
   destroyCustomSelect('ganttPriority');
   destroyCustomSelect('ganttParticipantSelect');
   destroyCustomSelect('ganttOtherType');
-  document.getElementById('ganttModalKicker').textContent = model.type === 'project' ? 'Project Schedule' : 'Project Task';
-  document.getElementById('ganttModalTitle').textContent = item ? 'Edit ' + model.title : (model.type === 'project' ? 'Add Project Schedule' : 'Add Project Task');
+  applyGanttModalTypeCopy(model, Boolean(item));
   document.getElementById('ganttItemId').value = model.id;
   document.getElementById('ganttItemType').value = model.type;
   document.getElementById('ganttTitle').value = model.title || '';
