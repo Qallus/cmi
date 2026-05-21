@@ -280,15 +280,23 @@
     .gantt-timeline{position:relative;}
     .gantt-row{position:relative;height:54px;border-bottom:1px solid var(--border-sm);background-image:linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);background-size:var(--gantt-day-width,44px) 100%;}
     .gantt-row.group{height:62px;background-color:var(--surface-2);}
-    .gantt-bar{position:absolute;top:10px;height:34px;border-radius:8px;background:rgba(201,164,110,.18);border:1px solid rgba(201,164,110,.48);color:var(--text);display:flex;align-items:center;gap:8px;padding:0 10px;font-size:12px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:grab;box-shadow:0 10px 24px rgba(0,0,0,.2);touch-action:none;z-index:7;}
+    .gantt-bar{position:absolute;top:10px;height:34px;border-radius:8px;background:rgba(201,164,110,.18);border:1px solid rgba(201,164,110,.48);color:var(--text);display:flex;align-items:center;gap:8px;padding:0 14px 0 10px;font-size:12px;font-weight:650;white-space:nowrap;overflow:visible;cursor:grab;box-shadow:0 10px 24px rgba(0,0,0,.2);touch-action:none;z-index:7;}
+    .gantt-bar-title{min-width:0;overflow:hidden;text-overflow:ellipsis;}
     .gantt-bar.dragging{cursor:grabbing;box-shadow:0 18px 34px rgba(0,0,0,.34);z-index:20;}
+    .gantt-bar.link-target{border-color:var(--gold);box-shadow:0 0 0 3px rgba(201,164,110,.18),0 18px 34px rgba(0,0,0,.3);}
     .gantt-bar.done{background:rgba(34,197,94,.16);border-color:rgba(34,197,94,.42);}
     .gantt-bar.blocked{background:rgba(239,68,68,.16);border-color:rgba(239,68,68,.42);}
     .gantt-bar.milestone{background:rgba(56,189,248,.15);border-color:rgba(56,189,248,.42);}
     .gantt-assignee{width:22px;height:22px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;background:var(--gold);color:#fff;font-size:9px;font-weight:800;flex-shrink:0;}
+    .gantt-connector-handle{position:absolute;right:-8px;top:50%;width:15px;height:15px;margin-top:-7.5px;border-radius:999px;background:var(--gold);border:2px solid var(--surface);box-shadow:0 0 0 0 rgba(201,164,110,.45);cursor:crosshair;z-index:12;animation:ganttPulse 1.7s infinite;}
+    .gantt-connector-handle::after{content:"";position:absolute;inset:3px;border-radius:999px;background:#fff;opacity:.8;}
+    .gantt-connector-handle:hover{transform:scale(1.1);}
+    @keyframes ganttPulse{0%{box-shadow:0 0 0 0 rgba(201,164,110,.45);}70%{box-shadow:0 0 0 8px rgba(201,164,110,0);}100%{box-shadow:0 0 0 0 rgba(201,164,110,0);}}
     .gantt-today{position:absolute;top:0;bottom:0;width:2px;background:var(--gold);z-index:5;box-shadow:0 0 0 1px rgba(201,164,110,.22);}
     .gantt-dependency-layer{position:absolute;inset:0;pointer-events:none;z-index:3;overflow:visible;}
     .gantt-dependency-line{fill:none;stroke:rgba(201,164,110,.75);stroke-width:2;stroke-linejoin:round;filter:drop-shadow(0 1px 2px rgba(0,0,0,.3));}
+    .gantt-dependency-draft-layer{position:absolute;inset:0;pointer-events:none;z-index:18;overflow:visible;}
+    .gantt-dependency-draft-line{fill:none;stroke:var(--gold);stroke-width:2.5;stroke-linecap:round;stroke-dasharray:6 5;filter:drop-shadow(0 1px 2px rgba(0,0,0,.35));}
     .gantt-empty{padding:48px;text-align:center;color:var(--text-muted);font-size:13px;}
     .gantt-feature-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:14px;}
     .gantt-feature-card{border:1px solid var(--border-card);border-radius:12px;background:var(--surface);padding:14px;min-height:112px;}
@@ -6255,6 +6263,7 @@ let GANTT_ITEMS     = [];
 let GANTT_DEPENDENCIES = [];
 let GANTT_ACTIVE_DEPENDENCIES = [];
 let GANTT_DRAG      = null;
+let GANTT_LINK_DRAG = null;
 let GANTT_LOADED_KEY = null;
 let GANTT_LOADING    = false;
 let GANTT_ACTIVE_MEDIA = [];
@@ -6878,6 +6887,10 @@ async function loadGanttItems(force) {
       const depData = await depsRes.json();
       GANTT_DEPENDENCIES = Array.isArray(depData.dependencies) ? depData.dependencies.map(mapScheduleDependency) : [];
     } else {
+      const depData = await depsRes.json().catch(() => ({}));
+      if (depData.message && /schema cache|project_schedule_dependencies/i.test(depData.message)) {
+        console.warn('[Gantt] Dependency table is not available yet. Run the project_schedule_dependencies migration.');
+      }
       GANTT_DEPENDENCIES = [];
     }
     GANTT_LOADED_KEY = key;
@@ -6932,10 +6945,32 @@ async function persistGanttDependencies(targetId, item) {
     body: JSON.stringify(payload)
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.message || 'Could not save dependency links');
+  if (!res.ok) {
+    const missingTable = /schema cache|project_schedule_dependencies/i.test(data.message || '');
+    throw new Error(missingTable ? 'Run the Supabase dependency migration before saving Gantt links.' : (data.message || 'Could not save dependency links'));
+  }
   GANTT_DEPENDENCIES = GANTT_DEPENDENCIES.filter(dep => String(dep.target_item_id) !== String(targetId))
     .concat((data.dependencies || []).map(mapScheduleDependency));
   return data.dependencies || [];
+}
+async function saveGanttDependencyLink(sourceId, targetId, dependencyType = 'finish_to_start') {
+  if (!isGanttUuid(sourceId) || !isGanttUuid(targetId) || String(sourceId) === String(targetId)) return false;
+  const target = GANTT_ITEMS.find(item => String(item.id) === String(targetId));
+  if (!target) return false;
+  const existing = GANTT_DEPENDENCIES.filter(dep => String(dep.target_item_id) === String(targetId));
+  if (existing.some(dep => String(dep.source_item_id) === String(sourceId) && String(dep.dependency_type) === String(dependencyType))) {
+    showToast('Those schedule items are already connected.');
+    return false;
+  }
+  GANTT_ACTIVE_DEPENDENCIES = existing.concat([{
+    source_item_id: sourceId,
+    dependency_type: dependencyType,
+    lag_days: 0,
+    auto_shift: false,
+    notes: ''
+  }]);
+  await persistGanttDependencies(targetId, target);
+  return true;
 }
 async function seedGanttSchedule() {
   try {
@@ -7156,7 +7191,7 @@ function renderGanttTimeline(items, stats) {
       const visibleBadge = item.client_visible ? '<span style="opacity:.68">Client</span>' : '';
       const blockedBadge = item.is_blocked ? '<span style="opacity:.75;color:#f87171">Blocked</span>' : '';
       const typeClass = item.type === 'milestone' ? ' milestone' : '';
-      timelineRows += '<div class="gantt-row" style="width:' + width + 'px"><div class="gantt-bar ' + ganttStatusClass(item.status) + typeClass + '" data-gantt-id="' + escAttr(item.id) + '" style="left:' + itemLeft + 'px;width:' + itemWidth + 'px"><span class="gantt-assignee">' + ganttInitials(item.assignee) + '</span><span>' + escHtml(item.title) + '</span><span style="opacity:.68">' + ganttTypeLabel(item.type) + '</span>' + visibleBadge + blockedBadge + mediaBadge + '<span style="margin-left:auto;opacity:.65">' + (Number(item.progress)||0) + '%</span></div></div>';
+      timelineRows += '<div class="gantt-row" style="width:' + width + 'px"><div class="gantt-bar ' + ganttStatusClass(item.status) + typeClass + '" data-gantt-id="' + escAttr(item.id) + '" style="left:' + itemLeft + 'px;width:' + itemWidth + 'px"><span class="gantt-assignee">' + ganttInitials(item.assignee) + '</span><span class="gantt-bar-title">' + escHtml(item.title) + '</span><span style="opacity:.68">' + ganttTypeLabel(item.type) + '</span>' + visibleBadge + blockedBadge + mediaBadge + '<span style="margin-left:auto;opacity:.65">' + (Number(item.progress)||0) + '%</span><span class="gantt-connector-handle" title="Drag to connect this item to another schedule item" data-gantt-source="' + escAttr(item.id) + '"></span></div></div>';
       rowTop += 54;
     });
   });
@@ -7381,10 +7416,110 @@ function addGanttOtherParticipant() {
   renderGanttParticipantSelect();
   syncGanttParticipantHidden();
 }
+function ganttTimelinePoint(timeline, clientX, clientY) {
+  const rect = timeline.getBoundingClientRect();
+  return {
+    x: Math.max(0, clientX - rect.left),
+    y: Math.max(0, clientY - rect.top)
+  };
+}
+function ganttDependencyPath(start, end) {
+  const mid = Math.max(start.x + 24, (start.x + end.x) / 2);
+  return 'M ' + start.x + ' ' + start.y + ' H ' + mid + ' V ' + end.y + ' H ' + end.x;
+}
+function ensureGanttDraftLayer(timeline) {
+  let layer = timeline.querySelector('.gantt-dependency-draft-layer');
+  if (!layer) {
+    layer = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    layer.setAttribute('class', 'gantt-dependency-draft-layer');
+    layer.setAttribute('width', timeline.scrollWidth || timeline.clientWidth || 1);
+    layer.setAttribute('height', timeline.scrollHeight || timeline.clientHeight || 1);
+    layer.innerHTML = '<path class="gantt-dependency-draft-line"></path>';
+    timeline.appendChild(layer);
+  }
+  return layer;
+}
+function clearGanttLinkDrag() {
+  document.querySelectorAll('.gantt-bar.link-target').forEach(bar => bar.classList.remove('link-target'));
+  document.querySelectorAll('.gantt-dependency-draft-layer').forEach(layer => layer.remove());
+  GANTT_LINK_DRAG = null;
+}
+function ganttDropTargetAt(clientX, clientY, sourceId) {
+  const items = document.elementsFromPoint(clientX, clientY);
+  const bar = items.map(el => el.closest ? el.closest('.gantt-bar') : null)
+    .find(candidate => candidate && String(candidate.dataset.ganttId) !== String(sourceId));
+  return bar || null;
+}
+function updateGanttLinkDraft(clientX, clientY) {
+  if (!GANTT_LINK_DRAG) return;
+  const { timeline, start, sourceId } = GANTT_LINK_DRAG;
+  const targetBar = ganttDropTargetAt(clientX, clientY, sourceId);
+  document.querySelectorAll('.gantt-bar.link-target').forEach(bar => {
+    if (bar !== targetBar) bar.classList.remove('link-target');
+  });
+  if (targetBar) targetBar.classList.add('link-target');
+  const layer = ensureGanttDraftLayer(timeline);
+  const point = targetBar
+    ? ganttTimelinePoint(timeline, targetBar.getBoundingClientRect().left, targetBar.getBoundingClientRect().top + targetBar.getBoundingClientRect().height / 2)
+    : ganttTimelinePoint(timeline, clientX, clientY);
+  const path = layer.querySelector('path');
+  if (path) path.setAttribute('d', ganttDependencyPath(start, point));
+}
+function bindGanttDependencyDrag() {
+  document.querySelectorAll('.gantt-connector-handle').forEach(handle => {
+    handle.addEventListener('pointerdown', e => {
+      if (!GANTT_EDIT_MODE) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const sourceId = handle.dataset.ganttSource;
+      const timeline = handle.closest('.gantt-timeline');
+      if (!sourceId || !timeline) return;
+      const rect = handle.getBoundingClientRect();
+      GANTT_LINK_DRAG = {
+        sourceId,
+        handle,
+        timeline,
+        start: ganttTimelinePoint(timeline, rect.left + rect.width / 2, rect.top + rect.height / 2)
+      };
+      handle.setPointerCapture(e.pointerId);
+      updateGanttLinkDraft(e.clientX, e.clientY);
+    });
+    handle.addEventListener('pointermove', e => {
+      if (!GANTT_LINK_DRAG || GANTT_LINK_DRAG.handle !== handle) return;
+      e.preventDefault();
+      updateGanttLinkDraft(e.clientX, e.clientY);
+    });
+    handle.addEventListener('pointerup', async e => {
+      if (!GANTT_LINK_DRAG || GANTT_LINK_DRAG.handle !== handle) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const sourceId = GANTT_LINK_DRAG.sourceId;
+      const targetBar = ganttDropTargetAt(e.clientX, e.clientY, sourceId);
+      const targetId = targetBar?.dataset.ganttId || '';
+      clearGanttLinkDrag();
+      if (!targetId) {
+        showToast('Drop the connector on another schedule item.');
+        return;
+      }
+      try {
+        const saved = await saveGanttDependencyLink(sourceId, targetId);
+        if (saved) {
+          await renderFBGantt(true);
+          showToast('Schedule items connected');
+        }
+      } catch (err) {
+        showToast(err.message || 'Could not connect schedule items');
+      }
+    });
+    handle.addEventListener('pointercancel', clearGanttLinkDrag);
+  });
+}
 function bindGanttDrag() {
+  bindGanttDependencyDrag();
   document.querySelectorAll('.gantt-bar').forEach(bar => {
     bar.addEventListener('pointerdown', e => {
       if (!GANTT_EDIT_MODE) return;
+      if (e.target.closest('.gantt-connector-handle')) return;
       e.preventDefault();
       const item = GANTT_ITEMS.find(i => String(i.id) === String(bar.dataset.ganttId));
       if (!item) return;
