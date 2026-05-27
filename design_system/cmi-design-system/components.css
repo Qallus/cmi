@@ -1,0 +1,247 @@
+/* ========================================================================
+   CMI — ShadCN-inspired component primitives.
+   Class names follow .cmi-{component}-{variant} pattern.
+   ======================================================================== */
+
+/* Typography */
+.cmi-h1 { font-family: var(--font-display); font-size: clamp(2.25rem, 4vw, 3.25rem); line-height: 1.05; letter-spacing: -0.025em; font-weight: 600; margin: 0; }
+.cmi-h2 { font-family: var(--font-display); font-size: clamp(1.75rem, 3vw, 2.25rem); line-height: 1.1; letter-spacing: -0.02em; font-weight: 600; margin: 0; }
+.cmi-h3 { font-family: var(--font-display); font-size: 1.5rem; line-height: 1.2; letter-spacing: -0.015em; font-weight: 600; margin: 0; }
+.cmi-h4 { font-size: 1.125rem; line-height: 1.3; letter-spacing: -0.01em; font-weight: 600; margin: 0; }
+.cmi-lead { color: var(--muted-foreground); font-size: 1.125rem; line-height: 1.55; }
+.cmi-muted { color: var(--muted-foreground); }
+.cmi-mono { font-family: var(--font-mono); font-size: 0.8125rem; }
+.cmi-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+/* Buttons */
+.cmi-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: 0.5rem;
+  height: 2.25rem; padding: 0 0.875rem;
+  border-radius: var(--radius-md);
+  font-weight: 500; font-size: 0.875rem;
+  line-height: 1; letter-spacing: -0.005em;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease, box-shadow 120ms ease, transform 100ms ease;
+  white-space: nowrap;
+  user-select: none;
+}
+.cmi-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--ring); }
+.cmi-btn:active { transform: translateY(0.5px); }
+.cmi-btn[disabled], .cmi-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.cmi-btn .icon { width: 1rem; height: 1rem; flex: 0 0 auto; }
+
+.cmi-btn-primary { background: var(--primary); color: var(--primary-foreground); }
+.cmi-btn-primary:hover { background: oklch(from var(--primary) calc(l + 0.06) c h); }
+
+.cmi-btn-accent { background: var(--accent); color: var(--accent-foreground); }
+.cmi-btn-accent:hover { background: oklch(from var(--accent) calc(l - 0.04) c h); }
+
+.cmi-btn-secondary { background: var(--secondary); color: var(--secondary-foreground); border-color: var(--border); }
+.cmi-btn-secondary:hover { background: oklch(from var(--secondary) calc(l - 0.02) c h); }
+
+.cmi-btn-outline { background: transparent; color: var(--foreground); border-color: var(--border-strong); }
+.cmi-btn-outline:hover { background: var(--muted); }
+
+.cmi-btn-ghost { background: transparent; color: var(--foreground); }
+.cmi-btn-ghost:hover { background: var(--muted); }
+
+.cmi-btn-link { background: transparent; color: var(--foreground); padding: 0; height: auto; }
+.cmi-btn-link:hover { color: var(--accent); }
+
+.cmi-btn-destructive { background: var(--destructive); color: var(--destructive-foreground); }
+
+.cmi-btn-sm { height: 1.875rem; padding: 0 0.625rem; font-size: 0.8125rem; border-radius: var(--radius-sm); }
+.cmi-btn-lg { height: 2.625rem; padding: 0 1.25rem; font-size: 0.9375rem; }
+.cmi-btn-icon { width: 2.25rem; padding: 0; }
+.cmi-btn-icon.cmi-btn-sm { width: 1.875rem; height: 1.875rem; }
+
+/* Cards */
+.cmi-card {
+  background: var(--card);
+  color: var(--card-foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+}
+.cmi-card-header { padding: 1.25rem 1.25rem 0.875rem; display: flex; flex-direction: column; gap: 0.25rem; }
+.cmi-card-title { font-size: 1rem; font-weight: 600; line-height: 1.25; letter-spacing: -0.01em; }
+.cmi-card-desc { font-size: 0.8125rem; color: var(--muted-foreground); line-height: 1.5; }
+.cmi-card-body { padding: 0.875rem 1.25rem; }
+.cmi-card-footer { padding: 0.875rem 1.25rem 1.25rem; display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+
+/* Inputs */
+.cmi-input, .cmi-textarea, .cmi-select {
+  display: block; width: 100%;
+  height: 2.25rem; padding: 0 0.75rem;
+  font-size: 0.875rem; font-family: inherit;
+  color: var(--foreground);
+  background: var(--card);
+  border: 1px solid var(--input);
+  border-radius: var(--radius-md);
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+.cmi-textarea { height: auto; min-height: 5rem; padding: 0.5rem 0.75rem; line-height: 1.5; resize: vertical; }
+.cmi-input::placeholder, .cmi-textarea::placeholder { color: var(--muted-foreground); }
+.cmi-input:focus-visible, .cmi-textarea:focus-visible, .cmi-select:focus-visible {
+  outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring);
+}
+.cmi-label { display: block; font-size: 0.8125rem; font-weight: 500; margin-bottom: 0.375rem; }
+.cmi-help { font-size: 0.75rem; color: var(--muted-foreground); margin-top: 0.375rem; }
+
+/* Badges */
+.cmi-badge {
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  height: 1.375rem; padding: 0 0.5rem;
+  font-size: 0.6875rem; font-weight: 500; letter-spacing: 0.01em;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: var(--secondary); color: var(--secondary-foreground);
+}
+.cmi-badge-outline { background: transparent; border-color: var(--border); color: var(--muted-foreground); }
+.cmi-badge-accent { background: var(--accent-soft); color: var(--accent-soft-foreground); }
+.cmi-badge-success { background: oklch(0.93 0.06 155); color: oklch(0.32 0.1 155); }
+.dark .cmi-badge-success { background: oklch(0.26 0.06 155); color: oklch(0.84 0.1 155); }
+.cmi-badge-warning { background: oklch(0.94 0.08 78); color: oklch(0.38 0.1 78); }
+.dark .cmi-badge-warning { background: oklch(0.3 0.06 78); color: oklch(0.85 0.1 78); }
+.cmi-badge-destructive { background: oklch(0.94 0.06 28); color: oklch(0.4 0.16 28); }
+.dark .cmi-badge-destructive { background: oklch(0.3 0.08 28); color: oklch(0.86 0.14 28); }
+.cmi-badge-info { background: oklch(0.94 0.05 235); color: oklch(0.36 0.12 235); }
+.dark .cmi-badge-info { background: oklch(0.28 0.06 235); color: oklch(0.85 0.1 235); }
+.cmi-badge .dot { width: 6px; height: 6px; border-radius: 999px; background: currentColor; }
+
+/* Avatar */
+.cmi-avatar {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 2rem; height: 2rem; border-radius: 999px;
+  background: var(--secondary); color: var(--secondary-foreground);
+  font-size: 0.75rem; font-weight: 600;
+  letter-spacing: 0.01em;
+  overflow: hidden;
+}
+.cmi-avatar-lg { width: 2.5rem; height: 2.5rem; font-size: 0.875rem; }
+.cmi-avatar-sm { width: 1.5rem; height: 1.5rem; font-size: 0.625rem; }
+.cmi-avatar-group { display: inline-flex; }
+.cmi-avatar-group .cmi-avatar { box-shadow: 0 0 0 2px var(--card); margin-left: -0.5rem; }
+.cmi-avatar-group .cmi-avatar:first-child { margin-left: 0; }
+
+/* Switch */
+.cmi-switch { position: relative; display: inline-block; width: 2.25rem; height: 1.25rem; }
+.cmi-switch input { opacity: 0; width: 0; height: 0; }
+.cmi-switch .track {
+  position: absolute; inset: 0; background: var(--input);
+  border-radius: 999px; transition: background 120ms ease;
+}
+.cmi-switch .thumb {
+  position: absolute; left: 2px; top: 2px;
+  width: 1rem; height: 1rem; background: var(--card);
+  border-radius: 999px;
+  box-shadow: var(--shadow-sm);
+  transition: transform 160ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.cmi-switch input:checked + .track { background: var(--primary); }
+.cmi-switch input:checked + .track + .thumb { transform: translateX(1rem); }
+
+/* Tabs */
+.cmi-tabs {
+  display: inline-flex;
+  background: var(--muted);
+  border-radius: var(--radius-md);
+  padding: 0.25rem;
+  gap: 0.125rem;
+}
+.cmi-tab {
+  height: 1.875rem; padding: 0 0.75rem;
+  border-radius: calc(var(--radius-md) - 2px);
+  font-size: 0.8125rem; font-weight: 500;
+  color: var(--muted-foreground);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: inline-flex; align-items: center; gap: 0.375rem;
+  transition: background 120ms ease, color 120ms ease;
+}
+.cmi-tab:hover { color: var(--foreground); }
+.cmi-tab[aria-selected="true"], .cmi-tab.active {
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: var(--shadow-xs);
+}
+
+/* Separator + Divider */
+.cmi-sep { height: 1px; background: var(--border); border: 0; margin: 0; }
+.cmi-sep-v { width: 1px; height: 100%; background: var(--border); }
+
+/* Progress */
+.cmi-progress {
+  height: 0.5rem; background: var(--muted);
+  border-radius: 999px; overflow: hidden;
+  position: relative;
+}
+.cmi-progress > .bar {
+  height: 100%; background: var(--accent);
+  border-radius: 999px;
+  transition: width 320ms ease;
+}
+
+/* Alert */
+.cmi-alert {
+  display: flex; gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--border);
+  background: var(--card);
+  border-radius: var(--radius-md);
+}
+.cmi-alert .icon { color: var(--muted-foreground); margin-top: 1px; flex: 0 0 auto; }
+.cmi-alert .title { font-weight: 600; font-size: 0.875rem; line-height: 1.3; }
+.cmi-alert .desc { font-size: 0.8125rem; color: var(--muted-foreground); margin-top: 0.25rem; line-height: 1.5; }
+.cmi-alert-accent { border-color: color-mix(in oklch, var(--accent) 30%, var(--border)); background: color-mix(in oklch, var(--accent) 6%, var(--card)); }
+.cmi-alert-accent .icon { color: var(--accent); }
+
+/* Table */
+.cmi-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.875rem; }
+.cmi-table thead th {
+  text-align: left;
+  font-size: 0.75rem; font-weight: 500;
+  color: var(--muted-foreground);
+  padding: 0.625rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+}
+.cmi-table tbody td {
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.cmi-table tbody tr:hover { background: color-mix(in oklch, var(--muted) 50%, transparent); }
+.cmi-table tbody tr:last-child td { border-bottom: 0; }
+
+/* Tooltip / KBD */
+.cmi-kbd {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 1.25rem; height: 1.25rem; padding: 0 0.3125rem;
+  font-family: var(--font-mono); font-size: 0.6875rem;
+  background: var(--muted); color: var(--muted-foreground);
+  border: 1px solid var(--border); border-bottom-width: 2px;
+  border-radius: 4px;
+}
+
+/* Logo mark (inline SVG-equivalent) — used for nav */
+.cmi-logo-mark {
+  width: 28px; height: 28px;
+  display: inline-block; flex: 0 0 auto;
+}
+
+/* Utility scroll area */
+.cmi-scroll { overflow-y: auto; }
+.cmi-scroll::-webkit-scrollbar { width: 10px; height: 10px; }
+.cmi-scroll::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
+.cmi-scroll::-webkit-scrollbar-thumb:hover { background: var(--muted-foreground); background-clip: padding-box; border: 2px solid transparent; }

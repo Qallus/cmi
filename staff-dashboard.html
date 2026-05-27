@@ -9,6 +9,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="assets/cmi-permissions.js"></script>
+  <script src="assets/cmi-project-templates.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -369,8 +370,17 @@
     .schedule-action-btn:hover{background:var(--hover-bg);color:var(--text);}
     .schedule-danger{border-color:rgba(239,68,68,.35)!important;color:#f87171!important;}
     .schedule-hidden-label{color:var(--text-muted);font-size:11px;}
+    #ganttTemplateModal{position:fixed;inset:0;z-index:365;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,.64);backdrop-filter:blur(4px);}
+    #ganttTemplateModal.open{display:flex;}
+    #ganttTemplatePanel{width:100%;max-width:920px;max-height:92vh;overflow-y:auto;border-radius:16px;background:var(--surface);border:1px solid var(--border-card);box-shadow:0 32px 80px rgba(0,0,0,.55);}
+    .template-preview{border:1px solid var(--border-sm);border-radius:12px;background:var(--surface-2);overflow:hidden;}
+    .template-preview-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:12px 14px;border-bottom:1px solid var(--border-sm);}
+    .template-preview-list{max-height:260px;overflow:auto;}
+    .template-preview-row{display:grid;grid-template-columns:120px minmax(0,1fr) 90px 120px;gap:10px;padding:9px 14px;border-bottom:1px solid var(--border-sm);font-size:12px;color:var(--text-sub);}
+    .template-preview-row strong{color:var(--text);}
+    .template-preview-row:last-child{border-bottom:0;}
     @media(max-width:1500px){.gantt-controls{grid-template-columns:repeat(3,minmax(140px,1fr));}.gantt-toolbar{flex-direction:column}.gantt-toolbar-title{max-width:none}.gantt-controls{width:100%;}.gantt-overview{grid-template-columns:repeat(3,minmax(0,1fr));}.gantt-overview-main{grid-column:1 / -1;}}
-    @media(max-width:1100px){.gantt-feature-grid{grid-template-columns:1fr}.gantt-grid{grid-template-columns:240px minmax(760px,1fr)}.gantt-controls{grid-template-columns:1fr 1fr;}.gantt-overview{grid-template-columns:1fr 1fr;}}
+    @media(max-width:1100px){.gantt-feature-grid{grid-template-columns:1fr}.gantt-grid{grid-template-columns:240px minmax(760px,1fr)}.gantt-controls{grid-template-columns:1fr 1fr;}.gantt-overview{grid-template-columns:1fr 1fr;}.template-preview-row{grid-template-columns:1fr;}}
     #ganttItemModal{position:fixed;inset:0;z-index:360;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,.64);backdrop-filter:blur(4px);}
     #ganttItemModal.open{display:flex;}
     #ganttItemPanel{width:100%;max-width:720px;max-height:92vh;overflow-y:auto;border-radius:16px;background:var(--surface);border:1px solid var(--border-card);box-shadow:0 32px 80px rgba(0,0,0,.55);}
@@ -2253,6 +2263,44 @@
   </div>
 </div>
 
+<!-- Gantt Project Template Modal -->
+<div id="ganttTemplateModal" onclick="if(event.target===this)closeGanttTemplateModal()">
+  <div id="ganttTemplatePanel">
+    <div class="flex items-start justify-between p-6" style="border-bottom:1px solid var(--border)">
+      <div>
+        <p class="text-[10px] uppercase tracking-widest font-medium mb-1" style="color:var(--gold)">Project Template</p>
+        <h3 class="font-display text-xl" style="color:var(--text)">Apply Construction Project Template</h3>
+        <p class="text-sm mt-1" style="color:var(--text-muted)">Generate phases, scheduled tasks, dependencies, assignments, visibility, and notification hooks.</p>
+      </div>
+      <button onclick="closeGanttTemplateModal()" class="theme-btn flex-shrink-0">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="p-6 space-y-5">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div><label class="form-label">Template type</label><select id="ganttTemplateSlug" class="form-input" onchange="renderGanttTemplatePreview()"></select></div>
+        <div><label class="form-label">Project name</label><input id="ganttTemplateProject" class="form-input" placeholder="Scottsdale ADU" /></div>
+        <div><label class="form-label">Client</label><input id="ganttTemplateClient" class="form-input" placeholder="Client or customer name" /></div>
+        <div><label class="form-label">Project address</label><input id="ganttTemplateAddress" class="form-input" placeholder="Project address" /></div>
+        <div><label class="form-label">Project start date</label><input id="ganttTemplateStart" class="form-input" type="date" /></div>
+        <div><label class="form-label">Project manager</label><input id="ganttTemplateManager" class="form-input" placeholder="Project Manager" /></div>
+        <div><label class="form-label">Optional staff / team members</label><input id="ganttTemplateStaff" class="form-input" placeholder="Designer, Field Lead, Admin" /></div>
+        <div><label class="form-label">Optional subcontractors / vendors</label><input id="ganttTemplateVendors" class="form-input" placeholder="Plumber, Electrician, Cabinet Installer" /></div>
+        <label class="flex items-center gap-2 text-sm" style="color:var(--text-sub)"><input id="ganttTemplateClientVisible" type="checkbox" class="accent-[var(--gold)]" checked /> Use template client-visible milestones</label>
+        <label class="flex items-center gap-2 text-sm" style="color:var(--text-sub)"><input id="ganttTemplateNotify" type="checkbox" class="accent-[var(--gold)]" checked /> Queue notification hooks</label>
+      </div>
+      <div id="ganttTemplatePreview" class="template-preview"></div>
+    </div>
+    <div class="flex flex-wrap items-center gap-3 p-6" style="border-top:1px solid var(--border)">
+      <button onclick="applyGanttProjectTemplate()" class="flex items-center gap-2 px-7 py-3 rounded-lg text-sm font-medium text-white hover:opacity-90" style="background:var(--gold)">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg>
+        Create Project Schedule
+      </button>
+      <button onclick="closeGanttTemplateModal()" class="px-6 py-2.5 rounded-lg text-sm font-medium" style="border:1px solid var(--border-lg);color:var(--text-dim)">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- Gantt Project / Task Modal -->
 <div id="ganttItemModal" onclick="if(event.target===this)closeGanttItemModal()">
   <div id="ganttItemPanel">
@@ -2272,10 +2320,14 @@
         <button type="button" onclick="ganttMarkComplete()" class="crm-toolbar-btn">Mark complete</button>
         <select id="ganttStatus" class="form-input text-sm" style="width:170px">
           <option value="pending">Pending</option>
+          <option value="scheduled">Scheduled</option>
           <option value="in_progress">In progress</option>
+          <option value="waiting">Waiting</option>
           <option value="delayed">Delayed</option>
           <option value="blocked">Blocked</option>
+          <option value="needs_approval">Needs approval</option>
           <option value="complete">Complete</option>
+          <option value="canceled">Canceled</option>
         </select>
         <label class="flex items-center gap-2 text-sm text-neutral-400 px-3 py-2 rounded-lg" style="border:1px solid var(--border-md)">
           <input id="ganttNotify" type="checkbox" /> Notify participants
@@ -6309,6 +6361,7 @@ let GANTT_PARTICIPANTS = [];
 let GANTT_SELECTED_PARTICIPANTS = [];
 let GANTT_PARTICIPANTS_LOADED = false;
 let SCHEDULE_EXPANDED_PROJECTS = [];
+let GANTT_TEMPLATE_PREVIEW = [];
 let _fpGanttStart = null;
 let _fpGanttEnd = null;
 
@@ -7097,6 +7150,227 @@ async function seedGanttSchedule() {
     showToast(err.message || 'Could not create starter schedule');
   }
 }
+function ganttTemplates() {
+  return Array.isArray(window.CMI_PROJECT_TEMPLATES) ? window.CMI_PROJECT_TEMPLATES.filter(t => t.is_active !== false) : [];
+}
+function ganttTemplateBySlug(slug) {
+  return ganttTemplates().find(t => t.slug === slug) || ganttTemplates()[0] || null;
+}
+function formatTemplateDuration(minutes) {
+  const value = Number(minutes) || 0;
+  if (value < 60) return value + ' min';
+  if (value < 1440) return Math.round(value / 60 * 10) / 10 + ' hr';
+  return Math.max(1, Math.round(value / 1440)) + ' day' + (Math.round(value / 1440) === 1 ? '' : 's');
+}
+function openGanttTemplateModal() {
+  const modal = document.getElementById('ganttTemplateModal');
+  const select = document.getElementById('ganttTemplateSlug');
+  if (!modal || !select) return;
+  const templates = ganttTemplates();
+  if (!templates.length) { showToast('No construction project templates are available.'); return; }
+  select.innerHTML = templates.map(t => '<option value="' + escAttr(t.slug) + '">' + escHtml(t.name) + '</option>').join('');
+  document.getElementById('ganttTemplateProject').value = ganttBoardTitle();
+  document.getElementById('ganttTemplateClient').value = '';
+  document.getElementById('ganttTemplateAddress').value = '';
+  document.getElementById('ganttTemplateStart').value = ganttDateStr(new Date());
+  document.getElementById('ganttTemplateManager').value = '';
+  document.getElementById('ganttTemplateStaff').value = '';
+  document.getElementById('ganttTemplateVendors').value = '';
+  document.getElementById('ganttTemplateClientVisible').checked = true;
+  document.getElementById('ganttTemplateNotify').checked = true;
+  renderGanttTemplatePreview();
+  modal.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeGanttTemplateModal() {
+  document.getElementById('ganttTemplateModal')?.classList.remove('open');
+  document.body.style.overflow = '';
+}
+function renderGanttTemplatePreview() {
+  const template = ganttTemplateBySlug(document.getElementById('ganttTemplateSlug')?.value);
+  const wrap = document.getElementById('ganttTemplatePreview');
+  if (!wrap || !template) return;
+  const phases = [...new Set((template.tasks || []).map(t => t.phase))];
+  const totalMinutes = (template.tasks || []).reduce((sum, row) => sum + (Number(row.duration_minutes) || 0), 0);
+  const rows = (template.tasks || []).slice(0, 18).map(row =>
+    '<div class="template-preview-row"><span>' + escHtml(row.phase || 'Project Tasks') + '</span><strong>' + escHtml(row.title) + '</strong><span>' + formatTemplateDuration(row.duration_minutes) + '</span><span>' + escHtml((row.suggested_roles || []).join(', ') || 'Unassigned') + '</span></div>'
+  ).join('');
+  wrap.innerHTML =
+    '<div class="template-preview-head"><div><strong style="color:var(--text)">' + escHtml(template.name) + '</strong><p class="text-xs mt-1" style="color:var(--text-muted)">' + escHtml(template.description || '') + '</p></div><div class="schedule-pill-row"><span class="schedule-pill">' + phases.length + ' phases</span><span class="schedule-pill">' + (template.tasks || []).length + ' tasks</span><span class="schedule-pill">' + (template.suggested_duration_days || Math.ceil(totalMinutes / 1440)) + ' est. days</span></div></div>' +
+    '<div class="template-preview-list">' + rows + ((template.tasks || []).length > 18 ? '<div class="template-preview-row"><span></span><strong>+' + ((template.tasks || []).length - 18) + ' additional tasks</strong><span></span><span></span></div>' : '') + '</div>';
+}
+function templateParticipantList(primary, staff, vendors) {
+  return [primary, staff, vendors].map(v => String(v || '').trim()).filter(Boolean).join(', ');
+}
+function templateScheduleItems(template, form) {
+  const offsets = {};
+  let cursor = 0;
+  return (template.tasks || []).map((row, index) => {
+    const depOffsets = (row.dependency_keys || []).map(key => offsets[key]).filter(v => Number.isFinite(v));
+    const startOffset = depOffsets.length ? Math.max(...depOffsets) : cursor;
+    const durationDays = Math.max(1, Math.ceil((Number(row.duration_minutes) || 1440) / 1440));
+    offsets[row.key] = startOffset + durationDays;
+    if (!depOffsets.length) cursor = offsets[row.key];
+    const start = ganttAddDays(form.startDate, startOffset);
+    const end = ganttAddDays(start, durationDays - 1);
+    const participants = templateParticipantList(form.manager, form.staff, form.vendors);
+    return {
+      id: '',
+      board_id: ganttBoardKey(),
+      type: row.title.toLowerCase().includes('walkthrough') || row.title.toLowerCase().includes('approved') || row.title.toLowerCase().includes('inspection') ? 'milestone' : 'task',
+      project: form.projectName,
+      title: row.title,
+      phase: row.phase || 'Project Tasks',
+      assignee: row.suggested_roles?.[0] || form.manager || '',
+      client: form.client,
+      participants,
+      start: ganttDateStr(start),
+      end: ganttDateStr(end),
+      status: 'scheduled',
+      priority: row.priority || 'normal',
+      progress: 0,
+      dependencies: (row.dependency_keys || []).join(', '),
+      notify: form.notify,
+      client_visible: form.clientVisible && Boolean(row.client_visible),
+      visible_on_gantt: true,
+      schedule_group_key: form.groupKey,
+      template_slug: template.slug,
+      template_name: template.name,
+      duration_minutes: Number(row.duration_minutes) || durationDays * 1440,
+      sort_order: index + 1,
+      description: row.description || (template.name + ' - ' + row.phase),
+      forms: row.phase === 'Permitting' || row.phase === 'Inspections' ? 'Permit, inspection forms, site photos' : '',
+      punch: row.phase === 'Punch List' ? 'Open corrections, confirmations, completion photos' : '',
+      metadata: {
+        template_task_key: row.key,
+        dependency_keys: row.dependency_keys || [],
+        suggested_roles: row.suggested_roles || [],
+        project_address: form.address,
+        project_manager: form.manager,
+        assigned_staff_ids: [],
+        assigned_vendor_ids: [],
+        notification_hooks: form.notify ? ['task_created','task_assigned','task_due_soon','schedule_changed'] : [],
+        activity_source: 'template_application'
+      }
+    };
+  });
+}
+async function logProjectTemplateActivity(payload) {
+  try {
+    await fetch('/api/project-activity-logs', {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type':'application/json' }),
+      body: JSON.stringify(payload)
+    });
+  } catch (err) {
+    console.warn('[Gantt] Activity log skipped:', err.message);
+  }
+}
+async function queueProjectTemplateNotifications(rows, form, template) {
+  if (!form.notify) return;
+  try {
+    await fetch('/api/project-notifications', {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type':'application/json' }),
+      body: JSON.stringify({
+        project_name: form.projectName,
+        event_type: 'project_template_applied',
+        channel: 'dashboard',
+        title: template.name + ' schedule created',
+        body: rows.length + ' scheduled construction items were generated for ' + form.projectName + '.',
+        metadata: { template_slug: template.slug, schedule_group_key: form.groupKey }
+      })
+    });
+  } catch (err) {
+    console.warn('[Gantt] Notification hook skipped:', err.message);
+  }
+}
+async function createProjectFromTemplateRecord(form, template, rows) {
+  const lastEnd = rows.reduce((latest, row) => ganttDate(row.end) > latest ? ganttDate(row.end) : latest, form.startDate);
+  try {
+    const res = await fetch('/api/projects/from-template', {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type':'application/json' }),
+      body: JSON.stringify({
+        title: form.projectName,
+        description: template.description,
+        category: template.category,
+        address: form.address,
+        start_date: ganttDateStr(form.startDate),
+        due_date: ganttDateStr(lastEnd),
+        board_name: ganttBoardTitle(),
+        assignees: [form.manager, form.staff].map(v => String(v || '').trim()).filter(Boolean),
+        tags: ['template:' + template.slug, 'project-management', 'gantt']
+      })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Project record create failed');
+    return data.project || null;
+  } catch (err) {
+    console.warn('[Gantt] Project record skipped:', err.message);
+    showToast('Template schedule will be created, but the project record could not be created: ' + err.message);
+    return null;
+  }
+}
+async function applyGanttProjectTemplate() {
+  const template = ganttTemplateBySlug(document.getElementById('ganttTemplateSlug')?.value);
+  if (!template) { showToast('Select a project template first.'); return; }
+  const form = {
+    projectName: document.getElementById('ganttTemplateProject').value.trim() || template.name + ' Project',
+    client: document.getElementById('ganttTemplateClient').value.trim(),
+    address: document.getElementById('ganttTemplateAddress').value.trim(),
+    startDate: ganttDate(document.getElementById('ganttTemplateStart').value || new Date()),
+    manager: document.getElementById('ganttTemplateManager').value.trim(),
+    staff: document.getElementById('ganttTemplateStaff').value.trim(),
+    vendors: document.getElementById('ganttTemplateVendors').value.trim(),
+    clientVisible: document.getElementById('ganttTemplateClientVisible').checked,
+    notify: document.getElementById('ganttTemplateNotify').checked,
+    groupKey: (document.getElementById('ganttTemplateProject').value.trim() || template.name + ' Project').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + Date.now()
+  };
+  const rows = templateScheduleItems(template, form);
+  const savedByKey = {};
+  try {
+    showToast('Creating ' + rows.length + ' schedule items from ' + template.name + '...');
+    const projectRecord = await createProjectFromTemplateRecord(form, template, rows);
+    rows.forEach(row => {
+      if (projectRecord?.id) row.project_id = projectRecord.id;
+      row.metadata = { ...(row.metadata || {}), project_id: projectRecord?.id || null };
+    });
+    for (const row of rows) {
+      const saved = await persistGanttItem(row);
+      const key = row.metadata?.template_task_key;
+      if (key) savedByKey[key] = saved;
+    }
+    for (const row of rows) {
+      const target = savedByKey[row.metadata?.template_task_key];
+      if (!target || !isGanttUuid(target.id)) continue;
+      const deps = (row.metadata?.dependency_keys || []).map(key => savedByKey[key]).filter(dep => dep && isGanttUuid(dep.id));
+      if (!deps.length) continue;
+      GANTT_ACTIVE_DEPENDENCIES = deps.map(dep => ({
+        source_item_id: dep.id,
+        dependency_type: 'finish_to_start',
+        lag_days: 0,
+        auto_shift: true,
+        notes: 'Created from ' + template.name + ' template'
+      }));
+      await persistGanttDependencies(target.id, target);
+    }
+    SCHEDULE_EXPANDED_PROJECTS = [...new Set([...SCHEDULE_EXPANDED_PROJECTS, form.groupKey])];
+    await logProjectTemplateActivity({
+      event_type: 'project_template_applied',
+      project_id: projectRecord?.id || null,
+      project_name: form.projectName,
+      title: template.name + ' template applied',
+      metadata: { template_slug: template.slug, schedule_group_key: form.groupKey, task_count: rows.length, client: form.client, address: form.address }
+    });
+    await queueProjectTemplateNotifications(rows, form, template);
+    closeGanttTemplateModal();
+    await renderFBGantt(true);
+    showToast(template.name + ' schedule created with ' + rows.length + ' items.');
+  } catch (err) {
+    showToast(err.message || 'Could not apply project template');
+  }
+}
 function ganttFilteredItems() {
   return GANTT_ITEMS.filter(item => {
     if (GANTT_CLIENT_VIEW && !item.client_visible) return false;
@@ -7149,8 +7423,9 @@ function ganttStatusLabel(status) {
 }
 function ganttStatusClass(status) {
   if (status === 'complete') return 'done';
-  if (status === 'delayed' || status === 'blocked') return 'blocked';
-  if (status === 'in_progress') return 'milestone';
+  if (status === 'canceled') return 'done';
+  if (status === 'delayed' || status === 'blocked' || status === 'needs_approval') return 'blocked';
+  if (status === 'in_progress' || status === 'scheduled' || status === 'waiting') return 'milestone';
   return '';
 }
 function ganttTypeLabel(type) {
@@ -7253,7 +7528,7 @@ async function renderFBGantt(forceLoad) {
   const features =
     renderGanttOverview(stats) +
     '<div class="gantt-feature-grid">' +
-      '<div class="gantt-feature-card"><strong>Build your schedule</strong><p>Import documents, photos, forms, and notes to shape the construction schedule around this project.</p><button onclick="document.getElementById(\'ganttImportInput\').click()" class="crm-toolbar-btn mt-3">Import documents</button><button onclick="seedGanttSchedule()" class="crm-toolbar-btn mt-3 ml-2">Use starter schedule</button><input id="ganttImportInput" type="file" multiple class="hidden" onchange="ganttImportDocs(this)" /></div>' +
+      '<div class="gantt-feature-card"><strong>Build your schedule</strong><p>Apply construction templates, or import documents, photos, forms, and notes to shape this project schedule.</p><button onclick="openGanttTemplateModal()" class="crm-toolbar-btn mt-3">Apply Project Template</button><button onclick="document.getElementById(\'ganttImportInput\').click()" class="crm-toolbar-btn mt-3 ml-2">Import documents</button><button onclick="seedGanttSchedule()" class="crm-toolbar-btn mt-3 ml-2">Use starter schedule</button><input id="ganttImportInput" type="file" multiple class="hidden" onchange="ganttImportDocs(this)" /></div>' +
       '<div class="gantt-feature-card"><strong>Real-time progress tracking</strong><p>Track in progress, complete, delayed, blocked, and pending confirmation tasks in one timeline.</p><div class="mt-3 h-2 rounded-full overflow-hidden" style="background:var(--surface-2)"><div style="height:100%;width:' + stats.progress + '%;background:var(--gold)"></div></div><p class="mt-2">' + stats.progress + '% average progress</p></div>' +
       '<div class="gantt-feature-card"><strong>Project health: ' + stats.health + '</strong><p>' + stats.overdue + ' overdue, ' + stats.blocked + ' blocked, and ' + stats.pendingConfirm + ' pending confirmation.</p><button onclick="publishGanttSchedule()" class="crm-toolbar-btn mt-3">Publish schedule</button><button onclick="focusGanttRisks()" class="crm-toolbar-btn mt-3 ml-2">Show risk chain</button></div>' +
     '</div>';
@@ -7273,7 +7548,7 @@ function renderGanttToolbar() {
     '<div class="gantt-controls">' +
       '<div class="gantt-tabs"><button class="gantt-view-tab ' + (GANTT_MODE==='timeline'?'active':'') + '" onclick="setGanttMode(\'timeline\')">Timeline</button><button class="gantt-view-tab ' + (GANTT_MODE==='table'?'active':'') + '" onclick="setGanttMode(\'table\')">Table</button></div>' +
       ganttFilterSelect('ganttFilterType', 'Type', GANTT_TYPE, [{value:'all',label:'All types'},{value:'project',label:'Projects'},{value:'phase',label:'Phases'},{value:'task',label:'Tasks'},{value:'milestone',label:'Milestones'}], 'setGanttType') +
-      ganttFilterSelect('ganttFilterStatus', 'Status', GANTT_STATUS, [{value:'all',label:'All status'},{value:'pending',label:'Pending'},{value:'in_progress',label:'In progress'},{value:'delayed',label:'Delayed'},{value:'blocked',label:'Blocked'},{value:'complete',label:'Complete'}], 'setGanttStatus') +
+      ganttFilterSelect('ganttFilterStatus', 'Status', GANTT_STATUS, [{value:'all',label:'All status'},{value:'pending',label:'Pending'},{value:'scheduled',label:'Scheduled'},{value:'in_progress',label:'In progress'},{value:'waiting',label:'Waiting'},{value:'delayed',label:'Delayed'},{value:'blocked',label:'Blocked'},{value:'needs_approval',label:'Needs approval'},{value:'complete',label:'Complete'},{value:'canceled',label:'Canceled'}], 'setGanttStatus') +
       ganttFilterSelect('ganttFilterPriority', 'Priority', GANTT_PRIORITY, [{value:'all',label:'All priority'},{value:'low',label:'Low'},{value:'normal',label:'Normal'},{value:'high',label:'High'},{value:'critical',label:'Critical'},{value:'blocking_closeout',label:'Blocking closeout'}], 'setGanttPriority') +
       ganttFilterSelect('ganttFilterPhase', 'Phase', GANTT_PHASE, [{value:'all',label:'All phases'}].concat(opts.phases.map(p => ({ value:p, label:p }))), 'setGanttPhase') +
       ganttFilterSelect('ganttFilterAssignee', 'Assignee', GANTT_ASSIGNEE, [{value:'all',label:'All assignees'}].concat(opts.assignees.map(a => ({ value:a, label:a }))), 'setGanttAssignee') +
@@ -7284,7 +7559,7 @@ function renderGanttToolbar() {
       '<button onclick="toggleGanttDependencies()" class="crm-toolbar-btn gantt-toggle-chip ' + (GANTT_SHOW_DEPENDENCIES ? 'active' : '') + '">Dependencies</button>' +
       '<button onclick="toggleGanttClientView()" class="crm-toolbar-btn gantt-toggle-chip ' + (GANTT_CLIENT_VIEW ? 'active' : '') + '">Client View</button>' +
       '<button onclick="toggleGanttEditMode()" class="crm-toolbar-btn">' + (GANTT_EDIT_MODE ? 'Editing schedule' : 'View only') + '</button>' +
-      '<button onclick="openGanttItemModal(\'project\')" class="crm-toolbar-btn">Add Project</button><button onclick="openGanttItemModal(\'phase\')" class="crm-toolbar-btn">Add Phase</button><button onclick="openGanttItemModal(\'task\')" class="crm-toolbar-btn">Add Task</button><button onclick="openGanttItemModal(\'milestone\')" class="crm-toolbar-btn">Add Milestone</button></div>' +
+      '<button onclick="openGanttTemplateModal()" class="crm-toolbar-btn" style="background:var(--gold);color:#fff">Apply Template</button><button onclick="openGanttItemModal(\'project\')" class="crm-toolbar-btn">Add Project</button><button onclick="openGanttItemModal(\'phase\')" class="crm-toolbar-btn">Add Phase</button><button onclick="openGanttItemModal(\'task\')" class="crm-toolbar-btn">Add Task</button><button onclick="openGanttItemModal(\'milestone\')" class="crm-toolbar-btn">Add Milestone</button></div>' +
     '</div></div>';
 }
 function renderGanttDependencySvg(positions, width, height, riskIds) {

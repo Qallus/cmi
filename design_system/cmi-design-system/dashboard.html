@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CMI · CRM Dashboard</title>
+<link rel="icon" type="image/png" href="assets/cmi-favicon-black.png">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="components.css">
+<style>
+  body { background: var(--background); }
+
+  /* App shell */
+  .app { display: grid; grid-template-columns: 232px 1fr; min-height: 100vh; }
+  .app-side {
+    background: var(--card);
+    border-right: 1px solid var(--border);
+    padding: 1rem 0.75rem 0.75rem;
+    display: flex; flex-direction: column;
+    height: 100vh; position: sticky; top: 0;
+  }
+  .app-side .brand { display: flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0.5rem 1rem; }
+  .app-side .brand .cmi-logo-mark { width: 24px; height: 24px; }
+  .app-side .brand .name { font-size: 0.875rem; font-weight: 600; letter-spacing: -0.005em; line-height: 1; }
+  .app-side .brand .org { font-size: 0.6875rem; color: var(--muted-foreground); margin-top: 0.125rem; letter-spacing: 0.02em; }
+
+  .app-side .switcher {
+    display: flex; align-items: center; justify-content: space-between;
+    margin: 0 0.25rem 1rem;
+    padding: 0.5rem 0.625rem;
+    border: 1px solid var(--border); border-radius: var(--radius-md);
+    cursor: pointer; transition: border-color 120ms;
+  }
+  .app-side .switcher:hover { border-color: var(--border-strong); }
+  .app-side .switcher .left { display: flex; align-items: center; gap: 0.5rem; }
+  .app-side .switcher .ico { width: 26px; height: 26px; border-radius: var(--radius-sm); background: var(--primary); color: var(--primary-foreground); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.75rem; }
+  .app-side .switcher .who { display: flex; flex-direction: column; line-height: 1.1; }
+  .app-side .switcher .who strong { font-size: 0.8125rem; font-weight: 600; }
+  .app-side .switcher .who span { font-size: 0.6875rem; color: var(--muted-foreground); }
+
+  .app-side nav { flex: 1; display: flex; flex-direction: column; gap: 0.125rem; overflow-y: auto; padding: 0 0.25rem; }
+  .app-side .nav-section { font-family: var(--font-mono); font-size: 0.625rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted-foreground); padding: 1rem 0.5rem 0.375rem; }
+  .nav-link {
+    display: flex; align-items: center; gap: 0.625rem;
+    padding: 0.4375rem 0.625rem;
+    font-size: 0.8125rem; font-weight: 500;
+    color: var(--muted-foreground);
+    border-radius: var(--radius-md);
+    transition: color 120ms, background 120ms;
+    position: relative;
+  }
+  .nav-link svg { width: 14px; height: 14px; flex: 0 0 auto; }
+  .nav-link:hover { color: var(--foreground); background: var(--muted); }
+  .nav-link.active { color: var(--foreground); background: var(--muted); }
+  .nav-link.active::before {
+    content: ''; position: absolute; left: -10px; top: 8px; bottom: 8px; width: 2px;
+    background: var(--accent); border-radius: 2px;
+  }
+  .nav-link .count {
+    margin-left: auto;
+    background: var(--muted); color: var(--muted-foreground);
+    font-family: var(--font-mono); font-size: 0.625rem;
+    padding: 0.125rem 0.375rem; border-radius: 999px;
+    font-weight: 500;
+  }
+  .nav-link.active .count { background: var(--card); border: 1px solid var(--border); }
+
+  .app-side .footer {
+    border-top: 1px solid var(--border);
+    margin: 0.5rem -0.5rem 0; padding: 0.75rem 0.75rem 0;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .app-side .footer .me { display: flex; align-items: center; gap: 0.5rem; }
+
+  /* Main */
+  .app-main { display: flex; flex-direction: column; min-width: 0; }
+  .app-top {
+    height: 60px; padding: 0 1.5rem;
+    background: color-mix(in oklch, var(--background) 90%, transparent);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; z-index: 5;
+  }
+  .app-top .crumbs { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8125rem; color: var(--muted-foreground); }
+  .app-top .crumbs .sep { opacity: 0.5; }
+  .app-top .crumbs strong { color: var(--foreground); font-weight: 500; }
+  .app-top .actions { display: flex; align-items: center; gap: 0.5rem; }
+  .app-top .search {
+    width: 280px; height: 32px;
+    background: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0 0.625rem;
+    color: var(--muted-foreground); font-size: 0.8125rem;
+  }
+
+  /* Page */
+  .page { padding: 1.75rem 1.75rem 3rem; max-width: 1480px; width: 100%; }
+  .page-head { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 1.75rem; gap: 1rem; flex-wrap: wrap; }
+  .page-head h1 { font-family: var(--font-display); font-size: 1.625rem; line-height: 1.1; letter-spacing: -0.02em; font-weight: 600; margin: 0; }
+  .page-head .greet-meta { color: var(--muted-foreground); font-size: 0.875rem; margin-top: 0.375rem; }
+  .page-head .ctas { display: flex; gap: 0.5rem; }
+
+  /* KPI row */
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; margin-bottom: 1.5rem; }
+  @media (max-width: 980px) { .kpis { grid-template-columns: repeat(2, 1fr); } }
+  .kpi {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1.125rem 1.25rem;
+    display: flex; flex-direction: column; gap: 0.375rem;
+  }
+  .kpi .label { font-size: 0.8125rem; color: var(--muted-foreground); display: flex; align-items: center; justify-content: space-between; }
+  .kpi .label .icn { width: 18px; height: 18px; color: var(--muted-foreground); }
+  .kpi .val { font-family: var(--font-display); font-size: 1.875rem; line-height: 1.1; letter-spacing: -0.025em; font-weight: 600; }
+  .kpi .val small { font-size: 1rem; font-weight: 500; color: var(--muted-foreground); }
+  .kpi .delta { font-family: var(--font-mono); font-size: 0.75rem; display: flex; align-items: center; gap: 0.375rem; }
+  .kpi .delta.up { color: var(--success); }
+  .kpi .delta.down { color: var(--destructive); }
+  .kpi .delta.flat { color: var(--muted-foreground); }
+  .kpi .spark { height: 24px; margin-top: 0.25rem; }
+
+  /* Layout grid */
+  .grid-2col { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 1rem; align-items: flex-start; margin-bottom: 1rem; }
+  @media (max-width: 1100px) { .grid-2col { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+  .panel-head {
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+  }
+  .panel-head h3 { font-size: 0.9375rem; font-weight: 600; margin: 0; letter-spacing: -0.005em; }
+  .panel-head .sub { font-size: 0.75rem; color: var(--muted-foreground); margin-top: 0.125rem; }
+  .panel-body { padding: 1.25rem; }
+  .panel-body.tight { padding: 0; }
+
+  /* Pipeline kanban */
+  .kanban { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.75rem; padding: 1rem; }
+  @media (max-width: 1100px) { .kanban { grid-template-columns: repeat(2, 1fr); } }
+  .kanban-col {
+    background: var(--muted); border-radius: var(--radius-md); padding: 0.625rem;
+    display: flex; flex-direction: column; gap: 0.5rem;
+    min-height: 200px;
+  }
+  .kanban-col-head { display: flex; align-items: center; justify-content: space-between; padding: 0.125rem 0.25rem; }
+  .kanban-col-head .name { font-size: 0.75rem; font-weight: 600; display: flex; align-items: center; gap: 0.375rem; }
+  .kanban-col-head .name .dot { width: 8px; height: 8px; border-radius: 999px; }
+  .kanban-col-head .count { font-family: var(--font-mono); font-size: 0.6875rem; color: var(--muted-foreground); }
+  .deal {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius-md); padding: 0.625rem 0.75rem;
+    cursor: grab;
+    display: flex; flex-direction: column; gap: 0.375rem;
+    transition: border-color 120ms, transform 120ms;
+  }
+  .deal:hover { border-color: var(--border-strong); }
+  .deal:active { cursor: grabbing; }
+  .deal .deal-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+  .deal .deal-name { font-size: 0.8125rem; font-weight: 600; line-height: 1.25; }
+  .deal .deal-meta { font-family: var(--font-mono); font-size: 0.6875rem; color: var(--muted-foreground); }
+  .deal .deal-value { font-family: var(--font-mono); font-size: 0.75rem; font-weight: 600; }
+  .deal .deal-foot { display: flex; align-items: center; justify-content: space-between; }
+  .deal .deal-tags { display: flex; gap: 0.25rem; }
+  .deal .tag {
+    font-size: 0.625rem; padding: 0.0625rem 0.375rem;
+    border-radius: 4px; background: var(--muted); color: var(--muted-foreground);
+    font-weight: 500;
+  }
+
+  /* Activity feed */
+  .feed { display: flex; flex-direction: column; }
+  .feed-item {
+    padding: 0.875rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    display: grid; grid-template-columns: 28px 1fr auto; gap: 0.75rem; align-items: flex-start;
+  }
+  .feed-item:last-child { border-bottom: 0; }
+  .feed-item .icn { width: 28px; height: 28px; border-radius: 999px; background: var(--muted); display: flex; align-items: center; justify-content: center; color: var(--muted-foreground); flex: 0 0 auto; }
+  .feed-item .icn.accent { background: color-mix(in oklch, var(--accent) 16%, var(--card)); color: var(--accent); }
+  .feed-item .icn.success { background: color-mix(in oklch, var(--success) 20%, var(--card)); color: var(--success); }
+  .feed-item .icn.warning { background: color-mix(in oklch, var(--warning) 20%, var(--card)); color: oklch(0.55 0.15 78); }
+  .feed-item .body .who { font-size: 0.8125rem; font-weight: 500; }
+  .feed-item .body .who span { font-weight: 400; color: var(--muted-foreground); }
+  .feed-item .body .sub { font-size: 0.75rem; color: var(--muted-foreground); margin-top: 0.125rem; line-height: 1.4; }
+  .feed-item .when { font-family: var(--font-mono); font-size: 0.6875rem; color: var(--muted-foreground); white-space: nowrap; }
+
+  /* Project list */
+  .proj-list .cmi-table th:first-child, .proj-list .cmi-table td:first-child { padding-left: 1.25rem; }
+  .proj-list .cmi-table th:last-child,  .proj-list .cmi-table td:last-child  { padding-right: 1.25rem; }
+  .proj-list .cmi-table thead th { background: var(--card); }
+  .proj-list .cell-strong { font-weight: 600; }
+  .proj-list .cell-mute { color: var(--muted-foreground); font-size: 0.75rem; margin-top: 0.125rem; }
+  .proj-list .progress-mini {
+    display: flex; align-items: center; gap: 0.5rem;
+    font-family: var(--font-mono); font-size: 0.75rem;
+  }
+  .proj-list .progress-mini .bar { width: 60px; height: 4px; background: var(--muted); border-radius: 999px; overflow: hidden; }
+  .proj-list .progress-mini .bar > div { height: 100%; background: var(--accent); border-radius: 999px; }
+
+  /* Schedule */
+  .schedule { padding: 0; }
+  .schedule-day {
+    display: grid; grid-template-columns: 80px 1fr; padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--border);
+  }
+  .schedule-day:last-child { border-bottom: 0; }
+  .schedule-day .when { display: flex; flex-direction: column; line-height: 1.1; }
+  .schedule-day .when .dow { font-family: var(--font-mono); font-size: 0.6875rem; color: var(--muted-foreground); letter-spacing: 0.08em; }
+  .schedule-day .when .dom { font-family: var(--font-display); font-size: 1.5rem; font-weight: 600; }
+  .schedule-day .events { display: flex; flex-direction: column; gap: 0.5rem; }
+  .event {
+    display: flex; align-items: center; gap: 0.625rem; padding: 0.5rem 0.625rem;
+    background: var(--muted); border-radius: var(--radius-md);
+    font-size: 0.8125rem;
+  }
+  .event .swatch { width: 4px; align-self: stretch; border-radius: 999px; background: var(--accent); }
+  .event.foundation .swatch { background: var(--chart-2); }
+  .event.permit .swatch { background: var(--info); }
+  .event.client .swatch { background: var(--accent); }
+  .event.inspect .swatch { background: var(--warning); }
+  .event .name { font-weight: 500; }
+  .event .meta { font-family: var(--font-mono); font-size: 0.6875rem; color: var(--muted-foreground); margin-left: auto; }
+
+  /* Chart panel */
+  .chart-wrap { height: 200px; padding: 1rem 1.25rem; }
+  .chart-wrap svg { width: 100%; height: 100%; }
+
+  /* Tabs in panel head */
+  .panel-tabs {
+    display: inline-flex; background: var(--muted);
+    padding: 2px; border-radius: var(--radius-md); gap: 1px;
+  }
+  .panel-tabs button {
+    padding: 4px 8px; font-size: 0.75rem; font-weight: 500;
+    color: var(--muted-foreground); background: transparent;
+    border: none; cursor: pointer; border-radius: calc(var(--radius-md) - 2px);
+  }
+  .panel-tabs button.active { background: var(--card); color: var(--foreground); box-shadow: var(--shadow-xs); }
+
+  /* Quick actions card */
+  .qa-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+  .qa-btn {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.625rem 0.75rem;
+    border: 1px solid var(--border); border-radius: var(--radius-md);
+    background: var(--card);
+    font-size: 0.8125rem; font-weight: 500; text-align: left;
+    cursor: pointer; transition: border-color 120ms, background 120ms;
+  }
+  .qa-btn:hover { background: var(--muted); border-color: var(--border-strong); }
+  .qa-btn .icn { width: 28px; height: 28px; border-radius: var(--radius-sm); background: var(--muted); display: flex; align-items: center; justify-content: center; color: var(--accent); }
+
+  /* RFI list */
+  .rfi {
+    padding: 0.875rem 1.25rem; border-bottom: 1px solid var(--border);
+    display: grid; grid-template-columns: 1fr auto; gap: 0.75rem;
+  }
+  .rfi:last-child { border-bottom: 0; }
+  .rfi .body .num { font-family: var(--font-mono); font-size: 0.6875rem; color: var(--muted-foreground); letter-spacing: 0.08em; }
+  .rfi .body .q { font-size: 0.8125rem; font-weight: 500; line-height: 1.4; margin-top: 0.25rem; }
+  .rfi .body .who { font-size: 0.6875rem; color: var(--muted-foreground); margin-top: 0.25rem; display: flex; gap: 0.5rem; align-items: center; }
+</style>
+</head>
+<body>
+
+<div class="app" data-screen-label="Dashboard">
+
+  <!-- ============================== SIDE ============================== -->
+  <aside class="app-side">
+    <div class="brand">
+      <span class="cmi-logo-mark"></span>
+      <div>
+        <div class="name">Constructed Matter</div>
+        <div class="org">PRODUCTION · v1.0</div>
+      </div>
+    </div>
+
+    <div class="switcher" id="orgSwitcher">
+      <div class="left">
+        <div class="ico">JB</div>
+        <div class="who"><strong>Joe Ballard</strong><span>Managing Partner</span></div>
+      </div>
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9l5-5 5 5M7 15l5 5 5-5"/></svg>
+    </div>
+
+    <nav>
+      <a class="nav-link active" data-route="dashboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        Dashboard
+      </a>
+      <a class="nav-link" data-route="projects">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-2"/></svg>
+        Projects <span class="count">14</span>
+      </a>
+      <a class="nav-link" data-route="pipeline">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h6l2-3 4 6 2-3h4"/></svg>
+        Pipeline <span class="count">22</span>
+      </a>
+      <a class="nav-link" data-route="schedule">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>
+        Schedule
+      </a>
+      <a class="nav-link" data-route="clients">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Clients <span class="count">86</span>
+      </a>
+
+      <div class="nav-section">Operations</div>
+      <a class="nav-link" data-route="rfi">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+        RFIs <span class="count">7</span>
+      </a>
+      <a class="nav-link" data-route="changes">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M9 13l2 2 4-4"/></svg>
+        Change Orders <span class="count">3</span>
+      </a>
+      <a class="nav-link" data-route="budgets">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="2" x2="12" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        Budgets
+      </a>
+      <a class="nav-link" data-route="invoices">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h6"/></svg>
+        Invoices
+      </a>
+      <a class="nav-link" data-route="docs">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+        Documents
+      </a>
+      <a class="nav-link" data-route="photos">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></svg>
+        Photo Log
+      </a>
+
+      <div class="nav-section">Workspace</div>
+      <a class="nav-link" data-route="team">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Team
+      </a>
+      <a class="nav-link" data-route="settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        Settings
+      </a>
+    </nav>
+
+    <div class="footer">
+      <div class="me">
+        <span class="cmi-avatar cmi-avatar-sm" style="background: var(--accent); color: var(--accent-foreground);">JB</span>
+        <div style="font-size: 0.75rem; line-height: 1.1;">
+          <div style="font-weight: 600;">Joe Ballard</div>
+          <div style="color: var(--muted-foreground); font-size: 0.6875rem;">joe@constructedmatter.com</div>
+        </div>
+      </div>
+      <button class="cmi-btn cmi-btn-ghost cmi-btn-icon cmi-btn-sm" title="Toggle theme" id="themeToggle">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+      </button>
+    </div>
+  </aside>
+
+  <!-- ============================== MAIN ============================== -->
+  <main class="app-main">
+
+    <!-- Topbar -->
+    <header class="app-top">
+      <div class="crumbs">
+        <a href="marketing.html" style="color: var(--muted-foreground);">CMI</a>
+        <span class="sep">/</span>
+        <strong>Dashboard</strong>
+      </div>
+      <div class="actions">
+        <div class="search">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <span>Search projects, clients, RFIs…</span>
+          <span style="flex:1"></span>
+          <span class="cmi-kbd">⌘K</span>
+        </div>
+        <button class="cmi-btn cmi-btn-ghost cmi-btn-icon cmi-btn-sm" title="Notifications">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0v6l2 2H4l2-2zM10 20a2 2 0 0 0 4 0"/></svg>
+        </button>
+        <a class="cmi-btn cmi-btn-primary cmi-btn-sm" href="#">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+          New project
+        </a>
+      </div>
+    </header>
+
+    <div class="page">
+
+      <!-- Greeting -->
+      <div class="page-head">
+        <div>
+          <h1>Good morning, Joe.</h1>
+          <p class="greet-meta">You have <strong style="color: var(--foreground);">3 RFIs</strong> waiting on you and <strong style="color: var(--foreground);">2 site visits</strong> today. Concrete pour at Ambassador goes Tuesday.</p>
+        </div>
+        <div class="ctas">
+          <button class="cmi-btn cmi-btn-outline cmi-btn-sm">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            Export weekly digest
+          </button>
+          <button class="cmi-btn cmi-btn-primary cmi-btn-sm">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>
+            View calendar
+          </button>
+        </div>
+      </div>
+
+      <!-- KPIs -->
+      <div class="kpis">
+        <div class="kpi">
+          <div class="label">Active projects <svg class="icn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-2"/></svg></div>
+          <div class="val">14</div>
+          <div class="delta up">▲ 2 vs. last month</div>
+          <svg class="spark" id="spark1" viewBox="0 0 200 24" preserveAspectRatio="none"></svg>
+        </div>
+        <div class="kpi">
+          <div class="label">Backlog value <svg class="icn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="2" x2="12" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+          <div class="val">$8.2<small>M</small></div>
+          <div class="delta up">▲ 12.4% qoq</div>
+          <svg class="spark" id="spark2" viewBox="0 0 200 24" preserveAspectRatio="none"></svg>
+        </div>
+        <div class="kpi">
+          <div class="label">Win rate (90d) <svg class="icn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h6l2-3 4 6 2-3h4"/></svg></div>
+          <div class="val">34<small>%</small></div>
+          <div class="delta flat">— flat</div>
+          <svg class="spark" id="spark3" viewBox="0 0 200 24" preserveAspectRatio="none"></svg>
+        </div>
+        <div class="kpi">
+          <div class="label">Avg. margin <svg class="icn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 18l12-12M8 6h.01M18 18h.01"/></svg></div>
+          <div class="val">18.6<small>%</small></div>
+          <div class="delta down">▼ 1.2pt</div>
+          <svg class="spark" id="spark4" viewBox="0 0 200 24" preserveAspectRatio="none"></svg>
+        </div>
+      </div>
+
+      <!-- Row 1: Active projects + Schedule -->
+      <div class="grid-2col">
+        <div class="panel proj-list">
+          <div class="panel-head">
+            <div>
+              <h3>Active projects</h3>
+              <div class="sub">14 in flight · 5 with milestones this week</div>
+            </div>
+            <div style="display: flex; gap: 0.5rem;">
+              <div class="panel-tabs">
+                <button class="active">All</button>
+                <button>On track</button>
+                <button>At risk</button>
+                <button>Delayed</button>
+              </div>
+              <button class="cmi-btn cmi-btn-ghost cmi-btn-sm">View all →</button>
+            </div>
+          </div>
+          <div class="panel-body tight">
+            <table class="cmi-table">
+              <thead><tr><th>Project</th><th>Status</th><th>Progress</th><th>Budget</th><th>Delta</th><th>Next milestone</th><th>PM</th></tr></thead>
+              <tbody id="projTable"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel schedule-panel">
+          <div class="panel-head">
+            <div>
+              <h3>This week</h3>
+              <div class="sub">May 11 – May 17, 2026</div>
+            </div>
+            <button class="cmi-btn cmi-btn-ghost cmi-btn-sm">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+            </button>
+          </div>
+          <div class="schedule">
+            <div class="schedule-day">
+              <div class="when"><span class="dow">MON</span><span class="dom">11</span></div>
+              <div class="events">
+                <div class="event client"><span class="swatch"></span><div class="name">Client walk-through — Conrad</div><span class="meta">9:00 AM</span></div>
+                <div class="event inspect"><span class="swatch"></span><div class="name">Framing inspection — VW Garage</div><span class="meta">2:00 PM</span></div>
+              </div>
+            </div>
+            <div class="schedule-day">
+              <div class="when"><span class="dow">TUE</span><span class="dom">12</span></div>
+              <div class="events">
+                <div class="event foundation"><span class="swatch"></span><div class="name">Concrete pour — Ambassador ADU</div><span class="meta">5:00 AM</span></div>
+                <div class="event permit"><span class="swatch"></span><div class="name">Permit pick-up — Garden Plaza</div><span class="meta">11:00 AM</span></div>
+              </div>
+            </div>
+            <div class="schedule-day">
+              <div class="when"><span class="dow">WED</span><span class="dom">13</span></div>
+              <div class="events">
+                <div class="event"><span class="swatch"></span><div class="name">Subcontractor sync</div><span class="meta">8:00 AM</span></div>
+              </div>
+            </div>
+            <div class="schedule-day">
+              <div class="when"><span class="dow">THU</span><span class="dom">14</span></div>
+              <div class="events">
+                <div class="event client"><span class="swatch"></span><div class="name">Tile selection — Parco</div><span class="meta">10:30 AM</span></div>
+              </div>
+            </div>
+            <div class="schedule-day">
+              <div class="when"><span class="dow">FRI</span><span class="dom">15</span></div>
+              <div class="events">
+                <div class="event"><span class="swatch"></span><div class="name">Weekly digest send</div><span class="meta">8:00 AM</span></div>
+                <div class="event inspect"><span class="swatch"></span><div class="name">MEP rough-in inspection</div><span class="meta">1:00 PM</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 2: Pipeline + Activity -->
+      <div class="grid-2col">
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <h3>Pipeline</h3>
+              <div class="sub">$4.7M weighted · 22 active opportunities</div>
+            </div>
+            <div style="display: flex; gap: 0.5rem;">
+              <button class="cmi-btn cmi-btn-outline cmi-btn-sm">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M7 12h10M11 18h2"/></svg>
+                Filter
+              </button>
+              <button class="cmi-btn cmi-btn-primary cmi-btn-sm">+ Add lead</button>
+            </div>
+          </div>
+          <div class="kanban" id="kanban"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <h3>Recent activity</h3>
+              <div class="sub">Across all projects</div>
+            </div>
+            <button class="cmi-btn cmi-btn-ghost cmi-btn-sm">Filter</button>
+          </div>
+          <div class="feed" id="feed"></div>
+        </div>
+      </div>
+
+      <!-- Row 3: Revenue chart + RFIs + Quick actions -->
+      <div class="grid-2col" style="grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);">
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <h3>Revenue &amp; pipeline · trailing 12 months</h3>
+              <div class="sub">Recognized vs. projected · monthly</div>
+            </div>
+            <div class="panel-tabs">
+              <button>1M</button>
+              <button>3M</button>
+              <button>6M</button>
+              <button class="active">12M</button>
+              <button>All</button>
+            </div>
+          </div>
+          <div class="chart-wrap"><svg id="revChart" preserveAspectRatio="none" viewBox="0 0 520 200"></svg></div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 1rem;">
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <h3>Open RFIs</h3>
+                <div class="sub">7 awaiting response</div>
+              </div>
+              <button class="cmi-btn cmi-btn-ghost cmi-btn-sm">View all →</button>
+            </div>
+            <div>
+              <div class="rfi">
+                <div class="body">
+                  <div class="num">RFI-2026-0184-07</div>
+                  <div class="q">Ridge beam spec vs. drawing A-301: which controls at the bay-window jog?</div>
+                  <div class="who">Conrad Interior · M. Doolittle (Framing) · 2h ago</div>
+                </div>
+                <span class="cmi-badge cmi-badge-warning"><span class="dot"></span>Urgent</span>
+              </div>
+              <div class="rfi">
+                <div class="body">
+                  <div class="num">RFI-2026-0179-04</div>
+                  <div class="q">Slab penetration locations for MEP — please confirm with mech subcontractor.</div>
+                  <div class="who">Ambassador ADU · J. Reyes (MEP) · 5h ago</div>
+                </div>
+                <span class="cmi-badge"><span class="dot"></span>Normal</span>
+              </div>
+              <div class="rfi">
+                <div class="body">
+                  <div class="num">RFI-2026-0166-02</div>
+                  <div class="q">Storefront frame anchor type — TS or HSS per latest structural?</div>
+                  <div class="who">Garden Plaza · K. Wong (Steel) · yesterday</div>
+                </div>
+                <span class="cmi-badge"><span class="dot"></span>Normal</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <h3>Quick actions</h3>
+            </div>
+            <div class="panel-body">
+              <div class="qa-grid">
+                <button class="qa-btn"><span class="icn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span>New project</button>
+                <button class="qa-btn"><span class="icn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg></span>Upload doc</button>
+                <button class="qa-btn"><span class="icn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></span>Log RFI</button>
+                <button class="qa-btn"><span class="icn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></span>Send invoice</button>
+                <button class="qa-btn"><span class="icn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></svg></span>Photo log</button>
+                <button class="qa-btn"><span class="icn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></span>Invite client</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<template id="logo-mark-svg"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 763 889" fill="none" aria-hidden="true" preserveAspectRatio="xMidYMid meet">
+  <g transform="matrix(1,0,0,1,1082.67,-1078.99)">
+    <g transform="matrix(13.5164,0,0,13.5164,-623.137,1678.31)">
+      <path d="M0,-22.981C-1.305,-21.196 -3.409,-20.034 -5.778,-20.034C-8.38,-20.036 -10.655,-21.431 -11.912,-23.518C-12.798,-23.1 -13.629,-22.583 -14.391,-21.98C-14.301,-21.527 -14.252,-21.058 -14.252,-20.576C-14.256,-17.375 -16.317,-14.666 -19.177,-13.713C-19.271,-13.086 -19.323,-12.447 -19.325,-11.8C-19.323,-11.286 -19.285,-10.777 -19.22,-10.267C-16.336,-9.329 -14.256,-6.605 -14.254,-3.388C-14.253,-2.796 -14.327,-2.224 -14.461,-1.678C-13.592,-0.981 -12.632,-0.395 -11.6,0.059C-10.299,-1.76 -8.175,-2.947 -5.778,-2.947C-3.604,-2.947 -1.65,-1.969 -0.335,-0.426C0.798,-1.053 1.829,-1.852 2.725,-2.786C2.707,-2.981 2.696,-3.181 2.696,-3.388C2.696,-7.384 5.908,-10.62 9.871,-10.622C13.833,-10.62 17.045,-7.384 17.045,-3.388C17.045,0.607 13.833,3.846 9.871,3.846C7.857,3.846 6.039,3.006 4.739,1.661C3.715,2.528 2.588,3.279 1.384,3.893C1.392,4.022 1.396,4.153 1.396,4.288C1.395,8.282 -1.815,11.519 -5.778,11.52C-9.664,11.519 -12.828,8.407 -12.949,4.519C-14.384,3.941 -15.73,3.184 -16.951,2.262C-18.177,3.251 -19.736,3.846 -21.429,3.846C-25.392,3.846 -28.602,0.607 -28.604,-3.388C-28.602,-6.53 -26.614,-9.202 -23.835,-10.199C-23.888,-10.719 -23.92,-11.252 -23.92,-11.798C-23.92,-12.466 -23.875,-13.115 -23.799,-13.749C-26.598,-14.737 -28.602,-17.42 -28.604,-20.576C-28.602,-24.572 -25.392,-27.811 -21.429,-27.811C-19.626,-27.811 -17.977,-27.134 -16.72,-26.026C-15.546,-26.885 -14.262,-27.594 -12.896,-28.14C-12.468,-31.723 -9.449,-34.502 -5.778,-34.503C-1.889,-34.502 1.275,-31.384 1.393,-27.49C2.52,-26.914 3.576,-26.219 4.545,-25.42C5.856,-26.887 7.757,-27.811 9.871,-27.811C13.833,-27.811 17.045,-24.572 17.045,-20.576C17.045,-16.581 13.833,-13.344 9.871,-13.343C5.908,-13.344 2.696,-16.581 2.696,-20.576C2.696,-20.668 2.698,-20.76 2.701,-20.852C1.901,-21.676 0.993,-22.394 0,-22.981M-5.777,-44.34L-33.998,-27.915L-33.998,4.934L-5.777,21.359L22.439,4.934L22.439,-27.915L-5.777,-44.34Z" fill="currentColor" fill-rule="evenodd"/>
+    </g>
+  </g>
+</svg></template>
+
+<script src="dashboard.js"></script>
+</body>
+</html>

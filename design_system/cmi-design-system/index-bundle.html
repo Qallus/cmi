@@ -1,0 +1,1022 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Constructed Matter — Design System</title>
+<link rel="icon" type="image/png" href="assets/cmi-favicon-black.png">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="components.css">
+<style>
+  /* Layout */
+  .ds-shell { display: grid; grid-template-columns: 256px 1fr; min-height: 100vh; }
+  .ds-side {
+    position: sticky; top: 0; height: 100vh;
+    background: var(--card); border-right: 1px solid var(--border);
+    padding: 1.25rem 1rem 1rem; display: flex; flex-direction: column; gap: 0.75rem;
+    overflow-y: auto;
+  }
+  .ds-side .brand { display: flex; align-items: center; gap: 0.625rem; padding: 0.125rem 0.25rem 0.875rem; }
+  .ds-side .brand .name { display: flex; flex-direction: column; line-height: 1.15; }
+  .ds-side .brand .name strong { font-size: 0.875rem; letter-spacing: -0.005em; }
+  .ds-side .brand .name span { font-size: 0.6875rem; color: var(--muted-foreground); letter-spacing: 0.04em; }
+  .ds-side nav { display: flex; flex-direction: column; gap: 0.125rem; }
+  .ds-side .group-label {
+    font-family: var(--font-mono); font-size: 0.625rem;
+    letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--muted-foreground); padding: 0.875rem 0.5rem 0.375rem;
+  }
+  .ds-side a.item {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.4375rem 0.5rem;
+    font-size: 0.8125rem; color: var(--muted-foreground);
+    border-radius: var(--radius-md);
+    transition: color 120ms, background 120ms;
+  }
+  .ds-side a.item:hover { color: var(--foreground); background: var(--muted); }
+  .ds-side a.item.active { color: var(--foreground); background: var(--muted); font-weight: 500; }
+  .ds-side a.item .dot { width: 6px; height: 6px; border-radius: 999px; background: var(--accent); opacity: 0; }
+  .ds-side a.item.active .dot { opacity: 1; }
+  .ds-side .ver { margin-top: auto; padding: 0.75rem 0.5rem; font-size: 0.6875rem; color: var(--muted-foreground); border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+
+  .ds-main { padding: 0; min-width: 0; }
+  .ds-topbar {
+    position: sticky; top: 0; z-index: 5;
+    background: color-mix(in oklch, var(--background) 88%, transparent);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--border);
+    height: 56px; display: flex; align-items: center; justify-content: space-between;
+    padding: 0 1.75rem;
+  }
+  .ds-topbar .crumbs { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8125rem; color: var(--muted-foreground); }
+  .ds-topbar .crumbs .sep { opacity: 0.5; }
+  .ds-topbar .crumbs strong { color: var(--foreground); font-weight: 500; }
+  .ds-topbar .actions { display: flex; align-items: center; gap: 0.5rem; }
+  .ds-search {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    background: var(--muted); color: var(--muted-foreground);
+    border: 1px solid var(--border); border-radius: var(--radius-md);
+    padding: 0 0.5rem; height: 1.875rem; font-size: 0.8125rem;
+    min-width: 240px;
+  }
+  .ds-section { padding: 3rem 2.5rem; max-width: 1240px; }
+  .ds-section + .ds-section { border-top: 1px solid var(--border); }
+  .ds-section-head { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 2rem; }
+  .ds-section-head .cmi-eyebrow { margin: 0; }
+
+  /* Grid utility */
+  .grid { display: grid; gap: 1rem; }
+  .grid-2 { grid-template-columns: repeat(2, 1fr); }
+  .grid-3 { grid-template-columns: repeat(3, 1fr); }
+  .grid-4 { grid-template-columns: repeat(4, 1fr); }
+  .grid-6 { grid-template-columns: repeat(6, 1fr); }
+  @media (max-width: 980px) {
+    .grid-4, .grid-6 { grid-template-columns: repeat(2, 1fr); }
+    .grid-3 { grid-template-columns: 1fr 1fr; }
+  }
+
+  /* Brand showcase */
+  .hero {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+    background:
+      radial-gradient(120% 80% at 50% 0%, color-mix(in oklch, var(--accent) 14%, transparent) 0%, transparent 60%),
+      var(--card);
+    padding: 2.5rem;
+    display: grid; grid-template-columns: 1.1fr 1fr; gap: 2rem;
+    align-items: center;
+  }
+  .hero .title-block { display: flex; flex-direction: column; gap: 1rem; }
+  .hero h1 { font-family: var(--font-display); font-size: clamp(2rem, 3.5vw, 3rem); line-height: 1.05; letter-spacing: -0.03em; font-weight: 600; margin: 0; }
+  .hero h1 em { font-style: normal; color: var(--accent); }
+  .hero .meta {
+    display: flex; gap: 1.5rem; flex-wrap: wrap;
+    padding-top: 1rem; border-top: 1px solid var(--border); margin-top: 0.5rem;
+    color: var(--muted-foreground); font-size: 0.8125rem;
+  }
+  .hero .meta div { display: flex; flex-direction: column; gap: 0.125rem; }
+  .hero .meta strong { color: var(--foreground); font-weight: 500; font-size: 0.8125rem; font-family: var(--font-mono); }
+  .hero .visual {
+    position: relative; height: 320px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .hero-grid {
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(to right, color-mix(in oklch, var(--border) 80%, transparent) 1px, transparent 1px),
+      linear-gradient(to bottom, color-mix(in oklch, var(--border) 80%, transparent) 1px, transparent 1px);
+    background-size: 28px 28px;
+    mask-image: radial-gradient(circle at center, black 30%, transparent 75%);
+  }
+  .hero .logo-stack { width: 200px; height: 200px; color: var(--foreground); position: relative; z-index: 1; }
+  @media (max-width: 900px) {
+    .hero { grid-template-columns: 1fr; }
+    .hero .visual { height: 240px; }
+  }
+
+  /* Brand cards */
+  .logo-card {
+    border: 1px solid var(--border); border-radius: var(--radius-lg);
+    overflow: hidden;
+    background: var(--card);
+  }
+  .logo-card .preview {
+    aspect-ratio: 16/9; display: flex; align-items: center; justify-content: center;
+    padding: 1.5rem;
+  }
+  .logo-card .meta {
+    padding: 0.875rem 1rem;
+    border-top: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 0.75rem;
+  }
+  .preview-light { background: oklch(0.98 0.005 75); color: oklch(0.16 0.012 60); }
+  .preview-dark { background: oklch(0.16 0.008 60); color: oklch(0.97 0.005 75); }
+  .preview-accent { background: var(--accent); color: var(--accent-foreground); }
+  .preview-concrete { background: var(--surface-concrete); color: var(--foreground); }
+  .logo-card .preview img { max-width: 80%; max-height: 80%; object-fit: contain; }
+  .logo-card .preview svg { width: 64px; height: 64px; color: currentColor; }
+
+  /* 3D logo gallery */
+  .three-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+  @media (max-width: 900px) { .three-grid { grid-template-columns: 1fr; } }
+  .three-card {
+    aspect-ratio: 1/1;
+    border: 1px solid var(--border); border-radius: var(--radius-lg);
+    overflow: hidden; position: relative;
+    background: var(--card);
+  }
+  .three-card canvas { width: 100% !important; height: 100% !important; display: block; }
+  .three-card .label {
+    position: absolute; left: 0.875rem; bottom: 0.875rem;
+    display: flex; align-items: center; gap: 0.5rem;
+    background: color-mix(in oklch, var(--card) 80%, transparent);
+    backdrop-filter: blur(6px);
+    border: 1px solid var(--border);
+    padding: 0.375rem 0.625rem;
+    border-radius: var(--radius-md);
+    font-size: 0.75rem; font-weight: 500;
+  }
+  .three-card .swatch { width: 12px; height: 12px; border-radius: 999px; }
+
+  /* Color swatches */
+  .swatch-card {
+    border: 1px solid var(--border); border-radius: var(--radius-md);
+    overflow: hidden; background: var(--card);
+  }
+  .swatch-card .chip { aspect-ratio: 16/10; }
+  .swatch-card .info { padding: 0.625rem 0.75rem; font-size: 0.75rem; }
+  .swatch-card .info .name { font-weight: 500; font-size: 0.8125rem; }
+  .swatch-card .info .token { font-family: var(--font-mono); color: var(--muted-foreground); font-size: 0.6875rem; margin-top: 0.125rem; }
+  .swatch-card .info .value { font-family: var(--font-mono); color: var(--muted-foreground); font-size: 0.6875rem; }
+  .swatch-row { display: grid; grid-template-columns: repeat(11, 1fr); gap: 0; border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--border); }
+  .swatch-row .step { aspect-ratio: 1/1; display: flex; align-items: flex-end; justify-content: flex-start; padding: 0.375rem 0.5rem; font-size: 0.625rem; font-family: var(--font-mono); }
+
+  /* Type specimen */
+  .type-row { display: grid; grid-template-columns: 130px 1fr; gap: 1.5rem; padding: 1.25rem 0; border-bottom: 1px solid var(--border); align-items: baseline; }
+  .type-row:last-child { border-bottom: 0; }
+  .type-row .label { color: var(--muted-foreground); font-family: var(--font-mono); font-size: 0.75rem; }
+  .type-row .label small { display: block; color: var(--muted-foreground); font-size: 0.6875rem; margin-top: 0.25rem; opacity: 0.7; }
+  .type-row .sample { color: var(--foreground); }
+
+  /* Spacing visual */
+  .spacing-row { display: grid; grid-template-columns: 80px 1fr 80px; gap: 1rem; align-items: center; padding: 0.5rem 0; }
+  .spacing-row .bar { height: 12px; background: var(--accent); border-radius: 4px; }
+  .spacing-row .name { font-family: var(--font-mono); font-size: 0.75rem; }
+  .spacing-row .val { font-family: var(--font-mono); font-size: 0.75rem; color: var(--muted-foreground); text-align: right; }
+
+  /* Radius / shadow visuals */
+  .demo-tile {
+    aspect-ratio: 5/3;
+    border: 1px solid var(--border);
+    background: var(--card);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .demo-tile .inner {
+    width: 60%; height: 60%; background: var(--accent);
+  }
+  .shadow-tile {
+    aspect-ratio: 5/3;
+    background: var(--card);
+    border-radius: var(--radius-md);
+    display: flex; align-items: flex-end;
+    padding: 1rem;
+    font-family: var(--font-mono); font-size: 0.75rem;
+    color: var(--muted-foreground);
+  }
+
+  /* Iconography */
+  .icon-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 0.5rem; }
+  @media (max-width: 900px) { .icon-grid { grid-template-columns: repeat(4, 1fr); } }
+  .icon-tile {
+    aspect-ratio: 1/1; border: 1px solid var(--border); border-radius: var(--radius-md);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 0.375rem; color: var(--muted-foreground); font-family: var(--font-mono); font-size: 0.6875rem;
+    transition: color 120ms, background 120ms;
+    background: var(--card);
+  }
+  .icon-tile:hover { color: var(--foreground); background: var(--muted); }
+  .icon-tile svg { width: 22px; height: 22px; }
+
+  /* Component grid */
+  .ex-card {
+    border: 1px solid var(--border); border-radius: var(--radius-lg);
+    background: var(--card); padding: 1.25rem;
+  }
+  .ex-card .head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+  .ex-card .head h4 { margin: 0; font-size: 0.875rem; font-weight: 600; }
+  .ex-card .head span { font-family: var(--font-mono); font-size: 0.6875rem; color: var(--muted-foreground); }
+  .ex-card .body { display: flex; flex-direction: column; gap: 0.75rem; min-height: 88px; align-items: flex-start; justify-content: center; }
+  .ex-row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+
+  /* App mockup card */
+  .mockup-card {
+    border: 1px solid var(--border); border-radius: var(--radius-xl);
+    overflow: hidden;
+    background: var(--card);
+    display: grid; grid-template-columns: 1.3fr 1fr;
+  }
+  @media (max-width: 980px) { .mockup-card { grid-template-columns: 1fr; } }
+  .mockup-card iframe {
+    width: 100%; height: 100%;
+    min-height: 420px;
+    border: 0;
+    background: var(--background);
+  }
+  .mockup-card .info { padding: 1.75rem; display: flex; flex-direction: column; gap: 0.875rem; justify-content: center; border-left: 1px solid var(--border); }
+  @media (max-width: 980px) { .mockup-card .info { border-left: 0; border-top: 1px solid var(--border); } }
+
+  /* Footer */
+  .ds-footer { padding: 2rem 2.5rem; border-top: 1px solid var(--border); color: var(--muted-foreground); font-size: 0.8125rem; display: flex; align-items: center; justify-content: space-between; }
+  .ds-footer .left { display: flex; align-items: center; gap: 0.75rem; }
+  .ds-footer .left svg { width: 24px; height: 24px; color: var(--foreground); }
+</style>
+</head>
+<body>
+
+<div class="ds-shell">
+
+  <!-- ============================== SIDE NAV ============================== -->
+  <aside class="ds-side cmi-scroll">
+    <div class="brand">
+      <span class="cmi-logo-mark" id="brandMark"></span>
+      <div class="name">
+        <strong>Constructed Matter</strong>
+        <span>DESIGN SYSTEM · v1.0</span>
+      </div>
+    </div>
+
+    <nav>
+      <div class="group-label">Foundations</div>
+      <a class="item active" href="#overview"><span class="dot"></span>Overview</a>
+      <a class="item" href="#brand"><span class="dot"></span>Brand</a>
+      <a class="item" href="#3d-logo"><span class="dot"></span>3D Mark · Embossed</a>
+      <a class="item" href="#3d-cutout"><span class="dot"></span>3D Mark · Cut-through</a>
+      <a class="item" href="#color"><span class="dot"></span>Color</a>
+      <a class="item" href="#type"><span class="dot"></span>Typography</a>
+      <a class="item" href="#spacing"><span class="dot"></span>Spacing &amp; Radius</a>
+      <a class="item" href="#elevation"><span class="dot"></span>Elevation</a>
+      <a class="item" href="#icons"><span class="dot"></span>Iconography</a>
+
+      <div class="group-label">Components</div>
+      <a class="item" href="#buttons"><span class="dot"></span>Buttons</a>
+      <a class="item" href="#forms"><span class="dot"></span>Forms &amp; Inputs</a>
+      <a class="item" href="#datadisplay"><span class="dot"></span>Data Display</a>
+      <a class="item" href="#feedback"><span class="dot"></span>Feedback</a>
+      <a class="item" href="#charts"><span class="dot"></span>Charts</a>
+
+      <div class="group-label">Applications</div>
+      <a class="item" href="#frontend"><span class="dot"></span>Marketing Site</a>
+      <a class="item" href="#crm"><span class="dot"></span>CRM Dashboard</a>
+
+      <div class="group-label">Resources</div>
+      <a class="item" href="#tokens-export"><span class="dot"></span>Token Export</a>
+      <a class="item" href="#guidelines"><span class="dot"></span>Usage Guidelines</a>
+    </nav>
+
+    <div class="ver">
+      <span>v1.0 · May 2026</span>
+      <span class="cmi-mono">ROC 343120</span>
+    </div>
+  </aside>
+
+  <!-- ============================== MAIN ============================== -->
+  <main class="ds-main">
+
+    <!-- Topbar -->
+    <div class="ds-topbar">
+      <div class="crumbs">
+        <span>Design System</span>
+        <span class="sep">/</span>
+        <strong id="crumbActive">Overview</strong>
+      </div>
+      <div class="actions">
+        <div class="ds-search">
+          <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <span>Search tokens, components…</span>
+          <span style="flex:1"></span>
+          <span class="cmi-kbd">⌘K</span>
+        </div>
+        <button class="cmi-btn cmi-btn-ghost cmi-btn-icon cmi-btn-sm" id="themeToggle" title="Toggle theme">
+          <svg class="icon icon-sun" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+        </button>
+        <a class="cmi-btn cmi-btn-outline cmi-btn-sm" href="marketing.html">View site →</a>
+        <a class="cmi-btn cmi-btn-primary cmi-btn-sm" href="dashboard.html">Open CRM →</a>
+      </div>
+    </div>
+
+    <!-- ====================== Overview ====================== -->
+    <section class="ds-section" id="overview">
+      <div class="hero">
+        <div class="title-block">
+          <span class="cmi-eyebrow">Constructed Matter · Design System</span>
+          <h1>A system <em>built</em> on craftsmanship,<br>not chrome.</h1>
+          <p class="cmi-lead" style="max-width: 46ch;">
+            A ShadCN-aligned token system tuned for Arizona's premier construction firm.
+            Stone neutrals, copper accents, monolinear marks. One vocabulary across the
+            marketing site, the client dashboard, and the field CRM.
+          </p>
+          <div class="ex-row" style="gap: 0.5rem; margin-top: 0.25rem;">
+            <a href="#brand" class="cmi-btn cmi-btn-primary">Start with Brand</a>
+            <a href="#crm" class="cmi-btn cmi-btn-outline">See applications</a>
+          </div>
+          <div class="meta">
+            <div><span>Tokens</span><strong>34</strong></div>
+            <div><span>Components</span><strong>22</strong></div>
+            <div><span>Charts</span><strong>5</strong></div>
+            <div><span>Mockups</span><strong>2</strong></div>
+            <div><span>Theme</span><strong>Light · Dark</strong></div>
+          </div>
+        </div>
+        <div class="visual">
+          <div class="hero-grid"></div>
+          <div class="logo-stack" id="heroMark"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================== Brand ====================== -->
+    <section class="ds-section" id="brand">
+      <div class="ds-section-head">
+        <span class="cmi-eyebrow">01 · Foundations</span>
+        <h2 class="cmi-h2">Brand</h2>
+        <p class="cmi-lead" style="max-width: 64ch;">
+          The mark is a hexagonal lattice — six structural nodes forming a single bond.
+          It reads as "constructed matter" at any scale. Do not redraw it; use the supplied lockups.
+        </p>
+      </div>
+
+      <div class="grid grid-4">
+        <div class="logo-card">
+          <div class="preview preview-light"><img src="assets/cmi-logo-light.png" alt="Primary lockup"></div>
+          <div class="meta"><span class="cmi-mono">Primary · Light</span><span class="cmi-badge cmi-badge-outline">Logo</span></div>
+        </div>
+        <div class="logo-card">
+          <div class="preview preview-dark"><img src="assets/cmi-logo-dark.png" alt="Reversed lockup"></div>
+          <div class="meta"><span class="cmi-mono">Reversed · Dark</span><span class="cmi-badge cmi-badge-outline">Logo</span></div>
+        </div>
+        <div class="logo-card">
+          <div class="preview preview-light"><img src="assets/cmi-logo-stack.png" alt="Stacked lockup"></div>
+          <div class="meta"><span class="cmi-mono">Stacked · Light</span><span class="cmi-badge cmi-badge-outline">Logo</span></div>
+        </div>
+        <div class="logo-card">
+          <div class="preview preview-concrete"><span class="cmi-logo-mark" style="width: 88px; height: 88px;" id="brandMark2"></span></div>
+          <div class="meta"><span class="cmi-mono">Mark · Solo</span><span class="cmi-badge cmi-badge-accent">Favicon</span></div>
+        </div>
+      </div>
+
+      <div class="grid grid-3" style="margin-top: 1rem;">
+        <div class="cmi-card">
+          <div class="cmi-card-header"><div class="cmi-card-title">Clear space</div><div class="cmi-card-desc">Reserve the height of one node (≈ 14% of mark width) on every side.</div></div>
+          <div class="cmi-card-body">
+            <div style="padding: 1.25rem; border: 1px dashed var(--accent); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center;">
+              <span class="cmi-logo-mark" style="width: 56px; height: 56px;" id="brandMark3"></span>
+            </div>
+          </div>
+        </div>
+        <div class="cmi-card">
+          <div class="cmi-card-header"><div class="cmi-card-title">Minimum size</div><div class="cmi-card-desc">Mark: 16px web · 6mm print. Wordmark: 80px web · 22mm print.</div></div>
+          <div class="cmi-card-body" style="display: flex; align-items: flex-end; gap: 1.5rem;">
+            <span class="cmi-logo-mark" style="width: 16px; height: 16px;" id="brandMark4"></span>
+            <span class="cmi-logo-mark" style="width: 28px; height: 28px;" id="brandMark5"></span>
+            <span class="cmi-logo-mark" style="width: 48px; height: 48px;" id="brandMark6"></span>
+            <span class="cmi-logo-mark" style="width: 72px; height: 72px;" id="brandMark7"></span>
+          </div>
+        </div>
+        <div class="cmi-card">
+          <div class="cmi-card-header"><div class="cmi-card-title">Don't</div><div class="cmi-card-desc">Don't recolor outside system, distort, or place on busy imagery without scrim.</div></div>
+          <div class="cmi-card-body" style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+            <div style="background: oklch(0.92 0.18 145); padding: 0.75rem; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; position: relative;">
+              <span class="cmi-logo-mark" style="width: 32px; height: 32px; color: hotpink;" id="brandMarkBad1"></span>
+              <span style="position:absolute; top:4px; right:6px; font-size:11px; color: var(--destructive); font-weight: 600;">✕</span>
+            </div>
+            <div style="background: var(--card); padding: 0.75rem; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; position: relative; border: 1px solid var(--border);">
+              <span class="cmi-logo-mark" style="width: 48px; height: 18px; color: var(--foreground); display: inline-block;" id="brandMarkBad2"></span>
+              <span style="position:absolute; top:4px; right:6px; font-size:11px; color: var(--destructive); font-weight: 600;">✕</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================== 3D Logo Studio ====================== -->
+    <section class="ds-section" id="3d-logo">
+      <div class="ds-section-head">
+        <span class="cmi-eyebrow">01b · Foundations</span>
+        <h2 class="cmi-h2">3D Mark — Embossed</h2>
+        <p class="cmi-lead" style="max-width: 64ch;">
+          The molecule — six atoms locked in a closed hex ring — rises off the face of
+          the puck as a metalwork inlay. Recommended for app icons, splash screens, and
+          motion intros. Drag to orbit · auto-spin pauses on hover.
+        </p>
+      </div>
+
+      <div class="three-grid">
+        <div class="three-card" data-variant="copper">
+          <canvas></canvas>
+          <div class="label"><span class="swatch" style="background: #c87a3a;"></span> Copper</div>
+        </div>
+        <div class="three-card" data-variant="graphite">
+          <canvas></canvas>
+          <div class="label"><span class="swatch" style="background: #2c2a27;"></span> Graphite</div>
+        </div>
+        <div class="three-card" data-variant="concrete">
+          <canvas></canvas>
+          <div class="label"><span class="swatch" style="background: #cfc7bb;"></span> Concrete</div>
+        </div>
+        <div class="three-card" data-variant="blueprint">
+          <canvas></canvas>
+          <div class="label"><span class="swatch" style="background: #2f6fd1;"></span> Blueprint</div>
+        </div>
+        <div class="three-card" data-variant="oxide">
+          <canvas></canvas>
+          <div class="label"><span class="swatch" style="background: #b13b25;"></span> Oxide</div>
+        </div>
+        <div class="three-card" data-variant="alabaster">
+          <canvas></canvas>
+          <div class="label"><span class="swatch" style="background: #f1ece2;"></span> Alabaster</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================== 3D Logo · Cut-through ====================== -->
+    <section class="ds-section" id="3d-cutout">
+      <div class="ds-section-head">
+        <span class="cmi-eyebrow">01c · Foundations</span>
+        <h2 class="cmi-h2">3D Mark — Cut-through</h2>
+        <p class="cmi-lead" style="max-width: 64ch;">
+          Same hex puck, but the molecule is removed from the body — you can see clean
+          through the mark. Use this treatment for hero loops, foyer signage, and any
+          context where light, photography, or video should play through the negative space.
+        </p>
+      </div>
+
+      <div class="three-grid">
+        <div class="three-card" data-variant="copper" data-mode="cutout">
+          <canvas></canvas>
+          <div class="label"><span class="swatch" style="background: #2a221b;"></span> Copper · cut</div>
+        </div>
+        <div class="three-card" data-variant="graphite" data-mode="cutout">
+          <canvas></canvas>
+          <div class="label"><span class="swatch" style="background: #141312;"></span> Graphite · cut</div>
+        </div>
+        <div class="three-card" data-variant="concrete" data-mode="cutout">
+          <canvas></canvas>
+          <div class="label"><span class="swatch" style="background: #e9e3d6;"></span> Concrete · cut</div>
+        </div>
+        <div class="three-card" data-variant="blueprint" data-mode="cutout">
+          <canvas></canvas>
+          <div class="label"><span class="swatch" style="background: #0e2657;"></span> Blueprint · cut</div>
+        </div>
+        <div class="three-card" data-variant="oxide" data-mode="cutout">
+          <canvas></canvas>
+          <div class="label"><span class="swatch" style="background: #1c1311;"></span> Oxide · cut</div>
+        </div>
+        <div class="three-card" data-variant="alabaster" data-mode="cutout">
+          <canvas></canvas>
+          <div class="label"><span class="swatch" style="background: #f6f1e6;"></span> Alabaster · cut</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================== Color ====================== -->
+    <section class="ds-section" id="color">
+      <div class="ds-section-head">
+        <span class="cmi-eyebrow">02 · Foundations</span>
+        <h2 class="cmi-h2">Color</h2>
+        <p class="cmi-lead" style="max-width: 64ch;">
+          Two ramps you'll use every day — <strong>Stone</strong> (warm neutral, ≥99% of surfaces)
+          and <strong>Copper</strong> (single brand accent, ≤5% of any view). Status colors are
+          functional only, never decorative.
+        </p>
+      </div>
+
+      <h3 class="cmi-h4" style="margin: 0 0 0.75rem;">Stone — neutral foundation</h3>
+      <div class="swatch-row" id="stoneRow"></div>
+
+      <h3 class="cmi-h4" style="margin: 1.75rem 0 0.75rem;">Copper — brand accent</h3>
+      <div class="swatch-row" id="copperRow"></div>
+
+      <h3 class="cmi-h4" style="margin: 1.75rem 0 0.75rem;">Semantic tokens</h3>
+      <div class="grid grid-4" id="semanticGrid"></div>
+
+      <h3 class="cmi-h4" style="margin: 1.75rem 0 0.75rem;">Status</h3>
+      <div class="grid grid-4">
+        <div class="swatch-card"><div class="chip" style="background: var(--success)"></div><div class="info"><div class="name">Success</div><div class="token">--success</div></div></div>
+        <div class="swatch-card"><div class="chip" style="background: var(--warning)"></div><div class="info"><div class="name">Warning</div><div class="token">--warning</div></div></div>
+        <div class="swatch-card"><div class="chip" style="background: var(--destructive)"></div><div class="info"><div class="name">Destructive</div><div class="token">--destructive</div></div></div>
+        <div class="swatch-card"><div class="chip" style="background: var(--info)"></div><div class="info"><div class="name">Info</div><div class="token">--info</div></div></div>
+      </div>
+    </section>
+
+    <!-- ====================== Type ====================== -->
+    <section class="ds-section" id="type">
+      <div class="ds-section-head">
+        <span class="cmi-eyebrow">03 · Foundations</span>
+        <h2 class="cmi-h2">Typography</h2>
+        <p class="cmi-lead" style="max-width: 64ch;">
+          One geometric sans for the whole interface. <strong>Geist</strong> handles display
+          through caption; <strong>Geist Mono</strong> tags data, tokens, and structural metadata.
+        </p>
+      </div>
+
+      <div class="grid grid-2" style="margin-bottom: 1.5rem;">
+        <div class="cmi-card">
+          <div class="cmi-card-header"><div class="cmi-card-desc">PRIMARY · Geist</div><div class="cmi-card-title" style="font-size: 2.25rem; line-height: 1; letter-spacing: -0.03em;">Aa Bb Cc 0123</div></div>
+          <div class="cmi-card-body" style="font-family: var(--font-sans); color: var(--muted-foreground); font-size: 0.875rem; line-height: 1.6;">
+            300 Light · 400 Regular · 500 Medium · 600 Semibold · 700 Bold
+          </div>
+        </div>
+        <div class="cmi-card">
+          <div class="cmi-card-header"><div class="cmi-card-desc">MONO · Geist Mono</div><div class="cmi-card-title" style="font-family: var(--font-mono); font-size: 2.25rem; line-height: 1; letter-spacing: -0.02em;">Aa Bb Cc 0123</div></div>
+          <div class="cmi-card-body" style="font-family: var(--font-mono); color: var(--muted-foreground); font-size: 0.875rem; line-height: 1.6;">
+            400 Regular · 500 Medium · 600 Semibold · tabular-nums
+          </div>
+        </div>
+      </div>
+
+      <div class="cmi-card">
+        <div class="cmi-card-body" style="padding: 0 1.5rem;">
+          <div class="type-row">
+            <div class="label">Display / H1<small>56 / 60</small></div>
+            <div class="sample" style="font-family: var(--font-display); font-size: 3.5rem; line-height: 1; letter-spacing: -0.035em; font-weight: 600;">Building what matters.</div>
+          </div>
+          <div class="type-row">
+            <div class="label">Heading / H2<small>36 / 40</small></div>
+            <div class="sample" style="font-family: var(--font-display); font-size: 2.25rem; line-height: 1.1; letter-spacing: -0.025em; font-weight: 600;">A foundation cast in stone.</div>
+          </div>
+          <div class="type-row">
+            <div class="label">Heading / H3<small>24 / 30</small></div>
+            <div class="sample" style="font-size: 1.5rem; line-height: 1.25; letter-spacing: -0.015em; font-weight: 600;">Concrete decisions, copper highlights.</div>
+          </div>
+          <div class="type-row">
+            <div class="label">Heading / H4<small>18 / 26</small></div>
+            <div class="sample" style="font-size: 1.125rem; line-height: 1.4; font-weight: 600;">Every detail is structural.</div>
+          </div>
+          <div class="type-row">
+            <div class="label">Lead<small>18 / 28</small></div>
+            <div class="sample" style="font-size: 1.125rem; line-height: 1.55; color: var(--muted-foreground);">From the first sketch to the final walkthrough, the system stays consistent across every touchpoint a client encounters.</div>
+          </div>
+          <div class="type-row">
+            <div class="label">Body<small>14 / 22</small></div>
+            <div class="sample" style="font-size: 0.875rem; line-height: 1.6;">Default running text. Rendered at 14px with 22px leading and tracking tuned for screens. Lists, tables, and form values all inherit this baseline.</div>
+          </div>
+          <div class="type-row">
+            <div class="label">Caption<small>12 / 18</small></div>
+            <div class="sample" style="font-size: 0.75rem; line-height: 1.5; color: var(--muted-foreground);">Metadata, helper text, sub-labels on tables and forms.</div>
+          </div>
+          <div class="type-row">
+            <div class="label">Eyebrow<small>11 / 14</small></div>
+            <div class="sample cmi-eyebrow">01 · Section identifier</div>
+          </div>
+          <div class="type-row">
+            <div class="label">Mono<small>13 / 20</small></div>
+            <div class="sample cmi-mono">PRJ-2026-0184 · scheduled 06/12 · $284,500</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================== Spacing & Radius ====================== -->
+    <section class="ds-section" id="spacing">
+      <div class="ds-section-head">
+        <span class="cmi-eyebrow">04 · Foundations</span>
+        <h2 class="cmi-h2">Spacing &amp; Radius</h2>
+      </div>
+
+      <div class="grid grid-2">
+        <div class="cmi-card">
+          <div class="cmi-card-header"><div class="cmi-card-title">Spacing scale</div><div class="cmi-card-desc">4px base, geometric progression. Compose with gap/grid.</div></div>
+          <div class="cmi-card-body" id="spacingScale" style="padding: 0.5rem 1.25rem 1.25rem;"></div>
+        </div>
+        <div class="cmi-card">
+          <div class="cmi-card-header"><div class="cmi-card-title">Radius</div><div class="cmi-card-desc">10px is the system anchor. Buttons and inputs use --radius-md.</div></div>
+          <div class="cmi-card-body">
+            <div class="grid grid-3">
+              <div><div class="demo-tile" style="border-radius: 4px;"><div class="inner" style="border-radius: 4px;"></div></div><div class="cmi-mono" style="margin-top:0.5rem; font-size: 0.6875rem; color: var(--muted-foreground);">--radius-sm · 6px</div></div>
+              <div><div class="demo-tile" style="border-radius: 8px;"><div class="inner" style="border-radius: 8px;"></div></div><div class="cmi-mono" style="margin-top:0.5rem; font-size: 0.6875rem; color: var(--muted-foreground);">--radius-md · 8px</div></div>
+              <div><div class="demo-tile" style="border-radius: 10px;"><div class="inner" style="border-radius: 10px;"></div></div><div class="cmi-mono" style="margin-top:0.5rem; font-size: 0.6875rem; color: var(--muted-foreground);">--radius-lg · 10px</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================== Elevation ====================== -->
+    <section class="ds-section" id="elevation">
+      <div class="ds-section-head">
+        <span class="cmi-eyebrow">05 · Foundations</span>
+        <h2 class="cmi-h2">Elevation</h2>
+        <p class="cmi-lead">Soft, low-contrast shadows. We don't float — we settle.</p>
+      </div>
+      <div class="grid grid-4">
+        <div><div class="shadow-tile" style="box-shadow: var(--shadow-xs);">--shadow-xs</div></div>
+        <div><div class="shadow-tile" style="box-shadow: var(--shadow-sm);">--shadow-sm</div></div>
+        <div><div class="shadow-tile" style="box-shadow: var(--shadow-md);">--shadow-md</div></div>
+        <div><div class="shadow-tile" style="box-shadow: var(--shadow-lg);">--shadow-lg</div></div>
+      </div>
+    </section>
+
+    <!-- ====================== Iconography ====================== -->
+    <section class="ds-section" id="icons">
+      <div class="ds-section-head">
+        <span class="cmi-eyebrow">06 · Foundations</span>
+        <h2 class="cmi-h2">Iconography</h2>
+        <p class="cmi-lead">Lucide, 1.75px stroke, 22px nominal. Pair only with their text label or a tooltip.</p>
+      </div>
+      <div class="icon-grid" id="iconGrid"></div>
+    </section>
+
+    <!-- ====================== Buttons ====================== -->
+    <section class="ds-section" id="buttons">
+      <div class="ds-section-head">
+        <span class="cmi-eyebrow">07 · Components</span>
+        <h2 class="cmi-h2">Buttons</h2>
+      </div>
+
+      <div class="grid grid-2">
+        <div class="ex-card">
+          <div class="head"><h4>Variants</h4><span>btn-*</span></div>
+          <div class="body">
+            <div class="ex-row">
+              <button class="cmi-btn cmi-btn-primary">Primary</button>
+              <button class="cmi-btn cmi-btn-accent">Accent</button>
+              <button class="cmi-btn cmi-btn-secondary">Secondary</button>
+              <button class="cmi-btn cmi-btn-outline">Outline</button>
+              <button class="cmi-btn cmi-btn-ghost">Ghost</button>
+              <button class="cmi-btn cmi-btn-destructive">Destructive</button>
+            </div>
+          </div>
+        </div>
+        <div class="ex-card">
+          <div class="head"><h4>Sizes</h4><span>btn-sm · btn-lg</span></div>
+          <div class="body">
+            <div class="ex-row">
+              <button class="cmi-btn cmi-btn-primary cmi-btn-sm">Small</button>
+              <button class="cmi-btn cmi-btn-primary">Default</button>
+              <button class="cmi-btn cmi-btn-primary cmi-btn-lg">Large</button>
+              <button class="cmi-btn cmi-btn-outline cmi-btn-icon">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="ex-card">
+          <div class="head"><h4>With icons</h4><span>icon + label</span></div>
+          <div class="body">
+            <div class="ex-row">
+              <button class="cmi-btn cmi-btn-primary">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+                Continue
+              </button>
+              <button class="cmi-btn cmi-btn-accent">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+                Request quote
+              </button>
+              <button class="cmi-btn cmi-btn-outline">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                Download
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="ex-card">
+          <div class="head"><h4>States</h4><span>:hover · :focus · disabled</span></div>
+          <div class="body">
+            <div class="ex-row">
+              <button class="cmi-btn cmi-btn-primary">Default</button>
+              <button class="cmi-btn cmi-btn-primary" style="background: oklch(from var(--primary) calc(l + 0.06) c h);">Hover</button>
+              <button class="cmi-btn cmi-btn-primary" style="box-shadow: 0 0 0 3px var(--ring);">Focus</button>
+              <button class="cmi-btn cmi-btn-primary" disabled>Disabled</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================== Forms ====================== -->
+    <section class="ds-section" id="forms">
+      <div class="ds-section-head">
+        <span class="cmi-eyebrow">08 · Components</span>
+        <h2 class="cmi-h2">Forms &amp; Inputs</h2>
+      </div>
+
+      <div class="grid grid-2">
+        <div class="ex-card">
+          <div class="head"><h4>Text inputs</h4><span>input · textarea</span></div>
+          <div class="body" style="align-items: stretch; gap: 1rem;">
+            <div style="width: 100%;">
+              <label class="cmi-label">Project name</label>
+              <input class="cmi-input" placeholder="e.g. Ambassador ADU" value="Conrad Residence"/>
+              <div class="cmi-help">As displayed on invoices and contracts.</div>
+            </div>
+            <div style="width: 100%;">
+              <label class="cmi-label">Scope summary</label>
+              <textarea class="cmi-textarea" placeholder="Brief description…">Two-story addition with attached casita. Foundation pour scheduled for week of 06/12.</textarea>
+            </div>
+          </div>
+        </div>
+
+        <div class="ex-card">
+          <div class="head"><h4>Selects &amp; toggles</h4><span>select · switch · tabs</span></div>
+          <div class="body" style="align-items: stretch; gap: 1.25rem;">
+            <div>
+              <label class="cmi-label">Service line</label>
+              <select class="cmi-select">
+                <option>Residential — Custom homes</option>
+                <option>Commercial</option>
+                <option>ADU</option>
+                <option>Renovations &amp; Additions</option>
+              </select>
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+              <label class="cmi-switch"><input type="checkbox" checked/><span class="track"></span><span class="thumb"></span></label>
+              <div>
+                <div style="font-size: 0.875rem; font-weight: 500;">Send weekly digest</div>
+                <div class="cmi-help">Friday 8am with photos, RFIs, and budget delta.</div>
+              </div>
+            </div>
+            <div class="cmi-tabs">
+              <button class="cmi-tab active">Overview</button>
+              <button class="cmi-tab">Schedule</button>
+              <button class="cmi-tab">Budget</button>
+              <button class="cmi-tab">Files</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================== Data Display ====================== -->
+    <section class="ds-section" id="datadisplay">
+      <div class="ds-section-head">
+        <span class="cmi-eyebrow">09 · Components</span>
+        <h2 class="cmi-h2">Data display</h2>
+      </div>
+
+      <div class="grid grid-2">
+        <div class="ex-card">
+          <div class="head"><h4>Badges</h4><span>badge-*</span></div>
+          <div class="body">
+            <div class="ex-row">
+              <span class="cmi-badge"><span class="dot"></span>Default</span>
+              <span class="cmi-badge cmi-badge-outline">Outline</span>
+              <span class="cmi-badge cmi-badge-accent">Accent</span>
+              <span class="cmi-badge cmi-badge-success"><span class="dot"></span>On track</span>
+              <span class="cmi-badge cmi-badge-warning"><span class="dot"></span>At risk</span>
+              <span class="cmi-badge cmi-badge-destructive"><span class="dot"></span>Delayed</span>
+              <span class="cmi-badge cmi-badge-info"><span class="dot"></span>Permitting</span>
+            </div>
+          </div>
+        </div>
+        <div class="ex-card">
+          <div class="head"><h4>Avatars</h4><span>avatar · group</span></div>
+          <div class="body">
+            <div class="ex-row" style="gap: 0.75rem;">
+              <span class="cmi-avatar cmi-avatar-sm">JB</span>
+              <span class="cmi-avatar">BF</span>
+              <span class="cmi-avatar cmi-avatar-lg">CM</span>
+              <span class="cmi-avatar-group">
+                <span class="cmi-avatar" style="background: var(--accent); color: var(--accent-foreground);">JB</span>
+                <span class="cmi-avatar" style="background: oklch(0.4 0.012 60); color: white;">BF</span>
+                <span class="cmi-avatar" style="background: oklch(0.55 0.12 235); color: white;">SG</span>
+                <span class="cmi-avatar">+4</span>
+              </span>
+            </div>
+          </div>
+        </div>
+        <div class="ex-card" style="grid-column: 1 / -1;">
+          <div class="head"><h4>Table</h4><span>table</span></div>
+          <div class="body" style="align-items: stretch;">
+            <table class="cmi-table">
+              <thead><tr><th>Project</th><th>Service</th><th>Status</th><th>Budget</th><th>Delta</th><th>PM</th></tr></thead>
+              <tbody>
+                <tr><td><strong>Ambassador ADU</strong><div class="cmi-help" style="margin: 0;">Arcadia · PRJ-0184</div></td><td>ADU</td><td><span class="cmi-badge cmi-badge-success"><span class="dot"></span>On track</span></td><td class="cmi-mono">$284,500</td><td class="cmi-mono" style="color: var(--success)">+2.1%</td><td><span class="cmi-avatar cmi-avatar-sm">BF</span></td></tr>
+                <tr><td><strong>Conrad Interior</strong><div class="cmi-help" style="margin: 0;">Scottsdale · PRJ-0179</div></td><td>Design</td><td><span class="cmi-badge cmi-badge-warning"><span class="dot"></span>At risk</span></td><td class="cmi-mono">$612,000</td><td class="cmi-mono" style="color: var(--warning)">−4.8%</td><td><span class="cmi-avatar cmi-avatar-sm">JB</span></td></tr>
+                <tr><td><strong>Garden Plaza</strong><div class="cmi-help" style="margin: 0;">Scottsdale · PRJ-0166</div></td><td>Commercial</td><td><span class="cmi-badge cmi-badge-info"><span class="dot"></span>Permitting</span></td><td class="cmi-mono">$1.8M</td><td class="cmi-mono">—</td><td><span class="cmi-avatar cmi-avatar-sm">BF</span></td></tr>
+                <tr><td><strong>VW Garage</strong><div class="cmi-help" style="margin: 0;">Arcadia · PRJ-0152</div></td><td>Residential</td><td><span class="cmi-badge cmi-badge-destructive"><span class="dot"></span>Delayed</span></td><td class="cmi-mono">$98,200</td><td class="cmi-mono" style="color: var(--destructive)">−11.4%</td><td><span class="cmi-avatar cmi-avatar-sm">JB</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================== Feedback ====================== -->
+    <section class="ds-section" id="feedback">
+      <div class="ds-section-head">
+        <span class="cmi-eyebrow">10 · Components</span>
+        <h2 class="cmi-h2">Feedback</h2>
+      </div>
+      <div class="grid grid-2">
+        <div class="cmi-alert">
+          <svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+          <div>
+            <div class="title">Concrete pour weather window</div>
+            <div class="desc">Forecast shows a 12-hour clear window starting Tuesday 5am. Coordinate with subs.</div>
+          </div>
+        </div>
+        <div class="cmi-alert cmi-alert-accent">
+          <svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          <div>
+            <div class="title">Permit approved · Conrad Interior</div>
+            <div class="desc">Scottsdale city permit #SP-2026-1184 is ready for pickup.</div>
+          </div>
+        </div>
+        <div class="ex-card">
+          <div class="head"><h4>Progress</h4><span>progress</span></div>
+          <div class="body" style="align-items: stretch; gap: 0.875rem;">
+            <div><div class="cmi-help" style="margin: 0 0 0.375rem;">Foundation · 72%</div><div class="cmi-progress"><div class="bar" style="width: 72%"></div></div></div>
+            <div><div class="cmi-help" style="margin: 0 0 0.375rem;">Framing · 34%</div><div class="cmi-progress"><div class="bar" style="width: 34%"></div></div></div>
+            <div><div class="cmi-help" style="margin: 0 0 0.375rem;">MEP rough-in · 0%</div><div class="cmi-progress"><div class="bar" style="width: 0%"></div></div></div>
+          </div>
+        </div>
+        <div class="ex-card">
+          <div class="head"><h4>Empty state</h4><span>illustration · CTA</span></div>
+          <div class="body" style="align-items: center; justify-content: center; padding: 1rem 0; text-align: center;">
+            <span class="cmi-logo-mark" style="width: 40px; height: 40px; color: var(--muted-foreground); opacity: 0.5;" id="emptyMark"></span>
+            <div style="font-size: 0.875rem; font-weight: 600; margin-top: 0.5rem;">No active RFIs</div>
+            <div class="cmi-help" style="margin-top: 0.125rem;">Anything subs ask will land here.</div>
+            <button class="cmi-btn cmi-btn-outline cmi-btn-sm" style="margin-top: 0.75rem;">Invite subcontractor</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================== Charts ====================== -->
+    <section class="ds-section" id="charts">
+      <div class="ds-section-head">
+        <span class="cmi-eyebrow">11 · Components</span>
+        <h2 class="cmi-h2">Charts</h2>
+        <p class="cmi-lead">Five-token palette tuned for accessibility on both themes.</p>
+      </div>
+      <div class="grid grid-2">
+        <div class="cmi-card">
+          <div class="cmi-card-header"><div class="cmi-card-title">Revenue by service</div><div class="cmi-card-desc">TTM · in thousands</div></div>
+          <div class="cmi-card-body"><svg viewBox="0 0 360 180" width="100%" height="180" id="barChart"></svg></div>
+        </div>
+        <div class="cmi-card">
+          <div class="cmi-card-header"><div class="cmi-card-title">Pipeline conversion</div><div class="cmi-card-desc">Lead → Quote → Booked</div></div>
+          <div class="cmi-card-body"><svg viewBox="0 0 360 180" width="100%" height="180" id="lineChart"></svg></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================== Frontend ====================== -->
+    <section class="ds-section" id="frontend">
+      <div class="ds-section-head">
+        <span class="cmi-eyebrow">12 · Applications</span>
+        <h2 class="cmi-h2">Marketing site</h2>
+        <p class="cmi-lead">Public-facing pages applying the system. Inherits the active theme.</p>
+      </div>
+      <div class="mockup-card">
+        <iframe src="marketing.html" title="Marketing site preview" id="marketingFrame" loading="lazy"></iframe>
+        <div class="info">
+          <span class="cmi-eyebrow">Live preview</span>
+          <h3 class="cmi-h3">my.constructedmatter.com</h3>
+          <p class="cmi-muted" style="font-size: 0.875rem; line-height: 1.55;">Homepage and services-grid using the production token set. The hero, service cards, project gallery, and process timeline are composed entirely from system components.</p>
+          <div class="ex-row" style="margin-top: 0.5rem;">
+            <a class="cmi-btn cmi-btn-primary cmi-btn-sm" href="marketing.html" target="_blank" rel="noopener">Open full page</a>
+            <a class="cmi-btn cmi-btn-outline cmi-btn-sm" href="marketing.html" target="_blank" rel="noopener">View source</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================== CRM ====================== -->
+    <section class="ds-section" id="crm">
+      <div class="ds-section-head">
+        <span class="cmi-eyebrow">13 · Applications</span>
+        <h2 class="cmi-h2">CRM Dashboard</h2>
+        <p class="cmi-lead">The internal product. Same tokens, denser layouts, more data per inch.</p>
+      </div>
+      <div class="mockup-card">
+        <iframe src="dashboard.html" title="CRM dashboard preview" id="crmFrame" loading="lazy"></iframe>
+        <div class="info">
+          <span class="cmi-eyebrow">Live preview</span>
+          <h3 class="cmi-h3">Project &amp; client CRM</h3>
+          <p class="cmi-muted" style="font-size: 0.875rem; line-height: 1.55;">Pipeline, active builds, RFIs, change orders, photo log, schedule, and invoicing — everything Joe and Brandon need in one place. Both themes share identical density and information hierarchy.</p>
+          <div class="ex-row" style="margin-top: 0.5rem;">
+            <a class="cmi-btn cmi-btn-primary cmi-btn-sm" href="dashboard.html" target="_blank" rel="noopener">Open CRM</a>
+            <a class="cmi-btn cmi-btn-outline cmi-btn-sm" href="dashboard.html" target="_blank" rel="noopener">View source</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================== Tokens Export ====================== -->
+    <section class="ds-section" id="tokens-export">
+      <div class="ds-section-head">
+        <span class="cmi-eyebrow">14 · Resources</span>
+        <h2 class="cmi-h2">Token export</h2>
+        <p class="cmi-lead">Copy-paste into a fresh project's <code class="cmi-mono">globals.css</code>.</p>
+      </div>
+      <div class="cmi-card">
+        <div class="cmi-card-body">
+          <pre style="margin: 0; font-family: var(--font-mono); font-size: 0.75rem; line-height: 1.6; color: var(--muted-foreground); white-space: pre-wrap;">:root {
+  --radius: 0.625rem;
+  --background:           oklch(0.992 0.003 75);
+  --foreground:           oklch(0.18  0.012 60);
+  --card:                 oklch(1 0 0);
+  --primary:              oklch(0.18  0.012 60);
+  --accent:               oklch(0.66  0.135 52);   /* Arizona copper */
+  --muted:                oklch(0.96  0.005 75);
+  --muted-foreground:     oklch(0.52  0.012 65);
+  --border:               oklch(0.91  0.005 70);
+  --ring:                 oklch(0.66  0.135 52 / 0.45);
+  --destructive:          oklch(0.58  0.215 28);
+  --success:              oklch(0.55  0.13  155);
+  --warning:              oklch(0.74  0.155 78);
+  --info:                 oklch(0.55  0.12  235);
+}
+.dark {
+  --background:           oklch(0.135 0.008 60);
+  --foreground:           oklch(0.97  0.005 75);
+  --card:                 oklch(0.165 0.008 60);
+  --accent:               oklch(0.72  0.135 55);
+  --border:               oklch(0.235 0.008 60);
+}</pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================== Guidelines ====================== -->
+    <section class="ds-section" id="guidelines">
+      <div class="ds-section-head">
+        <span class="cmi-eyebrow">15 · Resources</span>
+        <h2 class="cmi-h2">Usage guidelines</h2>
+      </div>
+      <div class="grid grid-3">
+        <div class="cmi-card">
+          <div class="cmi-card-header"><div class="cmi-card-title">Copper is structural</div><div class="cmi-card-desc">Reserve the accent for the single highest-priority action in any view. Two coppers in one frame is one too many.</div></div>
+        </div>
+        <div class="cmi-card">
+          <div class="cmi-card-header"><div class="cmi-card-title">Density follows context</div><div class="cmi-card-desc">Marketing breathes: 80px stack rhythm. CRM works: 24–32px stack rhythm. Both share the same scale tokens.</div></div>
+        </div>
+        <div class="cmi-card">
+          <div class="cmi-card-header"><div class="cmi-card-title">Photography over illustration</div><div class="cmi-card-desc">Use project photography. Avoid generic illustration; the work is the visual proof.</div></div>
+        </div>
+      </div>
+    </section>
+
+    <div class="ds-footer">
+      <div class="left">
+        <span class="cmi-logo-mark" id="footMark"></span>
+        <span>Constructed Matter, Inc. · Design System v1.0 · May 2026</span>
+      </div>
+      <span class="cmi-mono">ROC KB1-343120 · Phoenix, AZ</span>
+    </div>
+
+  </main>
+</div>
+
+<!-- ============================== TEMPLATES + SCRIPT ============================== -->
+<template id="logo-mark-svg"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 763 889" fill="none" aria-hidden="true" preserveAspectRatio="xMidYMid meet">
+  <g transform="matrix(1,0,0,1,1082.67,-1078.99)">
+    <g transform="matrix(13.5164,0,0,13.5164,-623.137,1678.31)">
+      <path d="M0,-22.981C-1.305,-21.196 -3.409,-20.034 -5.778,-20.034C-8.38,-20.036 -10.655,-21.431 -11.912,-23.518C-12.798,-23.1 -13.629,-22.583 -14.391,-21.98C-14.301,-21.527 -14.252,-21.058 -14.252,-20.576C-14.256,-17.375 -16.317,-14.666 -19.177,-13.713C-19.271,-13.086 -19.323,-12.447 -19.325,-11.8C-19.323,-11.286 -19.285,-10.777 -19.22,-10.267C-16.336,-9.329 -14.256,-6.605 -14.254,-3.388C-14.253,-2.796 -14.327,-2.224 -14.461,-1.678C-13.592,-0.981 -12.632,-0.395 -11.6,0.059C-10.299,-1.76 -8.175,-2.947 -5.778,-2.947C-3.604,-2.947 -1.65,-1.969 -0.335,-0.426C0.798,-1.053 1.829,-1.852 2.725,-2.786C2.707,-2.981 2.696,-3.181 2.696,-3.388C2.696,-7.384 5.908,-10.62 9.871,-10.622C13.833,-10.62 17.045,-7.384 17.045,-3.388C17.045,0.607 13.833,3.846 9.871,3.846C7.857,3.846 6.039,3.006 4.739,1.661C3.715,2.528 2.588,3.279 1.384,3.893C1.392,4.022 1.396,4.153 1.396,4.288C1.395,8.282 -1.815,11.519 -5.778,11.52C-9.664,11.519 -12.828,8.407 -12.949,4.519C-14.384,3.941 -15.73,3.184 -16.951,2.262C-18.177,3.251 -19.736,3.846 -21.429,3.846C-25.392,3.846 -28.602,0.607 -28.604,-3.388C-28.602,-6.53 -26.614,-9.202 -23.835,-10.199C-23.888,-10.719 -23.92,-11.252 -23.92,-11.798C-23.92,-12.466 -23.875,-13.115 -23.799,-13.749C-26.598,-14.737 -28.602,-17.42 -28.604,-20.576C-28.602,-24.572 -25.392,-27.811 -21.429,-27.811C-19.626,-27.811 -17.977,-27.134 -16.72,-26.026C-15.546,-26.885 -14.262,-27.594 -12.896,-28.14C-12.468,-31.723 -9.449,-34.502 -5.778,-34.503C-1.889,-34.502 1.275,-31.384 1.393,-27.49C2.52,-26.914 3.576,-26.219 4.545,-25.42C5.856,-26.887 7.757,-27.811 9.871,-27.811C13.833,-27.811 17.045,-24.572 17.045,-20.576C17.045,-16.581 13.833,-13.344 9.871,-13.343C5.908,-13.344 2.696,-16.581 2.696,-20.576C2.696,-20.668 2.698,-20.76 2.701,-20.852C1.901,-21.676 0.993,-22.394 0,-22.981M-5.777,-44.34L-33.998,-27.915L-33.998,4.934L-5.777,21.359L22.439,4.934L22.439,-27.915L-5.777,-44.34Z" fill="currentColor" fill-rule="evenodd"/>
+    </g>
+  </g>
+</svg></template>
+
+<script src="https://unpkg.com/three@0.158.0/build/three.min.js"></script>
+<script src="design-system.js"></script>
+
+<template id="__bundler_thumbnail" data-bg-color="#fbfaf6">
+  <svg viewBox="0 0 763 889" xmlns="http://www.w3.org/2000/svg">
+    <g transform="translate(381.5, 444.5)">
+      <g transform="matrix(13.5164,0,0,13.5164,78,-77)">
+        <path d="M0,-22.981C-1.305,-21.196 -3.409,-20.034 -5.778,-20.034C-8.38,-20.036 -10.655,-21.431 -11.912,-23.518C-12.798,-23.1 -13.629,-22.583 -14.391,-21.98C-14.301,-21.527 -14.252,-21.058 -14.252,-20.576C-14.256,-17.375 -16.317,-14.666 -19.177,-13.713C-19.271,-13.086 -19.323,-12.447 -19.325,-11.8C-19.323,-11.286 -19.285,-10.777 -19.22,-10.267C-16.336,-9.329 -14.256,-6.605 -14.254,-3.388C-14.253,-2.796 -14.327,-2.224 -14.461,-1.678C-13.592,-0.981 -12.632,-0.395 -11.6,0.059C-10.299,-1.76 -8.175,-2.947 -5.778,-2.947C-3.604,-2.947 -1.65,-1.969 -0.335,-0.426C0.798,-1.053 1.829,-1.852 2.725,-2.786C2.707,-2.981 2.696,-3.181 2.696,-3.388C2.696,-7.384 5.908,-10.62 9.871,-10.622C13.833,-10.62 17.045,-7.384 17.045,-3.388C17.045,0.607 13.833,3.846 9.871,3.846C7.857,3.846 6.039,3.006 4.739,1.661C3.715,2.528 2.588,3.279 1.384,3.893C1.392,4.022 1.396,4.153 1.396,4.288C1.395,8.282 -1.815,11.519 -5.778,11.52C-9.664,11.519 -12.828,8.407 -12.949,4.519C-14.384,3.941 -15.73,3.184 -16.951,2.262C-18.177,3.251 -19.736,3.846 -21.429,3.846C-25.392,3.846 -28.602,0.607 -28.604,-3.388C-28.602,-6.53 -26.614,-9.202 -23.835,-10.199C-23.888,-10.719 -23.92,-11.252 -23.92,-11.798C-23.92,-12.466 -23.875,-13.115 -23.799,-13.749C-26.598,-14.737 -28.602,-17.42 -28.604,-20.576C-28.602,-24.572 -25.392,-27.811 -21.429,-27.811C-19.626,-27.811 -17.977,-27.134 -16.72,-26.026C-15.546,-26.885 -14.262,-27.594 -12.896,-28.14C-12.468,-31.723 -9.449,-34.502 -5.778,-34.503C-1.889,-34.502 1.275,-31.384 1.393,-27.49C2.52,-26.914 3.576,-26.219 4.545,-25.42C5.856,-26.887 7.757,-27.811 9.871,-27.811C13.833,-27.811 17.045,-24.572 17.045,-20.576C17.045,-16.581 13.833,-13.344 9.871,-13.343C5.908,-13.344 2.696,-16.581 2.696,-20.576C2.696,-20.668 2.698,-20.76 2.701,-20.852C1.901,-21.676 0.993,-22.394 0,-22.981M-5.777,-44.34L-33.998,-27.915L-33.998,4.934L-5.777,21.359L22.439,4.934L22.439,-27.915L-5.777,-44.34Z"
+              fill="#231f20" fill-rule="evenodd"/>
+      </g>
+    </g>
+    <text x="381.5" y="820" text-anchor="middle" font-family="Geist, system-ui, sans-serif"
+          font-weight="500" font-size="34" fill="#737065" letter-spacing="3">
+      CONSTRUCTED MATTER · DESIGN SYSTEM
+    </text>
+  </svg>
+</template>
+
+</body>
+</html>

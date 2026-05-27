@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Constructed Matter — Building What Matters</title>
+<link rel="icon" type="image/png" href="assets/cmi-favicon-black.png">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="components.css">
+<style>
+  /* Marketing-only layout */
+  .mkt-page { min-height: 100vh; }
+
+  .mkt-nav {
+    position: sticky; top: 0; z-index: 50;
+    background: color-mix(in oklch, var(--background) 92%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+  }
+  .mkt-nav-inner {
+    max-width: 1280px; margin: 0 auto;
+    display: flex; align-items: center; justify-content: space-between;
+    height: 68px; padding: 0 2rem;
+  }
+  .mkt-brand { display: flex; align-items: center; gap: 0.625rem; font-weight: 600; letter-spacing: 0.02em; font-size: 0.9375rem; }
+  .mkt-brand .cmi-logo-mark { width: 26px; height: 26px; }
+  .mkt-nav-links { display: flex; gap: 0.25rem; }
+  .mkt-nav-links a {
+    padding: 0.5rem 0.75rem; font-size: 0.875rem; font-weight: 500;
+    color: var(--muted-foreground);
+    border-radius: var(--radius-md);
+    transition: color 120ms, background 120ms;
+  }
+  .mkt-nav-links a:hover { color: var(--foreground); background: var(--muted); }
+  .mkt-nav-links a.has-dropdown::after {
+    content: ''; display: inline-block;
+    width: 6px; height: 6px;
+    border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor;
+    transform: rotate(45deg) translate(-2px, -2px);
+    margin-left: 0.375rem;
+  }
+  .mkt-nav-actions { display: flex; align-items: center; gap: 0.5rem; }
+  @media (max-width: 880px) { .mkt-nav-links { display: none; } }
+
+  .mkt-hero {
+    position: relative;
+    max-width: 1280px; margin: 0 auto;
+    padding: 4rem 2rem 5rem;
+  }
+  .mkt-hero-grid {
+    display: grid; grid-template-columns: 1.15fr 1fr;
+    gap: 3rem; align-items: center;
+  }
+  @media (max-width: 980px) { .mkt-hero-grid { grid-template-columns: 1fr; } }
+  .mkt-hero h1 {
+    font-family: var(--font-display);
+    font-size: clamp(2.75rem, 6vw, 4.75rem);
+    line-height: 0.98; letter-spacing: -0.035em;
+    font-weight: 600; margin: 0;
+  }
+  .mkt-hero h1 .accent { color: var(--accent); font-style: italic; font-family: "Fraunces", serif; font-weight: 500; }
+  .mkt-hero .eyebrow {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    padding: 0.375rem 0.75rem; border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    font-size: 0.75rem; font-weight: 500;
+    color: var(--muted-foreground);
+    margin-bottom: 1.5rem;
+  }
+  .mkt-hero .eyebrow .dot { width: 6px; height: 6px; border-radius: 999px; background: var(--success); box-shadow: 0 0 0 4px color-mix(in oklch, var(--success) 20%, transparent); }
+  .mkt-hero p { font-size: 1.125rem; line-height: 1.6; color: var(--muted-foreground); max-width: 50ch; margin: 1.5rem 0 2rem; }
+  .mkt-hero .ctas { display: flex; gap: 0.625rem; flex-wrap: wrap; }
+  .mkt-hero .meta {
+    display: flex; gap: 2rem; margin-top: 3rem;
+    padding-top: 1.5rem; border-top: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+  .mkt-hero .meta > div { display: flex; flex-direction: column; gap: 0.125rem; }
+  .mkt-hero .meta strong { font-family: var(--font-display); font-size: 1.75rem; line-height: 1; letter-spacing: -0.02em; }
+  .mkt-hero .meta span { font-size: 0.75rem; color: var(--muted-foreground); }
+
+  /* Hero collage */
+  .mkt-collage {
+    position: relative;
+    aspect-ratio: 4/5;
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    grid-template-rows: 1.1fr 1fr 1fr;
+    gap: 0.5rem;
+  }
+  .mkt-collage > div {
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    background: var(--muted) center/cover no-repeat;
+    border: 1px solid var(--border);
+    position: relative;
+  }
+  .mkt-collage > div::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(to top, rgb(0 0 0 / 0.3), transparent 40%);
+    pointer-events: none;
+  }
+  .mkt-collage .ph-1 { grid-row: 1 / 4; }
+  .mkt-collage .ph-2 { grid-row: 1; }
+  .mkt-collage .ph-3 { grid-row: 2; }
+  .mkt-collage .ph-4 {
+    grid-row: 3;
+    background: var(--primary);
+    color: var(--primary-foreground);
+    display: flex; flex-direction: column;
+    align-items: flex-start; justify-content: flex-end;
+    padding: 1.25rem;
+  }
+  .mkt-collage .ph-4::after { display: none; }
+  .mkt-collage .ph-4 .reviews-num { font-family: var(--font-display); font-size: 2.5rem; line-height: 1; letter-spacing: -0.02em; font-weight: 600; }
+  .mkt-collage .ph-4 .reviews-label { font-size: 0.75rem; opacity: 0.7; margin-top: 0.5rem; }
+  .mkt-collage .ph-4 .stars { color: var(--accent); margin-top: 0.5rem; font-size: 0.875rem; letter-spacing: 0.2em; }
+
+  /* Section base */
+  .mkt-section { max-width: 1280px; margin: 0 auto; padding: 5rem 2rem; }
+  .mkt-section-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 2rem; flex-wrap: wrap; margin-bottom: 2.5rem; }
+  .mkt-section-head .title { max-width: 60ch; }
+  .mkt-section-head h2 {
+    font-family: var(--font-display);
+    font-size: clamp(2rem, 3.5vw, 3rem);
+    line-height: 1.05; letter-spacing: -0.025em; font-weight: 600;
+    margin: 0.5rem 0 0;
+  }
+  .mkt-section-head .eyebrow { font-family: var(--font-mono); font-size: 0.6875rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted-foreground); }
+
+  /* Services */
+  .svc-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; }
+  @media (max-width: 980px) { .svc-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 640px)  { .svc-grid { grid-template-columns: 1fr; } }
+  .svc-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    display: flex; flex-direction: column; gap: 0.875rem;
+    transition: border-color 180ms ease, transform 180ms ease;
+    position: relative;
+    overflow: hidden;
+    min-height: 220px;
+  }
+  .svc-card:hover { border-color: var(--accent); }
+  .svc-card:hover .svc-arrow { transform: translate(3px, -3px); color: var(--accent); }
+  .svc-card .svc-num {
+    font-family: var(--font-mono); font-size: 0.6875rem;
+    color: var(--muted-foreground); letter-spacing: 0.14em;
+  }
+  .svc-card .svc-icon {
+    width: 36px; height: 36px;
+    border-radius: var(--radius-md);
+    background: var(--muted); display: flex; align-items: center; justify-content: center;
+    color: var(--foreground);
+  }
+  .svc-card h3 { font-family: var(--font-display); font-size: 1.25rem; line-height: 1.2; letter-spacing: -0.015em; font-weight: 600; margin: 0; }
+  .svc-card p { font-size: 0.875rem; line-height: 1.55; color: var(--muted-foreground); margin: 0; flex: 1; }
+  .svc-arrow {
+    position: absolute; top: 1.25rem; right: 1.25rem;
+    width: 28px; height: 28px;
+    border-radius: 999px; border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--muted-foreground);
+    transition: transform 220ms ease, color 220ms ease;
+  }
+
+  /* Featured projects */
+  .proj-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 0.75rem; }
+  .proj { position: relative; border-radius: var(--radius-lg); overflow: hidden; background: var(--muted); aspect-ratio: 4/3; border: 1px solid var(--border); }
+  .proj-tall { grid-column: span 5; }
+  .proj-wide { grid-column: span 7; }
+  .proj-third { grid-column: span 4; }
+  .proj img { width: 100%; height: 100%; object-fit: cover; transition: transform 600ms ease; }
+  .proj:hover img { transform: scale(1.04); }
+  .proj-tall { aspect-ratio: 5/6; }
+  .proj-overlay {
+    position: absolute; inset: auto 0 0 0;
+    padding: 1.25rem;
+    background: linear-gradient(to top, rgb(0 0 0 / 0.7) 0%, rgb(0 0 0 / 0.1) 70%, transparent);
+    color: white;
+    display: flex; flex-direction: column; gap: 0.25rem;
+  }
+  .proj-overlay .tag { font-family: var(--font-mono); font-size: 0.6875rem; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.8; }
+  .proj-overlay h3 { font-family: var(--font-display); font-size: 1.25rem; line-height: 1.2; letter-spacing: -0.015em; font-weight: 600; margin: 0; }
+  @media (max-width: 880px) {
+    .proj-tall, .proj-wide, .proj-third { grid-column: span 12; aspect-ratio: 4/3; }
+  }
+
+  /* Process */
+  .process {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    padding: 2rem;
+  }
+  .process-steps { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px; background: var(--border); border-radius: var(--radius-lg); overflow: hidden; }
+  @media (max-width: 980px) { .process-steps { grid-template-columns: 1fr; } }
+  .process-step { background: var(--card); padding: 1.5rem 1.25rem; display: flex; flex-direction: column; gap: 0.5rem; }
+  .process-step .step-num { font-family: var(--font-mono); font-size: 0.6875rem; color: var(--accent); letter-spacing: 0.14em; }
+  .process-step h4 { font-family: var(--font-display); font-size: 1.0625rem; margin: 0; letter-spacing: -0.01em; font-weight: 600; }
+  .process-step p { font-size: 0.8125rem; color: var(--muted-foreground); line-height: 1.5; margin: 0; }
+
+  /* Stats / about */
+  .about-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; align-items: center; }
+  @media (max-width: 880px) { .about-grid { grid-template-columns: 1fr; } }
+  .about-img {
+    aspect-ratio: 5/6; background: var(--muted) center/cover no-repeat;
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--border);
+    position: relative;
+    overflow: hidden;
+  }
+  .about-img .badge {
+    position: absolute; bottom: 1.25rem; left: 1.25rem; right: 1.25rem;
+    background: color-mix(in oklch, var(--card) 92%, transparent);
+    backdrop-filter: blur(10px);
+    padding: 1rem 1.25rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    display: flex; align-items: center; gap: 0.75rem;
+  }
+  .about-img .badge .num { font-family: var(--font-display); font-size: 2rem; line-height: 1; letter-spacing: -0.02em; font-weight: 600; color: var(--accent); }
+  .about-img .badge .label { font-size: 0.8125rem; color: var(--muted-foreground); line-height: 1.3; }
+
+  /* Quote */
+  .quote-card {
+    background: var(--primary); color: var(--primary-foreground);
+    border-radius: var(--radius-xl);
+    padding: 3rem 2.5rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .quote-card::before {
+    content: ''; position: absolute; top: -100px; right: -100px;
+    width: 360px; height: 360px;
+    background: radial-gradient(circle, var(--accent) 0%, transparent 60%);
+    opacity: 0.15; pointer-events: none;
+  }
+  .quote-card blockquote {
+    font-family: var(--font-display);
+    font-size: clamp(1.5rem, 2.5vw, 2.125rem);
+    line-height: 1.25; letter-spacing: -0.02em;
+    font-weight: 500;
+    margin: 0; max-width: 50ch;
+    position: relative; z-index: 1;
+  }
+  .quote-card cite {
+    display: block; font-style: normal;
+    margin-top: 1.5rem; font-size: 0.875rem;
+    color: oklch(0.85 0.01 70);
+    position: relative; z-index: 1;
+  }
+  .quote-card .stars { color: var(--accent); margin-bottom: 1rem; letter-spacing: 0.2em; position: relative; z-index: 1; }
+
+  /* CTA */
+  .mkt-cta {
+    text-align: center;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    padding: 4rem 2rem;
+    background-image: radial-gradient(120% 80% at 50% 0%, color-mix(in oklch, var(--accent) 16%, transparent) 0%, transparent 60%);
+  }
+  .mkt-cta h2 { font-family: var(--font-display); font-size: clamp(2rem, 4vw, 3rem); line-height: 1.05; letter-spacing: -0.025em; font-weight: 600; margin: 0 auto; max-width: 18ch; }
+  .mkt-cta p { font-size: 1.125rem; color: var(--muted-foreground); margin: 1rem auto 2rem; max-width: 50ch; }
+  .mkt-cta .ctas { display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap; }
+
+  /* Footer */
+  .mkt-footer { background: var(--card); border-top: 1px solid var(--border); padding: 4rem 2rem 2rem; }
+  .mkt-footer-inner { max-width: 1280px; margin: 0 auto; }
+  .mkt-footer-grid { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr 1fr; gap: 3rem; margin-bottom: 3rem; }
+  @media (max-width: 880px) { .mkt-footer-grid { grid-template-columns: 1fr 1fr; gap: 2rem; } }
+  .mkt-footer h5 { font-family: var(--font-mono); font-size: 0.6875rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted-foreground); margin: 0 0 1rem; font-weight: 500; }
+  .mkt-footer ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+  .mkt-footer a { font-size: 0.875rem; color: var(--foreground); }
+  .mkt-footer a:hover { color: var(--accent); }
+  .mkt-footer .copyright {
+    border-top: 1px solid var(--border);
+    padding-top: 1.5rem;
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 1rem;
+    font-size: 0.75rem; color: var(--muted-foreground);
+  }
+</style>
+</head>
+<body>
+
+<div class="mkt-page">
+
+  <!-- Nav -->
+  <nav class="mkt-nav" data-screen-label="01 Marketing">
+    <div class="mkt-nav-inner">
+      <a class="mkt-brand" href="#">
+        <span class="cmi-logo-mark"></span>
+        <span>Constructed Matter, Inc.</span>
+      </a>
+      <div class="mkt-nav-links">
+        <a href="#" class="has-dropdown">Services</a>
+        <a href="#projects">Portfolio</a>
+        <a href="#about">About</a>
+        <a href="#" class="has-dropdown">Resources</a>
+        <a href="#">Contact</a>
+      </div>
+      <div class="mkt-nav-actions">
+        <button class="cmi-btn cmi-btn-ghost cmi-btn-icon cmi-btn-sm" id="themeToggle" title="Toggle theme" aria-label="Toggle theme">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+        </button>
+        <a class="cmi-btn cmi-btn-outline cmi-btn-sm" href="dashboard.html">Sign in</a>
+        <a class="cmi-btn cmi-btn-primary cmi-btn-sm" href="#contact">Let's Build →</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <header class="mkt-hero">
+    <div class="mkt-hero-grid">
+      <div>
+        <span class="eyebrow"><span class="dot"></span>Arizona's premier builder · ROC KB1-343120</span>
+        <h1>Building <span class="accent">what</span><br>matters most.</h1>
+        <p>From concept to completion, we craft residential and commercial spaces that stand the test of time. Rooted in craftsmanship, driven by vision.</p>
+        <div class="ctas">
+          <a class="cmi-btn cmi-btn-primary cmi-btn-lg" href="#projects">View our work
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+          </a>
+          <a class="cmi-btn cmi-btn-outline cmi-btn-lg" href="#contact">Let's build together</a>
+        </div>
+        <div class="meta">
+          <div><strong>40+</strong><span>Years combined experience</span></div>
+          <div><strong>120+</strong><span>Projects completed</span></div>
+          <div><strong>5.0</strong><span>Average client rating</span></div>
+          <div><strong>$48M</strong><span>Value built since '12</span></div>
+        </div>
+      </div>
+      <div class="mkt-collage">
+        <div class="ph-1" style="background-image: url(https://wp-constructedmatter-com-985548.hostingersite.com/wp-content/uploads/2026/04/VW-Garage-1-scaled.jpg);"></div>
+        <div class="ph-2" style="background-image: url(https://wp-constructedmatter-com-985548.hostingersite.com/wp-content/uploads/2026/04/1_LorschKit3.jpg);"></div>
+        <div class="ph-3" style="background-image: url(https://wp-constructedmatter-com-985548.hostingersite.com/wp-content/uploads/2026/04/Trinity-Church-Office-4.jpg);"></div>
+        <div class="ph-4">
+          <div class="stars">★★★★★</div>
+          <div class="reviews-num">5.0</div>
+          <div class="reviews-label">15+ Google reviews<br>Every single one 5 stars.</div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Services -->
+  <section class="mkt-section" id="services">
+    <div class="mkt-section-head">
+      <div class="title">
+        <span class="eyebrow">What we do</span>
+        <h2>Services built on expertise.</h2>
+      </div>
+      <a class="cmi-btn cmi-btn-outline" href="#">View all services →</a>
+    </div>
+    <div class="svc-grid">
+      <article class="svc-card">
+        <span class="svc-num">01</span>
+        <div class="svc-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12 12 3l9 9M5 10v10h14V10"/></svg></div>
+        <h3>Custom Homes &amp; Casitas</h3>
+        <p>Custom homes, guest houses, and casitas designed around your lifestyle and built with enduring materials.</p>
+        <span class="svc-arrow"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"/></svg></span>
+      </article>
+      <article class="svc-card">
+        <span class="svc-num">02</span>
+        <div class="svc-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-2"/></svg></div>
+        <h3>Boutique Commercial</h3>
+        <p>Functional, modern commercial spaces that elevate your brand and support the way your team works.</p>
+        <span class="svc-arrow"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"/></svg></span>
+      </article>
+      <article class="svc-card">
+        <span class="svc-num">03</span>
+        <div class="svc-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10h7V3H3zM14 10h7V3h-7zM3 21h7v-7H3zM14 21h7v-7h-7z"/></svg></div>
+        <h3>Accessory Dwelling Units</h3>
+        <p>ADUs that maximize your property's potential with turnkey permitting, design, and structural detail.</p>
+        <span class="svc-arrow"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"/></svg></span>
+      </article>
+      <article class="svc-card">
+        <span class="svc-num">04</span>
+        <div class="svc-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4 19 8.5l-3 3-4.5-4.5zM12.5 6.5 4 15l3 3 8.5-8.5"/></svg></div>
+        <h3>Renovations &amp; Additions</h3>
+        <p>Thoughtful updates, expansions, and additions planned around the structure, schedule, and daily life of the space.</p>
+        <span class="svc-arrow"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"/></svg></span>
+      </article>
+      <article class="svc-card">
+        <span class="svc-num">05</span>
+        <div class="svc-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h18v12H3zM3 11h18M9 7v12M15 7v12"/></svg></div>
+        <h3>Design Coordination</h3>
+        <p>Coordinated plans, selections, and construction details that keep design intent aligned from concept through build.</p>
+        <span class="svc-arrow"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"/></svg></span>
+      </article>
+      <article class="svc-card">
+        <span class="svc-num">06</span>
+        <div class="svc-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18a8 8 0 0 1 16 0M2 18h20v3H2zM10 6h4v6"/></svg></div>
+        <h3>New Construction</h3>
+        <p>Ground-up builds from foundation to finish, handled through every phase with uncompromising standards.</p>
+        <span class="svc-arrow"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"/></svg></span>
+      </article>
+    </div>
+  </section>
+
+  <!-- Featured Projects -->
+  <section class="mkt-section" id="projects">
+    <div class="mkt-section-head">
+      <div class="title">
+        <span class="eyebrow">Selected work</span>
+        <h2>Featured projects.</h2>
+      </div>
+      <a class="cmi-btn cmi-btn-outline" href="#">View full portfolio →</a>
+    </div>
+    <div class="proj-grid">
+      <a class="proj proj-tall" href="#">
+        <img src="https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/f8d1c98a-e6b7-4b1d-ab9e-3ce111e9b817/Kit+Detail+2.jpg" alt="Ambassador ADU">
+        <div class="proj-overlay">
+          <span class="tag">ADU · Arcadia / Scottsdale</span>
+          <h3>Ambassador ADU</h3>
+        </div>
+      </a>
+      <a class="proj proj-wide" href="#">
+        <img src="https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/a5134c71-2845-460c-98cc-a897b612b5d5/Conrad+Residence-13.jpg" alt="Conrad Interior">
+        <div class="proj-overlay">
+          <span class="tag">Design Coordination · Scottsdale</span>
+          <h3>Conrad Interior</h3>
+        </div>
+      </a>
+      <a class="proj proj-third" href="#">
+        <img src="https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/1738363725187-C9L2JWZOXXQT2M517PCG/Keim-10.jpg" alt="Ply Place">
+        <div class="proj-overlay">
+          <span class="tag">Residential · Scottsdale</span>
+          <h3>Ply Place</h3>
+        </div>
+      </a>
+      <a class="proj proj-third" href="#">
+        <img src="https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/1712244593060-S7HC61T66LQH3IRBMVR9/Trinity+Church-14.jpg" alt="Garden Plaza">
+        <div class="proj-overlay">
+          <span class="tag">Commercial · Scottsdale</span>
+          <h3>Garden Plaza</h3>
+        </div>
+      </a>
+      <a class="proj proj-third" href="#">
+        <img src="https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/c1b7f55a-c05b-415d-9dd4-8bdffe9f2949/Parco+Residence-12.jpg" alt="Parco">
+        <div class="proj-overlay">
+          <span class="tag">Residential · Scottsdale</span>
+          <h3>Parco</h3>
+        </div>
+      </a>
+    </div>
+  </section>
+
+  <!-- Process -->
+  <section class="mkt-section">
+    <div class="mkt-section-head">
+      <div class="title">
+        <span class="eyebrow">How we work</span>
+        <h2>The Constructed Matter process.</h2>
+      </div>
+    </div>
+    <div class="process">
+      <div class="process-steps">
+        <div class="process-step">
+          <span class="step-num">01</span>
+          <h4>Consultation</h4>
+          <p>We listen to your ideas, goals, and concerns — and what you hope to achieve with your project.</p>
+        </div>
+        <div class="process-step">
+          <span class="step-num">02</span>
+          <h4>Assessment</h4>
+          <p>We take a sketch or plan, verify its feasibility, and complete a high-level budget to set clear expectations.</p>
+        </div>
+        <div class="process-step">
+          <span class="step-num">03</span>
+          <h4>Design &amp; Planning</h4>
+          <p>Architects, designers, and PMs craft a detailed scope, realistic budget, and schedule.</p>
+        </div>
+        <div class="process-step">
+          <span class="step-num">04</span>
+          <h4>Assemble</h4>
+          <p>We engage subcontractors and procure materials to set the build in motion.</p>
+        </div>
+        <div class="process-step">
+          <span class="step-num">05</span>
+          <h4>Construction</h4>
+          <p>We transform vision into reality with open communication at every step.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- About + Quote -->
+  <section class="mkt-section" id="about">
+    <div class="about-grid">
+      <div class="about-img" style="background-image: url(https://wp-constructedmatter-com-985548.hostingersite.com/wp-content/uploads/2026/03/Brandon_Joe.png);">
+        <div class="badge">
+          <div class="num">40+</div>
+          <div class="label"><strong style="display:block; color: var(--foreground); font-size: 0.875rem; font-weight: 600;">Brandon &amp; Joe</strong>Years of combined construction experience.</div>
+        </div>
+      </div>
+      <div>
+        <span class="eyebrow" style="font-family: var(--font-mono); font-size: 0.6875rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted-foreground);">Who we are</span>
+        <h2 style="font-family: var(--font-display); font-size: clamp(2rem, 3.5vw, 3rem); line-height: 1.05; letter-spacing: -0.025em; font-weight: 600; margin: 0.5rem 0 1.5rem;">Craftsmanship you can see <span style="color: var(--accent); font-style: italic; font-family: 'Fraunces', serif;">and feel.</span></h2>
+        <p style="font-size: 1.0625rem; line-height: 1.6; color: var(--muted-foreground); margin: 0 0 1.5rem;">Constructed Matter is a full-service construction firm rooted in Arizona. We believe every project is a partnership — a shared commitment to quality, transparency, and a space that reflects who you are.</p>
+        <p style="font-size: 1.0625rem; line-height: 1.6; color: var(--muted-foreground); margin: 0 0 2rem;">From the first sketch to the final walkthrough, our team is with you.</p>
+        <div style="display: flex; gap: 0.625rem;">
+          <a class="cmi-btn cmi-btn-primary" href="#">Learn our story</a>
+          <a class="cmi-btn cmi-btn-outline" href="#">Meet the team</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Quote -->
+  <section class="mkt-section">
+    <div class="quote-card">
+      <div class="stars">★ ★ ★ ★ ★</div>
+      <blockquote>"They met every deadline and were incredibly communicative throughout the entire process. Reasonable price and outstanding quality."</blockquote>
+      <cite>— Supurna Gupta · Verified Google review</cite>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="mkt-section" id="contact">
+    <div class="mkt-cta">
+      <span style="font-family: var(--font-mono); font-size: 0.6875rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted-foreground); display: block; margin-bottom: 1rem;">Start your project</span>
+      <h2>Ready to build something <em style="font-style: italic; font-family: 'Fraunces', serif; color: var(--accent); font-weight: 500;">extraordinary?</em></h2>
+      <p>Whether you have blueprints in hand or just an idea on a napkin, we're here to help. Let's talk about your next project.</p>
+      <div class="ctas">
+        <a class="cmi-btn cmi-btn-primary cmi-btn-lg" href="#">Let's build together
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+        </a>
+        <a class="cmi-btn cmi-btn-outline cmi-btn-lg" href="#">Book a consultation</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="mkt-footer">
+    <div class="mkt-footer-inner">
+      <div class="mkt-footer-grid">
+        <div>
+          <a class="mkt-brand" href="#" style="margin-bottom: 1rem;">
+            <span class="cmi-logo-mark"></span>
+            <span>Constructed Matter, Inc.</span>
+          </a>
+          <p style="font-size: 0.875rem; color: var(--muted-foreground); line-height: 1.6; max-width: 36ch;">Arizona's premier construction firm. Building spaces that endure, inspire, and reflect the people who live and work in them.</p>
+          <div style="display: flex; gap: 0.5rem; margin-top: 1.25rem;">
+            <a href="#" class="cmi-btn cmi-btn-ghost cmi-btn-icon cmi-btn-sm" aria-label="Instagram"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="0.5"/></svg></a>
+            <a href="#" class="cmi-btn cmi-btn-ghost cmi-btn-icon cmi-btn-sm" aria-label="LinkedIn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2"/><circle cx="7" cy="9" r="1"/><path d="M7 12v6M12 12v6M12 14a3 3 0 0 1 5 0v4"/></svg></a>
+            <a href="#" class="cmi-btn cmi-btn-ghost cmi-btn-icon cmi-btn-sm" aria-label="Facebook"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg></a>
+          </div>
+        </div>
+        <div>
+          <h5>Services</h5>
+          <ul>
+            <li><a href="#">Residential</a></li>
+            <li><a href="#">Commercial</a></li>
+            <li><a href="#">ADU</a></li>
+            <li><a href="#">Renovations</a></li>
+            <li><a href="#">New Construction</a></li>
+          </ul>
+        </div>
+        <div>
+          <h5>Company</h5>
+          <ul>
+            <li><a href="#">About Us</a></li>
+            <li><a href="#">Our Team</a></li>
+            <li><a href="#">Portfolio</a></li>
+            <li><a href="#">Resources</a></li>
+            <li><a href="#">Contact</a></li>
+          </ul>
+        </div>
+        <div>
+          <h5>Account</h5>
+          <ul>
+            <li><a href="dashboard.html">Sign in</a></li>
+            <li><a href="#">Register</a></li>
+            <li><a href="dashboard.html">Dashboard</a></li>
+          </ul>
+        </div>
+        <div>
+          <h5>Get in touch</h5>
+          <ul>
+            <li><a href="#">7314 E Osborn Dr<br>Suite A, Scottsdale, AZ 85251</a></li>
+            <li><a href="tel:+14806284458">(480) 628-4458</a></li>
+            <li><a href="mailto:hello@constructedmatter.com">hello@constructedmatter.com</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="copyright">
+        <span>© 2026 Constructed Matter, Inc. · Licensed, Bonded &amp; Insured · ROC KB1-343120</span>
+        <span style="display: flex; gap: 1rem;">
+          <a href="#">Privacy</a>
+          <a href="#">Terms</a>
+          <a href="#">Sitemap</a>
+        </span>
+      </div>
+    </div>
+  </footer>
+
+</div>
+
+<template id="logo-mark-svg"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 763 889" fill="none" aria-hidden="true" preserveAspectRatio="xMidYMid meet">
+  <g transform="matrix(1,0,0,1,1082.67,-1078.99)">
+    <g transform="matrix(13.5164,0,0,13.5164,-623.137,1678.31)">
+      <path d="M0,-22.981C-1.305,-21.196 -3.409,-20.034 -5.778,-20.034C-8.38,-20.036 -10.655,-21.431 -11.912,-23.518C-12.798,-23.1 -13.629,-22.583 -14.391,-21.98C-14.301,-21.527 -14.252,-21.058 -14.252,-20.576C-14.256,-17.375 -16.317,-14.666 -19.177,-13.713C-19.271,-13.086 -19.323,-12.447 -19.325,-11.8C-19.323,-11.286 -19.285,-10.777 -19.22,-10.267C-16.336,-9.329 -14.256,-6.605 -14.254,-3.388C-14.253,-2.796 -14.327,-2.224 -14.461,-1.678C-13.592,-0.981 -12.632,-0.395 -11.6,0.059C-10.299,-1.76 -8.175,-2.947 -5.778,-2.947C-3.604,-2.947 -1.65,-1.969 -0.335,-0.426C0.798,-1.053 1.829,-1.852 2.725,-2.786C2.707,-2.981 2.696,-3.181 2.696,-3.388C2.696,-7.384 5.908,-10.62 9.871,-10.622C13.833,-10.62 17.045,-7.384 17.045,-3.388C17.045,0.607 13.833,3.846 9.871,3.846C7.857,3.846 6.039,3.006 4.739,1.661C3.715,2.528 2.588,3.279 1.384,3.893C1.392,4.022 1.396,4.153 1.396,4.288C1.395,8.282 -1.815,11.519 -5.778,11.52C-9.664,11.519 -12.828,8.407 -12.949,4.519C-14.384,3.941 -15.73,3.184 -16.951,2.262C-18.177,3.251 -19.736,3.846 -21.429,3.846C-25.392,3.846 -28.602,0.607 -28.604,-3.388C-28.602,-6.53 -26.614,-9.202 -23.835,-10.199C-23.888,-10.719 -23.92,-11.252 -23.92,-11.798C-23.92,-12.466 -23.875,-13.115 -23.799,-13.749C-26.598,-14.737 -28.602,-17.42 -28.604,-20.576C-28.602,-24.572 -25.392,-27.811 -21.429,-27.811C-19.626,-27.811 -17.977,-27.134 -16.72,-26.026C-15.546,-26.885 -14.262,-27.594 -12.896,-28.14C-12.468,-31.723 -9.449,-34.502 -5.778,-34.503C-1.889,-34.502 1.275,-31.384 1.393,-27.49C2.52,-26.914 3.576,-26.219 4.545,-25.42C5.856,-26.887 7.757,-27.811 9.871,-27.811C13.833,-27.811 17.045,-24.572 17.045,-20.576C17.045,-16.581 13.833,-13.344 9.871,-13.343C5.908,-13.344 2.696,-16.581 2.696,-20.576C2.696,-20.668 2.698,-20.76 2.701,-20.852C1.901,-21.676 0.993,-22.394 0,-22.981M-5.777,-44.34L-33.998,-27.915L-33.998,4.934L-5.777,21.359L22.439,4.934L22.439,-27.915L-5.777,-44.34Z" fill="currentColor" fill-rule="evenodd"/>
+    </g>
+  </g>
+</svg></template>
+
+<script>
+(() => {
+  // Inject logo mark
+  const tpl = document.getElementById('logo-mark-svg');
+  document.querySelectorAll('.cmi-logo-mark').forEach(el => {
+    const svg = tpl.content.firstElementChild.cloneNode(true);
+    svg.setAttribute('width', '100%'); svg.setAttribute('height', '100%');
+    el.appendChild(svg);
+  });
+  // Theme toggle (also responds to parent if embedded)
+  const root = document.documentElement;
+  // Initial theme inherited from parent (if iframe) or storage
+  try {
+    const parentTheme = window.parent !== window && window.parent.document.documentElement.classList.contains('dark');
+    if (parentTheme) root.classList.add('dark');
+  } catch (e) {}
+  if (localStorage.getItem('cmi-theme') === 'dark') root.classList.add('dark');
+  document.getElementById('themeToggle')?.addEventListener('click', () => {
+    root.classList.toggle('dark');
+    localStorage.setItem('cmi-theme', root.classList.contains('dark') ? 'dark' : 'light');
+  });
+})();
+</script>
+</body>
+</html>

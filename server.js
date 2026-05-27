@@ -847,6 +847,34 @@ app.post('/api/projects/fluent-sync', requireStaff, async (req, res) => {
   }
 });
 
+app.post('/api/projects/from-template', requireStaff, async (req, res) => {
+  try {
+    if (!supabase) return res.status(503).json({ message: 'Supabase is not configured' });
+    const title = String(req.body.title || req.body.project_name || '').trim();
+    if (!title) return res.status(400).json({ message: 'Project name is required.' });
+    const payload = {
+      title,
+      description: req.body.description || null,
+      status: req.body.status || 'active',
+      stage: req.body.stage || 'scheduled',
+      priority: ['low', 'medium', 'high', 'urgent'].includes(String(req.body.priority || '')) ? String(req.body.priority) : 'medium',
+      category: req.body.category || null,
+      location: req.body.location || req.body.address || null,
+      start_date: req.body.start_date || null,
+      due_date: req.body.due_date || null,
+      board_name: req.body.board_name || title,
+      assignees: Array.isArray(req.body.assignees) ? req.body.assignees : [],
+      tags: Array.isArray(req.body.tags) ? req.body.tags : [],
+      updated_at: new Date().toISOString(),
+    };
+    const { data, error } = await supabase.from('projects').insert(payload).select().single();
+    if (error) throw error;
+    res.json({ ok: true, project: data });
+  } catch (err) {
+    res.status(500).json({ message: err.message || 'Project create failed' });
+  }
+});
+
 app.get('/api/users', requireSuperAdmin, async (_req, res) => {
   try {
     if (!supabase) return res.status(503).json({ message: 'Supabase is not configured' });
@@ -1664,13 +1692,13 @@ function normalizeSchedulePayload(body = {}, user = {}) {
   if (!startDate || !endDate) throw new Error('Start and end dates are required.');
 
   const progress = Math.max(0, Math.min(100, Number(body.progress) || 0));
-  const status = ['pending', 'in_progress', 'delayed', 'blocked', 'complete'].includes(String(body.status || ''))
+  const status = ['pending', 'scheduled', 'in_progress', 'waiting', 'delayed', 'blocked', 'needs_approval', 'complete', 'canceled'].includes(String(body.status || ''))
     ? String(body.status)
     : 'pending';
   const type = ['project', 'phase', 'task', 'milestone'].includes(String(body.type || ''))
     ? String(body.type)
     : 'task';
-  const priority = ['low', 'normal', 'high', 'critical', 'blocking_closeout'].includes(String(body.priority || ''))
+  const priority = ['low', 'normal', 'high', 'urgent', 'critical', 'blocking_closeout'].includes(String(body.priority || ''))
     ? String(body.priority)
     : 'normal';
 
@@ -1877,6 +1905,52 @@ app.delete('/api/project-schedule-items/:id', requireStaff, async (req, res) => 
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ message: err.message || 'Schedule item delete failed' });
+  }
+});
+
+app.post('/api/project-activity-logs', requireStaff, async (req, res) => {
+  try {
+    if (!supabase) return res.status(503).json({ message: 'Supabase is not configured' });
+    const payload = {
+      project_id: isUuid(req.body.project_id) ? req.body.project_id : null,
+      task_id: isUuid(req.body.task_id) ? req.body.task_id : null,
+      event_type: String(req.body.event_type || 'project_activity'),
+      title: req.body.title || null,
+      body: req.body.body || null,
+      actor_email: req.user.email || null,
+      metadata: req.body.metadata && typeof req.body.metadata === 'object' ? req.body.metadata : {},
+    };
+    if (req.body.project_name) payload.metadata.project_name = req.body.project_name;
+    const { data, error } = await supabase.from('project_activity_logs').insert(payload).select().single();
+    if (error) throw error;
+    res.json({ ok: true, activity: data });
+  } catch (err) {
+    res.status(500).json({ message: err.message || 'Project activity log create failed' });
+  }
+});
+
+app.post('/api/project-notifications', requireStaff, async (req, res) => {
+  try {
+    if (!supabase) return res.status(503).json({ message: 'Supabase is not configured' });
+    const payload = {
+      project_id: isUuid(req.body.project_id) ? req.body.project_id : null,
+      task_id: isUuid(req.body.task_id) ? req.body.task_id : null,
+      event_type: String(req.body.event_type || 'project_notification'),
+      channel: ['dashboard', 'email', 'sms'].includes(String(req.body.channel || '')) ? String(req.body.channel) : 'dashboard',
+      recipient_id: req.body.recipient_id || null,
+      recipient_type: req.body.recipient_type || null,
+      title: req.body.title || null,
+      body: req.body.body || null,
+      status: 'queued',
+      metadata: req.body.metadata && typeof req.body.metadata === 'object' ? req.body.metadata : {},
+      created_by: req.user.email || null,
+    };
+    if (req.body.project_name) payload.metadata.project_name = req.body.project_name;
+    const { data, error } = await supabase.from('project_notifications').insert(payload).select().single();
+    if (error) throw error;
+    res.json({ ok: true, notification: data });
+  } catch (err) {
+    res.status(500).json({ message: err.message || 'Project notification create failed' });
   }
 });
 
