@@ -353,6 +353,22 @@
     .gantt-dependency-chip{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--border-sm);border-radius:9px;background:var(--surface);padding:9px 10px;font-size:12px;color:var(--text-sub);}
     .gantt-dependency-chip small{color:var(--text-muted);display:block;margin-top:2px;}
     .gantt-dependency-chip button{border:0;background:transparent;color:#f87171;cursor:pointer;font-size:12px;}
+    .schedule-items-shell{border:1px solid var(--border-card);border-radius:14px;background:var(--surface);overflow:hidden;margin-top:14px;}
+    .schedule-items-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:15px 16px;border-bottom:1px solid var(--border-sm);}
+    .schedule-project-card{border-top:1px solid var(--border-sm);}
+    .schedule-project-card:first-child{border-top:0;}
+    .schedule-project-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:13px 16px;background:var(--surface);}
+    .schedule-project-row.hidden{background:var(--surface-2);opacity:.72;}
+    .schedule-project-title{font-size:14px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .schedule-project-meta{font-size:11px;color:var(--text-muted);margin-top:3px;}
+    .schedule-pill-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+    .schedule-pill{display:inline-flex;align-items:center;border:1px solid var(--border-sm);border-radius:999px;padding:4px 8px;font-size:10px;color:var(--text-muted);background:var(--surface-2);}
+    .schedule-project-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:flex-end;}
+    .schedule-task-wrap{padding:0 16px 16px;background:var(--surface);}
+    .schedule-action-btn{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:28px;border-radius:8px;border:1px solid var(--border-md);background:transparent;color:var(--text-dim);font-size:11px;font-weight:600;cursor:pointer;padding:0 8px;}
+    .schedule-action-btn:hover{background:var(--hover-bg);color:var(--text);}
+    .schedule-danger{border-color:rgba(239,68,68,.35)!important;color:#f87171!important;}
+    .schedule-hidden-label{color:var(--text-muted);font-size:11px;}
     @media(max-width:1500px){.gantt-controls{grid-template-columns:repeat(3,minmax(140px,1fr));}.gantt-toolbar{flex-direction:column}.gantt-toolbar-title{max-width:none}.gantt-controls{width:100%;}.gantt-overview{grid-template-columns:repeat(3,minmax(0,1fr));}.gantt-overview-main{grid-column:1 / -1;}}
     @media(max-width:1100px){.gantt-feature-grid{grid-template-columns:1fr}.gantt-grid{grid-template-columns:240px minmax(760px,1fr)}.gantt-controls{grid-template-columns:1fr 1fr;}.gantt-overview{grid-template-columns:1fr 1fr;}}
     #ganttItemModal{position:fixed;inset:0;z-index:360;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,.64);backdrop-filter:blur(4px);}
@@ -6292,6 +6308,7 @@ let GANTT_ACTIVE_MEDIA = [];
 let GANTT_PARTICIPANTS = [];
 let GANTT_SELECTED_PARTICIPANTS = [];
 let GANTT_PARTICIPANTS_LOADED = false;
+let SCHEDULE_EXPANDED_PROJECTS = [];
 let _fpGanttStart = null;
 let _fpGanttEnd = null;
 
@@ -6795,7 +6812,12 @@ function mapScheduleRow(row) {
     internal_notes: row.internal_notes || row.metadata?.internal_notes || '',
     is_blocked: Boolean(row.is_blocked ?? row.metadata?.is_blocked),
     blocker_reason: row.blocker_reason || row.metadata?.blocker_reason || '',
-    sort_order: Number(row.sort_order) || 0
+    sort_order: Number(row.sort_order) || 0,
+    visible_on_gantt: row.visible_on_gantt !== undefined ? Boolean(row.visible_on_gantt) : row.metadata?.visible_on_gantt !== false,
+    schedule_group_key: row.schedule_group_key || row.metadata?.schedule_group_key || '',
+    template_slug: row.template_slug || row.metadata?.template_slug || '',
+    template_name: row.template_name || row.metadata?.template_name || '',
+    duration_minutes: Number(row.duration_minutes || row.metadata?.duration_minutes) || 0
   };
 }
 function mapScheduleDependency(row) {
@@ -6848,6 +6870,11 @@ function ganttItemPayload(item) {
     is_blocked: Boolean(item.is_blocked ?? item.metadata?.is_blocked),
     blocker_reason: item.blocker_reason || item.metadata?.blocker_reason || '',
     sort_order: Number(item.sort_order) || 0,
+    visible_on_gantt: item.visible_on_gantt !== false,
+    schedule_group_key: item.schedule_group_key || item.metadata?.schedule_group_key || '',
+    template_slug: item.template_slug || item.metadata?.template_slug || '',
+    template_name: item.template_name || item.metadata?.template_name || '',
+    duration_minutes: Number(item.duration_minutes || item.metadata?.duration_minutes) || 0,
     metadata: {
       ...(item.metadata || {}),
       media: Array.isArray(item.media) ? item.media : (Array.isArray(item.metadata?.media) ? item.metadata.media : []),
@@ -6856,7 +6883,12 @@ function ganttItemPayload(item) {
       client_visible: Boolean(item.client_visible ?? item.metadata?.client_visible),
       internal_notes: item.internal_notes || item.metadata?.internal_notes || '',
       is_blocked: Boolean(item.is_blocked ?? item.metadata?.is_blocked),
-      blocker_reason: item.blocker_reason || item.metadata?.blocker_reason || ''
+      blocker_reason: item.blocker_reason || item.metadata?.blocker_reason || '',
+      visible_on_gantt: item.visible_on_gantt !== false,
+      schedule_group_key: item.schedule_group_key || item.metadata?.schedule_group_key || '',
+      template_slug: item.template_slug || item.metadata?.template_slug || '',
+      template_name: item.template_name || item.metadata?.template_name || '',
+      duration_minutes: Number(item.duration_minutes || item.metadata?.duration_minutes) || 0
     }
   };
 }
@@ -7216,7 +7248,7 @@ async function renderFBGantt(forceLoad) {
     wrap.innerHTML = '<div class="card p-10 text-center text-sm" style="color:var(--text-muted)">Loading schedule from Supabase...</div>';
   }
   await loadGanttItems(forceLoad);
-  const items = ganttFilteredItems();
+  const items = ganttFilteredItems().filter(item => item.visible_on_gantt !== false);
   const stats = ganttScheduleStats();
   const features =
     renderGanttOverview(stats) +
@@ -7226,11 +7258,11 @@ async function renderFBGantt(forceLoad) {
       '<div class="gantt-feature-card"><strong>Project health: ' + stats.health + '</strong><p>' + stats.overdue + ' overdue, ' + stats.blocked + ' blocked, and ' + stats.pendingConfirm + ' pending confirmation.</p><button onclick="publishGanttSchedule()" class="crm-toolbar-btn mt-3">Publish schedule</button><button onclick="focusGanttRisks()" class="crm-toolbar-btn mt-3 ml-2">Show risk chain</button></div>' +
     '</div>';
   if (GANTT_MODE === 'table') {
-    wrap.innerHTML = features + renderGanttToolbar() + renderGanttTable(items);
+    wrap.innerHTML = features + renderGanttToolbar() + renderGanttTable(items) + renderScheduledItemsSection();
     initGanttFilterControls();
     return;
   }
-  wrap.innerHTML = features + renderGanttToolbar() + renderGanttTimeline(items, stats);
+  wrap.innerHTML = features + renderGanttToolbar() + renderGanttTimeline(items, stats) + renderScheduledItemsSection();
   initGanttFilterControls();
   bindGanttDrag();
 }
@@ -7344,6 +7376,82 @@ function renderGanttTable(items) {
   const rows = items.map(item => '<tr onclick="openGanttItemModal(\'' + item.type + '\',\'' + item.id + '\')" style="cursor:pointer"><td><strong>' + escHtml(item.title) + '</strong><div class="text-[11px] text-neutral-500">' + escHtml(item.project || '') + '</div></td><td>' + ganttTypeLabel(item.type) + '</td><td>' + escHtml(item.phase || '') + '</td><td>' + escHtml(item.assignee || '') + '</td><td>' + escHtml(item.start) + ' - ' + escHtml(item.end) + '</td><td><span class="badge b-neutral text-[10px]">' + ganttStatusLabel(item.status) + '</span></td><td>' + escHtml(item.priority || 'normal') + '</td><td>' + (item.client_visible ? 'Yes' : 'No') + '</td><td>' + (Number(item.progress)||0) + '%</td><td>' + ((item.media && item.media.length) || 0) + '</td><td>' + escHtml(item.participants || '') + '</td></tr>').join('');
   return '<div class="gantt-shell overflow-hidden"><table class="data-table"><thead><tr><th>Item</th><th>Type</th><th>Phase</th><th>Assignee</th><th>Dates</th><th>Status</th><th>Priority</th><th>Client</th><th>Progress</th><th>Media</th><th>Participants</th></tr></thead><tbody>' + (rows || '<tr><td colspan="11" class="text-center py-10 text-sm" style="color:var(--text-muted)">No schedule items.</td></tr>') + '</tbody></table></div>';
 }
+function scheduleProjectKey(item) {
+  return item.schedule_group_key || item.project || item.project_id || item.board_id || 'Unassigned Project';
+}
+function buildScheduledProjectGroups() {
+  const map = new Map();
+  GANTT_ITEMS.forEach(item => {
+    const key = scheduleProjectKey(item);
+    if (!map.has(key)) {
+      map.set(key, {
+        key,
+        name: item.project || key,
+        client: item.client || '',
+        items: [],
+      });
+    }
+    const group = map.get(key);
+    group.items.push(item);
+    if (!group.client && item.client) group.client = item.client;
+  });
+  return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+function scheduleBadgeClass(value) {
+  if (value === 'complete' || value === 'completed') return 'b-green';
+  if (value === 'blocked' || value === 'critical' || value === 'urgent') return 'b-red';
+  if (value === 'delayed' || value === 'high') return 'b-amber';
+  return 'b-neutral';
+}
+function renderScheduledItemsSection() {
+  const groups = buildScheduledProjectGroups();
+  if (!groups.length) {
+    return '<div class="schedule-items-shell"><div class="schedule-items-head"><div><h3 class="font-display text-lg" style="color:var(--text)">Scheduled Items</h3><p class="text-xs" style="color:var(--text-muted)">No scheduled construction items yet.</p></div></div></div>';
+  }
+  const total = GANTT_ITEMS.length;
+  const hidden = GANTT_ITEMS.filter(item => item.visible_on_gantt === false).length;
+  const open = GANTT_ITEMS.filter(item => item.status !== 'complete').length;
+  const body = groups.map(group => {
+    const expanded = SCHEDULE_EXPANDED_PROJECTS.includes(group.key);
+    const taskCount = group.items.length;
+    const openCount = group.items.filter(item => item.status !== 'complete').length;
+    const visibleCount = group.items.filter(item => item.visible_on_gantt !== false).length;
+    const hiddenCount = taskCount - visibleCount;
+    const overdueCount = group.items.filter(item => item.status !== 'complete' && ganttDate(item.end) < ganttDate(new Date())).length;
+    const blockedCount = group.items.filter(item => item.status === 'blocked' || item.is_blocked).length;
+    const completed = taskCount > 0 && openCount === 0;
+    const allHidden = visibleCount === 0;
+    const rows = group.items
+      .sort((a,b) => (Number(a.sort_order)||0) - (Number(b.sort_order)||0) || ganttDate(a.start) - ganttDate(b.start))
+      .map(item => renderScheduledTaskRow(item))
+      .join('');
+    return '<div class="schedule-project-card" data-schedule-project="' + escAttr(group.key) + '">' +
+      '<div class="schedule-project-row ' + (allHidden ? 'hidden' : '') + '">' +
+        '<div><div class="schedule-project-title">' + escHtml(group.name) + '</div><div class="schedule-project-meta">' + escHtml(group.client || 'No client linked') + '</div>' +
+          '<div class="schedule-pill-row"><span class="schedule-pill">' + openCount + ' open</span><span class="schedule-pill">' + visibleCount + ' visible</span><span class="schedule-pill">' + taskCount + ' total</span>' + (hiddenCount ? '<span class="schedule-pill">' + hiddenCount + ' hidden</span>' : '') + (overdueCount ? '<span class="schedule-pill">Overdue ' + overdueCount + '</span>' : '') + (blockedCount ? '<span class="schedule-pill">Blocked ' + blockedCount + '</span>' : '') + (completed ? '<span class="schedule-pill">All completed</span>' : '') + '</div></div>' +
+        '<div class="schedule-project-actions"><button class="schedule-action-btn" onclick="toggleScheduleProjectVisibility(\'' + escAttr(group.key) + '\')">' + (allHidden ? 'Show on Gantt' : 'Hide from Gantt') + '</button><button class="schedule-action-btn" onclick="toggleScheduleProjectExpanded(\'' + escAttr(group.key) + '\')">' + (expanded ? 'Collapse' : 'Expand') + '</button></div>' +
+      '</div>' +
+      (expanded ? '<div class="schedule-task-wrap"><table class="data-table"><thead><tr><th>Task</th><th>Phase</th><th>Project</th><th>Client</th><th>Status</th><th>Priority</th><th>Assignee</th><th>Due</th><th>Visibility</th><th>Actions</th></tr></thead><tbody>' + rows + '</tbody></table></div>' : '') +
+    '</div>';
+  }).join('');
+  return '<div class="schedule-items-shell"><div class="schedule-items-head"><div><h3 class="font-display text-lg" style="color:var(--text)">Scheduled Items</h3><p class="text-xs" style="color:var(--text-muted)">Expandable project groups synced with the Gantt timeline.</p></div><div class="schedule-pill-row"><span class="schedule-pill">' + open + ' open</span><span class="schedule-pill">' + (total - hidden) + ' visible</span><span class="schedule-pill">' + total + ' total</span></div></div>' + body + '</div>';
+}
+function renderScheduledTaskRow(item) {
+  const visibility = item.visible_on_gantt === false ? 'Hidden' : 'Visible';
+  const clientVisibility = item.client_visible ? 'Client' : 'Internal';
+  return '<tr>' +
+    '<td><strong>' + escHtml(item.title || 'Untitled task') + '</strong><div class="text-[11px] text-neutral-500">' + escHtml(item.description || '') + '</div></td>' +
+    '<td>' + escHtml(item.phase || 'Project Tasks') + '</td>' +
+    '<td>' + escHtml(item.project || '') + '</td>' +
+    '<td>' + escHtml(item.client || '') + '</td>' +
+    '<td><span class="badge ' + scheduleBadgeClass(item.status) + ' text-[10px]">' + ganttStatusLabel(item.status) + '</span></td>' +
+    '<td><span class="badge ' + scheduleBadgeClass(item.priority) + ' text-[10px]">' + escHtml(item.priority || 'normal') + '</span></td>' +
+    '<td>' + escHtml(item.assignee || 'Unassigned') + '</td>' +
+    '<td>' + escHtml(item.end || item.start || '-') + '</td>' +
+    '<td><span class="schedule-hidden-label">' + visibility + ' / ' + clientVisibility + '</span></td>' +
+    '<td><div class="flex flex-wrap gap-1"><button class="schedule-action-btn" onclick="openGanttItemModal(\'' + escAttr(item.type || 'task') + '\',\'' + escAttr(item.id) + '\')">Edit</button><button class="schedule-action-btn" onclick="completeScheduledItem(\'' + escAttr(item.id) + '\')">Done</button><button class="schedule-action-btn" onclick="toggleScheduledItemVisibility(\'' + escAttr(item.id) + '\')">' + (item.visible_on_gantt === false ? 'Show' : 'Hide') + '</button><button class="schedule-action-btn" onclick="manageScheduledDependencies(\'' + escAttr(item.id) + '\')">Deps</button><button class="schedule-action-btn" onclick="openGanttItemModal(\'' + escAttr(item.type || 'task') + '\',\'' + escAttr(item.id) + '\')">Staff</button><button class="schedule-action-btn schedule-danger" onclick="removeScheduledItem(\'' + escAttr(item.id) + '\')">Remove</button><button class="schedule-action-btn schedule-danger" onclick="confirmDeleteScheduledItem(\'' + escAttr(item.id) + '\')">Delete</button></div></td>' +
+  '</tr>';
+}
 function setGanttMode(mode) { GANTT_MODE = mode; renderFBGantt(); }
 function setGanttStatus(status) { GANTT_STATUS = status; renderFBGantt(); }
 function setGanttType(type) { GANTT_TYPE = type; renderFBGantt(); }
@@ -7410,6 +7518,63 @@ function shiftGanttZoom(delta) { GANTT_ZOOM = Math.max(22, Math.min(72, GANTT_ZO
 function toggleGanttEditMode() { GANTT_EDIT_MODE = !GANTT_EDIT_MODE; showToast(GANTT_EDIT_MODE ? 'Editing schedule' : 'View-only schedule'); renderFBGantt(); }
 function ganttImportDocs(input) { showToast((input.files?.length || 0) + ' document(s) queued for schedule import'); input.value = ''; }
 function publishGanttSchedule() { showToast('Schedule published. Notification confirmations queued.'); }
+function findGanttItem(id) {
+  return GANTT_ITEMS.find(item => String(item.id) === String(id));
+}
+function toggleScheduleProjectExpanded(key) {
+  SCHEDULE_EXPANDED_PROJECTS = SCHEDULE_EXPANDED_PROJECTS.includes(key)
+    ? SCHEDULE_EXPANDED_PROJECTS.filter(item => item !== key)
+    : [...SCHEDULE_EXPANDED_PROJECTS, key];
+  renderFBGantt();
+}
+async function updateScheduledItem(item, patch, message) {
+  const next = { ...item, ...patch };
+  await persistGanttItem(next);
+  await renderFBGantt(true);
+  if (message) showToast(message);
+}
+async function toggleScheduledItemVisibility(id) {
+  const item = findGanttItem(id);
+  if (!item) return;
+  await updateScheduledItem(item, { visible_on_gantt: item.visible_on_gantt === false }, (item.visible_on_gantt === false ? 'Showing ' : 'Hidden ') + item.title);
+}
+async function toggleScheduleProjectVisibility(key) {
+  const items = GANTT_ITEMS.filter(item => scheduleProjectKey(item) === key);
+  const allHidden = items.length && items.every(item => item.visible_on_gantt === false);
+  for (const item of items) await persistGanttItem({ ...item, visible_on_gantt: allHidden });
+  await renderFBGantt(true);
+  showToast(allHidden ? 'Project shown on Gantt' : 'Project hidden from Gantt');
+}
+async function completeScheduledItem(id) {
+  const item = findGanttItem(id);
+  if (!item) return;
+  await updateScheduledItem(item, { status:'complete', progress:100, is_blocked:false, blocker_reason:'' }, 'Task marked complete');
+}
+async function removeScheduledItem(id) {
+  const item = findGanttItem(id);
+  if (!item) return;
+  if (!confirm('Remove "' + item.title + '" from the current Gantt schedule? It will stay saved in Scheduled Items as hidden.')) return;
+  await updateScheduledItem(item, { visible_on_gantt:false }, 'Removed from current Gantt schedule');
+}
+async function confirmDeleteScheduledItem(id) {
+  const item = findGanttItem(id);
+  if (!item) return;
+  if (!confirm('Delete "' + item.title + '" from the schedule? This cannot be undone.')) return;
+  try {
+    const res = await fetch('/api/project-schedule-items/' + encodeURIComponent(id), { method:'DELETE', headers:authHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Could not delete task');
+    GANTT_ITEMS = GANTT_ITEMS.filter(scheduleItem => String(scheduleItem.id) !== String(id));
+    await renderFBGantt(true);
+    showToast('Scheduled task deleted');
+  } catch (err) {
+    showToast(err.message || 'Could not delete task');
+  }
+}
+function manageScheduledDependencies(id) {
+  const item = findGanttItem(id);
+  showToast(item ? 'Dependency manager is next for "' + item.title + '".' : 'Dependency manager is next.');
+}
 async function uploadGanttMedia(file) {
   if (!sb) throw new Error('Supabase is not connected.');
   const ext = (file.name.split('.').pop() || 'bin').toLowerCase();
@@ -8004,7 +8169,9 @@ async function saveGanttItem() {
     is_blocked: document.getElementById('ganttIsBlocked').checked,
     blocker_reason: document.getElementById('ganttBlockerReason').value.trim(),
     media: [...GANTT_ACTIVE_MEDIA],
-    participant_records: [...GANTT_SELECTED_PARTICIPANTS]
+    participant_records: [...GANTT_SELECTED_PARTICIPANTS],
+    visible_on_gantt: (GANTT_ITEMS.find(i => String(i.id) === String(id))?.visible_on_gantt) !== false,
+    schedule_group_key: document.getElementById('ganttProject').value.trim() || ganttBoardTitle()
   };
   try {
     const saved = await persistGanttItem(item);

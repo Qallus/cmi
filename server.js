@@ -1701,6 +1701,11 @@ function normalizeSchedulePayload(body = {}, user = {}) {
     is_blocked: Boolean(body.is_blocked),
     blocker_reason: body.blocker_reason || null,
     sort_order: Number.isFinite(Number(body.sort_order)) ? Number(body.sort_order) : 0,
+    visible_on_gantt: body.visible_on_gantt !== false,
+    schedule_group_key: body.schedule_group_key ? String(body.schedule_group_key) : (body.project_title || body.project || null),
+    template_slug: body.template_slug || null,
+    template_name: body.template_name || null,
+    duration_minutes: Number.isFinite(Number(body.duration_minutes)) ? Number(body.duration_minutes) : null,
     metadata: body.metadata && typeof body.metadata === 'object' ? body.metadata : {},
     updated_by: user.email || null,
   };
