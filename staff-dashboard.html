@@ -292,6 +292,11 @@
     .gantt-bar.blocked{background:rgba(239,68,68,.16);border-color:rgba(239,68,68,.42);}
     .gantt-bar.milestone{background:rgba(56,189,248,.15);border-color:rgba(56,189,248,.42);}
     .gantt-assignee{width:22px;height:22px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;background:var(--gold);color:#fff;font-size:9px;font-weight:800;flex-shrink:0;}
+    .gantt-resize-handle{position:absolute;top:4px;bottom:4px;width:10px;border-radius:6px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.18);cursor:ew-resize;z-index:13;opacity:.72;}
+    .gantt-resize-handle.left{left:4px;}
+    .gantt-resize-handle.right{right:4px;}
+    .gantt-resize-handle:hover{opacity:1;background:var(--gold);}
+    .gantt-duration-tip{position:fixed;z-index:700;pointer-events:none;border:1px solid var(--border-card);border-radius:10px;background:var(--surface);box-shadow:0 16px 44px rgba(0,0,0,.32);padding:8px 10px;color:var(--text);font-size:12px;font-weight:700;}
     .gantt-connector-handle{position:absolute;top:50%;width:15px;height:15px;margin-top:-7.5px;border-radius:999px;background:var(--gold);border:2px solid var(--surface);box-shadow:0 0 0 0 rgba(201,164,110,.45);cursor:crosshair;z-index:12;animation:ganttPulse 1.7s infinite;}
     .gantt-connector-handle.start{left:-8px;}
     .gantt-connector-handle.end{right:-8px;}
@@ -379,6 +384,7 @@
     .template-preview-row{display:grid;grid-template-columns:120px minmax(0,1fr) 90px 120px;gap:10px;padding:9px 14px;border-bottom:1px solid var(--border-sm);font-size:12px;color:var(--text-sub);}
     .template-preview-row strong{color:var(--text);}
     .template-preview-row:last-child{border-bottom:0;}
+    .template-staff-list{display:flex;flex-wrap:wrap;gap:7px;margin-top:8px;}
     @media(max-width:1500px){.gantt-controls{grid-template-columns:repeat(3,minmax(140px,1fr));}.gantt-toolbar{flex-direction:column}.gantt-toolbar-title{max-width:none}.gantt-controls{width:100%;}.gantt-overview{grid-template-columns:repeat(3,minmax(0,1fr));}.gantt-overview-main{grid-column:1 / -1;}}
     @media(max-width:1100px){.gantt-feature-grid{grid-template-columns:1fr}.gantt-grid{grid-template-columns:240px minmax(760px,1fr)}.gantt-controls{grid-template-columns:1fr 1fr;}.gantt-overview{grid-template-columns:1fr 1fr;}.template-preview-row{grid-template-columns:1fr;}}
     #ganttItemModal{position:fixed;inset:0;z-index:360;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,.64);backdrop-filter:blur(4px);}
@@ -2282,9 +2288,9 @@
         <div><label class="form-label">Project name</label><input id="ganttTemplateProject" class="form-input" placeholder="Scottsdale ADU" /></div>
         <div><label class="form-label">Client</label><input id="ganttTemplateClient" class="form-input" placeholder="Client or customer name" /></div>
         <div><label class="form-label">Project address</label><input id="ganttTemplateAddress" class="form-input" placeholder="Project address" /></div>
-        <div><label class="form-label">Project start date</label><input id="ganttTemplateStart" class="form-input" type="date" /></div>
+        <div><label class="form-label">Project start date</label><input id="ganttTemplateStart" class="form-input" type="text" /></div>
         <div><label class="form-label">Project manager</label><input id="ganttTemplateManager" class="form-input" placeholder="Project Manager" /></div>
-        <div><label class="form-label">Optional staff / team members</label><input id="ganttTemplateStaff" class="form-input" placeholder="Designer, Field Lead, Admin" /></div>
+        <div><label class="form-label">Optional staff / team members</label><select id="ganttTemplateStaffSelect" class="form-input" onchange="addGanttTemplateStaff(this.value)"></select><div id="ganttTemplateStaffList" class="template-staff-list"></div></div>
         <div><label class="form-label">Optional subcontractors / vendors</label><input id="ganttTemplateVendors" class="form-input" placeholder="Plumber, Electrician, Cabinet Installer" /></div>
         <label class="flex items-center gap-2 text-sm" style="color:var(--text-sub)"><input id="ganttTemplateClientVisible" type="checkbox" class="accent-[var(--gold)]" checked /> Use template client-visible milestones</label>
         <label class="flex items-center gap-2 text-sm" style="color:var(--text-sub)"><input id="ganttTemplateNotify" type="checkbox" class="accent-[var(--gold)]" checked /> Queue notification hooks</label>
@@ -6362,8 +6368,10 @@ let GANTT_SELECTED_PARTICIPANTS = [];
 let GANTT_PARTICIPANTS_LOADED = false;
 let SCHEDULE_EXPANDED_PROJECTS = [];
 let GANTT_TEMPLATE_PREVIEW = [];
+let GANTT_TEMPLATE_STAFF = [];
 let _fpGanttStart = null;
 let _fpGanttEnd = null;
+let _fpGanttTemplateStart = null;
 
 const FB_PRIORITY_CFG = {
   urgent:{ label:'Urgent', color:'#f43f5e', badge:'b-red'    },
@@ -7162,22 +7170,31 @@ function formatTemplateDuration(minutes) {
   if (value < 1440) return Math.round(value / 60 * 10) / 10 + ' hr';
   return Math.max(1, Math.round(value / 1440)) + ' day' + (Math.round(value / 1440) === 1 ? '' : 's');
 }
-function openGanttTemplateModal() {
+async function openGanttTemplateModal() {
   const modal = document.getElementById('ganttTemplateModal');
   const select = document.getElementById('ganttTemplateSlug');
   if (!modal || !select) return;
   const templates = ganttTemplates();
   if (!templates.length) { showToast('No construction project templates are available.'); return; }
+  await loadGanttParticipants();
+  destroyCustomSelect('ganttTemplateSlug');
   select.innerHTML = templates.map(t => '<option value="' + escAttr(t.slug) + '">' + escHtml(t.name) + '</option>').join('');
+  buildCustomSelect('ganttTemplateSlug');
   document.getElementById('ganttTemplateProject').value = ganttBoardTitle();
   document.getElementById('ganttTemplateClient').value = '';
   document.getElementById('ganttTemplateAddress').value = '';
   document.getElementById('ganttTemplateStart').value = ganttDateStr(new Date());
   document.getElementById('ganttTemplateManager').value = '';
-  document.getElementById('ganttTemplateStaff').value = '';
+  GANTT_TEMPLATE_STAFF = [];
   document.getElementById('ganttTemplateVendors').value = '';
   document.getElementById('ganttTemplateClientVisible').checked = true;
   document.getElementById('ganttTemplateNotify').checked = true;
+  renderGanttTemplateStaffSelect();
+  if (typeof flatpickr !== 'undefined') {
+    if (_fpGanttTemplateStart) { _fpGanttTemplateStart.destroy(); _fpGanttTemplateStart = null; }
+    _fpGanttTemplateStart = flatpickr('#ganttTemplateStart', { dateFormat:'Y-m-d', altInput:true, altFormat:'F j, Y', allowInput:false, disableMobile:true });
+    _fpGanttTemplateStart.setDate(new Date(), true);
+  }
   renderGanttTemplatePreview();
   modal.classList.add('open');
   document.body.style.overflow = 'hidden';
@@ -7185,6 +7202,35 @@ function openGanttTemplateModal() {
 function closeGanttTemplateModal() {
   document.getElementById('ganttTemplateModal')?.classList.remove('open');
   document.body.style.overflow = '';
+}
+function ganttStaffOptions() {
+  return GANTT_PARTICIPANTS.filter(p => /staff|admin|team|project manager|designer|field/i.test([p.type, p.role, p.source].join(' ')));
+}
+function renderGanttTemplateStaffSelect() {
+  const select = document.getElementById('ganttTemplateStaffSelect');
+  const list = document.getElementById('ganttTemplateStaffList');
+  if (!select || !list) return;
+  destroyCustomSelect('ganttTemplateStaffSelect');
+  const selected = new Set(GANTT_TEMPLATE_STAFF.map(p => String(p.id)));
+  const staff = ganttStaffOptions();
+  select.innerHTML = '<option value="">Select team member</option>' + staff
+    .filter(p => !selected.has(String(p.id)))
+    .map(p => '<option value="' + escAttr(p.id) + '">' + escHtml(participantLabel(p)) + '</option>')
+    .join('');
+  buildCustomSelect('ganttTemplateStaffSelect');
+  list.innerHTML = GANTT_TEMPLATE_STAFF.length
+    ? GANTT_TEMPLATE_STAFF.map((p, index) => '<span class="gantt-participant-chip">' + escHtml(participantLabel(p)) + '<button type="button" onclick="removeGanttTemplateStaff(' + index + ')">&times;</button></span>').join('')
+    : '<span class="text-xs" style="color:var(--text-muted)">No extra team members selected.</span>';
+}
+function addGanttTemplateStaff(value) {
+  if (!value) return;
+  const person = GANTT_PARTICIPANTS.find(p => String(p.id) === String(value));
+  if (person && !GANTT_TEMPLATE_STAFF.some(p => String(p.id) === String(value))) GANTT_TEMPLATE_STAFF.push(normalizeGanttParticipant(person));
+  renderGanttTemplateStaffSelect();
+}
+function removeGanttTemplateStaff(index) {
+  GANTT_TEMPLATE_STAFF.splice(index, 1);
+  renderGanttTemplateStaffSelect();
 }
 function renderGanttTemplatePreview() {
   const template = ganttTemplateBySlug(document.getElementById('ganttTemplateSlug')?.value);
@@ -7250,7 +7296,8 @@ function templateScheduleItems(template, form) {
         assigned_staff_ids: [],
         assigned_vendor_ids: [],
         notification_hooks: form.notify ? ['task_created','task_assigned','task_due_soon','schedule_changed'] : [],
-        activity_source: 'template_application'
+        activity_source: 'template_application',
+        assigned_staff: form.staffRecords || []
       }
     };
   });
@@ -7321,7 +7368,8 @@ async function applyGanttProjectTemplate() {
     address: document.getElementById('ganttTemplateAddress').value.trim(),
     startDate: ganttDate(document.getElementById('ganttTemplateStart').value || new Date()),
     manager: document.getElementById('ganttTemplateManager').value.trim(),
-    staff: document.getElementById('ganttTemplateStaff').value.trim(),
+    staff: GANTT_TEMPLATE_STAFF.map(participantLabel).join(', '),
+    staffRecords: [...GANTT_TEMPLATE_STAFF],
     vendors: document.getElementById('ganttTemplateVendors').value.trim(),
     clientVisible: document.getElementById('ganttTemplateClientVisible').checked,
     notify: document.getElementById('ganttTemplateNotify').checked,
@@ -7636,7 +7684,8 @@ function renderGanttTimeline(items, stats) {
       const assigneeText = GANTT_CLIENT_VIEW ? '' : '<span style="opacity:.68">' + ganttTypeLabel(item.type) + '</span>' + blockedBadge;
       const startHandle = GANTT_EDIT_MODE ? '<span class="gantt-connector-handle start" title="Drag from start to connect this item" data-gantt-source="' + escAttr(item.id) + '" data-gantt-side="start"></span>' : '';
       const endHandle = GANTT_EDIT_MODE ? '<span class="gantt-connector-handle end" title="Drag from end to connect this item" data-gantt-source="' + escAttr(item.id) + '" data-gantt-side="end"></span>' : '';
-      timelineRows += '<div class="gantt-row" style="width:' + width + 'px"><div class="gantt-bar ' + ganttStatusClass(item.status) + typeClass + riskClass + '" data-gantt-id="' + escAttr(item.id) + '" style="left:' + itemLeft + 'px;width:' + itemWidth + 'px">' + startHandle + '<span class="gantt-assignee">' + ganttInitials(GANTT_CLIENT_VIEW ? 'CMI' : item.assignee) + '</span><span class="gantt-bar-title">' + escHtml(item.title) + '</span>' + assigneeText + visibleBadge + mediaBadge + '<span style="margin-left:auto;opacity:.65">' + (Number(item.progress)||0) + '%</span>' + endHandle + '</div></div>';
+      const resizeHandles = GANTT_EDIT_MODE ? '<span class="gantt-resize-handle left" title="Drag left edge to shorten or extend start date" data-gantt-resize="start"></span><span class="gantt-resize-handle right" title="Drag right edge to change duration" data-gantt-resize="end"></span>' : '';
+      timelineRows += '<div class="gantt-row" style="width:' + width + 'px"><div class="gantt-bar ' + ganttStatusClass(item.status) + typeClass + riskClass + '" data-gantt-id="' + escAttr(item.id) + '" style="left:' + itemLeft + 'px;width:' + itemWidth + 'px">' + resizeHandles + startHandle + '<span class="gantt-assignee">' + ganttInitials(GANTT_CLIENT_VIEW ? 'CMI' : item.assignee) + '</span><span class="gantt-bar-title">' + escHtml(item.title) + '</span>' + assigneeText + visibleBadge + mediaBadge + '<span style="margin-left:auto;opacity:.65">' + (Number(item.progress)||0) + '%</span>' + endHandle + '</div></div>';
       rowTop += 54;
     });
   });
@@ -8292,7 +8341,8 @@ function bindGanttDrag() {
       e.preventDefault();
       const item = GANTT_ITEMS.find(i => String(i.id) === String(bar.dataset.ganttId));
       if (!item) return;
-      GANTT_DRAG = { item, bar, x: e.clientX, left: parseFloat(bar.style.left) || 0, start: item.start, end: item.end, moved:false };
+      const resize = e.target.closest('.gantt-resize-handle')?.dataset.ganttResize || 'move';
+      GANTT_DRAG = { item, bar, mode:resize, x: e.clientX, left: parseFloat(bar.style.left) || 0, width:parseFloat(bar.style.width) || bar.offsetWidth, start: item.start, end: item.end, moved:false };
       bar.classList.add('dragging');
       bar.setPointerCapture(e.pointerId);
     });
@@ -8301,12 +8351,31 @@ function bindGanttDrag() {
       const dayWidth = parseFloat(getComputedStyle(bar.closest('.gantt-grid') || document.documentElement).getPropertyValue('--gantt-day-width')) || GANTT_ZOOM;
       const deltaDays = Math.round((e.clientX - GANTT_DRAG.x) / dayWidth);
       const deltaPx = e.clientX - GANTT_DRAG.x;
-      GANTT_DRAG.bar.style.left = Math.max(0, GANTT_DRAG.left + deltaPx) + 'px';
+      if (GANTT_DRAG.mode === 'start') {
+        const nextLeft = Math.max(0, GANTT_DRAG.left + deltaDays * dayWidth);
+        const nextWidth = Math.max(dayWidth - 6, GANTT_DRAG.width - (nextLeft - GANTT_DRAG.left));
+        GANTT_DRAG.bar.style.left = nextLeft + 'px';
+        GANTT_DRAG.bar.style.width = nextWidth + 'px';
+      } else if (GANTT_DRAG.mode === 'end') {
+        GANTT_DRAG.bar.style.width = Math.max(dayWidth - 6, GANTT_DRAG.width + deltaDays * dayWidth) + 'px';
+      } else {
+        GANTT_DRAG.bar.style.left = Math.max(0, GANTT_DRAG.left + deltaPx) + 'px';
+      }
       if (!deltaDays) return;
       GANTT_DRAG.moved = true;
       GANTT_DRAG.deltaDays = deltaDays;
-      GANTT_DRAG.item.start = ganttDateStr(ganttAddDays(GANTT_DRAG.start, deltaDays));
-      GANTT_DRAG.item.end = ganttDateStr(ganttAddDays(GANTT_DRAG.end, deltaDays));
+      if (GANTT_DRAG.mode === 'start') {
+        const nextStart = ganttDateStr(ganttAddDays(GANTT_DRAG.start, deltaDays));
+        if (ganttDate(nextStart) <= ganttDate(GANTT_DRAG.end)) GANTT_DRAG.item.start = nextStart;
+      } else if (GANTT_DRAG.mode === 'end') {
+        const nextEnd = ganttDateStr(ganttAddDays(GANTT_DRAG.end, deltaDays));
+        if (ganttDate(nextEnd) >= ganttDate(GANTT_DRAG.start)) GANTT_DRAG.item.end = nextEnd;
+      } else {
+        GANTT_DRAG.item.start = ganttDateStr(ganttAddDays(GANTT_DRAG.start, deltaDays));
+        GANTT_DRAG.item.end = ganttDateStr(ganttAddDays(GANTT_DRAG.end, deltaDays));
+      }
+      GANTT_DRAG.item.duration_minutes = Math.max(1, ganttDaysBetween(GANTT_DRAG.item.start, GANTT_DRAG.item.end) + 1) * 1440;
+      showGanttDurationTip(e.clientX, e.clientY, GANTT_DRAG.item);
     });
     bar.addEventListener('pointerup', async e => {
       const moved = GANTT_DRAG?.moved;
@@ -8314,6 +8383,7 @@ function bindGanttDrag() {
       const id = bar.dataset.ganttId;
       const item = GANTT_DRAG?.item;
       document.querySelectorAll('.gantt-bar.dragging').forEach(b => b.classList.remove('dragging'));
+      hideGanttDurationTip();
       if (GANTT_DRAG) {
         GANTT_DRAG = null;
         if (moved && item) {
@@ -8329,7 +8399,24 @@ function bindGanttDrag() {
       }
       if (!moved) openGanttItemModal(item?.type || 'task', id);
     });
+    bar.addEventListener('pointercancel', hideGanttDurationTip);
   });
+}
+function showGanttDurationTip(x, y, item) {
+  let tip = document.getElementById('ganttDurationTip');
+  if (!tip) {
+    tip = document.createElement('div');
+    tip.id = 'ganttDurationTip';
+    tip.className = 'gantt-duration-tip';
+    document.body.appendChild(tip);
+  }
+  const days = Math.max(1, ganttDaysBetween(item.start, item.end) + 1);
+  tip.textContent = days + ' day' + (days === 1 ? '' : 's') + ' - ' + item.start + ' to ' + item.end;
+  tip.style.left = Math.min(window.innerWidth - 220, x + 14) + 'px';
+  tip.style.top = Math.max(12, y - 44) + 'px';
+}
+function hideGanttDurationTip() {
+  document.getElementById('ganttDurationTip')?.remove();
 }
 function ganttDefaultModel(type, today) {
   const normalizedType = ['project', 'phase', 'task', 'milestone'].includes(type) ? type : 'task';

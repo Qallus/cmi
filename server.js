@@ -1762,6 +1762,19 @@ function normalizeScheduleDependencyPayload(body = {}, user = {}) {
     updated_by: user.email || null,
   };
 }
+function schedulePayloadWithoutSchemaCacheColumns(payload = {}) {
+  const next = { ...payload, metadata: { ...(payload.metadata || {}) } };
+  ['visible_on_gantt', 'schedule_group_key', 'template_slug', 'template_name', 'duration_minutes'].forEach(key => {
+    if (Object.prototype.hasOwnProperty.call(next, key)) {
+      next.metadata[key] = next[key];
+      delete next[key];
+    }
+  });
+  return next;
+}
+function isScheduleSchemaCacheError(error) {
+  return /schema cache|could not find .* column|PGRST204/i.test(String(error?.message || error || ''));
+}
 
 app.get('/api/project-schedule-items', requireStaff, async (req, res) => {
   try {
@@ -1869,7 +1882,13 @@ app.post('/api/project-schedule-items', requireStaff, async (req, res) => {
     if (!supabase) return res.status(503).json({ message: 'Supabase is not configured' });
     const payload = normalizeSchedulePayload(req.body, req.user);
     payload.created_by = req.user.email || null;
-    const { data, error } = await supabase.from('project_schedule_items').insert(payload).select().single();
+    let { data, error } = await supabase.from('project_schedule_items').insert(payload).select().single();
+    if (error && isScheduleSchemaCacheError(error)) {
+      const fallback = schedulePayloadWithoutSchemaCacheColumns(payload);
+      const retry = await supabase.from('project_schedule_items').insert(fallback).select().single();
+      data = retry.data;
+      error = retry.error;
+    }
     if (error) throw error;
     res.json({ ok: true, item: data });
   } catch (err) {
@@ -1883,12 +1902,23 @@ app.put('/api/project-schedule-items/:id', requireStaff, async (req, res) => {
     if (!isUuid(req.params.id)) return res.status(400).json({ message: 'Valid schedule item id is required.' });
     const payload = normalizeSchedulePayload(req.body, req.user);
     payload.updated_at = new Date().toISOString();
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('project_schedule_items')
       .update(payload)
       .eq('id', req.params.id)
       .select()
       .single();
+    if (error && isScheduleSchemaCacheError(error)) {
+      const fallback = schedulePayloadWithoutSchemaCacheColumns(payload);
+      const retry = await supabase
+        .from('project_schedule_items')
+        .update(fallback)
+        .eq('id', req.params.id)
+        .select()
+        .single();
+      data = retry.data;
+      error = retry.error;
+    }
     if (error) throw error;
     res.json({ ok: true, item: data });
   } catch (err) {
