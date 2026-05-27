@@ -296,7 +296,8 @@
     .gantt-resize-handle.left{left:4px;}
     .gantt-resize-handle.right{right:4px;}
     .gantt-resize-handle:hover{opacity:1;background:var(--gold);}
-    .gantt-duration-tip{position:fixed;z-index:700;pointer-events:none;border:1px solid var(--border-card);border-radius:10px;background:var(--surface);box-shadow:0 16px 44px rgba(0,0,0,.32);padding:8px 10px;color:var(--text);font-size:12px;font-weight:700;}
+    .gantt-duration-tip{position:fixed;z-index:700;pointer-events:none;border:1px solid rgba(201,164,110,.36);border-radius:10px;background:var(--surface);box-shadow:0 16px 44px rgba(0,0,0,.32);padding:9px 11px;color:var(--text);font-size:12px;font-weight:700;min-width:220px;}
+    .gantt-duration-tip small{display:block;margin-top:3px;color:var(--text-muted);font-size:11px;font-weight:500;}
     .gantt-connector-handle{position:absolute;top:50%;width:15px;height:15px;margin-top:-7.5px;border-radius:999px;background:var(--gold);border:2px solid var(--surface);box-shadow:0 0 0 0 rgba(201,164,110,.45);cursor:crosshair;z-index:12;animation:ganttPulse 1.7s infinite;}
     .gantt-connector-handle.start{left:-8px;}
     .gantt-connector-handle.end{right:-8px;}
@@ -373,6 +374,10 @@
     .schedule-task-wrap{padding:0 16px 16px;background:var(--surface);}
     .schedule-action-btn{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:28px;border-radius:8px;border:1px solid var(--border-md);background:transparent;color:var(--text-dim);font-size:11px;font-weight:600;cursor:pointer;padding:0 8px;}
     .schedule-action-btn:hover{background:var(--hover-bg);color:var(--text);}
+    .schedule-icon-actions{display:flex;gap:6px;align-items:center;justify-content:flex-end;}
+    .schedule-icon-btn{width:28px;height:28px;border-radius:8px;border:1px solid var(--border-sm);background:transparent;color:var(--text-muted);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;}
+    .schedule-icon-btn:hover{background:var(--gold-alpha);color:var(--gold);border-color:rgba(201,164,110,.32);}
+    .schedule-icon-btn.danger:hover{background:rgba(239,68,68,.12);color:#f87171;border-color:rgba(239,68,68,.32);}
     .schedule-danger{border-color:rgba(239,68,68,.35)!important;color:#f87171!important;}
     .schedule-hidden-label{color:var(--text-muted);font-size:11px;}
     #ganttTemplateModal{position:fixed;inset:0;z-index:365;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,.64);backdrop-filter:blur(4px);}
@@ -2351,8 +2356,10 @@
         <div><label class="form-label">Dependency Notes</label><input id="ganttDependencies" class="form-input" placeholder="Notes about blockers or predecessor work" /></div>
         <div><label class="form-label">Start Date</label><input id="ganttStart" type="text" inputmode="none" class="form-input" placeholder="Select start date" /></div>
         <div><label class="form-label">End Date</label><input id="ganttEnd" type="text" inputmode="none" class="form-input" placeholder="Select end date" /></div>
-        <div><label class="form-label">Priority</label><select id="ganttPriority" class="form-input"><option value="normal">Normal</option><option value="low">Low</option><option value="high">High</option><option value="critical">Critical</option><option value="blocking_closeout">Blocking Closeout</option></select></div>
+        <div><label class="form-label">Priority</label><select id="ganttPriority" class="form-input"><option value="normal">Normal</option><option value="low">Low</option><option value="high">High</option><option value="urgent">Urgent</option><option value="critical">Critical</option><option value="blocking_closeout">Blocking Closeout</option></select></div>
         <div><label class="form-label">Progress (%)</label><input id="ganttProgress" type="number" min="0" max="100" class="form-input" placeholder="35" /></div>
+        <div><label class="form-label">Estimated duration days</label><input id="ganttDurationDays" type="number" min="0.04" step="0.01" class="form-input" placeholder="1.25" oninput="syncGanttDurationFromInput()" /></div>
+        <div class="p-3 rounded-lg" style="border:1px solid var(--border-sm);background:var(--surface-2)"><p class="text-[10px] uppercase tracking-widest mb-1" style="color:var(--gold)">Duration Examples</p><p class="text-xs" style="color:var(--text-muted)">0.125 = 1 hour, 0.25 = 2 hours, 0.5 = half day. Drag either bar edge to adjust this live.</p></div>
         <div>
           <label class="form-label">Participants</label>
           <select id="ganttParticipantSelect" class="form-input" onchange="handleGanttParticipantSelect(this.value)">
@@ -7545,7 +7552,8 @@ function renderGanttOverview(stats) {
 }
 function initGanttControls() {
   if (typeof flatpickr !== 'undefined') {
-    const cfg = { dateFormat:'Y-m-d', altInput:true, altFormat:'F j, Y', allowInput:false, disableMobile:true };
+    const syncDates = () => syncGanttDurationFromDates();
+    const cfg = { dateFormat:'Y-m-d', altInput:true, altFormat:'F j, Y', allowInput:false, disableMobile:true, onChange:syncDates };
     if (_fpGanttStart) { _fpGanttStart.destroy(); _fpGanttStart = null; }
     if (_fpGanttEnd) { _fpGanttEnd.destroy(); _fpGanttEnd = null; }
     if (!_fpGanttStart && document.getElementById('ganttStart')) _fpGanttStart = flatpickr('#ganttStart', cfg);
@@ -7589,6 +7597,13 @@ async function renderFBGantt(forceLoad) {
   initGanttFilterControls();
   bindGanttDrag();
 }
+function syncGanttDurationFromDates() {
+  const start = document.getElementById('ganttStart')?.value;
+  const end = document.getElementById('ganttEnd')?.value;
+  const duration = document.getElementById('ganttDurationDays');
+  if (!start || !end || !duration) return;
+  duration.value = Math.max(1, ganttDaysBetween(start, end) + 1);
+}
 function renderGanttToolbar() {
   const opts = ganttCurrentFilterOptions(GANTT_ITEMS);
   return '<div class="gantt-toolbar">' +
@@ -7597,7 +7612,7 @@ function renderGanttToolbar() {
       '<div class="gantt-tabs"><button class="gantt-view-tab ' + (GANTT_MODE==='timeline'?'active':'') + '" onclick="setGanttMode(\'timeline\')">Timeline</button><button class="gantt-view-tab ' + (GANTT_MODE==='table'?'active':'') + '" onclick="setGanttMode(\'table\')">Table</button></div>' +
       ganttFilterSelect('ganttFilterType', 'Type', GANTT_TYPE, [{value:'all',label:'All types'},{value:'project',label:'Projects'},{value:'phase',label:'Phases'},{value:'task',label:'Tasks'},{value:'milestone',label:'Milestones'}], 'setGanttType') +
       ganttFilterSelect('ganttFilterStatus', 'Status', GANTT_STATUS, [{value:'all',label:'All status'},{value:'pending',label:'Pending'},{value:'scheduled',label:'Scheduled'},{value:'in_progress',label:'In progress'},{value:'waiting',label:'Waiting'},{value:'delayed',label:'Delayed'},{value:'blocked',label:'Blocked'},{value:'needs_approval',label:'Needs approval'},{value:'complete',label:'Complete'},{value:'canceled',label:'Canceled'}], 'setGanttStatus') +
-      ganttFilterSelect('ganttFilterPriority', 'Priority', GANTT_PRIORITY, [{value:'all',label:'All priority'},{value:'low',label:'Low'},{value:'normal',label:'Normal'},{value:'high',label:'High'},{value:'critical',label:'Critical'},{value:'blocking_closeout',label:'Blocking closeout'}], 'setGanttPriority') +
+      ganttFilterSelect('ganttFilterPriority', 'Priority', GANTT_PRIORITY, [{value:'all',label:'All priority'},{value:'low',label:'Low'},{value:'normal',label:'Normal'},{value:'high',label:'High'},{value:'urgent',label:'Urgent'},{value:'critical',label:'Critical'},{value:'blocking_closeout',label:'Blocking closeout'}], 'setGanttPriority') +
       ganttFilterSelect('ganttFilterPhase', 'Phase', GANTT_PHASE, [{value:'all',label:'All phases'}].concat(opts.phases.map(p => ({ value:p, label:p }))), 'setGanttPhase') +
       ganttFilterSelect('ganttFilterAssignee', 'Assignee', GANTT_ASSIGNEE, [{value:'all',label:'All assignees'}].concat(opts.assignees.map(a => ({ value:a, label:a }))), 'setGanttAssignee') +
       ganttFilterSelect('ganttFilterVisibility', 'Visibility', GANTT_VISIBILITY, [{value:'all',label:'All visibility'},{value:'client',label:'Client visible'},{value:'internal',label:'Internal only'},{value:'blocked',label:'Blocked only'}], 'setGanttVisibility') +
@@ -7671,7 +7686,7 @@ function renderGanttTimeline(items, stats) {
     if (collapsed) return;
     phaseItems.forEach(item => {
       const itemStart = Math.max(0, ganttDaysBetween(min, item.start));
-      const duration = Math.max(1, ganttDaysBetween(item.start, item.end) + 1);
+      const duration = Math.max(0.04, (Number(item.duration_minutes) || ((ganttDaysBetween(item.start, item.end) + 1) * 1440)) / 1440);
       const itemLeft = itemStart * dayWidth;
       const itemWidth = Math.max(38, duration * dayWidth - 6);
       positions[item.id] = { startX: itemLeft, endX: itemLeft + itemWidth, y: rowTop + 27 };
@@ -7763,6 +7778,13 @@ function renderScheduledItemsSection() {
 function renderScheduledTaskRow(item) {
   const visibility = item.visible_on_gantt === false ? 'Hidden' : 'Visible';
   const clientVisibility = item.client_visible ? 'Client' : 'Internal';
+  const icon = {
+    hide: '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M3 3l18 18"/><path d="M10.6 10.6A2 2 0 0013.4 13.4"/><path d="M9.9 4.24A10.4 10.4 0 0112 4c5 0 8.5 4 10 8a13.2 13.2 0 01-2.2 3.6"/><path d="M6.2 6.2A13.2 13.2 0 002 12c1.5 4 5 8 10 8 1.3 0 2.5-.25 3.6-.7"/></svg>',
+    cancel: '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9 9l6 6m0-6l-6 6"/></svg>',
+    complete: '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5L16 9"/></svg>',
+    remove: '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>',
+    edit: '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5l4 4L8 20H4v-4z"/></svg>'
+  };
   return '<tr>' +
     '<td><strong>' + escHtml(item.title || 'Untitled task') + '</strong><div class="text-[11px] text-neutral-500">' + escHtml(item.description || '') + '</div></td>' +
     '<td>' + escHtml(item.phase || 'Project Tasks') + '</td>' +
@@ -7773,7 +7795,7 @@ function renderScheduledTaskRow(item) {
     '<td>' + escHtml(item.assignee || 'Unassigned') + '</td>' +
     '<td>' + escHtml(item.end || item.start || '-') + '</td>' +
     '<td><span class="schedule-hidden-label">' + visibility + ' / ' + clientVisibility + '</span></td>' +
-    '<td><div class="flex flex-wrap gap-1"><button class="schedule-action-btn" onclick="openGanttItemModal(\'' + escAttr(item.type || 'task') + '\',\'' + escAttr(item.id) + '\')">Edit</button><button class="schedule-action-btn" onclick="completeScheduledItem(\'' + escAttr(item.id) + '\')">Done</button><button class="schedule-action-btn" onclick="toggleScheduledItemVisibility(\'' + escAttr(item.id) + '\')">' + (item.visible_on_gantt === false ? 'Show' : 'Hide') + '</button><button class="schedule-action-btn" onclick="manageScheduledDependencies(\'' + escAttr(item.id) + '\')">Deps</button><button class="schedule-action-btn" onclick="openGanttItemModal(\'' + escAttr(item.type || 'task') + '\',\'' + escAttr(item.id) + '\')">Staff</button><button class="schedule-action-btn schedule-danger" onclick="removeScheduledItem(\'' + escAttr(item.id) + '\')">Remove</button><button class="schedule-action-btn schedule-danger" onclick="confirmDeleteScheduledItem(\'' + escAttr(item.id) + '\')">Delete</button></div></td>' +
+    '<td><div class="schedule-icon-actions"><button class="schedule-icon-btn" title="' + (item.visible_on_gantt === false ? 'Show on Gantt' : 'Hide from Gantt') + '" onclick="toggleScheduledItemVisibility(\'' + escAttr(item.id) + '\')">' + icon.hide + '</button><button class="schedule-icon-btn" title="Cancel task" onclick="cancelScheduledItem(\'' + escAttr(item.id) + '\')">' + icon.cancel + '</button><button class="schedule-icon-btn" title="Mark complete" onclick="completeScheduledItem(\'' + escAttr(item.id) + '\')">' + icon.complete + '</button><button class="schedule-icon-btn" title="Edit task" onclick="openGanttItemModal(\'' + escAttr(item.type || 'task') + '\',\'' + escAttr(item.id) + '\')">' + icon.edit + '</button><button class="schedule-icon-btn danger" title="Remove task" onclick="confirmDeleteScheduledItem(\'' + escAttr(item.id) + '\')">' + icon.remove + '</button></div></td>' +
   '</tr>';
 }
 function setGanttMode(mode) { GANTT_MODE = mode; renderFBGantt(); }
@@ -7812,6 +7834,21 @@ function fitGanttToProject() {
   const boardWidth = Math.max(900, (document.getElementById('fb-content-wrap')?.clientWidth || 1280) - 320);
   GANTT_ZOOM = Math.max(22, Math.min(72, Math.floor(boardWidth / days)));
   renderFBGantt();
+}
+function ganttDurationDays(item) {
+  return Math.max(0.04, (Number(item.duration_minutes) || ((ganttDaysBetween(item.start, item.end) + 1) * 1440)) / 1440);
+}
+function setGanttEndFromDuration() {
+  const start = document.getElementById('ganttStart')?.value;
+  const duration = Number(document.getElementById('ganttDurationDays')?.value || 0);
+  if (!start || !duration) return;
+  const end = ganttDateStr(ganttAddDays(start, Math.max(0, Math.ceil(duration) - 1)));
+  const input = document.getElementById('ganttEnd');
+  if (input) input.value = end;
+  if (_fpGanttEnd) _fpGanttEnd.setDate(end, true);
+}
+function syncGanttDurationFromInput() {
+  setGanttEndFromDuration();
 }
 function setGanttToday() {
   renderFBGantt();
@@ -7873,6 +7910,11 @@ async function completeScheduledItem(id) {
   const item = findGanttItem(id);
   if (!item) return;
   await updateScheduledItem(item, { status:'complete', progress:100, is_blocked:false, blocker_reason:'' }, 'Task marked complete');
+}
+async function cancelScheduledItem(id) {
+  const item = findGanttItem(id);
+  if (!item) return;
+  await updateScheduledItem(item, { status:'canceled', progress:0, is_blocked:false, blocker_reason:'' }, 'Task canceled');
 }
 async function removeScheduledItem(id) {
   const item = findGanttItem(id);
@@ -8342,40 +8384,44 @@ function bindGanttDrag() {
       const item = GANTT_ITEMS.find(i => String(i.id) === String(bar.dataset.ganttId));
       if (!item) return;
       const resize = e.target.closest('.gantt-resize-handle')?.dataset.ganttResize || 'move';
-      GANTT_DRAG = { item, bar, mode:resize, x: e.clientX, left: parseFloat(bar.style.left) || 0, width:parseFloat(bar.style.width) || bar.offsetWidth, start: item.start, end: item.end, moved:false };
+      GANTT_DRAG = { item, bar, mode:resize, x: e.clientX, left: parseFloat(bar.style.left) || 0, width:parseFloat(bar.style.width) || bar.offsetWidth, start: item.start, end: item.end, durationDays:ganttDurationDays(item), moved:false };
       bar.classList.add('dragging');
       bar.setPointerCapture(e.pointerId);
     });
     bar.addEventListener('pointermove', e => {
       if (!GANTT_DRAG) return;
       const dayWidth = parseFloat(getComputedStyle(bar.closest('.gantt-grid') || document.documentElement).getPropertyValue('--gantt-day-width')) || GANTT_ZOOM;
-      const deltaDays = Math.round((e.clientX - GANTT_DRAG.x) / dayWidth);
+      const deltaRawDays = (e.clientX - GANTT_DRAG.x) / dayWidth;
+      const deltaDays = Math.round(deltaRawDays);
       const deltaPx = e.clientX - GANTT_DRAG.x;
       if (GANTT_DRAG.mode === 'start') {
-        const nextLeft = Math.max(0, GANTT_DRAG.left + deltaDays * dayWidth);
-        const nextWidth = Math.max(dayWidth - 6, GANTT_DRAG.width - (nextLeft - GANTT_DRAG.left));
+        const nextLeft = Math.max(0, GANTT_DRAG.left + deltaPx);
+        const nextWidth = Math.max(10, GANTT_DRAG.width - (nextLeft - GANTT_DRAG.left));
         GANTT_DRAG.bar.style.left = nextLeft + 'px';
         GANTT_DRAG.bar.style.width = nextWidth + 'px';
       } else if (GANTT_DRAG.mode === 'end') {
-        GANTT_DRAG.bar.style.width = Math.max(dayWidth - 6, GANTT_DRAG.width + deltaDays * dayWidth) + 'px';
+        GANTT_DRAG.bar.style.width = Math.max(10, GANTT_DRAG.width + deltaPx) + 'px';
       } else {
         GANTT_DRAG.bar.style.left = Math.max(0, GANTT_DRAG.left + deltaPx) + 'px';
       }
-      if (!deltaDays) return;
+      if (Math.abs(deltaPx) < 3) return;
       GANTT_DRAG.moved = true;
       GANTT_DRAG.deltaDays = deltaDays;
       if (GANTT_DRAG.mode === 'start') {
-        const nextStart = ganttDateStr(ganttAddDays(GANTT_DRAG.start, deltaDays));
+        const nextDuration = Math.max(0.04, GANTT_DRAG.durationDays - deltaRawDays);
+        const nextStart = ganttDateStr(ganttAddDays(GANTT_DRAG.end, -(Math.ceil(nextDuration) - 1)));
+        GANTT_DRAG.item.duration_minutes = Math.max(15, Math.round((nextDuration * 1440) / 15) * 15);
         if (ganttDate(nextStart) <= ganttDate(GANTT_DRAG.end)) GANTT_DRAG.item.start = nextStart;
       } else if (GANTT_DRAG.mode === 'end') {
-        const nextEnd = ganttDateStr(ganttAddDays(GANTT_DRAG.end, deltaDays));
-        if (ganttDate(nextEnd) >= ganttDate(GANTT_DRAG.start)) GANTT_DRAG.item.end = nextEnd;
+        const nextDuration = Math.max(0.04, GANTT_DRAG.durationDays + deltaRawDays);
+        GANTT_DRAG.item.duration_minutes = Math.max(15, Math.round((nextDuration * 1440) / 15) * 15);
+        GANTT_DRAG.item.end = ganttDateStr(ganttAddDays(GANTT_DRAG.start, Math.max(0, Math.ceil(nextDuration) - 1)));
       } else {
         GANTT_DRAG.item.start = ganttDateStr(ganttAddDays(GANTT_DRAG.start, deltaDays));
         GANTT_DRAG.item.end = ganttDateStr(ganttAddDays(GANTT_DRAG.end, deltaDays));
+        GANTT_DRAG.item.duration_minutes = Math.max(15, Math.round(GANTT_DRAG.durationDays * 1440));
       }
-      GANTT_DRAG.item.duration_minutes = Math.max(1, ganttDaysBetween(GANTT_DRAG.item.start, GANTT_DRAG.item.end) + 1) * 1440;
-      showGanttDurationTip(e.clientX, e.clientY, GANTT_DRAG.item);
+      showGanttDurationTip(e.clientX, e.clientY, GANTT_DRAG.item, GANTT_DRAG.mode);
     });
     bar.addEventListener('pointerup', async e => {
       const moved = GANTT_DRAG?.moved;
@@ -8402,7 +8448,7 @@ function bindGanttDrag() {
     bar.addEventListener('pointercancel', hideGanttDurationTip);
   });
 }
-function showGanttDurationTip(x, y, item) {
+function showGanttDurationTip(x, y, item, mode) {
   let tip = document.getElementById('ganttDurationTip');
   if (!tip) {
     tip = document.createElement('div');
@@ -8410,8 +8456,10 @@ function showGanttDurationTip(x, y, item) {
     tip.className = 'gantt-duration-tip';
     document.body.appendChild(tip);
   }
-  const days = Math.max(1, ganttDaysBetween(item.start, item.end) + 1);
-  tip.textContent = days + ' day' + (days === 1 ? '' : 's') + ' - ' + item.start + ' to ' + item.end;
+  const days = ganttDurationDays(item);
+  tip.innerHTML = (mode === 'start' ? 'Adjust start' : mode === 'end' ? 'Adjust end' : 'Move task') +
+    '<small>' + escHtml(item.start + ' - ' + item.end) + '</small>' +
+    '<small>' + (Math.round(days * 1000) / 1000) + 'd duration</small>';
   tip.style.left = Math.min(window.innerWidth - 220, x + 14) + 'px';
   tip.style.top = Math.max(12, y - 44) + 'px';
 }
@@ -8466,6 +8514,7 @@ async function openGanttItemModal(type, id) {
   document.getElementById('ganttDependencies').value = model.dependencies || '';
   document.getElementById('ganttStart').value = model.start || today;
   document.getElementById('ganttEnd').value = model.end || today;
+  document.getElementById('ganttDurationDays').value = Math.round(ganttDurationDays(model) * 1000) / 1000;
   document.getElementById('ganttStatus').value = model.status || 'pending';
   document.getElementById('ganttPriority').value = model.priority || 'normal';
   document.getElementById('ganttProgress').value = Number(model.progress) || 0;
@@ -8521,6 +8570,7 @@ async function saveGanttItem() {
     status: document.getElementById('ganttStatus').value,
     priority: document.getElementById('ganttPriority').value || 'normal',
     progress: Math.max(0, Math.min(100, Number(document.getElementById('ganttProgress').value) || 0)),
+    duration_minutes: Math.max(15, Math.round((Number(document.getElementById('ganttDurationDays').value) || 1) * 1440)),
     participants: GANTT_SELECTED_PARTICIPANTS.map(participantLabel).join(', '),
     notify: document.getElementById('ganttNotify').checked,
     client_visible: document.getElementById('ganttClientVisible').checked,
