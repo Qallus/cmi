@@ -1,0 +1,37 @@
+import { NextRequest, NextResponse } from "next/server";
+import { createBookingAppointment, createBookingEventPage, loadBookingData, updateBookingAppointment } from "@/lib/booking/data";
+
+export async function GET() {
+  try {
+    const data = await loadBookingData();
+    return NextResponse.json(data);
+  } catch (error) {
+    return NextResponse.json({ message: error instanceof Error ? error.message : "Bookings load failed." }, { status: 500 });
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const body = await request.json();
+    if (body.resource === "event_page") {
+      const eventPage = await createBookingEventPage(body);
+      return NextResponse.json({ eventPage });
+    }
+    const appointment = await createBookingAppointment({ ...body, source: "dashboard" });
+    return NextResponse.json({ appointment });
+  } catch (error) {
+    return NextResponse.json({ message: error instanceof Error ? error.message : "Booking create failed." }, { status: 400 });
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const id = String(body.id || "");
+    if (!id) throw new Error("Appointment id is required.");
+    const appointment = await updateBookingAppointment(id, body);
+    return NextResponse.json({ appointment });
+  } catch (error) {
+    return NextResponse.json({ message: error instanceof Error ? error.message : "Booking update failed." }, { status: 400 });
+  }
+}

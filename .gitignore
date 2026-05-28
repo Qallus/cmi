@@ -30,3 +30,6 @@ secrets.json
 # Claude / MCP
 .claude/
 .mcp.json
+
+# Local reference clones
+external/ctrl-p-review/

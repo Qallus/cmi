@@ -1,0 +1,158 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --radius: 0.625rem;
+    --radius-sm: calc(var(--radius) - 4px);
+    --radius-md: calc(var(--radius) - 2px);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) + 4px);
+
+    --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    --font-display: "Geist", ui-sans-serif, system-ui, sans-serif;
+
+    --shadow-xs: 0 1px 2px 0 rgb(20 14 6 / 0.04);
+    --shadow-sm: 0 1px 3px 0 rgb(20 14 6 / 0.06), 0 1px 2px -1px rgb(20 14 6 / 0.06);
+    --shadow-md: 0 4px 8px -2px rgb(20 14 6 / 0.08), 0 2px 4px -2px rgb(20 14 6 / 0.06);
+    --shadow-lg: 0 12px 24px -6px rgb(20 14 6 / 0.12), 0 4px 8px -4px rgb(20 14 6 / 0.08);
+
+    --background: oklch(0.992 0.003 75);
+    --foreground: oklch(0.18 0.012 60);
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0.18 0.012 60);
+    --primary: oklch(0.18 0.012 60);
+    --primary-foreground: oklch(0.985 0.003 75);
+    --secondary: oklch(0.96 0.006 75);
+    --secondary-foreground: oklch(0.22 0.012 60);
+    --muted: oklch(0.96 0.005 75);
+    --muted-foreground: oklch(0.52 0.012 65);
+    --accent: oklch(0.66 0.135 52);
+    --accent-foreground: oklch(0.99 0.003 75);
+    --destructive: oklch(0.58 0.215 28);
+    --success: oklch(0.55 0.13 155);
+    --warning: oklch(0.74 0.155 78);
+    --info: oklch(0.55 0.12 235);
+    --border: oklch(0.91 0.005 70);
+    --input: oklch(0.93 0.005 70);
+    --ring: oklch(0.66 0.135 52 / 0.45);
+  }
+
+  .dark,
+  [data-theme="dark"] {
+    --background: oklch(0.135 0.008 60);
+    --foreground: oklch(0.97 0.005 75);
+    --card: oklch(0.165 0.008 60);
+    --card-foreground: oklch(0.97 0.005 75);
+    --primary: oklch(0.97 0.005 75);
+    --primary-foreground: oklch(0.16 0.008 60);
+    --secondary: oklch(0.22 0.008 60);
+    --secondary-foreground: oklch(0.94 0.005 75);
+    --muted: oklch(0.21 0.008 60);
+    --muted-foreground: oklch(0.66 0.012 70);
+    --accent: oklch(0.72 0.135 55);
+    --accent-foreground: oklch(0.16 0.02 55);
+    --destructive: oklch(0.66 0.21 28);
+    --success: oklch(0.66 0.13 155);
+    --warning: oklch(0.78 0.155 78);
+    --info: oklch(0.66 0.13 235);
+    --border: oklch(0.235 0.008 60);
+    --input: oklch(0.235 0.008 60);
+    --ring: oklch(0.72 0.135 55 / 0.55);
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    color-scheme: light;
+  }
+
+  html.dark,
+  html[data-theme="dark"],
+  .dark {
+    color-scheme: dark;
+  }
+
+  body {
+    min-height: 100vh;
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-feature-settings: "ss01", "cv11";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+    accent-color: var(--accent);
+  }
+
+  input,
+  textarea,
+  select {
+    color: var(--foreground);
+  }
+
+  input[type="date"],
+  input[type="time"],
+  input[type="datetime-local"],
+  input[type="month"],
+  input[type="week"] {
+    color-scheme: light;
+  }
+
+  .dark input[type="date"],
+  .dark input[type="time"],
+  .dark input[type="datetime-local"],
+  .dark input[type="month"],
+  .dark input[type="week"],
+  [data-theme="dark"] input[type="date"],
+  [data-theme="dark"] input[type="time"],
+  [data-theme="dark"] input[type="datetime-local"],
+  [data-theme="dark"] input[type="month"],
+  [data-theme="dark"] input[type="week"] {
+    color-scheme: dark;
+  }
+
+  input[type="date"]::-webkit-calendar-picker-indicator,
+  input[type="time"]::-webkit-calendar-picker-indicator,
+  input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: 0.72;
+  }
+
+  input[type="date"]::-webkit-calendar-picker-indicator:hover,
+  input[type="time"]::-webkit-calendar-picker-indicator:hover,
+  input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+  }
+
+  option {
+    background: var(--card);
+    color: var(--foreground);
+  }
+
+  option:checked {
+    background: var(--accent);
+    color: var(--accent-foreground);
+  }
+}
+
+@layer utilities {
+  .cmi-form-control {
+    caret-color: var(--accent);
+  }
+
+  .gantt-grid-bg {
+    background-image: linear-gradient(90deg, color-mix(in oklch, var(--border) 72%, transparent) 1px, transparent 1px);
+    background-size: var(--gantt-day-width, 44px) 100%;
+  }
+}
