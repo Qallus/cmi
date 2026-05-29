@@ -9,8 +9,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const payload = normalizePortfolioInput(await request.json());
     const row = {
       ...payload,
-      updated_at: new Date().toISOString(),
-      published_at: payload.status === "published" ? new Date().toISOString() : null
+      updated_at: new Date().toISOString()
     };
     const { data, error } = await supabase.from("portfolio").update(row).eq("id", id).select().single();
     if (error) throw error;

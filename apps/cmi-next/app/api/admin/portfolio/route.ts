@@ -15,12 +15,7 @@ export async function POST(request: Request) {
   try {
     const supabase = getSupabaseAdmin();
     const payload = normalizePortfolioInput(await request.json());
-    const row = {
-      ...payload,
-      published_at: payload.status === "published" ? new Date().toISOString() : null,
-      sync_status: "local"
-    };
-    const { data, error } = await supabase.from("portfolio").insert(row).select().single();
+    const { data, error } = await supabase.from("portfolio").insert(payload).select().single();
     if (error) throw error;
     return NextResponse.json({ item: data });
   } catch (error) {

@@ -58,9 +58,7 @@ export function normalizePortfolioInput(input: Record<string, unknown>): Portfol
     status,
     is_featured: Boolean(input.is_featured),
     client_visible: input.client_visible !== false,
-    sort_order: Number.isFinite(Number(input.sort_order)) ? Number(input.sort_order) : 0,
-    seo_title: input.seo_title ? String(input.seo_title).trim() : null,
-    seo_description: input.seo_description ? String(input.seo_description).trim() : null
+    sort_order: Number.isFinite(Number(input.sort_order)) ? Number(input.sort_order) : 0
   };
 }
 
