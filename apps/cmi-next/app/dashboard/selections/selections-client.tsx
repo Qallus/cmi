@@ -548,6 +548,22 @@ function ProductCatalog({
 
 function ProductModal({ draft, saving, onChange, onClose, onSave }: { draft: ProductDraft; saving: boolean; onChange: (draft: ProductDraft) => void; onClose: () => void; onSave: (draft: ProductDraft) => void }) {
   const update = <K extends keyof ProductDraft>(key: K, value: ProductDraft[K]) => onChange({ ...draft, [key]: value });
+  const [showUrlFields, setShowUrlFields] = React.useState(false);
+  const [uploading, setUploading] = React.useState<string | null>(null);
+  const upload = async (field: "image_url" | "gallery_urls" | "video_url", file: File | null) => {
+    if (!file) return;
+    setUploading(field);
+    try {
+      const url = await uploadMedia(file, "products");
+      if (field === "gallery_urls") {
+        update(field, [draft.gallery_urls, url].filter(Boolean).join("\n"));
+      } else {
+        update(field, url);
+      }
+    } finally {
+      setUploading(null);
+    }
+  };
   return (
     <div className="fixed inset-0 z-50 bg-black/35 p-4 backdrop-blur-sm">
       <div className="ml-auto flex h-full max-w-4xl flex-col rounded-lg border border-border bg-card shadow-lg">
@@ -574,19 +590,30 @@ function ProductModal({ draft, saving, onChange, onClose, onSave }: { draft: Pro
             <Field label="Markup %"><Input type="number" min={0} step={0.01} value={draft.markup_percent} onChange={event => update("markup_percent", event.target.value)} /></Field>
             <Field label="Lead Time Days"><Input type="number" min={0} value={draft.lead_time_days} onChange={event => update("lead_time_days", event.target.value)} /></Field>
           </div>
-          <div className="grid gap-3 md:grid-cols-3">
-            <Field label="Image URL"><Input value={draft.image_url} onChange={event => update("image_url", event.target.value)} /></Field>
-            <Field label="Video URL"><Input value={draft.video_url} onChange={event => update("video_url", event.target.value)} /></Field>
-            <Field label="Spec Sheet URL"><Input value={draft.spec_sheet_url} onChange={event => update("spec_sheet_url", event.target.value)} /></Field>
-            <Field label="Product URL"><Input value={draft.product_url} onChange={event => update("product_url", event.target.value)} /></Field>
-          </div>
-          <Field label="Gallery URLs">
-            <Textarea value={draft.gallery_urls} onChange={event => update("gallery_urls", event.target.value)} placeholder="One image URL per line, or comma-separated URLs." />
-          </Field>
-          <div className="rounded-lg border border-dashed border-border bg-muted p-4 text-sm text-muted-foreground">
-            <Input type="file" accept="image/*,video/*" multiple />
-            <div className="mt-2">File upload picker is ready for the Supabase Storage pass. For now, save image, gallery, video, and spec URLs.</div>
-          </div>
+          <MediaUploadPanel
+            imageUrl={draft.image_url}
+            galleryUrls={draft.gallery_urls}
+            videoUrl={draft.video_url}
+            uploading={uploading}
+            onUpload={upload}
+          />
+          <label className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+            <input type="checkbox" checked={showUrlFields} onChange={event => setShowUrlFields(event.target.checked)} />
+            Use URLs instead of upload
+          </label>
+          {showUrlFields ? (
+            <>
+              <div className="grid gap-3 md:grid-cols-3">
+                <Field label="Featured Image URL"><Input value={draft.image_url} onChange={event => update("image_url", event.target.value)} /></Field>
+                <Field label="Video URL"><Input value={draft.video_url} onChange={event => update("video_url", event.target.value)} /></Field>
+                <Field label="Spec Sheet URL"><Input value={draft.spec_sheet_url} onChange={event => update("spec_sheet_url", event.target.value)} /></Field>
+                <Field label="Product URL"><Input value={draft.product_url} onChange={event => update("product_url", event.target.value)} /></Field>
+              </div>
+              <Field label="Gallery URLs">
+                <Textarea value={draft.gallery_urls} onChange={event => update("gallery_urls", event.target.value)} placeholder="One image URL per line, or comma-separated URLs." />
+              </Field>
+            </>
+          ) : null}
           <Field label="Description"><Textarea value={draft.description} onChange={event => update("description", event.target.value)} /></Field>
           <div className="grid gap-3 md:grid-cols-2">
             <Field label="Warranty Info"><Textarea value={draft.warranty_info} onChange={event => update("warranty_info", event.target.value)} /></Field>
@@ -603,6 +630,22 @@ function ProductModal({ draft, saving, onChange, onClose, onSave }: { draft: Pro
 function SelectionModal({ data, products, draft, saving, onChange, onClose, onSave }: { data: SelectionsData; products: Product[]; draft: SelectionDraft; saving: boolean; onChange: (draft: SelectionDraft) => void; onClose: () => void; onSave: (draft: SelectionDraft) => void }) {
   const update = <K extends keyof SelectionDraft>(key: K, value: SelectionDraft[K]) => onChange({ ...draft, [key]: value });
   const selectedProduct = products.find(product => product.id === draft.product_id);
+  const [showUrlFields, setShowUrlFields] = React.useState(false);
+  const [uploading, setUploading] = React.useState<string | null>(null);
+  const upload = async (field: "image_url" | "gallery_urls" | "video_url", file: File | null) => {
+    if (!file) return;
+    setUploading(field);
+    try {
+      const url = await uploadMedia(file, "selections");
+      if (field === "gallery_urls") {
+        update(field, [draft.gallery_urls, url].filter(Boolean).join("\n"));
+      } else {
+        update(field, url);
+      }
+    } finally {
+      setUploading(null);
+    }
+  };
   return (
     <div className="fixed inset-0 z-50 bg-black/35 p-4 backdrop-blur-sm">
       <div className="ml-auto flex h-full max-w-5xl flex-col rounded-lg border border-border bg-card shadow-lg">
@@ -707,19 +750,30 @@ function SelectionModal({ data, products, draft, saving, onChange, onClose, onSa
             <Field label="Delivery Date"><Input type="date" value={draft.target_delivery_date} onChange={event => update("target_delivery_date", event.target.value)} /></Field>
           </div>
           <Field label="Target Install Date"><Input type="date" value={draft.target_install_date} onChange={event => update("target_install_date", event.target.value)} /></Field>
-          <div className="grid gap-3 md:grid-cols-3">
-            <Field label="Image URL"><Input value={draft.image_url} onChange={event => update("image_url", event.target.value)} /></Field>
-            <Field label="Video URL"><Input value={draft.video_url} onChange={event => update("video_url", event.target.value)} /></Field>
-            <Field label="Spec Sheet URL"><Input value={draft.spec_sheet_url} onChange={event => update("spec_sheet_url", event.target.value)} /></Field>
-            <Field label="Product URL"><Input value={draft.product_url} onChange={event => update("product_url", event.target.value)} /></Field>
-          </div>
-          <Field label="Gallery URLs">
-            <Textarea value={draft.gallery_urls} onChange={event => update("gallery_urls", event.target.value)} placeholder="One image URL per line, or comma-separated URLs." />
-          </Field>
-          <div className="rounded-lg border border-dashed border-border bg-muted p-4 text-sm text-muted-foreground">
-            <Input type="file" accept="image/*,video/*,.pdf" multiple />
-            <div className="mt-2">File upload picker is ready for the Supabase Storage pass. For now, save image, gallery, video, and spec URLs.</div>
-          </div>
+          <MediaUploadPanel
+            imageUrl={draft.image_url}
+            galleryUrls={draft.gallery_urls}
+            videoUrl={draft.video_url}
+            uploading={uploading}
+            onUpload={upload}
+          />
+          <label className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+            <input type="checkbox" checked={showUrlFields} onChange={event => setShowUrlFields(event.target.checked)} />
+            Use URLs instead of upload
+          </label>
+          {showUrlFields ? (
+            <>
+              <div className="grid gap-3 md:grid-cols-3">
+                <Field label="Featured Image URL"><Input value={draft.image_url} onChange={event => update("image_url", event.target.value)} /></Field>
+                <Field label="Video URL"><Input value={draft.video_url} onChange={event => update("video_url", event.target.value)} /></Field>
+                <Field label="Spec Sheet URL"><Input value={draft.spec_sheet_url} onChange={event => update("spec_sheet_url", event.target.value)} /></Field>
+                <Field label="Product URL"><Input value={draft.product_url} onChange={event => update("product_url", event.target.value)} /></Field>
+              </div>
+              <Field label="Gallery URLs">
+                <Textarea value={draft.gallery_urls} onChange={event => update("gallery_urls", event.target.value)} placeholder="One image URL per line, or comma-separated URLs." />
+              </Field>
+            </>
+          ) : null}
           <div className="flex flex-wrap gap-3">
             <label className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-3 text-sm">
               <input type="checkbox" checked={draft.client_visible} onChange={event => update("client_visible", event.target.checked)} />
@@ -800,6 +854,118 @@ function ShareModal({ draft, saving, onChange, onClose, onShare }: { draft: Shar
         <ModalFooter saving={saving} saveLabel={draft.channel === "link" ? "Copy Link" : "Queue Share"} onClose={onClose} onSave={() => onShare(draft)} />
       </div>
     </div>
+  );
+}
+
+async function uploadMedia(file: File, folder: string) {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("folder", folder);
+  const response = await fetch("/api/admin/uploads", {
+    method: "POST",
+    body: form
+  });
+  const json = await response.json();
+  if (!response.ok) throw new Error(json.message || "Upload failed.");
+  return String(json.url || "");
+}
+
+function MediaUploadPanel({
+  imageUrl,
+  galleryUrls,
+  videoUrl,
+  uploading,
+  onUpload
+}: {
+  imageUrl: string;
+  galleryUrls: string;
+  videoUrl: string;
+  uploading: string | null;
+  onUpload: (field: "image_url" | "gallery_urls" | "video_url", file: File | null) => void;
+}) {
+  const galleryCount = parseUrlList(galleryUrls).length;
+  return (
+    <div className="rounded-lg border border-border bg-muted/30 p-4">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div>
+          <div className="text-sm font-semibold text-foreground">Media uploads</div>
+          <div className="text-xs text-muted-foreground">Upload first. URL fields are available below as an alternate path.</div>
+        </div>
+        <Badge>{galleryCount} gallery</Badge>
+      </div>
+      <div className="grid gap-3 md:grid-cols-3">
+        <UploadBox
+          label="Featured image"
+          accept="image/*"
+          icon={<Image className="h-5 w-5" />}
+          previewUrl={imageUrl}
+          uploading={uploading === "image_url"}
+          onFile={file => onUpload("image_url", file)}
+        />
+        <UploadBox
+          label="Gallery images"
+          accept="image/*"
+          multiple
+          icon={<Upload className="h-5 w-5" />}
+          note={galleryCount ? `${galleryCount} image URL${galleryCount === 1 ? "" : "s"} attached` : "Add one or more gallery images"}
+          uploading={uploading === "gallery_urls"}
+          onFile={file => onUpload("gallery_urls", file)}
+        />
+        <UploadBox
+          label="Video"
+          accept="video/*"
+          icon={<FileText className="h-5 w-5" />}
+          note={videoUrl ? "Video attached" : "Upload a product or selection video"}
+          uploading={uploading === "video_url"}
+          onFile={file => onUpload("video_url", file)}
+        />
+      </div>
+    </div>
+  );
+}
+
+function UploadBox({
+  label,
+  accept,
+  icon,
+  note,
+  previewUrl,
+  multiple,
+  uploading,
+  onFile
+}: {
+  label: string;
+  accept: string;
+  icon: React.ReactNode;
+  note?: string;
+  previewUrl?: string;
+  multiple?: boolean;
+  uploading?: boolean;
+  onFile: (file: File | null) => void;
+}) {
+  return (
+    <label className="group flex min-h-36 cursor-pointer flex-col justify-between rounded-lg border border-dashed border-border bg-background p-3 transition hover:border-accent hover:bg-accent/5 dark:bg-card">
+      <input
+        className="hidden"
+        type="file"
+        accept={accept}
+        multiple={multiple}
+        onChange={event => {
+          const files = Array.from(event.target.files || []);
+          files.forEach(file => onFile(file));
+          event.currentTarget.value = "";
+        }}
+      />
+      <div className="flex items-center gap-2 text-sm font-medium">
+        <span className="flex h-9 w-9 items-center justify-center rounded-md bg-accent/10 text-accent">{uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : icon}</span>
+        {label}
+      </div>
+      {previewUrl ? (
+        <img src={previewUrl} alt="" className="mt-3 h-20 w-full rounded-md object-cover" />
+      ) : (
+        <div className="mt-3 rounded-md bg-muted/70 p-3 text-xs text-muted-foreground">{note || "Choose a file from your computer."}</div>
+      )}
+    </label>
   );
 }
 
@@ -913,8 +1079,8 @@ function exportCsv(label: string, rows: Array<Record<string, unknown>>) {
 }
 
 function printPdf(title: string, rows: Array<Record<string, unknown>>) {
-  const normalized = rows.map(row => flattenExportRow(row));
-  const htmlRows = normalized.map(row => `<tr>${Object.entries(row).slice(0, 10).map(([key, value]) => `<td><strong>${key}</strong><br>${String(value ?? "")}</td>`).join("")}</tr>`).join("");
+  const logoUrl = `${window.location.origin}/brand/cmi-logo-light.png`;
+  const sheets = rows.map(row => selectionSheet(row)).join("");
   const win = window.open("", "_blank", "width=1100,height=800");
   if (!win) return;
   win.document.write(`
@@ -922,24 +1088,100 @@ function printPdf(title: string, rows: Array<Record<string, unknown>>) {
       <head>
         <title>${title}</title>
         <style>
-          body { font-family: Arial, sans-serif; color: #171513; margin: 40px; }
-          header { border-bottom: 1px solid #d8d1c8; padding-bottom: 18px; margin-bottom: 24px; }
-          .brand { letter-spacing: 0.28em; font-size: 11px; font-weight: 700; text-transform: uppercase; }
-          h1 { font-size: 26px; margin: 10px 0 4px; }
-          table { width: 100%; border-collapse: collapse; font-size: 12px; }
-          td { border-bottom: 1px solid #eee8df; padding: 10px; vertical-align: top; }
-          strong { color: #8f6a3f; font-size: 10px; text-transform: uppercase; letter-spacing: .12em; }
+          * { box-sizing: border-box; }
+          body { font-family: Arial, sans-serif; color: #171513; margin: 0; background: #f7f4ef; }
+          .sheet { min-height: 100vh; padding: 40px; page-break-after: always; }
+          .paper { background: #fff; border: 1px solid #ded7ce; border-radius: 18px; overflow: hidden; }
+          header { display: flex; justify-content: space-between; align-items: center; gap: 24px; padding: 28px 32px; border-bottom: 1px solid #e7e0d8; }
+          header img { height: 42px; width: auto; }
+          .eyebrow { color: #a87328; font-size: 11px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; }
+          h1 { font-family: Georgia, serif; font-size: 34px; margin: 8px 0 0; line-height: 1.05; }
+          .meta { color: #7a746d; font-size: 12px; text-align: right; }
+          .hero { display: grid; grid-template-columns: 42% 1fr; gap: 28px; padding: 32px; }
+          .hero-img { min-height: 260px; border-radius: 14px; background: #eee9e2; overflow: hidden; }
+          .hero-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+          .placeholder { height: 100%; display: flex; align-items: center; justify-content: center; color: #8d867e; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+          .summary { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+          .field { border: 1px solid #eee8df; border-radius: 12px; padding: 12px; min-height: 64px; }
+          .field strong, .section-title { display: block; color: #a87328; font-size: 10px; letter-spacing: .14em; text-transform: uppercase; margin-bottom: 6px; }
+          .field span { font-size: 14px; font-weight: 600; }
+          .wide { grid-column: 1 / -1; }
+          .description { padding: 0 32px 32px; }
+          .description-box { border-top: 1px solid #e7e0d8; padding-top: 24px; font-size: 15px; line-height: 1.7; white-space: pre-wrap; }
+          .gallery { display: flex; gap: 10px; padding: 0 32px 32px; }
+          .gallery img { width: 104px; height: 72px; border-radius: 10px; object-fit: cover; border: 1px solid #eee8df; }
+          @media print {
+            body { background: #fff; }
+            .sheet { padding: 0; }
+            .paper { border: 0; border-radius: 0; }
+          }
         </style>
       </head>
       <body>
-        <header><div class="brand">Constructed Matter, Inc.</div><h1>${title}</h1><div>Product selections export</div></header>
-        <table>${htmlRows}</table>
+        ${sheets || `<div class="sheet"><div class="paper"><header><img src="${logoUrl}" alt="Constructed Matter, Inc." /><div><div class="eyebrow">Selection Sheet</div><h1>${escapeHtml(title)}</h1></div></header></div></div>`}
       </body>
     </html>
   `);
   win.document.close();
   win.focus();
   win.print();
+}
+
+function selectionSheet(row: Record<string, unknown>) {
+  const logoUrl = `${window.location.origin}/brand/cmi-logo-light.png`;
+  const title = String(row.name || row.product_name || row.custom_product_name || "Selection");
+  const imageUrl = String(row.image_url || row.featured_image || "");
+  const gallery = Array.isArray(row.gallery_urls) ? row.gallery_urls.map(String).filter(Boolean) : parseUrlList(String(row.gallery_urls || ""));
+  const description = String(row.description || row.install_notes || row.internal_notes || "No description has been added yet.");
+  const fields = [
+    ["Project", row.project_name || row.project_id || "Not linked"],
+    ["Task / Area", row.room_area_name || row.related_task_id || row.project_schedule_item_id || "Not linked"],
+    ["Vendor", row.vendor_name || "No vendor"],
+    ["Category", row.category || row.product_type || "Uncategorized"],
+    ["Price", money(Number(row.client_price || row.retail_price || row.estimated_cost || row.actual_cost || 0) || null)],
+    ["Quantity", row.quantity ? `${row.quantity} ${row.unit || ""}` : "Not set"],
+    ["Approval", row.approval_status || row.client_approval_status || "Not required"],
+    ["Procurement", row.procurement_status || row.availability_status || "Not ordered"],
+    ["Install", row.install_status || "Not ready"],
+    ["Delivery", row.target_delivery_date || row.delivery_date || "Not scheduled"]
+  ];
+
+  return `
+    <section class="sheet">
+      <div class="paper">
+        <header>
+          <img src="${logoUrl}" alt="Constructed Matter, Inc." />
+          <div class="meta">
+            <div class="eyebrow">Selection Sheet</div>
+            <div>${escapeHtml(new Date().toLocaleDateString())}</div>
+          </div>
+        </header>
+        <div class="hero">
+          <div class="hero-img">${imageUrl ? `<img src="${escapeAttr(imageUrl)}" alt="" />` : `<div class="placeholder">No image</div>`}</div>
+          <div>
+            <div class="eyebrow">Constructed Matter Selection</div>
+            <h1>${escapeHtml(title)}</h1>
+            <div class="summary" style="margin-top: 22px;">
+              ${fields.map(([label, value]) => `<div class="field"><strong>${escapeHtml(String(label))}</strong><span>${escapeHtml(String(value || "-"))}</span></div>`).join("")}
+            </div>
+          </div>
+        </div>
+        <div class="description">
+          <div class="section-title">Description</div>
+          <div class="description-box">${escapeHtml(description)}</div>
+        </div>
+        ${gallery.length ? `<div class="gallery">${gallery.slice(0, 6).map(url => `<img src="${escapeAttr(url)}" alt="" />`).join("")}</div>` : ""}
+      </div>
+    </section>
+  `;
+}
+
+function escapeHtml(value: string) {
+  return value.replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char] || char));
+}
+
+function escapeAttr(value: string) {
+  return escapeHtml(value).replaceAll("`", "&#96;");
 }
 
 function flattenExportRow(row: Record<string, unknown>) {

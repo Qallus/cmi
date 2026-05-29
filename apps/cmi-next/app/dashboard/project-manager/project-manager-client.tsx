@@ -573,6 +573,7 @@ export function ProjectManagerClient({ initialData, demoMode = false }: { initia
     };
 
     if (demoMode) {
+      bumpAssociationCount(item.id, type);
       setAssetModal(null);
       setSaving(false);
       setNotice(`${assetLabel(type)} saved locally in demo mode. Add Supabase credentials for live writes.`);
@@ -587,6 +588,7 @@ export function ProjectManagerClient({ initialData, demoMode = false }: { initia
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.message || `${assetLabel(type)} save failed.`);
+      bumpAssociationCount(item.id, type);
       setAssetModal(null);
       setNotice(`${assetLabel(type)} added to ${item.title}.`);
     } catch (error) {
@@ -594,6 +596,21 @@ export function ProjectManagerClient({ initialData, demoMode = false }: { initia
     } finally {
       setSaving(false);
     }
+  }
+
+  function bumpAssociationCount(itemId: string, type: AssetModalState["type"]) {
+    const key = type === "selection" ? "selections" : type === "code" ? "codes" : "media";
+    setItems(current => current.map(row => {
+      if (row.id !== itemId) return row;
+      const currentCounts = row.association_counts || { selections: 0, media: 0, codes: 0, billing: 0, participants: String(row.participants || "").split(",").filter(Boolean).length };
+      return {
+        ...row,
+        association_counts: {
+          ...currentCounts,
+          [key]: currentCounts[key] + 1
+        }
+      };
+    }));
   }
 
   function exportProjectCsv(item: ProjectScheduleItem) {
@@ -949,6 +966,48 @@ function MetricCard({
   );
 }
 
+function getAssociationBadges(item: ProjectScheduleItem) {
+  const counts = item.association_counts || {
+    selections: 0,
+    media: 0,
+    codes: 0,
+    billing: 0,
+    participants: String(item.participants || "").split(",").map(value => value.trim()).filter(Boolean).length
+  };
+  return [
+    { key: "selections", label: "Selections", count: counts.selections, icon: Package },
+    { key: "media", label: "Media", count: counts.media, icon: Camera },
+    { key: "participants", label: "People", count: counts.participants, icon: UserPlus },
+    { key: "codes", label: "Codes", count: counts.codes, icon: BookOpen },
+    { key: "billing", label: "Billing", count: counts.billing, icon: FileText }
+  ].filter(badge => badge.count > 0);
+}
+
+function AssociationBadges({ item, compact = false }: { item: ProjectScheduleItem; compact?: boolean }) {
+  const badges = getAssociationBadges(item);
+  if (!badges.length) return null;
+  return (
+    <span className={cn("flex flex-wrap items-center gap-1", compact ? "mt-0" : "mt-2")}>
+      {badges.map(badge => {
+        const Icon = badge.icon;
+        return (
+          <span
+            key={badge.key}
+            title={`${badge.count} ${badge.label.toLowerCase()} linked`}
+            className={cn(
+              "inline-flex items-center gap-1 rounded-full border border-accent/30 bg-accent/10 font-medium text-accent",
+              compact ? "px-1.5 py-0.5 text-[10px]" : "px-2 py-1 text-[11px]"
+            )}
+          >
+            <Icon className={compact ? "h-2.5 w-2.5" : "h-3 w-3"} />
+            <span>{badge.count}</span>
+          </span>
+        );
+      })}
+    </span>
+  );
+}
+
 function KanbanPreview({
   items,
   onEdit,
@@ -1006,6 +1065,7 @@ function KanbanPreview({
                 >
                   <div className="text-sm font-semibold">{item.title}</div>
                   <div className="mt-1 text-xs text-muted-foreground">{item.phase || item.project_title || "Project Tasks"}</div>
+                  <AssociationBadges item={item} compact />
                   <div className="mt-3 flex items-center justify-between">
                     <Badge tone={item.priority === "high" || item.priority === "urgent" ? "danger" : "success"}>{item.priority || "normal"}</Badge>
                     <span className="grid h-6 w-6 place-items-center rounded-full bg-accent text-[10px] font-semibold text-accent-foreground">{initials(item.assignee || item.title)}</span>
@@ -1030,6 +1090,7 @@ function ListView({ items, onEdit }: { items: ProjectScheduleItem[]; onEdit: (it
           <span className="min-w-0">
             <span className="block truncate text-sm font-semibold">{item.title}</span>
             <span className="block truncate text-xs text-muted-foreground">{item.project_title || "Project"} / {item.phase || "Project Tasks"}</span>
+            <AssociationBadges item={item} compact />
           </span>
           <span className="text-xs text-muted-foreground">{item.assignee || "Unassigned"}</span>
           <Badge tone={statusTone[item.status] || "default"}>{item.status.replaceAll("_", " ")}</Badge>
@@ -1061,7 +1122,10 @@ function TableView({ items, onEdit }: { items: ProjectScheduleItem[]; onEdit: (i
         <tbody className="divide-y divide-border">
           {items.map(item => (
             <tr key={item.id} className="cursor-pointer hover:bg-muted" onClick={() => onEdit(item)}>
-              <td className="max-w-72 truncate px-4 py-3 font-medium">{item.title}</td>
+              <td className="max-w-72 px-4 py-3 font-medium">
+                <span className="block truncate">{item.title}</span>
+                <AssociationBadges item={item} compact />
+              </td>
               <td className="px-4 py-3 text-muted-foreground">{item.project_title || "Project"}</td>
               <td className="px-4 py-3 text-muted-foreground">{item.phase || "Project Tasks"}</td>
               <td className="px-4 py-3"><Badge tone={statusTone[item.status] || "default"}>{item.status.replaceAll("_", " ")}</Badge></td>
@@ -1097,6 +1161,7 @@ function CalendarView({ items, onEdit }: { items: ProjectScheduleItem[]; onEdit:
                 <button key={item.id} type="button" className="block w-full rounded border border-border bg-muted px-2 py-1.5 text-left text-xs hover:border-accent" onClick={() => onEdit(item)}>
                   <span className="block truncate font-medium">{item.title}</span>
                   <span className="block truncate text-muted-foreground">{item.project_title || item.phase || "Project"}</span>
+                  <AssociationBadges item={item} compact />
                 </button>
               ))}
             </div>
@@ -1452,6 +1517,7 @@ function GanttView({
               <span className="min-w-0">
                 <span className="block truncate text-sm font-medium">{item.title}</span>
                 <span className="block truncate text-xs text-muted-foreground">{item.phase || item.project_title}</span>
+                <AssociationBadges item={item} compact />
               </span>
             </button>
           ))}
@@ -1537,6 +1603,7 @@ function GanttView({
                   </span>
                   {savingItemId === item.id ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" /> : <GripHorizontal className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-60 transition group-hover:opacity-100" />}
                   <span className="truncate">{item.title}</span>
+                  <AssociationBadges item={item} compact />
                   {savingItemId === item.id ? <span className="ml-auto text-[10px] text-muted-foreground">Saving</span> : null}
                   <span
                     className="absolute inset-y-0 right-0 z-20 flex w-5 cursor-ew-resize items-center justify-center rounded-r-md border-l border-current/20 bg-current/10 opacity-80 transition hover:bg-accent/35 group-hover:opacity-100"

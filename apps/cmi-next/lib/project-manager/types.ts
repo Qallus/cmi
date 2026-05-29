@@ -36,6 +36,13 @@ export type ProjectScheduleItem = {
   template_name: string | null;
   duration_minutes: number | null;
   metadata: Record<string, unknown> | null;
+  association_counts?: {
+    selections: number;
+    media: number;
+    codes: number;
+    billing: number;
+    participants: number;
+  };
 };
 
 export type ProjectScheduleDependency = {

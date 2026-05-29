@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { decorateScheduleItems } from "@/lib/project-manager/data";
+import type { ProjectScheduleItem } from "@/lib/project-manager/types";
 
 const statuses = new Set(["pending", "scheduled", "in_progress", "waiting", "delayed", "blocked", "needs_approval", "complete", "canceled"]);
 const priorities = new Set(["low", "normal", "high", "urgent", "critical", "blocking_closeout"]);
@@ -60,7 +62,8 @@ export async function GET(request: NextRequest) {
       .order("start_date", { ascending: true })
       .order("sort_order", { ascending: true });
     if (error) throw error;
-    return NextResponse.json({ items: data || [] });
+    const items = await decorateScheduleItems(supabase, (data || []) as ProjectScheduleItem[]);
+    return NextResponse.json({ items });
   } catch (error) {
     return NextResponse.json({ message: error instanceof Error ? error.message : "Schedule items load failed" }, { status: 500 });
   }
