@@ -251,11 +251,18 @@ export function UsersClient({ initialData, demoMode, setupMessage }: { initialDa
                 <div>Actions</div>
               </div>
               {filteredUsers.length ? filteredUsers.map(user => (
-                <button
+                <div
                   key={user.id}
-                  type="button"
-                  className={cn("grid w-full grid-cols-[1.5fr_1.3fr_110px_110px_1fr_130px] items-center border-b border-border px-4 py-3 text-left text-sm transition hover:bg-muted/50", selected?.id === user.id && "bg-accent/8")}
+                  role="button"
+                  tabIndex={0}
+                  className={cn("grid w-full cursor-pointer grid-cols-[1.5fr_1.3fr_110px_110px_1fr_130px] items-center border-b border-border px-4 py-3 text-left text-sm transition hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background", selected?.id === user.id && "bg-accent/8")}
                   onClick={() => setSelected(user)}
+                  onKeyDown={event => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      setSelected(user);
+                    }
+                  }}
                 >
                   <div className="flex min-w-0 items-center gap-3">
                     <UserAvatar user={user} size="sm" />
@@ -274,7 +281,7 @@ export function UsersClient({ initialData, demoMode, setupMessage }: { initialDa
                       <Eye className="h-3.5 w-3.5" />
                     </Button>
                   </div>
-                </button>
+                </div>
               )) : (
                 <div className="p-8 text-center text-sm text-muted-foreground">No users match those filters.</div>
               )}
