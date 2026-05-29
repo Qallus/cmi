@@ -1448,7 +1448,7 @@ function GanttView({
   };
 
   return (
-    <div ref={frameRef} className="w-full overflow-auto rounded-lg border border-border">
+    <div ref={frameRef} className="cmi-gantt-scrollbar w-full overflow-auto rounded-lg border border-border">
       {dragError ? <div className="border-b border-destructive/30 bg-destructive/10 px-4 py-2 text-sm text-destructive">{dragError}</div> : null}
       {dependencyNotice ? <div className="border-b border-accent/30 bg-accent/10 px-4 py-2 text-xs text-muted-foreground">{dependencyNotice}</div> : null}
       {drag ? (
