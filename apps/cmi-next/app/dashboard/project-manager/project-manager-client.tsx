@@ -80,6 +80,8 @@ type ProjectFilters = {
   quick: "today" | "day" | "week" | "month" | "dependencies" | "client_visible" | null;
 };
 
+type ProjectView = "my_tasks" | "list" | "kanban" | "table" | "calendar" | "gantt";
+
 const emptyFilters: ProjectFilters = {
   project: "",
   type: "",
@@ -154,7 +156,7 @@ export function ProjectManagerClient({ initialData, demoMode = false }: { initia
   const [templateStart, setTemplateStart] = React.useState(dateOnly(new Date()));
   const [saving, setSaving] = React.useState(false);
   const [notice, setNotice] = React.useState<string | null>(null);
-  const [activeView, setActiveView] = React.useState<"list" | "kanban" | "table" | "calendar" | "gantt">("gantt");
+  const [activeView, setActiveView] = React.useState<ProjectView>("gantt");
   const [filters, setFilters] = React.useState<ProjectFilters>(emptyFilters);
 
   const filterOptions = React.useMemo(() => {
@@ -211,6 +213,13 @@ export function ProjectManagerClient({ initialData, demoMode = false }: { initia
   }, [dependencies, filters, items]);
 
   const visibleItems = React.useMemo(() => filteredItems.filter(item => item.visible_on_gantt !== false), [filteredItems]);
+  const myTaskItems = React.useMemo(() => {
+    const assigned = filteredItems.filter(item => {
+      const participants = String(item.participants || "").trim();
+      return Boolean(item.assignee || participants);
+    });
+    return assigned.length ? assigned : filteredItems;
+  }, [filteredItems]);
   const selectedTemplate = React.useMemo(() => templates.find(template => template.id === templateId) || templates[0], [templateId, templates]);
   const selectedTemplateTasks = React.useMemo(() => templateTasks.filter(task => task.template_id === templateId), [templateId, templateTasks]);
   const groups = React.useMemo(() => {
@@ -673,13 +682,14 @@ export function ProjectManagerClient({ initialData, demoMode = false }: { initia
     win.print();
   }
 
-  const viewTabs = [
+  const viewTabs: Array<{ id: ProjectView; label: string; icon: React.ComponentType<{ className?: string }> }> = [
+    { id: "my_tasks", label: "My Tasks", icon: FolderKanban },
     { id: "list", label: "List", icon: List },
     { id: "kanban", label: "Kanban", icon: Columns3 },
     { id: "table", label: "Table", icon: Table2 },
     { id: "calendar", label: "Calendar", icon: CalendarRange },
     { id: "gantt", label: "Gantt", icon: BarChart3 }
-  ] as const;
+  ];
 
   return (
     <div className="space-y-4 p-4 md:p-6">
@@ -710,21 +720,25 @@ export function ProjectManagerClient({ initialData, demoMode = false }: { initia
       </header>
 
       <div className="inline-flex rounded-md border border-border bg-muted p-1">
-        <button className="inline-flex h-8 items-center gap-2 rounded px-3 text-xs font-medium text-muted-foreground" type="button">
-          <FolderKanban className="h-3.5 w-3.5" />
-          My Tasks
-        </button>
-        {viewTabs.map(tab => (
-          <button
-            key={tab.id}
-            type="button"
-            className={cn("inline-flex h-8 items-center gap-2 rounded px-3 text-xs font-medium transition", activeView === tab.id ? "bg-card text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground")}
-            onClick={() => setActiveView(tab.id)}
-          >
-            <tab.icon className="h-3.5 w-3.5" />
-            {tab.label}
-          </button>
-        ))}
+        {viewTabs.map(tab => {
+          const Icon = tab.icon;
+          const isActive = activeView === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              aria-pressed={isActive}
+              className={cn(
+                "inline-flex h-8 items-center gap-2 rounded px-3 text-xs font-medium transition",
+                isActive ? "bg-card text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
+              )}
+              onClick={() => setActiveView(tab.id)}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
 
       {notice ? (
@@ -864,6 +878,8 @@ export function ProjectManagerClient({ initialData, demoMode = false }: { initia
             />
           ) : activeView === "kanban" ? (
             <KanbanPreview items={filteredItems} onEdit={item => setSelected(itemToDraft(item))} onStatusChange={(item, status) => patchItem(item, { status, progress: status === "complete" ? 100 : item.progress })} />
+          ) : activeView === "my_tasks" ? (
+            <ListView items={myTaskItems} onEdit={item => setSelected(itemToDraft(item))} />
           ) : activeView === "list" ? (
             <ListView items={filteredItems} onEdit={item => setSelected(itemToDraft(item))} />
           ) : activeView === "table" ? (
