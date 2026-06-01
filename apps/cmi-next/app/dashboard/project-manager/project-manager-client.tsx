@@ -600,14 +600,16 @@ export function ProjectManagerClient({ initialData, demoMode = false }: { initia
 
   function bumpAssociationCount(itemId: string, type: AssetModalState["type"]) {
     const key = type === "selection" ? "selections" : type === "code" ? "codes" : "media";
+    const mediaKey = type === "photo" ? "photos" : type === "video" ? "videos" : null;
     setItems(current => current.map(row => {
       if (row.id !== itemId) return row;
-      const currentCounts = row.association_counts || { selections: 0, media: 0, codes: 0, billing: 0, participants: String(row.participants || "").split(",").filter(Boolean).length };
+      const currentCounts = row.association_counts || { selections: 0, media: 0, photos: 0, videos: 0, codes: 0, billing: 0, participants: String(row.participants || "").split(",").filter(Boolean).length };
       return {
         ...row,
         association_counts: {
           ...currentCounts,
-          [key]: currentCounts[key] + 1
+          [key]: currentCounts[key] + 1,
+          ...(mediaKey ? { [mediaKey]: currentCounts[mediaKey] + 1 } : {})
         }
       };
     }));
@@ -970,16 +972,20 @@ function getAssociationBadges(item: ProjectScheduleItem) {
   const counts = item.association_counts || {
     selections: 0,
     media: 0,
+    photos: 0,
+    videos: 0,
     codes: 0,
     billing: 0,
     participants: String(item.participants || "").split(",").map(value => value.trim()).filter(Boolean).length
   };
+  const photoCount = counts.photos || counts.media || 0;
   return [
     { key: "selections", label: "Selections", count: counts.selections, icon: Package },
-    { key: "media", label: "Media", count: counts.media, icon: Camera },
     { key: "participants", label: "People", count: counts.participants, icon: UserPlus },
+    { key: "photos", label: "Photos", count: photoCount, icon: Camera },
+    { key: "videos", label: "Videos", count: counts.videos, icon: Video },
     { key: "codes", label: "Codes", count: counts.codes, icon: BookOpen },
-    { key: "billing", label: "Billing", count: counts.billing, icon: FileText }
+    { key: "billing", label: "Pricing / Estimates", count: counts.billing, icon: FileText }
   ].filter(badge => badge.count > 0);
 }
 
@@ -1314,6 +1320,7 @@ function GanttView({
   const [dragError, setDragError] = React.useState<string | null>(null);
   const [dependencyNotice, setDependencyNotice] = React.useState<string | null>(null);
   const [actionDock, setActionDock] = React.useState<{ item: ProjectScheduleItem; x: number; y: number } | null>(null);
+  const [associationPeek, setAssociationPeek] = React.useState<{ item: ProjectScheduleItem; x: number; y: number } | null>(null);
 
   React.useEffect(() => {
     const node = frameRef.current;
@@ -1430,6 +1437,7 @@ function GanttView({
     const duration = getDurationMinutes(item);
     setDragError(null);
     setActionDock(null);
+    setAssociationPeek(null);
     setDrag({
       item,
       mode,
@@ -1444,6 +1452,16 @@ function GanttView({
       start: normalizeTimelinePosition(timeline.start, startTotal),
       end: normalizeTimelinePosition(timeline.start, startTotal + duration),
       moved: false
+    });
+  };
+
+  const showAssociationPeek = (event: React.PointerEvent<HTMLElement>, item: ProjectScheduleItem) => {
+    if (dragRef.current || !getAssociationBadges(item).length) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    setAssociationPeek({
+      item,
+      x: rect.left + rect.width / 2,
+      y: Math.max(12, rect.top - 8)
     });
   };
 
@@ -1465,6 +1483,13 @@ function GanttView({
           <div className="mt-2 font-semibold text-accent">{drag.mode === "move" ? "Moved" : "Adjusted"}: {formatShift(drag.shiftMinutes)}</div>
           <div className="mt-1 text-muted-foreground">Duration: {formatShift(drag.durationMinutes).replace("+", "")}</div>
         </div>
+      ) : null}
+      {associationPeek && !drag ? (
+        <GanttAssociationPeek
+          item={associationPeek.item}
+          x={associationPeek.x}
+          y={associationPeek.y}
+        />
       ) : null}
       {actionDock ? (
         <GanttActionDock
@@ -1588,6 +1613,9 @@ function GanttView({
                   onClick={() => {
                     if (recentlyDraggedRef.current === item.id) recentlyDraggedRef.current = null;
                   }}
+                  onPointerEnter={event => showAssociationPeek(event, item)}
+                  onPointerMove={event => showAssociationPeek(event, item)}
+                  onPointerLeave={() => setAssociationPeek(current => current?.item.id === item.id ? null : current)}
                   onKeyDown={event => {
                     if (event.key === "Enter" || event.key === " ") onEdit(item);
                   }}
@@ -1603,7 +1631,6 @@ function GanttView({
                   </span>
                   {savingItemId === item.id ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" /> : <GripHorizontal className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-60 transition group-hover:opacity-100" />}
                   <span className="truncate">{item.title}</span>
-                  <AssociationBadges item={item} compact />
                   {savingItemId === item.id ? <span className="ml-auto text-[10px] text-muted-foreground">Saving</span> : null}
                   <span
                     className="absolute inset-y-0 right-0 z-20 flex w-5 cursor-ew-resize items-center justify-center rounded-r-md border-l border-current/20 bg-current/10 opacity-80 transition hover:bg-accent/35 group-hover:opacity-100"
@@ -1618,6 +1645,32 @@ function GanttView({
           })}
         </div>
       </div>
+    </div>
+  );
+}
+
+function GanttAssociationPeek({ item, x, y }: { item: ProjectScheduleItem; x: number; y: number }) {
+  const badges = getAssociationBadges(item);
+  if (!badges.length) return null;
+  return (
+    <div
+      className="pointer-events-none fixed z-[75] flex -translate-x-1/2 -translate-y-full items-center gap-1 rounded-full border border-border bg-card/95 px-2 py-1 text-xs text-card-foreground shadow-lg backdrop-blur"
+      style={{ left: x, top: y }}
+      aria-hidden="true"
+    >
+      {badges.map(badge => {
+        const Icon = badge.icon;
+        return (
+          <span
+            key={badge.key}
+            className="inline-flex items-center gap-1 rounded-full bg-accent/10 px-2 py-1 font-semibold text-accent"
+            title={`${badge.count} ${badge.label.toLowerCase()} linked`}
+          >
+            <Icon className="h-3.5 w-3.5" />
+            <span>{badge.count}</span>
+          </span>
+        );
+      })}
     </div>
   );
 }

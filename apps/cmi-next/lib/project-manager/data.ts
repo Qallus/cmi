@@ -1,10 +1,10 @@
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import type { ProjectManagerData, ProjectScheduleDependency, ProjectScheduleItem, ProjectTemplate, ProjectTemplateTask } from "./types";
 
-type AssociationKey = "selections" | "media" | "codes" | "billing";
+type AssociationKey = "selections" | "media" | "photos" | "videos" | "codes" | "billing";
 
 function emptyCounts() {
-  return { selections: 0, media: 0, codes: 0, billing: 0, participants: 0 };
+  return { selections: 0, media: 0, photos: 0, videos: 0, codes: 0, billing: 0, participants: 0 };
 }
 
 function participantCount(value: string | null | undefined) {
@@ -35,7 +35,7 @@ export async function decorateScheduleItems(
 
   const [selections, media, codes, billing] = await Promise.all([
     supabase.from("project_selections").select("project_schedule_item_id,related_task_id").limit(2000),
-    supabase.from("project_media").select("project_schedule_item_id").limit(2000),
+    supabase.from("project_media").select("project_schedule_item_id,media_type").limit(2000),
     supabase.from("project_code_references").select("project_schedule_item_id").limit(2000),
     supabase.from("project_billing_links").select("project_schedule_item_id").limit(2000)
   ]);
@@ -48,7 +48,11 @@ export async function decorateScheduleItems(
   }
 
   if (!media.error) {
-    for (const row of media.data || []) addCount(counts, row.project_schedule_item_id, "media");
+    for (const row of media.data || []) {
+      addCount(counts, row.project_schedule_item_id, "media");
+      if (row.media_type === "video") addCount(counts, row.project_schedule_item_id, "videos");
+      else addCount(counts, row.project_schedule_item_id, "photos");
+    }
   }
 
   if (!codes.error) {

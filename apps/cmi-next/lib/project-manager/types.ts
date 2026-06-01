@@ -39,6 +39,8 @@ export type ProjectScheduleItem = {
   association_counts?: {
     selections: number;
     media: number;
+    photos: number;
+    videos: number;
     codes: number;
     billing: number;
     participants: number;
