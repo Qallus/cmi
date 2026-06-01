@@ -1610,8 +1610,14 @@ function GanttView({
                     blocked ? "border-destructive/60 bg-destructive/15" : item.status === "complete" ? "border-success/50 bg-success/15" : "border-accent/50 bg-accent/15"
                   )}
                   style={{ left, top: index * 56 + 10, width: Math.max(88, barDurationMinutes / minutesPerDay * effectiveDayWidth - 8) }}
-                  onClick={() => {
-                    if (recentlyDraggedRef.current === item.id) recentlyDraggedRef.current = null;
+                  onClick={event => {
+                    event.stopPropagation();
+                    if (recentlyDraggedRef.current === item.id) {
+                      recentlyDraggedRef.current = null;
+                      return;
+                    }
+                    setAssociationPeek(null);
+                    setActionDock({ item, x: event.clientX, y: event.clientY });
                   }}
                   onPointerEnter={event => showAssociationPeek(event, item)}
                   onPointerMove={event => showAssociationPeek(event, item)}
