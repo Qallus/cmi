@@ -11,12 +11,14 @@ import {
   ChevronDown,
   ChevronRight,
   Columns3,
+  Copy,
   Download,
   Eye,
   EyeOff,
   FileText,
   FolderKanban,
   GripHorizontal,
+  LayoutTemplate,
   Link2,
   List,
   Loader2,
@@ -26,6 +28,7 @@ import {
   Plus,
   RotateCcw,
   Save,
+  StickyNote,
   Table2,
   Trash2,
   UserPlus,
@@ -37,7 +40,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Select, Textarea } from "@/components/ui/input";
 import { addDays, cn, dateOnly, daysBetween, initials } from "@/lib/utils";
-import type { DependencyType, ProjectManagerData, ProjectScheduleDependency, ProjectScheduleItem, SchedulePriority, ScheduleStatus } from "@/lib/project-manager/types";
+import type { DependencyType, ProjectManagerData, ProjectScheduleDependency, ProjectScheduleItem, ProjectTemplate, ProjectTemplateTask, SchedulePriority, ScheduleStatus } from "@/lib/project-manager/types";
 
 type ItemDraft = {
   id?: string;
@@ -80,7 +83,7 @@ type ProjectFilters = {
   quick: "today" | "day" | "week" | "month" | "dependencies" | "client_visible" | null;
 };
 
-type ProjectView = "my_tasks" | "list" | "kanban" | "table" | "calendar" | "gantt";
+type ProjectView = "my_tasks" | "list" | "kanban" | "table" | "calendar" | "gantt" | "templates";
 
 const emptyFilters: ProjectFilters = {
   project: "",
@@ -94,6 +97,8 @@ const emptyFilters: ProjectFilters = {
 
 const boardId = "default";
 const dayWidth = 46;
+const minutesPerDay = 1440;
+const dragSnapMinutes = 15;
 const staffParticipantOptions = [
   "Angel Gutierrez - Staff",
   "Ben Peck - Staff",
@@ -114,6 +119,175 @@ const statusTone: Record<string, "default" | "accent" | "success" | "warning" | 
   canceled: "default",
   pending: "default"
 };
+
+type AssociationCounts = NonNullable<ProjectScheduleItem["association_counts"]>;
+
+type TemplateSummary = {
+  template: ProjectTemplate;
+  taskCount: number;
+  phaseCount: number;
+  previewTasks: ProjectTemplateTask[];
+};
+
+type ProjectViewModel = {
+  id: string;
+  name: string;
+  templateName: string | null;
+  items: ProjectScheduleItem[];
+  visibleItems: ProjectScheduleItem[];
+  startDate: string;
+  endDate: string;
+  status: ScheduleStatus;
+  priority: SchedulePriority | null;
+  progress: number;
+  associationCounts: AssociationCounts;
+  activeCount: number;
+  completeCount: number;
+  blockedCount: number;
+  overdueCount: number;
+  clientVisibleCount: number;
+  summaryItem: ProjectScheduleItem;
+};
+
+function blankAssociationCounts(): AssociationCounts {
+  return { selections: 0, media: 0, photos: 0, videos: 0, codes: 0, billing: 0, participants: 0 };
+}
+
+function projectKeyForItem(item: ProjectScheduleItem) {
+  return item.schedule_group_key || item.project_title || "Ungrouped Project";
+}
+
+function projectIdForName(name: string) {
+  return `project-summary:${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "project"}`;
+}
+
+function isProjectSummaryItem(item: ProjectScheduleItem) {
+  return item.id.startsWith("project-summary:");
+}
+
+function mergeAssociationCounts(items: ProjectScheduleItem[]): AssociationCounts {
+  return items.reduce((counts, item) => {
+    const itemCounts = item.association_counts || blankAssociationCounts();
+    const participants = itemCounts.participants || String(item.participants || "").split(",").map(value => value.trim()).filter(Boolean).length;
+    return {
+      selections: counts.selections + (itemCounts.selections || 0),
+      media: counts.media + (itemCounts.media || 0),
+      photos: counts.photos + (itemCounts.photos || 0),
+      videos: counts.videos + (itemCounts.videos || 0),
+      codes: counts.codes + (itemCounts.codes || 0),
+      billing: counts.billing + (itemCounts.billing || 0),
+      participants: counts.participants + participants
+    };
+  }, blankAssociationCounts());
+}
+
+function rollupStatus(items: ProjectScheduleItem[]): ScheduleStatus {
+  if (!items.length) return "scheduled";
+  if (items.every(item => item.status === "complete")) return "complete";
+  if (items.some(item => item.status === "blocked" || item.is_blocked)) return "blocked";
+  if (items.some(item => item.status === "in_progress")) return "in_progress";
+  if (items.some(item => item.status === "needs_approval")) return "needs_approval";
+  if (items.some(item => item.status === "delayed")) return "delayed";
+  if (items.some(item => item.status === "waiting")) return "waiting";
+  return items[0]?.status || "scheduled";
+}
+
+function rollupPriority(items: ProjectScheduleItem[]): SchedulePriority | null {
+  const priorityOrder: SchedulePriority[] = ["blocking_closeout", "critical", "urgent", "high", "normal", "low"];
+  return priorityOrder.find(priority => items.some(item => item.priority === priority)) || null;
+}
+
+function buildTemplateSummaries(templates: ProjectTemplate[], tasks: ProjectTemplateTask[]): TemplateSummary[] {
+  return templates.map(template => {
+    const templateRows = tasks.filter(task => task.template_id === template.id);
+    return {
+      template,
+      taskCount: templateRows.length,
+      phaseCount: new Set(templateRows.map(task => task.phase_name).filter(Boolean)).size,
+      previewTasks: templateRows.slice(0, 4)
+    };
+  });
+}
+
+function buildProjectViewModels(items: ProjectScheduleItem[]): ProjectViewModel[] {
+  const map = new Map<string, ProjectScheduleItem[]>();
+  items.forEach(item => {
+    const key = projectKeyForItem(item);
+    if (!map.has(key)) map.set(key, []);
+    map.get(key)?.push(item);
+  });
+
+  return Array.from(map.entries()).map(([name, rows]) => {
+    const sortedRows = [...rows].sort((a, b) => {
+      const start = a.start_date.localeCompare(b.start_date);
+      if (start) return start;
+      return (a.sort_order || 0) - (b.sort_order || 0);
+    });
+    const startDate = sortedRows.reduce((earliest, item) => item.start_date < earliest ? item.start_date : earliest, sortedRows[0]?.start_date || dateOnly(new Date()));
+    const endDate = sortedRows.reduce((latest, item) => item.end_date > latest ? item.end_date : latest, sortedRows[0]?.end_date || addDays(startDate, 1));
+    const completeCount = sortedRows.filter(item => item.status === "complete").length;
+    const blockedCount = sortedRows.filter(item => item.status === "blocked" || item.is_blocked).length;
+    const overdueCount = sortedRows.filter(item => item.status !== "complete" && item.end_date < dateOnly(new Date())).length;
+    const associationCounts = mergeAssociationCounts(sortedRows);
+    const status = rollupStatus(sortedRows);
+    const progress = sortedRows.length ? Math.round(sortedRows.reduce((sum, item) => sum + (Number(item.progress) || 0), 0) / sortedRows.length) : 0;
+    const templateName = sortedRows.find(item => item.template_name)?.template_name || null;
+    const summaryItem: ProjectScheduleItem = {
+      id: projectIdForName(name),
+      board_id: boardId,
+      project_id: sortedRows.find(item => item.project_id)?.project_id || null,
+      client_project_id: sortedRows.find(item => item.client_project_id)?.client_project_id || null,
+      type: "project",
+      project_title: name,
+      title: name,
+      phase: "Project",
+      assignee: sortedRows.find(item => item.assignee)?.assignee || null,
+      client: sortedRows.find(item => item.client)?.client || null,
+      participants: sortedRows.map(item => item.participants).filter(Boolean).join(", ") || null,
+      dependencies: null,
+      start_date: startDate,
+      end_date: endDate,
+      status,
+      priority: rollupPriority(sortedRows),
+      progress,
+      notify: sortedRows.some(item => item.notify),
+      description: `${sortedRows.length} scheduled items`,
+      forms: null,
+      punch: null,
+      client_visible: sortedRows.some(item => item.client_visible),
+      internal_notes: null,
+      is_blocked: blockedCount > 0,
+      blocker_reason: null,
+      sort_order: -1,
+      visible_on_gantt: true,
+      schedule_group_key: name,
+      template_slug: sortedRows.find(item => item.template_slug)?.template_slug || null,
+      template_name: templateName,
+      duration_minutes: Math.max(1, daysBetween(startDate, endDate) + 1) * minutesPerDay,
+      metadata: { project_summary: true, child_item_ids: sortedRows.map(item => item.id) },
+      association_counts: associationCounts
+    };
+    return {
+      id: summaryItem.id,
+      name,
+      templateName,
+      items: sortedRows,
+      visibleItems: sortedRows.filter(item => item.visible_on_gantt !== false),
+      startDate,
+      endDate,
+      status,
+      priority: rollupPriority(sortedRows),
+      progress,
+      associationCounts,
+      activeCount: sortedRows.length - completeCount,
+      completeCount,
+      blockedCount,
+      overdueCount,
+      clientVisibleCount: sortedRows.filter(item => item.client_visible).length,
+      summaryItem
+    };
+  }).sort((a, b) => a.startDate.localeCompare(b.startDate) || a.name.localeCompare(b.name));
+}
 
 function emptyDraft(): ItemDraft {
   const today = dateOnly(new Date());
@@ -222,6 +396,20 @@ export function ProjectManagerClient({ initialData, demoMode = false }: { initia
   }, [filteredItems]);
   const selectedTemplate = React.useMemo(() => templates.find(template => template.id === templateId) || templates[0], [templateId, templates]);
   const selectedTemplateTasks = React.useMemo(() => templateTasks.filter(task => task.template_id === templateId), [templateId, templateTasks]);
+  const templateSummaries = React.useMemo(() => buildTemplateSummaries(templates, templateTasks), [templates, templateTasks]);
+  const projectViews = React.useMemo(() => buildProjectViewModels(filteredItems), [filteredItems]);
+  const myTaskProjectViews = React.useMemo(() => buildProjectViewModels(myTaskItems), [myTaskItems]);
+  const visibleProjectViews = React.useMemo(() => (
+    projectViews
+      .map(project => ({
+        ...project,
+        visibleItems: project.visibleItems
+      }))
+      .filter(project => project.visibleItems.length)
+  ), [projectViews]);
+  const ganttItems = React.useMemo(() => (
+    visibleProjectViews.flatMap(project => [project.summaryItem, ...project.visibleItems])
+  ), [visibleProjectViews]);
   const groups = React.useMemo(() => {
     const map = new Map<string, ProjectScheduleItem[]>();
     filteredItems.forEach(item => {
@@ -246,14 +434,14 @@ export function ProjectManagerClient({ initialData, demoMode = false }: { initia
   }, [items]);
 
   const timeline = React.useMemo(() => {
-    const rows = visibleItems.length ? visibleItems : filteredItems;
+    const rows = ganttItems.length ? ganttItems : visibleItems.length ? visibleItems : filteredItems;
     const starts = rows.map(item => new Date(`${item.start_date}T00:00:00`).getTime()).filter(Boolean);
     const ends = rows.map(item => new Date(`${item.end_date}T00:00:00`).getTime()).filter(Boolean);
     const start = starts.length ? dateOnly(new Date(Math.min(...starts))) : dateOnly(new Date());
     const end = ends.length ? dateOnly(new Date(Math.max(...ends))) : addDays(start, 30);
     const days = Math.max(14, daysBetween(start, end) + 3);
     return { start, days };
-  }, [filteredItems, visibleItems]);
+  }, [filteredItems, ganttItems, visibleItems]);
 
   const metrics = React.useMemo(() => {
     const complete = filteredItems.filter(item => item.status === "complete").length;
@@ -282,10 +470,13 @@ export function ProjectManagerClient({ initialData, demoMode = false }: { initia
     setDependencies(depJson.dependencies || []);
   }
 
-  async function applyTemplate() {
+  async function applyTemplate(templateOverrideId?: string) {
+    const activeTemplateId = templateOverrideId || templateId;
+    const activeTemplate = templates.find(template => template.id === activeTemplateId) || selectedTemplate;
+    const activeTemplateTasks = templateTasks.filter(task => task.template_id === activeTemplateId);
     if (demoMode) {
-      const template = selectedTemplate;
-      const tasks = selectedTemplateTasks;
+      const template = activeTemplate;
+      const tasks = activeTemplateTasks;
       if (!template || !tasks.length) {
         setNotice("This template does not have schedule tasks yet.");
         return;
@@ -385,7 +576,7 @@ export function ProjectManagerClient({ initialData, demoMode = false }: { initia
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           board_id: boardId,
-          template_id: templateId,
+          template_id: activeTemplateId,
           project_title: templateTitle,
           start_date: templateStart
         })
@@ -448,7 +639,117 @@ export function ProjectManagerClient({ initialData, demoMode = false }: { initia
     return true;
   }
 
+  function childItemsForProjectSummary(item: ProjectScheduleItem) {
+    const childIds = Array.isArray(item.metadata?.child_item_ids) ? item.metadata.child_item_ids : [];
+    const childSet = new Set(childIds.filter((value): value is string => typeof value === "string"));
+    const key = item.schedule_group_key || item.project_title || item.title;
+    return items.filter(row => childSet.has(row.id) || projectKeyForItem(row) === key);
+  }
+
+  function openScheduleItem(item: ProjectScheduleItem) {
+    if (!isProjectSummaryItem(item)) {
+      setSelected(itemToDraft(item));
+      return;
+    }
+    const children = childItemsForProjectSummary(item);
+    const firstProjectRow = children.find(child => child.type === "project") || children[0];
+    if (firstProjectRow) {
+      setSelected(itemToDraft(firstProjectRow));
+      setNotice(`Opened ${item.title}. Parent row actions apply across ${children.length} child items.`);
+    }
+  }
+
+  async function patchProjectSummary(item: ProjectScheduleItem, patch: Partial<ProjectScheduleItem>) {
+    const children = childItemsForProjectSummary(item);
+    if (!children.length) return false;
+    const normalizedPatch = { ...patch };
+    if (normalizedPatch.status === "complete" && normalizedPatch.progress === undefined) normalizedPatch.progress = 100;
+    const results = await Promise.all(children.map(child => patchItem(child, normalizedPatch)));
+    return results.every(Boolean);
+  }
+
+  async function moveProjectSummary(item: ProjectScheduleItem, patch: Partial<ProjectScheduleItem>) {
+    const children = childItemsForProjectSummary(item);
+    if (!children.length) return false;
+    const shiftDays = patch.start_date ? daysBetween(item.start_date, patch.start_date) : 0;
+    const results = await Promise.all(children.map(child => {
+      const nextPatch: Partial<ProjectScheduleItem> = {
+        metadata: {
+          ...(child.metadata || {}),
+          last_project_parent_shift_days: shiftDays,
+          last_project_parent_interaction: "move"
+        }
+      };
+      if (shiftDays) {
+        nextPatch.start_date = addDays(child.start_date, shiftDays);
+        nextPatch.end_date = addDays(child.end_date, shiftDays);
+      }
+      return patchItem(child, nextPatch);
+    }));
+    if (patch.end_date && patch.end_date !== item.end_date) {
+      const latest = [...children].sort((a, b) => b.end_date.localeCompare(a.end_date))[0];
+      if (latest) {
+        const duration = Math.max(dragSnapMinutes, (daysBetween(latest.start_date, patch.end_date) + 1) * minutesPerDay);
+        results.push(await patchItem(latest, {
+          end_date: patch.end_date,
+          duration_minutes: duration,
+          metadata: {
+            ...(latest.metadata || {}),
+            last_project_parent_interaction: "resize-end"
+          }
+        }));
+      }
+    }
+    setNotice(`${item.title} project timeline updated across ${children.length} child items.`);
+    return results.every(Boolean);
+  }
+
+  async function moveScheduleItem(item: ProjectScheduleItem, patch: Partial<ProjectScheduleItem>) {
+    return isProjectSummaryItem(item) ? moveProjectSummary(item, patch) : patchItem(item, patch);
+  }
+
+  async function patchScheduleItem(item: ProjectScheduleItem, patch: Partial<ProjectScheduleItem>) {
+    return isProjectSummaryItem(item) ? patchProjectSummary(item, patch) : patchItem(item, patch);
+  }
+
+  async function duplicateItem(item: ProjectScheduleItem) {
+    if (isProjectSummaryItem(item)) return;
+    const today = dateOnly(new Date());
+    const draft: ItemDraft = {
+      title: `${item.title} (copy)`,
+      project_title: item.project_title || item.schedule_group_key || "Project Manager",
+      phase: item.phase || "Project Tasks",
+      assignee: item.assignee || "",
+      participants: item.participants || "",
+      start_date: item.start_date || today,
+      end_date: item.end_date || addDays(today, 2),
+      status: "scheduled",
+      priority: item.priority || "normal",
+      progress: 0,
+      duration_minutes: item.duration_minutes || 4320,
+      notify: item.notify,
+      client_visible: Boolean(item.client_visible),
+      visible_on_gantt: item.visible_on_gantt !== false,
+      client: item.client || "",
+      dependencies: "",
+      description: item.description || "",
+      forms: item.forms || "",
+      punch: item.punch || "",
+      internal_notes: item.internal_notes || "",
+      is_blocked: false,
+      blocker_reason: ""
+    };
+    await saveItem(draft);
+  }
+
   async function deleteItem(item: ProjectScheduleItem) {
+    if (isProjectSummaryItem(item)) {
+      const children = childItemsForProjectSummary(item);
+      setItems(current => current.filter(row => !children.some(child => child.id === row.id)));
+      if (demoMode) return;
+      await Promise.all(children.map(child => fetch(`/api/project-manager/schedule/${child.id}`, { method: "DELETE" })));
+      return;
+    }
     setItems(current => current.filter(row => row.id !== item.id));
     if (demoMode) return;
     const res = await fetch(`/api/project-manager/schedule/${item.id}`, { method: "DELETE" });
@@ -530,14 +831,16 @@ export function ProjectManagerClient({ initialData, demoMode = false }: { initia
     if (demoMode) {
       const child = draftToDemoItem(childDraft);
       setItems(current => [...current, child]);
-      await createDependency({
-        source_item_id: parent.id,
-        target_item_id: child.id,
-        dependency_type: "finish_to_start",
-        lag_days: 0,
-        auto_shift: true,
-        notes: "Added from Gantt action dock"
-      });
+      if (!isProjectSummaryItem(parent)) {
+        await createDependency({
+          source_item_id: parent.id,
+          target_item_id: child.id,
+          dependency_type: "finish_to_start",
+          lag_days: 0,
+          auto_shift: true,
+          notes: "Added from Gantt action dock"
+        });
+      }
       setNotice(`Added connected task under ${parent.title}.`);
       return;
     }
@@ -553,14 +856,16 @@ export function ProjectManagerClient({ initialData, demoMode = false }: { initia
       return;
     }
     setItems(current => [...current, json.item]);
-    await createDependency({
-      source_item_id: parent.id,
-      target_item_id: json.item.id,
-      dependency_type: "finish_to_start",
-      lag_days: 0,
-      auto_shift: true,
-      notes: "Added from Gantt action dock"
-    });
+    if (!isProjectSummaryItem(parent)) {
+      await createDependency({
+        source_item_id: parent.id,
+        target_item_id: json.item.id,
+        dependency_type: "finish_to_start",
+        lag_days: 0,
+        auto_shift: true,
+        notes: "Added from Gantt action dock"
+      });
+    }
     setNotice(`Added connected task under ${parent.title}.`);
   }
 
@@ -572,7 +877,7 @@ export function ProjectManagerClient({ initialData, demoMode = false }: { initia
       resource: type === "selection" ? "selection" : type === "code" ? "code_reference" : "media",
       media_type: type === "photo" || type === "video" ? type : undefined,
       project_id: item.project_id,
-      project_schedule_item_id: item.id,
+      project_schedule_item_id: isProjectSummaryItem(item) ? null : item.id,
       metadata: {
         project_title: item.project_title || item.schedule_group_key,
         schedule_item_title: item.title,
@@ -683,19 +988,20 @@ export function ProjectManagerClient({ initialData, demoMode = false }: { initia
   }
 
   const viewTabs: Array<{ id: ProjectView; label: string; icon: React.ComponentType<{ className?: string }> }> = [
-    { id: "my_tasks", label: "My Tasks", icon: FolderKanban },
+    { id: "gantt", label: "Gantt", icon: BarChart3 },
     { id: "list", label: "List", icon: List },
-    { id: "kanban", label: "Kanban", icon: Columns3 },
     { id: "table", label: "Table", icon: Table2 },
+    { id: "kanban", label: "Kanban", icon: Columns3 },
     { id: "calendar", label: "Calendar", icon: CalendarRange },
-    { id: "gantt", label: "Gantt", icon: BarChart3 }
+    { id: "templates", label: "Project Templates", icon: LayoutTemplate },
+    { id: "my_tasks", label: "My Tasks", icon: FolderKanban }
   ];
 
   return (
     <div className="space-y-4 p-4 md:p-6">
       <header className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div>
-          <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Fluent Boards</div>
+          <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Project Management</div>
           <h1 className="mt-2 font-display text-2xl font-semibold tracking-tight">Projects</h1>
         </div>
         <div className="flex flex-wrap justify-end gap-2">
@@ -719,7 +1025,27 @@ export function ProjectManagerClient({ initialData, demoMode = false }: { initia
         </div>
       </header>
 
-      <div className="inline-flex rounded-md border border-border bg-muted p-1">
+      <section className="grid gap-3 xl:grid-cols-[1.2fr_repeat(5,minmax(120px,1fr))]">
+        <Card className="xl:col-span-1">
+          <CardHeader>
+            <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Project Management Overview</div>
+            <CardTitle>{groups[0]?.name || "No active project"}</CardTitle>
+            <CardDescription>Track phases, tasks, milestones, blocked work, client-visible schedule items, and upcoming deadlines.</CardDescription>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" onClick={() => setSelected(emptyDraft())}>Add Project</Button>
+              <Button size="sm" variant="outline" onClick={() => setSelected(emptyDraft())}>Add Task</Button>
+              <Button size="sm" variant="outline">Review Blockers</Button>
+            </div>
+          </CardHeader>
+        </Card>
+        <MetricCard label="Schedule Health" value={metrics.blocked || metrics.delayed ? "At Risk" : "Healthy"} sub={`${metrics.overdue} overdue, ${metrics.blocked} blocked`} tone={metrics.blocked ? "danger" : "success"} />
+        <MetricCard label="Active Items" value={String(metrics.active)} sub={`${groups.length} project groups`} />
+        <MetricCard label="Progress" value={`${metrics.progress}%`} sub={`${metrics.complete} complete, ${metrics.inProgress} active`} />
+        <MetricCard label="Milestones" value={String(filteredItems.filter(item => item.type === "milestone").length)} sub={`${dependencies.length} dependency links`} />
+        <MetricCard label="Client Visible" value={String(metrics.clientVisible)} sub="Shared timeline items" />
+      </section>
+
+      <div className="inline-flex flex-wrap rounded-md border border-border bg-muted p-1">
         {viewTabs.map(tab => {
           const Icon = tab.icon;
           const isActive = activeView === tab.id;
@@ -744,73 +1070,6 @@ export function ProjectManagerClient({ initialData, demoMode = false }: { initia
       {notice ? (
         <div className="rounded-md border border-border bg-card px-4 py-3 text-sm text-muted-foreground">{notice}</div>
       ) : null}
-
-      <section className="grid gap-3 xl:grid-cols-[1.2fr_repeat(5,minmax(120px,1fr))]">
-        <Card className="xl:col-span-1">
-          <CardHeader>
-            <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Project Management Overview</div>
-            <CardTitle>{groups[0]?.name || "No active project"}</CardTitle>
-            <CardDescription>Track phases, tasks, milestones, blocked work, client-visible schedule items, and upcoming deadlines.</CardDescription>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" onClick={() => setSelected(emptyDraft())}>Add Project</Button>
-              <Button size="sm" variant="outline" onClick={() => setSelected(emptyDraft())}>Add Task</Button>
-              <Button size="sm" variant="outline">Review Blockers</Button>
-            </div>
-          </CardHeader>
-        </Card>
-        <MetricCard label="Schedule Health" value={metrics.blocked || metrics.delayed ? "At Risk" : "Healthy"} sub={`${metrics.overdue} overdue, ${metrics.blocked} blocked`} tone={metrics.blocked ? "danger" : "success"} />
-        <MetricCard label="Active Items" value={String(metrics.active)} sub={`${groups.length} project groups`} />
-        <MetricCard label="Progress" value={`${metrics.progress}%`} sub={`${metrics.complete} complete, ${metrics.inProgress} active`} />
-        <MetricCard label="Milestones" value={String(filteredItems.filter(item => item.type === "milestone").length)} sub={`${dependencies.length} dependency links`} />
-        <MetricCard label="Client Visible" value={String(metrics.clientVisible)} sub="Shared timeline items" />
-      </section>
-
-      <section className="grid gap-3 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)]">
-        <Card>
-          <CardHeader className="pb-4">
-            <CardTitle>Build your schedule</CardTitle>
-            <CardDescription>Apply a construction template, then refine tasks, dependencies, participants, and dates.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-2 md:grid-cols-[1fr_1fr_160px_auto]">
-              <Select value={templateId} onChange={event => setTemplateId(event.target.value)}>
-                {templates.map(template => <option key={template.id} value={template.id}>{template.name}</option>)}
-              </Select>
-              <Input value={templateTitle} onChange={event => setTemplateTitle(event.target.value)} placeholder="Project name" />
-              <Input type="date" value={templateStart} onChange={event => setTemplateStart(event.target.value)} />
-              <Button variant="accent" disabled={saving || !templateId || !templateTitle} onClick={applyTemplate}>
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                Apply
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-4">
-            <CardTitle>Real-time progress tracking</CardTitle>
-            <CardDescription>Track in-progress, completed, delayed, blocked, and pending confirmation tasks.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-2 overflow-hidden rounded-full bg-muted">
-              <div className="h-full rounded-full bg-accent" style={{ width: `${metrics.progress}%` }} />
-            </div>
-            <div className="mt-2 text-xs text-muted-foreground">{metrics.progress}% average progress</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-4">
-            <CardTitle>Project health: {metrics.blocked || metrics.delayed ? "Needs Review" : "Healthy"}</CardTitle>
-            <CardDescription>{metrics.overdue} overdue, {metrics.blocked} blocked, and {metrics.clientVisible} client-visible items.</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-2">
-            <Button size="sm" variant="outline">Publish schedule</Button>
-            <Button size="sm" variant="outline">
-              <Link2 className="h-3.5 w-3.5" />
-              Show risk chain
-            </Button>
-          </CardContent>
-        </Card>
-      </section>
 
       <Card>
         <CardHeader>
@@ -854,38 +1113,56 @@ export function ProjectManagerClient({ initialData, demoMode = false }: { initia
             <Badge>{filteredItems.length} shown</Badge>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           {activeView === "gantt" ? (
             <GanttView
-              items={visibleItems}
+              items={ganttItems}
               dependencies={dependencies}
               timeline={timeline}
-              onEdit={item => setSelected(itemToDraft(item))}
-              onMove={(item, patch) => patchItem(item, patch)}
-              onPatch={patchItem}
+              onEdit={openScheduleItem}
+              onMove={moveScheduleItem}
+              onPatch={patchScheduleItem}
               onDelete={deleteItem}
               onAddTask={addConnectedTask}
               onAddUser={item => {
-                setSelected(itemToDraft(item));
+                openScheduleItem(item);
                 setNotice("Add staff, client, vendor, or subcontractor from the Participants field.");
               }}
               onAddPhoto={item => setAssetModal({ item, type: "photo" })}
               onAddVideo={item => setAssetModal({ item, type: "video" })}
               onAddSelection={item => setAssetModal({ item, type: "selection" })}
               onAddCodeReference={item => setAssetModal({ item, type: "code" })}
+              onDuplicate={item => duplicateItem(item)}
+              onNote={item => { openScheduleItem(item); setNotice("Add internal notes in the editor below."); }}
               onExportCsv={exportProjectCsv}
               onPrintPdf={printProjectPdf}
             />
           ) : activeView === "kanban" ? (
-            <KanbanPreview items={filteredItems} onEdit={item => setSelected(itemToDraft(item))} onStatusChange={(item, status) => patchItem(item, { status, progress: status === "complete" ? 100 : item.progress })} />
+            <KanbanPreview
+              projects={projectViews}
+              onEdit={openScheduleItem}
+              onStatusChange={(item, status) => patchScheduleItem(item, { status, progress: status === "complete" ? 100 : item.progress })}
+            />
           ) : activeView === "my_tasks" ? (
-            <ListView items={myTaskItems} onEdit={item => setSelected(itemToDraft(item))} />
+            <ListView projects={myTaskProjectViews} onEdit={openScheduleItem} />
           ) : activeView === "list" ? (
-            <ListView items={filteredItems} onEdit={item => setSelected(itemToDraft(item))} />
+            <ListView projects={projectViews} onEdit={openScheduleItem} />
           ) : activeView === "table" ? (
-            <TableView items={filteredItems} onEdit={item => setSelected(itemToDraft(item))} />
+            <TableView projects={projectViews} onEdit={openScheduleItem} />
+          ) : activeView === "templates" ? (
+            <TemplatesView
+              summaries={templateSummaries}
+              activeTemplateId={templateId}
+              templateTitle={templateTitle}
+              templateStart={templateStart}
+              saving={saving}
+              onSelect={setTemplateId}
+              onTitleChange={setTemplateTitle}
+              onStartChange={setTemplateStart}
+              onApply={id => { applyTemplate(id); setActiveView("gantt"); }}
+            />
           ) : (
-            <CalendarView items={filteredItems} onEdit={item => setSelected(itemToDraft(item))} />
+            <CalendarView projects={projectViews} onEdit={openScheduleItem} />
           )}
         </CardContent>
       </Card>
@@ -1030,22 +1307,209 @@ function AssociationBadges({ item, compact = false }: { item: ProjectScheduleIte
   );
 }
 
+function TemplatesView({
+  summaries,
+  activeTemplateId,
+  templateTitle,
+  templateStart,
+  saving,
+  onSelect,
+  onTitleChange,
+  onStartChange,
+  onApply
+}: {
+  summaries: TemplateSummary[];
+  activeTemplateId: string;
+  templateTitle: string;
+  templateStart: string;
+  saving: boolean;
+  onSelect: (id: string) => void;
+  onTitleChange: (value: string) => void;
+  onStartChange: (value: string) => void;
+  onApply: (id: string) => void;
+}) {
+  const categories = React.useMemo(() => {
+    const map = new Map<string, TemplateSummary[]>();
+    summaries.forEach(summary => {
+      const cat = summary.template.category || "Construction";
+      if (!map.has(cat)) map.set(cat, []);
+      map.get(cat)!.push(summary);
+    });
+    return Array.from(map.entries());
+  }, [summaries]);
+
+  if (!summaries.length) {
+    return (
+      <div className="rounded-lg border border-dashed border-border p-12 text-center text-sm text-muted-foreground">
+        No project templates found. Add templates in Supabase to get started.
+      </div>
+    );
+  }
+
+  const selected = summaries.find(s => s.template.id === activeTemplateId) || summaries[0];
+
+  return (
+    <div className="space-y-6">
+      <div className="rounded-lg border border-accent/30 bg-accent/5 p-4">
+        <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-accent">Apply Template</div>
+        <p className="mt-1 text-xs text-muted-foreground">Select a template below, name the project, choose a start date, then click Apply. Tasks and phases are generated instantly on the Gantt.</p>
+        <div className="mt-3 grid gap-2 md:grid-cols-[1fr_1fr_160px_auto]">
+          <div>
+            <div className="mb-1 text-xs text-muted-foreground">Selected template</div>
+            <div className="truncate rounded-md border border-border bg-card px-3 py-2 text-sm font-medium">
+              {selected?.template.name || "None selected"}
+            </div>
+          </div>
+          <Input value={templateTitle} onChange={event => onTitleChange(event.target.value)} placeholder="Project name" />
+          <Input type="date" value={templateStart} onChange={event => onStartChange(event.target.value)} />
+          <Button variant="accent" disabled={saving || !activeTemplateId || !templateTitle} onClick={() => onApply(activeTemplateId)}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            Apply
+          </Button>
+        </div>
+      </div>
+
+      {categories.map(([category, items]) => (
+        <div key={category}>
+          <div className="mb-3 flex items-center gap-3">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-accent">{category}</div>
+            <div className="h-px flex-1 bg-border" />
+            <Badge>{items.length}</Badge>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {items.map(summary => {
+              const active = summary.template.id === activeTemplateId;
+              return (
+                <div
+                  key={summary.template.id}
+                  className={cn(
+                    "cursor-pointer rounded-lg border bg-card p-4 transition hover:border-accent",
+                    active ? "border-accent ring-1 ring-accent/30" : "border-border"
+                  )}
+                  onClick={() => onSelect(summary.template.id)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={e => { if (e.key === "Enter" || e.key === " ") onSelect(summary.template.id); }}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="truncate font-semibold">{summary.template.name}</div>
+                      <div className="mt-1 text-xs text-muted-foreground">{summary.template.suggested_duration_days} est. days</div>
+                    </div>
+                    {active ? <Badge tone="accent">Selected</Badge> : <Badge>{summary.taskCount} tasks</Badge>}
+                  </div>
+                  {summary.template.description ? (
+                    <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">{summary.template.description}</p>
+                  ) : null}
+                  <div className="mt-3 flex flex-wrap gap-1">
+                    <Badge tone="default">{summary.phaseCount} phases</Badge>
+                    {summary.previewTasks.slice(0, 3).map(task => (
+                      <Badge key={task.id} tone="info">{task.phase_name}</Badge>
+                    ))}
+                    {summary.taskCount > 4 ? <Badge tone="default">+{summary.taskCount - 4} more</Badge> : null}
+                  </div>
+                  <div className="mt-3 flex gap-2">
+                    <Button
+                      size="sm"
+                      variant={active ? "accent" : "outline"}
+                      onClick={e => { e.stopPropagation(); onSelect(summary.template.id); }}
+                    >
+                      {active ? "Selected" : "Select"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={saving || !summary.taskCount}
+                      onClick={e => { e.stopPropagation(); onApply(summary.template.id); }}
+                    >
+                      {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                      Apply now
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TemplateLibrary({
+  summaries,
+  activeTemplateId,
+  saving,
+  onSelect,
+  onApply
+}: {
+  summaries: TemplateSummary[];
+  activeTemplateId: string;
+  saving: boolean;
+  onSelect: (id: string) => void;
+  onApply: (id: string) => void;
+}) {
+  if (!summaries.length) return null;
+  return (
+    <div className="rounded-lg border border-border bg-muted/35 p-3">
+      <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+        <div>
+          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-accent">Project Templates</div>
+          <p className="mt-1 text-xs text-muted-foreground">Apply a construction template from any project view. Generated projects and tasks immediately feed List, Table, Kanban, Calendar, and Gantt.</p>
+        </div>
+        <Badge>{summaries.length} templates</Badge>
+      </div>
+      <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+        {summaries.map(summary => {
+          const active = summary.template.id === activeTemplateId;
+          return (
+            <div key={summary.template.id} className={cn("rounded-md border bg-card p-3", active ? "border-accent" : "border-border")}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-semibold">{summary.template.name}</div>
+                  <div className="mt-1 text-xs text-muted-foreground">{summary.template.category || "Construction"} / {summary.template.suggested_duration_days} est. days</div>
+                </div>
+                <Badge>{summary.taskCount} tasks</Badge>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1">
+                <Badge tone="default">{summary.phaseCount} phases</Badge>
+                {summary.previewTasks.slice(0, 2).map(task => <Badge key={task.id} tone="info">{task.phase_name}</Badge>)}
+              </div>
+              <div className="mt-3 flex gap-2">
+                <Button size="sm" variant={active ? "accent" : "outline"} onClick={() => onSelect(summary.template.id)}>Select</Button>
+                <Button size="sm" variant="outline" disabled={saving || !summary.taskCount} onClick={() => onApply(summary.template.id)}>
+                  {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                  Apply
+                </Button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function KanbanPreview({
-  items,
+  projects,
   onEdit,
   onStatusChange
 }: {
-  items: ProjectScheduleItem[];
+  projects: ProjectViewModel[];
   onEdit: (item: ProjectScheduleItem) => void;
   onStatusChange: (item: ProjectScheduleItem, status: ScheduleStatus) => Promise<boolean> | boolean;
 }) {
   const columns: ScheduleStatus[] = ["pending", "scheduled", "in_progress", "waiting", "blocked", "needs_approval", "complete", "canceled"];
   const [draggedId, setDraggedId] = React.useState<string | null>(null);
+  const cards = React.useMemo(() => projects.flatMap(project => [
+    { id: project.summaryItem.id, item: project.summaryItem, projectName: project.name, isParent: true },
+    ...project.items.map(item => ({ id: item.id, item, projectName: project.name, isParent: false }))
+  ]), [projects]);
   return (
     <div className="grid gap-3 overflow-x-auto md:grid-cols-4 xl:grid-cols-8">
       {columns.map(status => {
-        const rows = items.filter(item => item.status === status).slice(0, 12);
-        const isDragOverTarget = draggedId && items.find(item => item.id === draggedId)?.status !== status;
+        const rows = cards.filter(card => card.item.status === status).slice(0, 16);
+        const isDragOverTarget = draggedId && cards.find(card => card.id === draggedId)?.item.status !== status;
         return (
           <div
             key={status}
@@ -1054,9 +1518,9 @@ function KanbanPreview({
             onDrop={event => {
               event.preventDefault();
               const itemId = event.dataTransfer.getData("text/plain") || draggedId;
-              const item = items.find(row => row.id === itemId);
+              const card = cards.find(row => row.id === itemId);
               setDraggedId(null);
-              if (item && item.status !== status) void onStatusChange(item, status);
+              if (card && card.item.status !== status) void onStatusChange(card.item, status);
             }}
           >
             <div className="mb-3 flex items-center justify-between">
@@ -1064,7 +1528,7 @@ function KanbanPreview({
               <Badge>{rows.length}</Badge>
             </div>
             <div className="space-y-2">
-              {rows.length ? rows.map(item => (
+              {rows.length ? rows.map(({ item, projectName, isParent }) => (
                 <div
                   key={item.id}
                   role="button"
@@ -1072,6 +1536,7 @@ function KanbanPreview({
                   draggable
                   className={cn(
                     "w-full cursor-grab rounded-md border border-border bg-card p-3 text-left shadow-xs transition hover:border-accent active:cursor-grabbing",
+                    isParent && "border-accent/40 bg-accent/5",
                     draggedId === item.id && "opacity-50 ring-2 ring-accent"
                   )}
                   onClick={() => onEdit(item)}
@@ -1085,8 +1550,11 @@ function KanbanPreview({
                   }}
                   onDragEnd={() => setDraggedId(null)}
                 >
-                  <div className="text-sm font-semibold">{item.title}</div>
-                  <div className="mt-1 text-xs text-muted-foreground">{item.phase || item.project_title || "Project Tasks"}</div>
+                  <div className="flex items-center gap-2 text-sm font-semibold">
+                    {isParent ? <FolderKanban className="h-4 w-4 text-accent" /> : null}
+                    <span className="truncate">{item.title}</span>
+                  </div>
+                  <div className="mt-1 text-xs text-muted-foreground">{isParent ? `${projectName} / parent project` : item.phase || projectName || "Project Tasks"}</div>
                   <AssociationBadges item={item} compact />
                   <div className="mt-3 flex items-center justify-between">
                     <Badge tone={item.priority === "high" || item.priority === "urgent" ? "danger" : "success"}>{item.priority || "normal"}</Badge>
@@ -1104,20 +1572,36 @@ function KanbanPreview({
   );
 }
 
-function ListView({ items, onEdit }: { items: ProjectScheduleItem[]; onEdit: (item: ProjectScheduleItem) => void }) {
+function ListView({ projects, onEdit }: { projects: ProjectViewModel[]; onEdit: (item: ProjectScheduleItem) => void }) {
   return (
-    <div className="divide-y divide-border overflow-hidden rounded-lg border border-border">
-      {items.length ? items.map(item => (
-        <button key={item.id} type="button" className="grid w-full gap-3 px-4 py-3 text-left hover:bg-muted md:grid-cols-[1.3fr_1fr_140px_140px] md:items-center" onClick={() => onEdit(item)}>
-          <span className="min-w-0">
-            <span className="block truncate text-sm font-semibold">{item.title}</span>
-            <span className="block truncate text-xs text-muted-foreground">{item.project_title || "Project"} / {item.phase || "Project Tasks"}</span>
-            <AssociationBadges item={item} compact />
-          </span>
-          <span className="text-xs text-muted-foreground">{item.assignee || "Unassigned"}</span>
-          <Badge tone={statusTone[item.status] || "default"}>{item.status.replaceAll("_", " ")}</Badge>
-          <span className="text-xs text-muted-foreground">{item.start_date} - {item.end_date}</span>
-        </button>
+    <div className="space-y-3">
+      {projects.length ? projects.map(project => (
+        <div key={project.id} className="overflow-hidden rounded-lg border border-border">
+          <button type="button" className="grid w-full gap-3 bg-muted/60 px-4 py-3 text-left hover:bg-muted md:grid-cols-[1.4fr_120px_120px_160px] md:items-center" onClick={() => onEdit(project.summaryItem)}>
+            <span className="min-w-0">
+              <span className="flex items-center gap-2 text-sm font-semibold"><FolderKanban className="h-4 w-4 text-accent" /> {project.name}</span>
+              <span className="block text-xs text-muted-foreground">{project.items.length} tasks / {project.templateName || "custom project"}</span>
+              <AssociationBadges item={project.summaryItem} compact />
+            </span>
+            <Badge tone={statusTone[project.status] || "default"}>{project.status.replaceAll("_", " ")}</Badge>
+            <span className="text-xs text-muted-foreground">{project.progress}% done</span>
+            <span className="text-xs text-muted-foreground">{project.startDate} - {project.endDate}</span>
+          </button>
+          <div className="divide-y divide-border">
+            {project.items.map(item => (
+              <button key={item.id} type="button" className="grid w-full gap-3 px-4 py-3 pl-8 text-left hover:bg-muted md:grid-cols-[1.3fr_1fr_140px_140px] md:items-center" onClick={() => onEdit(item)}>
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-semibold">{item.title}</span>
+                  <span className="block truncate text-xs text-muted-foreground">{item.phase || "Project Tasks"}</span>
+                  <AssociationBadges item={item} compact />
+                </span>
+                <span className="text-xs text-muted-foreground">{item.assignee || "Unassigned"}</span>
+                <Badge tone={statusTone[item.status] || "default"}>{item.status.replaceAll("_", " ")}</Badge>
+                <span className="text-xs text-muted-foreground">{item.start_date} - {item.end_date}</span>
+              </button>
+            ))}
+          </div>
+        </div>
       )) : (
         <div className="p-8 text-center text-sm text-muted-foreground">No schedule items yet.</div>
       )}
@@ -1125,27 +1609,41 @@ function ListView({ items, onEdit }: { items: ProjectScheduleItem[]; onEdit: (it
   );
 }
 
-function TableView({ items, onEdit }: { items: ProjectScheduleItem[]; onEdit: (item: ProjectScheduleItem) => void }) {
+function TableView({ projects, onEdit }: { projects: ProjectViewModel[]; onEdit: (item: ProjectScheduleItem) => void }) {
+  const [sortKey, setSortKey] = React.useState<"project" | "status" | "start" | "end" | "progress">("start");
+  const rows = React.useMemo(() => {
+    const allRows = projects.flatMap(project => [project.summaryItem, ...project.items]);
+    return [...allRows].sort((a, b) => {
+      if (sortKey === "project") return projectKeyForItem(a).localeCompare(projectKeyForItem(b)) || a.start_date.localeCompare(b.start_date);
+      if (sortKey === "status") return a.status.localeCompare(b.status) || a.start_date.localeCompare(b.start_date);
+      if (sortKey === "end") return a.end_date.localeCompare(b.end_date);
+      if (sortKey === "progress") return (b.progress || 0) - (a.progress || 0);
+      return a.start_date.localeCompare(b.start_date);
+    });
+  }, [projects, sortKey]);
+  const sortButton = (key: typeof sortKey, label: string) => (
+    <button type="button" className="font-medium hover:text-accent" onClick={() => setSortKey(key)}>{label}{sortKey === key ? " *" : ""}</button>
+  );
   return (
     <div className="overflow-auto rounded-lg border border-border">
       <table className="w-full min-w-[900px] text-left text-sm">
         <thead className="border-b border-border bg-muted text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
           <tr>
             <th className="px-4 py-3 font-medium">Task</th>
-            <th className="px-4 py-3 font-medium">Project</th>
+            <th className="px-4 py-3">{sortButton("project", "Project")}</th>
             <th className="px-4 py-3 font-medium">Phase</th>
-            <th className="px-4 py-3 font-medium">Status</th>
+            <th className="px-4 py-3">{sortButton("status", "Status")}</th>
             <th className="px-4 py-3 font-medium">Priority</th>
-            <th className="px-4 py-3 font-medium">Start</th>
-            <th className="px-4 py-3 font-medium">End</th>
-            <th className="px-4 py-3 font-medium">Progress</th>
+            <th className="px-4 py-3">{sortButton("start", "Start")}</th>
+            <th className="px-4 py-3">{sortButton("end", "End")}</th>
+            <th className="px-4 py-3">{sortButton("progress", "Progress")}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-border">
-          {items.map(item => (
-            <tr key={item.id} className="cursor-pointer hover:bg-muted" onClick={() => onEdit(item)}>
+          {rows.map(item => (
+            <tr key={item.id} className={cn("cursor-pointer hover:bg-muted", isProjectSummaryItem(item) && "bg-muted/60")} onClick={() => onEdit(item)}>
               <td className="max-w-72 px-4 py-3 font-medium">
-                <span className="block truncate">{item.title}</span>
+                <span className="flex items-center gap-2 truncate">{isProjectSummaryItem(item) ? <FolderKanban className="h-4 w-4 text-accent" /> : null}{item.title}</span>
                 <AssociationBadges item={item} compact />
               </td>
               <td className="px-4 py-3 text-muted-foreground">{item.project_title || "Project"}</td>
@@ -1159,19 +1657,20 @@ function TableView({ items, onEdit }: { items: ProjectScheduleItem[]; onEdit: (i
           ))}
         </tbody>
       </table>
-      {!items.length ? <div className="p-8 text-center text-sm text-muted-foreground">No schedule items yet.</div> : null}
+      {!rows.length ? <div className="p-8 text-center text-sm text-muted-foreground">No schedule items yet.</div> : null}
     </div>
   );
 }
 
-function CalendarView({ items, onEdit }: { items: ProjectScheduleItem[]; onEdit: (item: ProjectScheduleItem) => void }) {
+function CalendarView({ projects, onEdit }: { projects: ProjectViewModel[]; onEdit: (item: ProjectScheduleItem) => void }) {
   const today = dateOnly(new Date());
   const calendarStart = addDays(today, -3);
   const days = Array.from({ length: 14 }, (_, index) => addDays(calendarStart, index));
+  const rows = React.useMemo(() => projects.flatMap(project => [project.summaryItem, ...project.items]), [projects]);
   return (
     <div className="grid gap-2 overflow-auto rounded-lg border border-border p-3 md:grid-cols-7">
       {days.map(day => {
-        const dayItems = items.filter(item => item.start_date <= day && item.end_date >= day).slice(0, 4);
+        const dayItems = rows.filter(item => item.start_date <= day && item.end_date >= day).slice(0, 5);
         return (
           <div key={day} className={cn("min-h-36 rounded-md border border-border bg-card p-3", day === today && "border-accent")}>
             <div className="mb-3 flex items-center justify-between">
@@ -1180,8 +1679,8 @@ function CalendarView({ items, onEdit }: { items: ProjectScheduleItem[]; onEdit:
             </div>
             <div className="space-y-2">
               {dayItems.map(item => (
-                <button key={item.id} type="button" className="block w-full rounded border border-border bg-muted px-2 py-1.5 text-left text-xs hover:border-accent" onClick={() => onEdit(item)}>
-                  <span className="block truncate font-medium">{item.title}</span>
+                <button key={item.id} type="button" className={cn("block w-full rounded border border-border bg-muted px-2 py-1.5 text-left text-xs hover:border-accent", isProjectSummaryItem(item) && "border-accent/40 bg-accent/10")} onClick={() => onEdit(item)}>
+                  <span className="flex items-center gap-1 truncate font-medium">{isProjectSummaryItem(item) ? <FolderKanban className="h-3 w-3 text-accent" /> : null}{item.title}</span>
                   <span className="block truncate text-muted-foreground">{item.project_title || item.phase || "Project"}</span>
                   <AssociationBadges item={item} compact />
                 </button>
@@ -1193,9 +1692,6 @@ function CalendarView({ items, onEdit }: { items: ProjectScheduleItem[]; onEdit:
     </div>
   );
 }
-
-const minutesPerDay = 1440;
-const dragSnapMinutes = 15;
 
 type TimelinePosition = {
   date: string;
@@ -1306,6 +1802,8 @@ function GanttView({
   onAddVideo,
   onAddSelection,
   onAddCodeReference,
+  onDuplicate,
+  onNote,
   onExportCsv,
   onPrintPdf
 }: {
@@ -1322,6 +1820,8 @@ function GanttView({
   onAddVideo: (item: ProjectScheduleItem) => void;
   onAddSelection: (item: ProjectScheduleItem) => void;
   onAddCodeReference: (item: ProjectScheduleItem) => void;
+  onDuplicate: (item: ProjectScheduleItem) => void;
+  onNote: (item: ProjectScheduleItem) => void;
   onExportCsv: (item: ProjectScheduleItem) => void;
   onPrintPdf: (item: ProjectScheduleItem) => void;
 }) {
@@ -1337,6 +1837,11 @@ function GanttView({
   const [dependencyNotice, setDependencyNotice] = React.useState<string | null>(null);
   const [actionDock, setActionDock] = React.useState<{ item: ProjectScheduleItem; x: number; y: number } | null>(null);
   const [associationPeek, setAssociationPeek] = React.useState<{ item: ProjectScheduleItem; x: number; y: number } | null>(null);
+
+  const openActionDock = React.useCallback((item: ProjectScheduleItem, x: number, y: number) => {
+    setAssociationPeek(null);
+    setActionDock({ item, x, y });
+  }, []);
 
   React.useEffect(() => {
     const node = frameRef.current;
@@ -1367,7 +1872,7 @@ function GanttView({
       const shiftMinutes = snapMinutes((event.clientX - activeDrag.pointerStartX) * minutesPerPixel);
       const originalStartTotal = activeDrag.originalStartTotal;
       const originalEndTotal = originalStartTotal + activeDrag.originalDurationMinutes;
-      const moved = Math.abs(event.clientX - activeDrag.pointerStartX) > 4 || Math.abs(event.clientY - activeDrag.pointerStartY) > 4;
+      const moved = Math.abs(event.clientX - activeDrag.pointerStartX) > 6 || Math.abs(event.clientY - activeDrag.pointerStartY) > 6;
       let nextStartTotal = originalStartTotal;
       let nextEndTotal = originalEndTotal;
 
@@ -1397,11 +1902,11 @@ function GanttView({
     const up = async () => {
       const finalDrag = dragRef.current || activeDrag;
       setDrag(null);
-      recentlyDraggedRef.current = finalDrag.item.id;
       if (!finalDrag.moved) {
-        setActionDock({ item: finalDrag.item, x: finalDrag.pointerX, y: finalDrag.pointerY });
+        openActionDock(finalDrag.item, finalDrag.pointerX, finalDrag.pointerY);
         return;
       }
+      recentlyDraggedRef.current = finalDrag.item.id;
       if (!finalDrag.shiftMinutes && finalDrag.durationMinutes === finalDrag.originalDurationMinutes) return;
 
       const dependencyCount = dependencies.filter(dep => dep.source_item_id === finalDrag.item.id || dep.target_item_id === finalDrag.item.id).length;
@@ -1443,7 +1948,7 @@ function GanttView({
       window.removeEventListener("pointerup", up);
       window.removeEventListener("pointercancel", up);
     };
-  }, [dependencies, drag, minutesPerPixel, onEdit, onMove, timeline.start]);
+  }, [dependencies, drag, minutesPerPixel, onMove, openActionDock, timeline.start]);
 
   const startTimelineDrag = (event: React.PointerEvent, item: ProjectScheduleItem, mode: DragState["mode"]) => {
     if (event.button !== 0) return;
@@ -1520,6 +2025,8 @@ function GanttView({
           onAddSelection={() => { onAddSelection(actionDock.item); setActionDock(null); }}
           onAddCodeReference={() => { onAddCodeReference(actionDock.item); setActionDock(null); }}
           onEdit={() => { onEdit(actionDock.item); setActionDock(null); }}
+          onDuplicate={() => { onDuplicate(actionDock.item); setActionDock(null); }}
+          onNote={() => { onNote(actionDock.item); setActionDock(null); }}
           onHide={() => { onPatch(actionDock.item, { visible_on_gantt: false }); setActionDock(null); }}
           onComplete={() => { onPatch(actionDock.item, { status: "complete", progress: 100 }); setActionDock(null); }}
           onCancel={() => { onPatch(actionDock.item, { status: "canceled" }); setActionDock(null); }}
@@ -1632,8 +2139,7 @@ function GanttView({
                       recentlyDraggedRef.current = null;
                       return;
                     }
-                    setAssociationPeek(null);
-                    setActionDock({ item, x: event.clientX, y: event.clientY });
+                    openActionDock(item, event.clientX, event.clientY);
                   }}
                   onPointerEnter={event => showAssociationPeek(event, item)}
                   onPointerMove={event => showAssociationPeek(event, item)}
@@ -1709,6 +2215,8 @@ function GanttActionDock({
   onAddSelection,
   onAddCodeReference,
   onEdit,
+  onDuplicate,
+  onNote,
   onHide,
   onComplete,
   onCancel,
@@ -1727,6 +2235,8 @@ function GanttActionDock({
   onAddSelection: () => void;
   onAddCodeReference: () => void;
   onEdit: () => void;
+  onDuplicate: () => void;
+  onNote: () => void;
   onHide: () => void;
   onComplete: () => void;
   onCancel: () => void;
@@ -1735,12 +2245,19 @@ function GanttActionDock({
   onPrintPdf: () => void;
 }) {
   React.useEffect(() => {
-    const close = (event: MouseEvent) => {
+    const onMouseDown = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
       if (!target.closest("[data-gantt-action-dock]")) onClose();
     };
-    window.addEventListener("mousedown", close);
-    return () => window.removeEventListener("mousedown", close);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("mousedown", onMouseDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("mousedown", onMouseDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
   }, [onClose]);
 
   const actions = [
@@ -1751,6 +2268,8 @@ function GanttActionDock({
     { label: "Selection", icon: Package, action: onAddSelection },
     { label: "Code", icon: BookOpen, action: onAddCodeReference },
     { label: "Edit", icon: Pencil, action: onEdit },
+    { label: "Duplicate", icon: Copy, action: onDuplicate },
+    { label: "Note", icon: StickyNote, action: onNote },
     { label: "Hide", icon: EyeOff, action: onHide },
     { label: "Complete", icon: CheckCircle2, action: onComplete },
     { label: "Cancel", icon: XCircle, action: onCancel },

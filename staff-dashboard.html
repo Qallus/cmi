@@ -342,6 +342,30 @@
     .gantt-health-healthy strong{color:#4ade80;}
     .gantt-health-watch strong{color:#fbbf24;}
     .gantt-health-risk strong{color:#f87171;}
+    /* FAB Dock — ctrl-p style floating action menu */
+    .gantt-fab-dock{position:fixed;z-index:90;width:340px;border-radius:16px;border:1px solid rgba(201,164,110,.22);background:var(--surface);box-shadow:0 24px 70px rgba(0,0,0,.52);padding:12px;color:var(--text);}
+    .gantt-fab-header{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding-bottom:10px;margin-bottom:10px;border-bottom:1px solid var(--border-sm);}
+    .gantt-fab-title{font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:240px;}
+    .gantt-fab-sub{font-size:11px;color:var(--text-muted);margin-top:2px;}
+    .gantt-fab-close{width:26px;height:26px;border-radius:999px;border:1px solid var(--border-sm);background:transparent;color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;}
+    .gantt-fab-close:hover{background:var(--hover-bg);color:var(--text);}
+    .gantt-fab-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;}
+    .gantt-dock-action{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:10px 6px;height:64px;border-radius:10px;border:1px solid var(--border-sm);background:var(--surface-2);color:var(--text-sub);font-size:10px;font-weight:600;cursor:pointer;text-align:center;line-height:1.25;transition:background .15s,border-color .15s,color .15s;}
+    .gantt-dock-action:hover{background:var(--gold-alpha);border-color:rgba(201,164,110,.4);color:var(--gold);}
+    .gantt-dock-action.danger{border-color:rgba(239,68,68,.3);color:#f87171;}
+    .gantt-dock-action.danger:hover{background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.5);}
+    .gantt-dock-action svg{width:16px;height:16px;flex-shrink:0;}
+    /* Persistent stats bar above view tabs */
+    #fb-stats-wrap{margin-bottom:16px;}
+    #fb-stats-wrap .gantt-overview{margin-bottom:0;}
+    /* Template gallery view */
+    .gantt-template-gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;}
+    .gantt-template-tile{border:1px solid var(--border-card);border-radius:12px;background:var(--surface);padding:16px;cursor:pointer;transition:border-color .18s,box-shadow .18s;}
+    .gantt-template-tile:hover{border-color:var(--gold);box-shadow:0 4px 18px rgba(201,164,110,.14);}
+    .gantt-template-tile h4{font-size:14px;font-weight:700;color:var(--text);margin-bottom:4px;}
+    .gantt-template-tile p{font-size:12px;color:var(--text-muted);line-height:1.4;margin:0 0 10px;}
+    .gantt-template-tile .t-meta{display:flex;align-items:center;justify-content:space-between;font-size:11px;color:var(--text-muted);}
+    .gantt-template-tile .t-cat{font-size:10px;text-transform:uppercase;letter-spacing:.12em;font-weight:650;color:var(--gold);margin-bottom:6px;}
     .gantt-media-zone{border:1px dashed var(--border-lg);border-radius:10px;background:var(--surface-2);padding:18px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;}
     .gantt-media-zone:hover{border-color:var(--gold);background:var(--gold-alpha);}
     .gantt-media-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(108px,1fr));gap:10px;margin-top:12px;}
@@ -914,55 +938,62 @@
         </form>
       </section>
 
-      <!-- -- PROJECTS (Fluent Boards) -- -->
+      <!-- -- PROJECTS -- -->
       <section id="sec-projects" class="section">
         <!-- Header -->
-        <div class="flex flex-wrap items-start justify-between gap-4 mb-5">
+        <div class="flex flex-wrap items-start justify-between gap-4 mb-4">
           <div>
-            <p class="text-[10px] uppercase tracking-widest text-neutral-500 font-medium">Fluent Boards</p>
+            <p class="text-[10px] uppercase tracking-widest text-neutral-500 font-medium">Project Management</p>
             <h2 class="font-display text-2xl text-neutral-100 mt-0.5">Projects</h2>
           </div>
           <div class="flex items-center gap-2">
-            <!-- Board selector (hidden in my-tasks view) -->
-            <div id="fb-board-tabs" class="flex flex-wrap gap-2"></div>
-            <button onclick="FB_VIEW==='gantt'?openGanttItemModal('task'):openFBNewTask()" class="flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-medium hover:opacity-90 flex-shrink-0" style="background:var(--gold)">
+            <!-- Board selector (shown for views that use FluentBoards, hidden otherwise) -->
+            <div id="fb-board-tabs" class="flex flex-wrap gap-2" style="display:none!important"></div>
+            <button onclick="openGanttItemModal('task')" class="flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-medium hover:opacity-90 flex-shrink-0" style="background:var(--gold)">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 4v16m8-8H4"/></svg>
               New Task
             </button>
           </div>
         </div>
 
+        <!-- Persistent stats bar — populated by updateFBStatsWrap() -->
+        <div id="fb-stats-wrap"></div>
+
         <!-- View switcher -->
-        <div class="inline-flex p-1 rounded-lg mb-5" style="background:var(--surface-2);border:1px solid var(--border-md)">
-          <button id="fb-tab-mytasks" class="fb-tab active" onclick="switchFBView('mytasks')">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
-            My Tasks
+        <div class="inline-flex flex-wrap p-1 rounded-lg mb-5" style="background:var(--surface-2);border:1px solid var(--border-md)">
+          <button id="fb-tab-gantt" class="fb-tab active" onclick="switchFBView('gantt')">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h16"/><path d="M8 4v16M15 10v10"/></svg>
+            Gantt
           </button>
           <button id="fb-tab-list" class="fb-tab" onclick="switchFBView('list')">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
             List
           </button>
-          <button id="fb-tab-kanban" class="fb-tab" onclick="switchFBView('kanban')">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"/></svg>
-            Kanban
-          </button>
           <button id="fb-tab-table" class="fb-tab" onclick="switchFBView('table')">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 10h18M3 14h18M10 3v18M6 3h12a3 3 0 013 3v12a3 3 0 01-3 3H6a3 3 0 01-3-3V6a3 3 0 013-3z"/></svg>
             Table
+          </button>
+          <button id="fb-tab-kanban" class="fb-tab" onclick="switchFBView('kanban')">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"/></svg>
+            Kanban
           </button>
           <button id="fb-tab-calendar" class="fb-tab" onclick="switchFBView('calendar')">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
             Calendar
           </button>
-          <button id="fb-tab-gantt" class="fb-tab" onclick="switchFBView('gantt')">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h16"/><path d="M8 4v16M15 10v10"/></svg>
-            Gantt
+          <button id="fb-tab-templates" class="fb-tab" onclick="switchFBView('templates')">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+            Project Templates
+          </button>
+          <button id="fb-tab-mytasks" class="fb-tab" onclick="switchFBView('mytasks')">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+            My Tasks
           </button>
         </div>
 
         <!-- Dynamic content area -->
         <div id="fb-content-wrap">
-          <div class="py-20 text-center text-sm" style="color:var(--text-muted)">Navigate here to load boards...</div>
+          <div class="py-20 text-center text-sm" style="color:var(--text-muted)">Loading schedule...</div>
         </div>
       </section>
 
@@ -6345,7 +6376,7 @@ let FB_ALL_TASKS    = [];       // tasks from ALL boards (for My Tasks view)
 let FB_STAGES       = [];
 let FB_ALL_STAGES   = {};       // { boardId: [stages] }
 let FB_ACTIVE_BOARD = null;
-let FB_VIEW         = 'mytasks';
+let FB_VIEW         = 'gantt';
 let FB_LOADED       = false;
 let FB_MY_TAB       = 'assigned'; // assigned | upcoming | overdue | completed | others
 let FB_CAL_YEAR     = new Date().getFullYear();
@@ -6369,6 +6400,8 @@ let GANTT_DRAG      = null;
 let GANTT_LINK_DRAG = null;
 let GANTT_LOADED_KEY = null;
 let GANTT_LOADING    = false;
+let GANTT_FAB_ITEM   = null;   // item currently in FAB dock
+let GANTT_SUPPRESS_FAB = false; // block FAB open on drag-release
 let GANTT_ACTIVE_MEDIA = [];
 let GANTT_PARTICIPANTS = [];
 let GANTT_SELECTED_PARTICIPANTS = [];
@@ -6564,23 +6597,22 @@ function renderFBBoardTabs() {
 
 function switchFBView(view) {
   FB_VIEW = view;
-  ['mytasks','list','kanban','table','calendar','gantt'].forEach(v => {
+  hideGanttFAB();
+  ['gantt','list','table','kanban','calendar','templates','mytasks'].forEach(v => {
     const btn = document.getElementById('fb-tab-' + v);
     if (btn) btn.classList.toggle('active', v === view);
   });
-  // Show/hide board selector
-  const tabs = document.getElementById('fb-board-tabs');
-  if (tabs) tabs.style.display = (view === 'mytasks') ? 'none' : 'flex';
   renderFBView();
 }
 
 function renderFBView() {
-  if      (FB_VIEW === 'mytasks')  renderFBMyTasks();
-  else if (FB_VIEW === 'list')     renderFBList();
-  else if (FB_VIEW === 'kanban')   renderFBKanban();
-  else if (FB_VIEW === 'table')    renderFBTable();
-  else if (FB_VIEW === 'calendar') renderFBCalendar();
-  else if (FB_VIEW === 'gantt')    renderFBGantt();
+  if      (FB_VIEW === 'gantt')     renderFBGantt();
+  else if (FB_VIEW === 'list')      renderFBList();
+  else if (FB_VIEW === 'table')     renderFBTable();
+  else if (FB_VIEW === 'kanban')    renderFBKanban();
+  else if (FB_VIEW === 'calendar')  renderFBCalendar();
+  else if (FB_VIEW === 'templates') renderFBTemplates();
+  else if (FB_VIEW === 'mytasks')   renderFBMyTasks();
 }
 
 // -- My Tasks Dashboard -----------------------------------------
@@ -6663,109 +6695,172 @@ function switchFBMyTab(tab) {
   renderFBMyTasks();
 }
 
-// -- List View -------------------------------------------------
-function renderFBList() {
+// -- List View — Supabase GANTT_ITEMS, grouped by project ------
+async function renderFBList() {
   const wrap = document.getElementById('fb-content-wrap');
   if (!wrap) return;
-  if (!FB_TASKS.length) {
-    wrap.innerHTML = '<div class="card p-10 text-center text-sm" style="color:var(--text-muted)">No tasks found in this board.</div>';
+  await loadGanttItems();
+  updateFBStatsWrap();
+  if (!GANTT_ITEMS.length) {
+    wrap.innerHTML = '<div class="card p-10 text-center text-sm" style="color:var(--text-muted)">No schedule items yet. <button onclick="openGanttItemModal(\'task\')" class="crm-toolbar-btn ml-3">Add Task</button></div>';
     return;
   }
-  const rows = FB_TASKS.map(t =>
-    '<tr onclick="openFBTask(' + t.id + ')" style="cursor:pointer">' +
-    '<td><div class="flex items-center gap-2.5">' + fbPriDot(t.priority) + '<span class="font-medium" style="color:var(--text)">' + escHtml(t.title || 'Untitled') + '</span></div></td>' +
-    '<td><span class="badge b-neutral text-[10px]">' + escHtml(fbStageLabel(t.stage_id)) + '</span></td>' +
-    '<td>' + (t.priority ? fbPriBadge(t.priority) : '<span style="color:var(--text-weak);font-size:12px">-</span>') + '</td>' +
-    '<td>' + fbDueDateStr(t.due_at) + '</td>' +
-    '<td><div class="flex items-center">' + fbAssigneesAvatars(t.assignees) + '</div></td>' +
-    '<td><button onclick="event.stopPropagation();openFBTask(' + t.id + ')" class="crm-toolbar-btn" style="padding:3px 8px;font-size:11px">Open</button></td>' +
-    '</tr>'
-  ).join('');
-  wrap.innerHTML =
-    '<div class="card overflow-hidden">' +
-    '<div style="padding:12px 16px;border-bottom:1px solid var(--border-sm);font-size:12px;color:var(--text-muted)">' + FB_TASKS.length + ' tasks</div>' +
-    '<table class="data-table">' +
-    '<thead><tr><th>Task</th><th>Stage</th><th>Priority</th><th>Due Date</th><th>Assignees</th><th></th></tr></thead>' +
-    '<tbody>' + rows + '</tbody>' +
-    '</table></div>';
-}
-
-// -- Table View ------------------------------------------------
-function renderFBTable() {
-  const wrap = document.getElementById('fb-content-wrap');
-  if (!wrap) return;
-  if (!FB_TASKS.length) {
-    wrap.innerHTML = '<div class="card p-10 text-center text-sm" style="color:var(--text-muted)">No tasks found in this board.</div>';
-    return;
-  }
-  const rows = FB_TASKS.map(t => {
-    const created = t.created_at ? new Date(t.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '-';
-    return '<tr onclick="openFBTask(' + t.id + ')" style="cursor:pointer">' +
-      '<td><span class="font-medium text-[13px]" style="color:var(--text)">' + escHtml(t.title||'Untitled') + '</span></td>' +
-      '<td><span class="badge b-neutral text-[10px]">' + escHtml(fbStageLabel(t.stage_id)) + '</span></td>' +
-      '<td>' + (t.priority ? fbPriBadge(t.priority) : '-') + '</td>' +
-      '<td><span class="badge ' + (fbIsCompleted(t)?'b-green':'b-neutral') + ' text-[10px]">' + (fbIsCompleted(t)?'Done':'Open') + '</span></td>' +
-      '<td>' + fbDueDateStr(t.due_at) + '</td>' +
-      '<td><div style="display:flex;align-items:center">' + fbAssigneesAvatars(t.assignees) + '</div></td>' +
-      '<td style="font-size:11px;color:var(--text-muted)">' + created + '</td>' +
-    '</tr>';
+  const groups = buildScheduledProjectGroups();
+  const body = groups.map(group => {
+    const rows = group.items
+      .sort((a,b) => (Number(a.sort_order)||0) - (Number(b.sort_order)||0))
+      .map(item => {
+        const today = new Date(); today.setHours(0,0,0,0);
+        const endDate = item.end ? new Date(item.end) : null;
+        const isOverdue = endDate && endDate < today && item.status !== 'complete';
+        const statusClass = item.status === 'complete' ? 'b-green' : item.status === 'blocked' ? 'b-red' : item.is_blocked ? 'b-red' : isOverdue ? 'b-amber' : 'b-neutral';
+        return '<tr onclick="openGanttItemModal(\'' + escAttr(item.type||'task') + '\',\'' + escAttr(item.id) + '\')" style="cursor:pointer">' +
+          '<td style="padding-left:28px"><div style="display:flex;align-items:center;gap:8px"><div class="p-dot" style="background:' + ganttPriorityColor(item.priority) + '"></div><span style="color:var(--text);font-size:13px;font-weight:500">' + escHtml(item.title||'Untitled') + '</span></div>' +
+          (item.description ? '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:300px">' + escHtml(item.description) + '</div>' : '') + '</td>' +
+          '<td><span style="font-size:11px;color:var(--text-muted)">' + escHtml(item.phase||'—') + '</span></td>' +
+          '<td><span class="badge ' + statusClass + ' text-[10px]">' + ganttStatusLabel(item.status) + '</span></td>' +
+          '<td><span style="font-size:11px;color:var(--text-muted)">' + escHtml(item.assignee||'Unassigned') + '</span></td>' +
+          '<td style="font-size:11px;color:' + (isOverdue ? '#f87171' : 'var(--text-muted)') + '">' + (item.end||'—') + '</td>' +
+          '<td><span style="font-size:11px;color:var(--text-muted)">' + (Number(item.progress)||0) + '%</span></td>' +
+          '<td>' + (item.client_visible ? '<span class="badge b-neutral text-[10px]">Client</span>' : '') + '</td>' +
+        '</tr>';
+      }).join('');
+    const completeCount = group.items.filter(i => i.status === 'complete').length;
+    const blockedCount  = group.items.filter(i => i.status === 'blocked' || i.is_blocked).length;
+    return '<div style="margin-bottom:16px;border:1px solid var(--border-card);border-radius:12px;overflow:hidden;background:var(--surface)">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface-2);border-bottom:1px solid var(--border-sm)">' +
+        '<div><strong style="font-size:14px;color:var(--text)">' + escHtml(group.name) + '</strong>' +
+        (group.client ? '<span style="font-size:11px;color:var(--text-muted);margin-left:10px">' + escHtml(group.client) + '</span>' : '') + '</div>' +
+        '<div style="display:flex;gap:8px;align-items:center">' +
+          '<span class="schedule-pill">' + group.items.length + ' items</span>' +
+          (blockedCount  ? '<span class="schedule-pill" style="color:#f87171">' + blockedCount + ' blocked</span>' : '') +
+          (completeCount ? '<span class="schedule-pill" style="color:#4ade80">' + completeCount + ' done</span>' : '') +
+          '<button onclick="openGanttItemModal(\'task\')" class="crm-toolbar-btn" style="padding:3px 8px;font-size:11px">+ Add Task</button>' +
+        '</div>' +
+      '</div>' +
+      '<table class="data-table"><thead><tr><th>Task</th><th>Phase</th><th>Status</th><th>Assignee</th><th>Due</th><th>Progress</th><th>Visibility</th></tr></thead>' +
+      '<tbody>' + rows + '</tbody></table>' +
+    '</div>';
   }).join('');
-  wrap.innerHTML =
-    '<div class="card overflow-hidden">' +
-    '<div style="padding:12px 16px;border-bottom:1px solid var(--border-sm);font-size:12px;color:var(--text-muted)">' + FB_TASKS.length + ' tasks</div>' +
-    '<table class="data-table">' +
-    '<thead><tr><th>Title</th><th>Stage</th><th>Priority</th><th>Status</th><th>Due Date</th><th>Assignees</th><th>Created</th></tr></thead>' +
-    '<tbody>' + rows + '</tbody>' +
-    '</table></div>';
+  wrap.innerHTML = '<div style="margin-bottom:10px;display:flex;align-items:center;justify-content:space-between"><span style="font-size:12px;color:var(--text-muted)">' + GANTT_ITEMS.length + ' schedule items across ' + groups.length + ' project' + (groups.length!==1?'s':'') + '</span><div style="display:flex;gap:8px"><button onclick="openGanttItemModal(\'project\')" class="crm-toolbar-btn">Add Project</button><button onclick="openGanttItemModal(\'task\')" class="crm-toolbar-btn">Add Task</button></div></div>' + body;
 }
 
-// -- Kanban View -----------------------------------------------
-function renderFBKanban() {
+// -- Table View — Supabase GANTT_ITEMS, full schedule fields ---
+async function renderFBTable() {
   const wrap = document.getElementById('fb-content-wrap');
   if (!wrap) return;
-  const stages = FB_STAGES.length ? FB_STAGES : [{ id: null, title: 'All Tasks' }];
-  const cols = stages.map(stage => {
-    const tasks = stage.id ? FB_TASKS.filter(t => String(t.stage_id) === String(stage.id)) : FB_TASKS;
-    const cards = tasks.length
-      ? tasks.map(t =>
-          '<div class="fb-task-card" onclick="openFBTask(' + t.id + ')">' +
-            '<div class="fb-task-title">' + escHtml(t.title || 'Untitled') + '</div>' +
-            '<div class="fb-task-meta">' +
-              fbPriDot(t.priority) +
-              '<span style="font-size:11px;color:var(--text-muted)">' + (t.priority ? t.priority.charAt(0).toUpperCase()+t.priority.slice(1) : '-') + '</span>' +
-              (t.due_at ? '<span style="margin-left:auto">' + fbDueDateStr(t.due_at) + '</span>' : '') +
+  await loadGanttItems();
+  updateFBStatsWrap();
+  if (!GANTT_ITEMS.length) {
+    wrap.innerHTML = '<div class="card p-10 text-center text-sm" style="color:var(--text-muted)">No schedule items yet. <button onclick="openGanttItemModal(\'task\')" class="crm-toolbar-btn ml-3">Add Task</button></div>';
+    return;
+  }
+  const today = new Date(); today.setHours(0,0,0,0);
+  const rows = GANTT_ITEMS
+    .sort((a,b) => (a.project||'').localeCompare(b.project||'') || (Number(a.sort_order)||0) - (Number(b.sort_order)||0))
+    .map(item => {
+      const endDate = item.end ? new Date(item.end) : null;
+      const isOverdue = endDate && endDate < today && item.status !== 'complete';
+      const statusClass = item.status === 'complete' ? 'b-green' : item.status === 'blocked' ? 'b-red' : item.is_blocked ? 'b-red' : isOverdue ? 'b-amber' : 'b-neutral';
+      const priorityClass = item.priority === 'urgent' || item.priority === 'critical' ? 'b-red' : item.priority === 'high' ? 'b-amber' : 'b-neutral';
+      return '<tr onclick="openGanttItemModal(\'' + escAttr(item.type||'task') + '\',\'' + escAttr(item.id) + '\')" style="cursor:pointer">' +
+        '<td><strong style="font-size:13px;color:var(--text)">' + escHtml(item.title||'Untitled') + '</strong></td>' +
+        '<td><span style="font-size:11px;color:var(--text-muted)">' + escHtml(item.project||'—') + '</span></td>' +
+        '<td><span style="font-size:11px;color:var(--text-muted)">' + escHtml(item.phase||'—') + '</span></td>' +
+        '<td><span class="badge ' + statusClass + ' text-[10px]">' + ganttStatusLabel(item.status) + '</span></td>' +
+        '<td><span class="badge ' + priorityClass + ' text-[10px]">' + escHtml(item.priority||'normal') + '</span></td>' +
+        '<td style="font-size:11px;color:var(--text-muted)">' + escHtml(item.assignee||'—') + '</td>' +
+        '<td style="font-size:11px;color:var(--text-muted)">' + (item.start||'—') + '</td>' +
+        '<td style="font-size:11px;color:' + (isOverdue ? '#f87171' : 'var(--text-muted)') + '">' + (item.end||'—') + '</td>' +
+        '<td><div style="display:flex;align-items:center;gap:5px"><div style="width:48px;height:5px;border-radius:3px;background:var(--surface-2);overflow:hidden"><div style="height:100%;width:' + (Number(item.progress)||0) + '%;background:var(--gold)"></div></div><span style="font-size:11px;color:var(--text-muted)">' + (Number(item.progress)||0) + '%</span></div></td>' +
+        '<td>' + (item.client_visible ? '<span class="badge b-neutral text-[10px]">Client</span>' : '<span style="font-size:11px;color:var(--text-weak)">Internal</span>') + '</td>' +
+        '<td><span style="font-size:11px;color:var(--text-muted)">' + ganttTypeLabel(item.type) + '</span></td>' +
+      '</tr>';
+    }).join('');
+  wrap.innerHTML = '<div class="card overflow-hidden">' +
+    '<div style="padding:12px 16px;border-bottom:1px solid var(--border-sm);display:flex;align-items:center;justify-content:space-between">' +
+      '<span style="font-size:12px;color:var(--text-muted)">' + GANTT_ITEMS.length + ' schedule items</span>' +
+      '<div style="display:flex;gap:8px"><button onclick="openGanttItemModal(\'project\')" class="crm-toolbar-btn">Add Project</button><button onclick="openGanttItemModal(\'task\')" class="crm-toolbar-btn">Add Task</button></div>' +
+    '</div>' +
+    '<table class="data-table"><thead><tr><th>Task</th><th>Project</th><th>Phase</th><th>Status</th><th>Priority</th><th>Assignee</th><th>Start</th><th>Due</th><th>Progress</th><th>Visibility</th><th>Type</th></tr></thead>' +
+    '<tbody>' + (rows || '<tr><td colspan="11" class="text-center py-10 text-sm" style="color:var(--text-muted)">No items.</td></tr>') + '</tbody></table></div>';
+}
+
+// -- Kanban View — GANTT_ITEMS grouped by status ---------------
+async function renderFBKanban() {
+  const wrap = document.getElementById('fb-content-wrap');
+  if (!wrap) return;
+  await loadGanttItems();
+  updateFBStatsWrap();
+  const STATUS_COLS = [
+    { key:'pending',      label:'Not Started',  class:'b-neutral' },
+    { key:'in_progress',  label:'In Progress',  class:'b-amber'   },
+    { key:'waiting',      label:'Waiting',       class:'b-neutral' },
+    { key:'delayed',      label:'Delayed',       class:'b-amber'   },
+    { key:'needs_approval', label:'Needs Review', class:'b-amber'  },
+    { key:'blocked',      label:'Blocked',       class:'b-red'     },
+    { key:'complete',     label:'Complete',      class:'b-green'   },
+  ];
+  if (!GANTT_ITEMS.length) {
+    wrap.innerHTML = '<div class="card p-10 text-center text-sm" style="color:var(--text-muted)">No schedule items yet. <button onclick="openGanttItemModal(\'task\')" class="crm-toolbar-btn ml-3">Add Task</button></div>';
+    return;
+  }
+  const today = new Date(); today.setHours(0,0,0,0);
+  const cols = STATUS_COLS.map(col => {
+    let colItems = GANTT_ITEMS.filter(i => {
+      if (col.key === 'blocked') return (i.status === 'blocked' || i.is_blocked);
+      return i.status === col.key;
+    });
+    if (col.key === 'pending') colItems = colItems.concat(GANTT_ITEMS.filter(i => !i.status || i.status === 'scheduled'));
+    const cards = colItems.length
+      ? colItems.map(item => {
+          const endDate = item.end ? new Date(item.end) : null;
+          const isOverdue = endDate && endDate < today;
+          return '<div class="fb-task-card" onclick="openGanttItemModal(\'' + escAttr(item.type||'task') + '\',\'' + escAttr(item.id) + '\')" style="cursor:pointer">' +
+            '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">' +
+              '<div class="p-dot" style="background:' + ganttPriorityColor(item.priority) + '"></div>' +
+              '<span style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted)">' + ganttTypeLabel(item.type) + '</span>' +
             '</div>' +
-            (t.assignees && t.assignees.length ? '<div style="display:flex;align-items:center;margin-top:8px">' + fbAssigneesAvatars(t.assignees) + '</div>' : '') +
-          '</div>'
-        ).join('')
-      : '<p style="font-size:11px;text-align:center;padding:16px 0;color:var(--text-weak)">No tasks</p>';
+            '<div class="fb-task-title">' + escHtml(item.title||'Untitled') + '</div>' +
+            (item.phase ? '<div style="font-size:11px;color:var(--text-muted);margin-top:3px">' + escHtml(item.phase) + '</div>' : '') +
+            '<div class="fb-task-meta" style="margin-top:8px">' +
+              (item.assignee ? '<span style="font-size:11px;color:var(--text-muted)">' + escHtml(item.assignee) + '</span>' : '') +
+              (item.end ? '<span style="margin-left:auto;font-size:11px;color:' + (isOverdue ? '#f87171' : 'var(--text-muted)') + '">' + item.end + '</span>' : '') +
+            '</div>' +
+            (Number(item.progress) > 0 ? '<div style="margin-top:8px;height:4px;border-radius:2px;background:var(--surface-2)"><div style="height:100%;width:' + (Number(item.progress)||0) + '%;background:var(--gold);border-radius:2px"></div></div>' : '') +
+          '</div>';
+        }).join('')
+      : '<p style="font-size:11px;text-align:center;padding:16px 0;color:var(--text-weak)">No items</p>';
     return '<div class="fb-stage">' +
-      '<div class="fb-stage-header"><span class="fb-stage-title">' + escHtml(stage.title) + '</span><span class="fb-stage-count">' + tasks.length + '</span></div>' +
+      '<div class="fb-stage-header"><span class="fb-stage-title">' + col.label + '</span><span class="fb-stage-count">' + colItems.length + '</span></div>' +
       '<div class="fb-stage-body">' + cards + '</div>' +
     '</div>';
   }).join('');
   wrap.innerHTML = '<div class="fb-kanban">' + cols + '</div>';
 }
 
-// -- Calendar View ---------------------------------------------
-function renderFBCalendar() {
+// -- Calendar View — GANTT_ITEMS by start/end date -------------
+async function renderFBCalendar() {
   const wrap = document.getElementById('fb-content-wrap');
   if (!wrap) return;
+  await loadGanttItems();
+  updateFBStatsWrap();
   const year = FB_CAL_YEAR, month = FB_CAL_MONTH;
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const firstDay = new Date(year, month, 1).getDay();
   const todayD = (new Date().getFullYear() === year && new Date().getMonth() === month) ? new Date().getDate() : -1;
   const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-  // Use tasks from active board for calendar
-  const calTasks = FB_VIEW === 'calendar' ? FB_TASKS : FB_ALL_TASKS;
-  const tasksByDay = {};
-  calTasks.forEach(t => {
-    if (!t.due_at) return;
+  const today = new Date(); today.setHours(0,0,0,0);
+  // Index items by due/end date day
+  const itemsByDay = {};
+  GANTT_ITEMS.forEach(item => {
+    const dateStr = item.end || item.start;
+    if (!dateStr) return;
     try {
-      const d = new Date(t.due_at);
+      const d = new Date(dateStr);
       if (d.getFullYear() === year && d.getMonth() === month) {
         const day = d.getDate();
-        (tasksByDay[day] = tasksByDay[day] || []).push(t);
+        (itemsByDay[day] = itemsByDay[day] || []).push(item);
       }
     } catch {}
   });
@@ -6775,14 +6870,16 @@ function renderFBCalendar() {
   let cells = '';
   for (let i = 0; i < firstDay; i++) cells += '<div style="min-height:90px"></div>';
   for (let d = 1; d <= daysInMonth; d++) {
-    const tasks = tasksByDay[d] || [];
+    const dayItems = itemsByDay[d] || [];
     const isToday = d === todayD;
     cells += '<div style="border-radius:10px;min-height:90px;padding:8px;background:' + (isToday ? 'var(--gold-alpha)' : 'var(--surface-2)') + ';border:1px solid ' + (isToday ? 'var(--gold)' : 'var(--border-sm)') + '">' +
       '<div style="font-size:12px;font-weight:600;margin-bottom:5px;color:' + (isToday ? 'var(--gold)' : 'var(--text-muted)') + '">' + d + '</div>' +
-      tasks.slice(0,3).map(t =>
-        '<div onclick="openFBTask(' + t.id + ')" style="font-size:10px;padding:2px 6px;border-radius:4px;margin-bottom:2px;cursor:pointer;background:' + (fbIsOverdue(t)?'rgba(239,68,68,.15)':'rgba(201,164,110,0.13)') + ';color:' + (fbIsOverdue(t)?'#f87171':'var(--text-sub)') + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + escAttr(t.title||'') + '">' + escHtml(t.title || 'Task') + '</div>'
-      ).join('') +
-      (tasks.length > 3 ? '<div style="font-size:10px;color:var(--text-muted)">+' + (tasks.length-3) + ' more</div>' : '') +
+      dayItems.slice(0,3).map(item => {
+        const endDate = item.end ? new Date(item.end) : null;
+        const isOverdue = endDate && endDate < today && item.status !== 'complete';
+        return '<div onclick="openGanttItemModal(\'' + escAttr(item.type||\'task\') + '\',\'' + escAttr(item.id) + '\')" style="font-size:10px;padding:2px 6px;border-radius:4px;margin-bottom:2px;cursor:pointer;background:' + (isOverdue ? 'rgba(239,68,68,.15)' : 'rgba(201,164,110,.13)') + ';color:' + (isOverdue ? '#f87171' : 'var(--text-sub)') + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + escAttr(item.title||'') + '">' + escHtml(item.title||'Task') + '</div>';
+      }).join('') +
+      (dayItems.length > 3 ? '<div style="font-size:10px;color:var(--text-muted)">+' + (dayItems.length-3) + ' more</div>' : '') +
     '</div>';
   }
   wrap.innerHTML =
@@ -6808,6 +6905,52 @@ function fbCalNext() {
   FB_CAL_MONTH++;
   if (FB_CAL_MONTH > 11) { FB_CAL_MONTH = 0; FB_CAL_YEAR++; }
   renderFBCalendar();
+}
+
+// -- Shared helpers for Supabase-first views -------------------
+function ganttPriorityColor(p) {
+  if (!p) return 'var(--text-muted)';
+  if (p === 'urgent' || p === 'critical' || p === 'blocking_closeout') return '#f43f5e';
+  if (p === 'high') return '#f87171';
+  if (p === 'normal') return 'var(--gold)';
+  return '#4ade80';
+}
+
+function updateFBStatsWrap() {
+  const el = document.getElementById('fb-stats-wrap');
+  if (!el) return;
+  if (!GANTT_ITEMS.length) { el.innerHTML = ''; return; }
+  const stats = ganttScheduleStats();
+  el.innerHTML = renderGanttOverview(stats);
+}
+
+// -- Project Templates view ------------------------------------
+function renderFBTemplates() {
+  const wrap = document.getElementById('fb-content-wrap');
+  if (!wrap) return;
+  const templates = window.CMI_PROJECT_TEMPLATES || [];
+  if (!templates.length) {
+    wrap.innerHTML = '<div class="card p-10 text-center text-sm" style="color:var(--text-muted)">No project templates found.</div>';
+    return;
+  }
+  const grouped = {};
+  templates.forEach(t => { (grouped[t.category] = grouped[t.category] || []).push(t); });
+  const sections = Object.entries(grouped).map(([cat, tpls]) => {
+    const tiles = tpls.map(t =>
+      '<div class="gantt-template-tile" onclick="openGanttTemplateModal(\'' + escAttr(t.slug) + '\')">' +
+        '<div class="t-cat">' + escHtml(t.category) + '</div>' +
+        '<h4>' + escHtml(t.name) + '</h4>' +
+        '<p>' + escHtml(t.description) + '</p>' +
+        '<div class="t-meta"><span>' + t.tasks.length + ' tasks</span><span>~' + (t.suggested_duration_days||'?') + ' days</span></div>' +
+      '</div>'
+    ).join('');
+    return '<div style="margin-bottom:24px"><h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.12em;color:var(--text-muted);font-weight:650;margin-bottom:10px">' + escHtml(cat) + '</h3><div class="gantt-template-gallery">' + tiles + '</div></div>';
+  }).join('');
+  wrap.innerHTML =
+    '<div style="margin-bottom:16px;display:flex;align-items:flex-start;justify-content:space-between">' +
+      '<div><h3 class="font-display text-lg" style="color:var(--text)">Project Templates</h3><p style="font-size:12px;color:var(--text-muted);margin-top:4px">Select a template to pre-fill a project schedule. ' + templates.length + ' templates across ' + Object.keys(grouped).length + ' categories.</p></div>' +
+      '<button onclick="openGanttTemplateModal()" class="crm-toolbar-btn" style="background:var(--gold);color:#fff">Apply Template</button>' +
+    '</div>' + sections;
 }
 
 // -- Gantt Project Manager --------------------------------------
@@ -7579,13 +7722,13 @@ async function renderFBGantt(forceLoad) {
     wrap.innerHTML = '<div class="card p-10 text-center text-sm" style="color:var(--text-muted)">Loading schedule from Supabase...</div>';
   }
   await loadGanttItems(forceLoad);
+  updateFBStatsWrap();
   const items = ganttFilteredItems().filter(item => item.visible_on_gantt !== false);
   const stats = ganttScheduleStats();
   const features =
-    renderGanttOverview(stats) +
     '<div class="gantt-feature-grid">' +
-      '<div class="gantt-feature-card"><strong>Build your schedule</strong><p>Apply construction templates, or import documents, photos, forms, and notes to shape this project schedule.</p><button onclick="openGanttTemplateModal()" class="crm-toolbar-btn mt-3">Apply Project Template</button><button onclick="document.getElementById(\'ganttImportInput\').click()" class="crm-toolbar-btn mt-3 ml-2">Import documents</button><button onclick="seedGanttSchedule()" class="crm-toolbar-btn mt-3 ml-2">Use starter schedule</button><input id="ganttImportInput" type="file" multiple class="hidden" onchange="ganttImportDocs(this)" /></div>' +
-      '<div class="gantt-feature-card"><strong>Real-time progress tracking</strong><p>Track in progress, complete, delayed, blocked, and pending confirmation tasks in one timeline.</p><div class="mt-3 h-2 rounded-full overflow-hidden" style="background:var(--surface-2)"><div style="height:100%;width:' + stats.progress + '%;background:var(--gold)"></div></div><p class="mt-2">' + stats.progress + '% average progress</p></div>' +
+      '<div class="gantt-feature-card"><strong>Build your schedule</strong><p>Apply construction templates, or add projects and tasks directly. Every item is stored in Supabase and visible across all views.</p><button onclick="openGanttTemplateModal()" class="crm-toolbar-btn mt-3">Apply Project Template</button><button onclick="openGanttItemModal(\'project\')" class="crm-toolbar-btn mt-3 ml-2">Add Project</button><button onclick="seedGanttSchedule()" class="crm-toolbar-btn mt-3 ml-2">Use starter schedule</button><input id="ganttImportInput" type="file" multiple class="hidden" onchange="ganttImportDocs(this)" /></div>' +
+      '<div class="gantt-feature-card"><strong>Real-time progress tracking</strong><p>Track in progress, complete, delayed, blocked, and pending tasks in one timeline.</p><div class="mt-3 h-2 rounded-full overflow-hidden" style="background:var(--surface-2)"><div style="height:100%;width:' + stats.progress + '%;background:var(--gold)"></div></div><p class="mt-2">' + stats.progress + '% average progress</p></div>' +
       '<div class="gantt-feature-card"><strong>Project health: ' + stats.health + '</strong><p>' + stats.overdue + ' overdue, ' + stats.blocked + ' blocked, and ' + stats.pendingConfirm + ' pending confirmation.</p><button onclick="publishGanttSchedule()" class="crm-toolbar-btn mt-3">Publish schedule</button><button onclick="focusGanttRisks()" class="crm-toolbar-btn mt-3 ml-2">Show risk chain</button></div>' +
     '</div>';
   if (GANTT_MODE === 'table') {
@@ -8372,6 +8515,124 @@ function bindGanttDependencyInspector() {
     });
   });
 }
+// -- FAB Dock (ctrl-p style) -----------------------------------
+function showGanttFAB(item, clientX, clientY) {
+  hideGanttFAB();
+  GANTT_FAB_ITEM = item;
+  const dock = document.createElement('div');
+  dock.className = 'gantt-fab-dock';
+  dock.dataset.ganttActionDock = '1';
+  const x = Math.min(Math.max(clientX + 14, 12), window.innerWidth - 360);
+  const y = Math.min(Math.max(clientY + 14, 12), window.innerHeight - 480);
+  dock.style.left = x + 'px';
+  dock.style.top  = y + 'px';
+  const typeLabel = ganttTypeLabel(item.type);
+  const svgIcons = {
+    link:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>',
+    plus:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v16m8-8H4"/></svg>',
+    user:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>',
+    contact:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>',
+    photo:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>',
+    video:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>',
+    file:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>',
+    product:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>',
+    select:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>',
+    note:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',
+    edit:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5l4 4L8 20H4v-4z"/></svg>',
+    hide:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19M1 1l22 22"/></svg>',
+    check:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>',
+    cancel:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M4.93 4.93l14.14 14.14"/></svg>',
+    copy:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>',
+    trash:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6l-1 14H6L5 6M10 11v6M14 11v6M9 6V4h6v2"/></svg>',
+    status:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>',
+  };
+  function btn(icon, label, action, danger) {
+    return '<button class="gantt-dock-action' + (danger ? ' danger' : '') + '" onclick="ganttFABAction(\'' + escAttr(action) + '\',\'' + escAttr(item.id) + '\')">' + svgIcons[icon] + '<span>' + label + '</span></button>';
+  }
+  dock.innerHTML =
+    '<div class="gantt-fab-header">' +
+      '<div><div class="gantt-fab-title">' + escHtml(item.title) + '</div><div class="gantt-fab-sub">' + typeLabel + ' — ' + escHtml(item.phase || item.project || '') + '</div></div>' +
+      '<button class="gantt-fab-close" onclick="hideGanttFAB()">&times;</button>' +
+    '</div>' +
+    '<div class="gantt-fab-grid">' +
+      btn('link',    'Connect',   'connect')  +
+      btn('plus',    'Add Task',  'addtask')  +
+      btn('user',    'Add User',  'adduser')  +
+      btn('contact', 'Contact',   'contact')  +
+      btn('photo',   'Photo',     'photo')    +
+      btn('video',   'Video',     'video')    +
+      btn('file',    'File',      'file')     +
+      btn('product', 'Product',   'product')  +
+      btn('select',  'Selection', 'selection') +
+      btn('note',    'Note',      'note')     +
+      btn('edit',    'Edit',      'edit')     +
+      btn('hide',    'Hide',      'hide')     +
+      btn('check',   'Complete',  'complete') +
+      btn('cancel',  'Cancel',    'cancel')   +
+      btn('copy',    'Duplicate', 'duplicate') +
+      btn('status',  'Status',    'status')   +
+      btn('trash',   'Delete',    'delete', true) +
+    '</div>';
+  document.body.appendChild(dock);
+
+  function onOutsidePointerDown(ev) {
+    if (ev.target.closest('[data-gantt-action-dock]') || ev.target.closest('[data-gantt-id]')) return;
+    hideGanttFAB();
+  }
+  function onEscape(ev) { if (ev.key === 'Escape') hideGanttFAB(); }
+  dock._cleanup = () => {
+    window.removeEventListener('pointerdown', onOutsidePointerDown);
+    window.removeEventListener('keydown', onEscape);
+  };
+  window.addEventListener('pointerdown', onOutsidePointerDown);
+  window.addEventListener('keydown', onEscape);
+}
+function hideGanttFAB() {
+  const dock = document.querySelector('[data-gantt-action-dock]');
+  if (dock) { if (dock._cleanup) dock._cleanup(); dock.remove(); }
+  GANTT_FAB_ITEM = null;
+}
+async function ganttFABAction(action, itemId) {
+  const item = GANTT_ITEMS.find(i => String(i.id) === String(itemId));
+  hideGanttFAB();
+  if (!item) return;
+  if (action === 'edit')     { openGanttItemModal(item.type, item.id); return; }
+  if (action === 'complete') { await completeScheduledItem(item.id); return; }
+  if (action === 'cancel')   { await cancelScheduledItem(item.id); return; }
+  if (action === 'hide')     { await toggleScheduledItemVisibility(item.id); return; }
+  if (action === 'delete')   { confirmDeleteScheduledItem(item.id); return; }
+  if (action === 'status')   { openGanttItemModal(item.type, item.id); return; }
+  if (action === 'addtask')  {
+    const child = ganttDefaultModel('task', ganttDateStr(new Date()));
+    child.project = item.project || ganttBoardTitle();
+    child.phase   = item.phase || '';
+    child.assignee = item.assignee || '';
+    openGanttItemModal('task');
+    return;
+  }
+  if (action === 'connect') {
+    // Start a dependency draft from this item's end handle
+    const handle = document.querySelector('.gantt-connector-handle.end[data-gantt-source="' + CSS.escape(String(item.id)) + '"]');
+    if (handle) handle.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: 0, clientY: 0 }));
+    showToast('Drag to another task handle to link a dependency.');
+    return;
+  }
+  if (action === 'duplicate') { await duplicateGanttItem(item); return; }
+  if (action === 'note')      { openGanttItemModal(item.type, item.id); return; }
+  // For photo, video, file, product, selection, contact, adduser — open the edit modal
+  openGanttItemModal(item.type, item.id);
+}
+async function duplicateGanttItem(item) {
+  const copy = { ...item, id: '', title: item.title + ' (copy)', sort_order: (Number(item.sort_order) || 0) + 1 };
+  try {
+    await persistGanttItem(copy);
+    showToast('Duplicated: ' + item.title);
+    await renderFBGantt(true);
+  } catch (err) {
+    showToast(err.message || 'Could not duplicate item');
+  }
+}
+
 function bindGanttDrag() {
   bindGanttDependencyDrag();
   bindGanttDependencyRewire();
@@ -8426,13 +8687,13 @@ function bindGanttDrag() {
     bar.addEventListener('pointerup', async e => {
       const moved = GANTT_DRAG?.moved;
       const deltaDays = GANTT_DRAG?.deltaDays || 0;
-      const id = bar.dataset.ganttId;
       const item = GANTT_DRAG?.item;
       document.querySelectorAll('.gantt-bar.dragging').forEach(b => b.classList.remove('dragging'));
       hideGanttDurationTip();
       if (GANTT_DRAG) {
         GANTT_DRAG = null;
         if (moved && item) {
+          GANTT_SUPPRESS_FAB = true;
           try {
             await persistGanttItem(item);
             const shifted = await autoShiftDependentItems(item.id, deltaDays);
@@ -8441,11 +8702,17 @@ function bindGanttDrag() {
             showToast(err.message || 'Could not save schedule change');
           }
           await renderFBGantt(true);
+          window.setTimeout(() => { GANTT_SUPPRESS_FAB = false; }, 120);
+          return;
         }
       }
-      if (!moved) openGanttItemModal(item?.type || 'task', id);
+      // Clean click (no drag) — open FAB dock at pointer position
+      if (!GANTT_SUPPRESS_FAB && item) {
+        showGanttFAB(item, e.clientX, e.clientY);
+      }
+      GANTT_SUPPRESS_FAB = false;
     });
-    bar.addEventListener('pointercancel', hideGanttDurationTip);
+    bar.addEventListener('pointercancel', () => { hideGanttDurationTip(); GANTT_DRAG = null; });
   });
 }
 function showGanttDurationTip(x, y, item, mode) {

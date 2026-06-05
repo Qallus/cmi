@@ -1,1112 +1,626 @@
-# Constructed Matter CRM — Gantt Project Management Feature
+# Constructed Matter — Gantt Project Management
 
-## File Purpose
+## Document Purpose
 
-This document defines the **Gantt Chart Project Management** feature for the Constructed Matter, Inc. Staff Dashboard.
+Source-of-truth reference for the **Gantt Project Management** feature inside the CMI Staff Dashboard.
 
-Use this as the source-of-truth planning document for Codex when building the project management, scheduling, task tracking, punch list, and client-visible timeline functionality inside the CMI CRM.
+Covers: current implementation, data architecture, UI patterns, FAB dock system, view tabs, project templates, and planned extensions.
 
-Recommended file name:
-
-`Gantt-Management.md`
-
-Recommended location:
-
-`/docs/Gantt-Management.md`
-
-Alternative location:
-
-`/docs/features/Gantt-Management.md`
+File location: `docs/features/Gantt-Management.md`
 
 ---
 
-## Feature Overview
+## Implementation Status
 
-The Gantt Chart Project Management feature gives Constructed Matter a clear, visual way to manage project schedules from start to finish inside the CRM.
+The feature is **live** inside `staff-dashboard.html` under the `Projects` section (nav label: `Project Management`).
 
-Each project should be broken down into phases, milestones, tasks, deadlines, dependencies, punch items, assignments, and project updates. The goal is to give internal staff, subcontractors, vendors, and clients the appropriate level of visibility into what is happening, when it is happening, and who is responsible.
-
-This feature should work inside the CMI Staff Dashboard and eventually connect to the Client Dashboard where selected project milestones, schedule updates, and visible tasks can be shared with clients.
-
-The experience should feel similar to a modern construction management platform like Buildertrend, but customized for Constructed Matter’s own CRM, workflows, branding, and dashboard structure.
+All project data is served from **Supabase** via the `GANTT_ITEMS` table. FluentBoards, WordPress, and other WordPress integrations are optional sync targets — not dependencies. Any project or task can be created independently from within the dashboard.
 
 ---
 
-## Primary Goals
+## Supabase-First Architecture
 
-The Gantt Project Management feature should help CMI:
+### Source of Truth
 
-- Manage full project timelines from proposal to closeout.
-- Create project phases and tasks with start dates, due dates, owners, and dependencies.
-- Track progress visually using a Gantt-style timeline.
-- Assign work to staff, subcontractors, and vendors.
-- Identify delays, blockers, and schedule conflicts.
-- Connect punch list items to project closeout.
-- Give clients a clean, simplified schedule view.
-- Improve internal communication and accountability.
-- Reduce missed deadlines and unclear project ownership.
-- Create a scalable foundation for future construction management SaaS features.
+`GANTT_ITEMS` loaded via `/api/project-schedule-items` is the single source of truth for every view in the Projects section.
 
----
+```
+Supabase GANTT_ITEMS
+  → Gantt timeline
+  → List view
+  → Table view
+  → Kanban view
+  → Calendar view
+  → Stats bar
+```
 
-## Staff Dashboard Placement
+FluentBoards (`FB_TASKS`) is used only for the **My Tasks** tab as a supplemental integration. No core view depends on it. If FluentBoards is disconnected, all other views still load normally.
 
-Add this feature to the **CMI Staff Dashboard** as a major dashboard module.
+### Data Loading
 
-Suggested navigation label:
+```javascript
+// Load from Supabase
+await loadGanttItems(forceLoad);
 
-`Project Management`
+// Read cached items
+GANTT_ITEMS  // global array
 
-Suggested sub-navigation:
+// Filter for active view
+ganttFilteredItems()
 
-- Project Timeline
-- Gantt Chart
-- Tasks
-- Milestones
-- Punch List
-- Schedule Updates
-- Subcontractor Assignments
-- Client Visibility
-- Reports
+// Compute stats
+ganttScheduleStats()
+```
 
----
+### Offline/Fallback Behavior
 
-## Recommended Dashboard Pages
-
-### 1. Project Management Overview
-
-A high-level project management landing page for staff.
-
-Should include:
-
-- Active projects
-- Project status
-- Project manager
-- Start date
-- Target completion date
-- Days remaining
-- Schedule health
-- Open tasks
-- Overdue tasks
-- Open punch items
-- Upcoming milestones
-
-Suggested UI components:
-
-- Project cards
-- Project status badges
-- Schedule health indicators
-- Quick action buttons
-- Search and filters
-- Table/list toggle
+If `GANTT_ITEMS` is empty and the API call fails, each view renders an empty state with a "No items found" message rather than crashing or showing stale data from a third-party.
 
 ---
 
-### 2. Project Gantt Chart Page
+## Page Layout
 
-The main visual scheduling page.
+```
+┌─────────────────────────────────────────────────────┐
+│  Section Header  (Project Management)               │
+├─────────────────────────────────────────────────────┤
+│  #fb-stats-wrap  — Stats bar (always visible)       │
+│  Active projects · Open tasks · Overdue · Health    │
+├─────────────────────────────────────────────────────┤
+│  View Tabs                                          │
+│  [Gantt] [List] [Table] [Kanban] [Calendar]         │
+│  [Project Templates] [My Tasks]                     │
+├─────────────────────────────────────────────────────┤
+│  #fb-content-wrap — Active view content             │
+│                                                     │
+│  (Gantt timeline / list / table / kanban /          │
+│   calendar / template gallery / my tasks)           │
+├─────────────────────────────────────────────────────┤
+│  Scheduled Items Accordion (collapsible)            │
+│  Grouped project rows → expandable task list        │
+└─────────────────────────────────────────────────────┘
+```
 
-Should include:
+### Stats Bar (`#fb-stats-wrap`)
 
-- Project phases
-- Tasks
-- Milestones
-- Dependencies
-- Date ranges
-- Drag-and-drop date adjustments if supported
-- Status colors
-- Assigned users
-- Critical path indicators if possible
-- Zoom controls: week, month, quarter
-- Internal/client visibility indicators
+Populated by `updateFBStatsWrap()` using `ganttScheduleStats()`.
 
-Suggested controls:
+Always visible above the view tabs — not embedded inside any individual view. Switching tabs does not move or hide the stats.
 
-- Filter by project
-- Filter by phase
-- Filter by assignee
-- Filter by status
-- Filter by client-visible items
-- Export schedule
-- Add phase
-- Add task
-- Add milestone
+Stats shown:
+- Active projects count
+- Open tasks count
+- Overdue tasks count
+- Schedule health indicator
+- Percent complete (weighted average)
 
----
-
-### 3. Task List Page
-
-A list/table view of all tasks connected to project schedules.
-
-Should include:
-
-- Task name
-- Project
-- Phase
-- Assigned user
-- Start date
-- Due date
-- Priority
-- Status
-- Percent complete
-- Dependency/blocker
-- Client visibility
-- Last updated
+`updateFBStatsWrap()` is called from every view render function so stats stay current regardless of which tab is active.
 
 ---
 
-### 4. Milestones Page
+## View Tabs
 
-A timeline or table view of key project checkpoints.
+Default active view is **Gantt**.
 
-Should include:
+| Tab | ID | Data Source | Description |
+|---|---|---|---|
+| Gantt | `fb-tab-gantt` | `GANTT_ITEMS` | Visual timeline with draggable bars |
+| List | `fb-tab-list` | `GANTT_ITEMS` | Project groups with expandable task rows |
+| Table | `fb-tab-table` | `GANTT_ITEMS` | Dense 11-column data table |
+| Kanban | `fb-tab-kanban` | `GANTT_ITEMS` | Status-column swim lanes |
+| Calendar | `fb-tab-calendar` | `GANTT_ITEMS` | Month grid by end date |
+| Project Templates | `fb-tab-templates` | `CMI_PROJECT_TEMPLATES` | Template tile gallery |
+| My Tasks | `fb-tab-mytasks` | `FB_TASKS` (FluentBoards) | Staff-assigned tasks only |
 
-- Milestone name
-- Project
-- Related phase
-- Target date
-- Actual completion date
-- Status
-- Notes
-- Client-visible toggle
-
----
-
-### 5. Punch List Page
-
-A closeout-focused task list for punch items, repairs, incomplete work, client walkthroughs, and final approvals.
-
-Should include:
-
-- Punch item title
-- Project
-- Room/area
-- Assigned user/vendor
-- Priority
-- Due date
-- Status
-- Photo uploads
-- Before/after images
-- Client approval status
-- Internal notes
+Tab switching calls `switchFBView(view)` which:
+1. Sets `FB_VIEW = view`
+2. Calls `hideGanttFAB()` to dismiss any open FAB dock
+3. Toggles `active` class on all tab buttons
+4. Calls `renderFBView()` to render the selected view
 
 ---
 
-### 6. Schedule Updates Page
+## Project Hierarchy
 
-Used to log timeline changes, delay reasons, and client/team notifications.
+Projects are the **parent**. Tasks belong to projects.
 
-Should include:
+In `GANTT_ITEMS` the relationship is expressed via:
+- `item.project` — project key/name string used for grouping
+- `item.schedule_group_key` — alternate grouping key
+- `item.parent_item_id` — for task-to-task nesting (subtasks)
+- `item.item_type` — `'project'` or `'task'` or `'milestone'`
 
-- Project
-- Related task/phase/milestone
-- Previous date
-- Updated date
-- Reason for schedule change
-- Impact notes
-- Notify team toggle
-- Notify client toggle
-- Updated by
-- Updated date/time
+`buildScheduledProjectGroups()` groups `GANTT_ITEMS` by project key and returns an ordered map of `{ projectKey → [items] }`.
 
----
+### Hierarchy Display
 
-## User Roles and Permissions
+```
+Project A  (parent row / section header)
+  ├── Phase: Pre-Construction
+  │     ├── Task: Design Review
+  │     └── Task: Permit Submission
+  ├── Phase: Framing
+  │     ├── Task: Frame Walls
+  │     └── Task: Roof Decking
+  └── Milestone: Construction Start
+```
 
-The feature should respect CMI user roles.
-
-### Super Admin
-
-Can:
-
-- View all projects
-- Create/edit/delete phases
-- Create/edit/delete tasks
-- Manage milestones
-- Manage punch list
-- Assign users
-- Change visibility settings
-- View all internal and client-visible items
-- Export reports
-- Manage templates
-
-### Staff
-
-Can:
-
-- View assigned projects
-- Create/edit tasks depending on permissions
-- Update task status
-- Add schedule updates
-- Manage punch items
-- Upload files/photos
-- Add internal notes
-
-### Project Manager
-
-Can:
-
-- Manage full schedule for assigned projects
-- Assign staff, subcontractors, and vendors
-- Create phases, tasks, and milestones
-- Approve completed punch items
-- Control client visibility
-- Send schedule updates
-
-### Subcontractor
-
-Can:
-
-- View assigned tasks only
-- View project access instructions
-- Update task status if allowed
-- Upload completion photos
-- Add notes to assigned tasks
-- Confirm availability or completion
-
-### Vendor
-
-Can:
-
-- View assigned procurement or delivery tasks
-- Confirm delivery dates
-- Upload documents
-- Add status updates
-
-### Client
-
-Can:
-
-- View client-visible milestones
-- View approved schedule updates
-- View selected tasks if enabled
-- View punch list items requiring approval
-- Submit comments or approval if enabled
+In Gantt view, projects render as bold header rows with a wider bar. Tasks render as indented child rows.
 
 ---
 
-## Core Data Models
+## Gantt View
 
-Codex should adapt these models to the existing app architecture, database, ORM, API routes, and dashboard component structure.
+### Rendering
 
-### Project
+`renderFBGantt(forceLoad?)` — async function.
 
-Represents a CMI construction project.
+Loads `GANTT_ITEMS`, computes stats, renders stats wrap, then builds the timeline SVG/canvas from `ganttFilteredItems()`.
 
-Suggested fields:
+Items with `visible_on_gantt === false` are excluded from the timeline but remain in other views.
 
-- id
-- project_name
-- client_id
-- project_manager_id
-- project_address
-- project_type
-- start_date
-- target_completion_date
-- actual_completion_date
-- project_status
-- schedule_health
-- project_visibility
-- created_at
-- updated_at
+### Bar Interaction
+
+Gantt bars support:
+- **Drag to reschedule** — changes `start` and `end` dates, saves to Supabase
+- **Click center → FAB dock** — shows the context action menu (see FAB section below)
+
+Drag and click are distinguished by the `GANTT_SUPPRESS_FAB` flag (see Suppress Pattern below).
+
+### Zoom
+
+Timeline zoom levels: Week / Month / Quarter
 
 ---
 
-### Project Phase
+## FAB Dock System
 
-Represents a major section of the project timeline.
+The FAB dock is a floating context menu that appears when a user **clicks the center** of a Gantt bar. It provides quick actions for the selected item without navigating away from the timeline.
 
-Suggested fields:
+Design reference: ctrl-p.io Gantt implementation (`suppressNextSelectRef` pattern).
 
-- id
-- project_id
-- phase_name
-- phase_description
-- start_date
-- end_date
-- phase_status
-- assigned_manager_id
-- display_order
-- client_visible
-- internal_notes
-- created_at
-- updated_at
+### Triggering the FAB
 
-Example phase names:
+1. User clicks a Gantt bar (no drag movement detected)
+2. `pointerup` handler checks `GANTT_SUPPRESS_FAB` is `false`
+3. Calls `showGanttFAB(item, clientX, clientY)`
 
-- Pre-Construction
-- Design / Planning
-- Permitting
-- Procurement
-- Site Preparation
-- Framing
-- Mechanical / Electrical / Plumbing
-- Interior Finishes
-- Inspections
-- Final Walkthrough
-- Closeout
+### FAB Position
 
----
+The dock is positioned at `position:fixed` clamped to viewport bounds so it never overflows the screen edge.
 
-### Project Task
+```javascript
+const x = Math.min(clientX, window.innerWidth - 360);
+const y = Math.min(clientY, window.innerHeight - 420);
+```
 
-Represents a scheduled task inside a project phase.
+### FAB DOM Structure
 
-Suggested fields:
+```html
+<div class="gantt-fab-dock" data-gantt-action-dock style="left:Xpx;top:Ypx;">
+  <div class="gantt-fab-header">
+    <div>
+      <div class="gantt-fab-title">Item Name</div>
+      <div class="gantt-fab-sub">Project · Phase · Status</div>
+    </div>
+    <button class="gantt-fab-close">×</button>
+  </div>
+  <div class="gantt-fab-grid">
+    <!-- 3-column grid of action buttons -->
+  </div>
+</div>
+```
 
-- id
-- project_id
-- phase_id
-- task_name
-- task_description
-- assigned_to_user_id
-- assigned_to_company_id
-- start_date
-- due_date
-- estimated_duration
-- percent_complete
-- task_status
-- task_priority
-- dependency_task_id
-- is_blocked
-- blocker_reason
-- client_visible
-- attachments
-- internal_notes
-- created_by
-- created_at
-- updated_at
+The `data-gantt-action-dock` attribute is used by the outside-click listener to identify the dock element.
 
-Recommended statuses:
+### FAB Actions (17 total)
 
-- Not Started
-- In Progress
-- Waiting on Materials
-- Waiting on Subcontractor
-- Needs Review
-- Completed
-- Approved
-- Reopened
-- Blocked
+| Action | Label | Icon | Behavior |
+|---|---|---|---|
+| `edit` | Edit Item | pencil | Opens `openGanttItemModal(item)` |
+| `complete` | Mark Complete | check-circle | Sets `status = 'complete'`, saves |
+| `cancel` | Cancel Item | x-circle | Sets `status = 'cancelled'`, saves |
+| `status` | Change Status | toggle | Opens status select dropdown |
+| `addtask` | Add Task | plus-circle | Opens `openGanttItemModal('task')` pre-linked to this item's project |
+| `duplicate` | Duplicate | copy | Calls `duplicateGanttItem(item)` |
+| `note` | Add Note | chat | Opens note input for this item |
+| `photo` | Add Photo | camera | Opens file picker filtered to images |
+| `video` | Add Video | video | Opens video URL or file input |
+| `file` | Add File | paperclip | Opens file picker |
+| `product` | Add Product | package | Opens product/material selector |
+| `selection` | Add Selection | swatches | Opens material selection input |
+| `contact` | Add Contact | user-plus | Links a contact/client to this item |
+| `adduser` | Add Assignee | users | Opens user assignment picker |
+| `connect` | Connect / Link | link | Opens dependency/link selector |
+| `hide` | Hide from Gantt | eye-off | Sets `visible_on_gantt = false`, saves |
+| `delete` | Delete Item | trash | Confirms then deletes (danger style) |
 
-Recommended priorities:
+Delete uses `.gantt-dock-action.danger` styling (red color scheme).
 
-- Low
-- Normal
-- High
-- Critical
-- Blocking Closeout
+### FAB Dismissal
 
----
+The FAB dock closes on:
+- Clicking the `×` close button
+- Clicking anywhere outside the dock (`pointerdown` on `document`)
+- Pressing `Escape` key
+- Switching view tabs (`switchFBView` calls `hideGanttFAB()`)
 
-### Project Milestone
+Listeners are attached when the dock opens and removed when it closes.
 
-Represents a key project checkpoint.
+```javascript
+function hideGanttFAB() {
+  const dock = document.querySelector('[data-gantt-action-dock]');
+  if (dock) dock.remove();
+  document.removeEventListener('pointerdown', _fabOutsideHandler);
+  document.removeEventListener('keydown', _fabEscHandler);
+  GANTT_FAB_ITEM = null;
+}
+```
 
-Suggested fields:
+### Suppress Pattern
 
-- id
-- project_id
-- phase_id
-- milestone_name
-- target_date
-- actual_completion_date
-- milestone_status
-- client_visible
-- notes
-- created_at
-- updated_at
+`GANTT_SUPPRESS_FAB` is a global boolean that prevents the FAB from opening when the user releases a drag operation.
 
-Example milestones:
+```javascript
+// In pointerup handler (bindGanttDrag):
+if (moved && item) {
+  GANTT_SUPPRESS_FAB = true;
+  // save new dates + re-render
+  window.setTimeout(() => { GANTT_SUPPRESS_FAB = false; }, 120);
+  return;
+}
+// Clean click — show FAB
+if (!GANTT_SUPPRESS_FAB && item) {
+  showGanttFAB(item, e.clientX, e.clientY);
+}
+GANTT_SUPPRESS_FAB = false;
+```
 
-- Contract Signed
-- Permit Submitted
-- Permit Approved
-- Materials Ordered
-- Construction Start
-- Inspection Passed
-- Final Walkthrough
-- Project Complete
+The 120ms timeout gives the browser time to fire any residual pointer events before the flag resets.
 
 ---
 
-### Task Dependency
+## List View
 
-Represents a relationship between two tasks.
+`renderFBList()` — async.
 
-Suggested fields:
+Renders `GANTT_ITEMS` grouped by project using `buildScheduledProjectGroups()`.
 
-- id
-- project_id
-- parent_task_id
-- dependent_task_id
-- dependency_type
-- required_completion_date
-- delay_impact_notes
-- auto_shift_schedule
-- created_at
-- updated_at
+### Columns
 
-Example dependency types:
+| Column | Field |
+|---|---|
+| Task | `item.title` |
+| Phase | `item.phase` |
+| Status | `item.status` (badge) |
+| Assignee | `item.assignee` |
+| Due | `item.end` |
+| Progress | `item.progress` % bar |
+| Visibility | `item.client_visible` toggle |
 
-- Finish to Start
-- Start to Start
-- Finish to Finish
-- Start to Finish
+### Structure
 
----
+Each project group renders as a collapsible section:
+- Section header: project name, task count, health indicator
+- Expandable task rows below
 
-### Schedule Update
-
-Tracks timeline changes and project schedule communication.
-
-Suggested fields:
-
-- id
-- project_id
-- related_type
-- related_id
-- previous_start_date
-- previous_due_date
-- updated_start_date
-- updated_due_date
-- status_update
-- reason_for_change
-- schedule_impact
-- notify_client
-- notify_team
-- created_by
-- created_at
+Clicking a task row opens `openGanttItemModal(item)`.
 
 ---
 
-### Punch Item
+## Table View
 
-Represents an individual punch list item.
+`renderFBTable()` — async.
 
-Suggested fields:
+Dense tabular view of all `GANTT_ITEMS`.
 
-- id
-- project_id
-- phase_id
-- room_area_id
-- punch_title
-- punch_description
-- assigned_to_user_id
-- assigned_to_company_id
-- priority
-- due_date
-- status
-- photo_uploads
-- file_attachments
-- before_photo
-- after_photo
-- client_visible
-- client_approval_required
-- client_approval_status
-- project_manager_approval_status
-- internal_notes
-- created_by
-- completed_by
-- completed_at
-- created_at
-- updated_at
+### Columns (11)
+
+Task · Project · Phase · Status · Priority · Assignee · Start · Due · Progress · Visibility · Type
+
+Priority color-coding via `ganttPriorityColor(priority)`:
+- Critical → red
+- High → orange
+- Normal → gold
+- Low → muted
 
 ---
 
-### Room / Area
+## Kanban View
 
-Used to group punch items by location.
+`renderFBKanban()` — async.
 
-Suggested fields:
+Groups `GANTT_ITEMS` into status swim lanes displayed as horizontal columns.
 
-- id
-- project_id
-- room_area_name
-- area_status
-- assigned_reviewer_id
-- notes
-- completion_date
-- created_at
-- updated_at
+### Columns (7)
 
-Example areas:
+| Column | Status Value |
+|---|---|
+| Not Started | `not_started` / empty |
+| In Progress | `in_progress` |
+| Waiting | `waiting` |
+| Delayed | `delayed` |
+| Needs Review | `needs_review` |
+| Blocked | `blocked` |
+| Complete | `complete` / `done` |
 
-- Kitchen
-- Primary Bathroom
-- Living Room
-- Exterior
-- Garage
-- Entry
-- Office
-- Mechanical Room
-- Landscape Area
+Each card shows: title, project, phase, assignee avatar/name, due date, progress bar. Clicking a card opens `openGanttItemModal(item)`.
 
 ---
 
-## Forms Required
+## Calendar View
 
-### 1. Project Schedule Setup Form
+`renderFBCalendar()` — async.
 
-Purpose:
+Month grid populated by `GANTT_ITEMS` using `item.end` (due date) as the primary date and `item.start` as fallback.
 
-Used to create the initial project timeline.
-
-Fields:
-
-- Project Name
-- Client Name
-- Project Address
-- Project Manager
-- Start Date
-- Target Completion Date
-- Project Type
-- Project Phase Template
-- Internal Notes
-- Client Visibility Toggle
+Clicking an item opens `openGanttItemModal(item)` — not the FluentBoards task modal.
 
 ---
 
-### 2. Project Phase Form
+## Project Templates View
 
-Purpose:
+`renderFBTemplates()` — synchronous (reads `window.CMI_PROJECT_TEMPLATES`).
 
-Used to create major timeline sections inside the Gantt chart.
+Source file: `assets/cmi-project-templates.js`
 
-Fields:
+### Template Data Shape
 
-- Phase Name
-- Phase Description
-- Phase Start Date
-- Phase End Date
-- Phase Status
-- Assigned Manager
-- Display Order
-- Client Visible / Internal Only
-- Phase Notes
+```javascript
+window.CMI_PROJECT_TEMPLATES = [
+  {
+    name: "Kitchen Remodel",
+    slug: "kitchen-remodel",
+    category: "Residential Remodel",
+    description: "Full kitchen renovation...",
+    suggested_duration_days: 45,
+    tasks: [
+      { name: "Demo existing kitchen", phase: "Demo", duration_days: 2 },
+      // ...
+    ]
+  },
+  // ...
+]
+```
 
----
+### Available Templates (11)
 
-### 3. Task Creation Form
+Categories and templates:
 
-Purpose:
+| Category | Templates |
+|---|---|
+| Residential Remodel | Kitchen Remodel, Bathroom Remodel, Basement Finish |
+| Residential New Build | Custom Home Build |
+| Residential Addition | Home Addition |
+| Commercial | Commercial Build-Out, Office Renovation |
+| Landscape / Outdoor Living | Outdoor Living Space, Pool & Landscape |
+| Exterior | Exterior Renovation, Roofing Project |
 
-Used to add individual tasks to the project timeline.
+### Template Gallery UI
 
-Fields:
+Templates render as a tile grid (`gantt-template-gallery`).
 
-- Task Name
-- Task Description
-- Related Project
-- Related Phase
-- Start Date
-- Due Date
-- Assigned To
-- Task Priority
-- Task Status
-- Dependency / Blocking Task
-- Estimated Duration
-- Percent Complete
-- Attachments
-- Internal Notes
-- Client Visibility Toggle
+Each tile shows:
+- Category badge (gold, uppercase)
+- Template name
+- Short description
+- Duration and task count
 
----
+Clicking a tile calls `openGanttTemplateModal(slug)` to start a new project from that template.
 
-### 4. Milestone Form
+### Adding Templates
 
-Purpose:
-
-Used to define important project checkpoints.
-
-Fields:
-
-- Milestone Name
-- Target Date
-- Actual Completion Date
-- Related Project
-- Related Phase
-- Milestone Status
-- Notes
-- Client Visible Toggle
+Add new entries to `assets/cmi-project-templates.js` in the `window.CMI_PROJECT_TEMPLATES` array. No other file changes needed.
 
 ---
 
-### 5. Task Dependency Form
+## My Tasks View
 
-Purpose:
+`renderFBMyTasks()` — uses `FB_TASKS` from FluentBoards (the only view with a WordPress dependency).
 
-Used to connect tasks that rely on each other.
-
-Fields:
-
-- Parent Task
-- Dependent Task
-- Dependency Type
-- Required Completion Date
-- Delay Impact Notes
-- Auto-Shift Schedule Toggle
+Shows tasks assigned to the currently logged-in staff user. Falls back gracefully if FluentBoards is not connected.
 
 ---
 
-### 6. Schedule Update Form
+## CSS Classes Reference
 
-Purpose:
+### FAB Dock
 
-Used by project managers to update dates, statuses, progress, delays, and schedule impact.
+| Class | Purpose |
+|---|---|
+| `.gantt-fab-dock` | Fixed-position dock container (z-index: 90) |
+| `.gantt-fab-header` | Title + close button row |
+| `.gantt-fab-title` | Item name (truncated) |
+| `.gantt-fab-sub` | Project · phase · status subtitle |
+| `.gantt-fab-close` | Circle × button |
+| `.gantt-fab-grid` | 3-column action button grid |
+| `.gantt-dock-action` | Individual action button |
+| `.gantt-dock-action.danger` | Red-tinted destructive action (Delete) |
 
-Fields:
+### Template Gallery
 
-- Related Project
-- Related Task / Phase / Milestone
-- Current Status
-- Previous Start Date
-- Previous Due Date
-- Updated Start Date
-- Updated Due Date
-- Percent Complete
-- Reason for Change
-- Schedule Impact
-- Notify Client Toggle
-- Notify Team Toggle
+| Class | Purpose |
+|---|---|
+| `.gantt-template-gallery` | Auto-fill tile grid |
+| `.gantt-template-tile` | Individual template card |
+| `.t-cat` | Category label (gold uppercase) |
+| `.t-meta` | Bottom meta row (duration + task count) |
 
----
+### Stats Bar
 
-### 7. Subcontractor Task Assignment Form
-
-Purpose:
-
-Used to assign work to subcontractors or vendors.
-
-Fields:
-
-- Project
-- Task / Scope of Work
-- Subcontractor / Vendor
-- Contact Person
-- Start Date
-- Due Date
-- Required Documents
-- Access Instructions
-- Notes
-- Confirmation Status
+| Selector | Purpose |
+|---|---|
+| `#fb-stats-wrap` | Container above view tabs |
+| `.gantt-overview` | Stats layout inside wrap |
 
 ---
 
-### 8. Client Schedule View Settings Form
+## Key Functions Reference
 
-Purpose:
-
-Used to control what the client can see.
-
-Fields:
-
-- Project
-- Visible Phases
-- Visible Milestones
-- Hidden Internal Tasks
-- Show Completion Percent
-- Show Delays
-- Show Notes
-- Client Notification Preferences
-
----
-
-## Punch / Task List Forms
-
-### 1. Punch Item Form
-
-Purpose:
-
-Used to create individual punch list items.
-
-Fields:
-
-- Punch Item Title
-- Description
-- Related Project
-- Related Room / Area
-- Related Phase
-- Assigned To
-- Priority
-- Due Date
-- Status
-- Photo Upload
-- File Attachment
-- Client Visible Toggle
-- Internal Notes
+| Function | Description |
+|---|---|
+| `loadGanttItems(force?)` | Fetches `GANTT_ITEMS` from Supabase |
+| `ganttFilteredItems()` | Returns filtered subset of `GANTT_ITEMS` |
+| `ganttScheduleStats()` | Computes project health stats |
+| `updateFBStatsWrap()` | Renders stats into `#fb-stats-wrap` |
+| `buildScheduledProjectGroups()` | Groups items by project key |
+| `switchFBView(view)` | Switches active tab and renders view |
+| `renderFBView()` | Dispatches to the active view's render function |
+| `renderFBGantt(force?)` | Gantt timeline view |
+| `renderFBList()` | List view |
+| `renderFBTable()` | Table view |
+| `renderFBKanban()` | Kanban view |
+| `renderFBCalendar()` | Calendar view |
+| `renderFBTemplates()` | Template gallery view |
+| `renderFBMyTasks()` | My Tasks view (FluentBoards) |
+| `showGanttFAB(item, x, y)` | Opens FAB dock at viewport position |
+| `hideGanttFAB()` | Closes FAB dock and removes listeners |
+| `ganttFABAction(action, itemId)` | Executes a FAB dock action |
+| `duplicateGanttItem(item)` | Clones a GANTT_ITEM with "(copy)" suffix |
+| `ganttPriorityColor(priority)` | Returns CSS color string for priority |
+| `bindGanttDrag(bar, item)` | Attaches drag-to-reschedule + click-to-FAB |
+| `openGanttItemModal(item)` | Opens create/edit modal for a GANTT_ITEM |
+| `openGanttTemplateModal(slug?)` | Opens new-project-from-template modal |
 
 ---
 
-### 2. Room / Area Punch List Form
+## Global State Variables
 
-Purpose:
-
-Used to organize punch items by location.
-
-Fields:
-
-- Project
-- Room / Area Name
-- Area Status
-- Assigned Reviewer
-- Notes
-- Completion Date
+| Variable | Type | Description |
+|---|---|---|
+| `GANTT_ITEMS` | Array | Cached items from Supabase |
+| `GANTT_LOADED_KEY` | String | Board key for cache invalidation |
+| `GANTT_FAB_ITEM` | Object / null | Currently selected item in FAB dock |
+| `GANTT_SUPPRESS_FAB` | Boolean | Prevents FAB on drag release |
+| `FB_VIEW` | String | Active view tab name (default: `'gantt'`) |
+| `FB_TASKS` | Array | FluentBoards tasks (My Tasks only) |
 
 ---
 
-### 3. Punch Review Form
-
-Purpose:
-
-Used during walkthroughs, inspections, or internal reviews.
-
-Fields:
-
-- Project
-- Reviewer Name
-- Review Date
-- Area Reviewed
-- New Punch Items
-- Photos
-- Notes
-- Client Comments
-- Signature / Approval
-
----
-
-### 4. Punch Completion Form
-
-Purpose:
-
-Used to mark punch items as completed.
-
-Fields:
-
-- Punch Item
-- Completed By
-- Completion Date
-- Completion Notes
-- Before Photo
-- After Photo
-- Client Approval Required
-- Project Manager Approval
-- Final Status
-
----
-
-### 5. Client Approval Form
-
-Purpose:
-
-Used when the client needs to approve completed work.
-
-Fields:
-
-- Project
-- Punch Item
-- Client Approval Status
-- Client Notes
-- Approval Date
-- Signature
-- Reopen Item Toggle
-
----
-
-## Task Categories
-
-Recommended categories:
-
-- Design
-- Permitting
-- Selections
-- Procurement
-- Construction
-- Subcontractor Work
-- Inspection
-- Change Order
-- Client Decision
-- Pay Application
-- Closeout
-- Warranty
-- Punch List
-
----
-
-## Gantt Chart Behavior
-
-The Gantt chart should visually represent the relationship between phases, tasks, milestones, and schedule changes.
-
-Required behavior:
-
-- Show project phases as grouped timeline sections.
-- Show individual tasks as timeline bars.
-- Show milestones as fixed date markers.
-- Show dependencies between tasks.
-- Show overdue tasks clearly.
-- Show blocked tasks clearly.
-- Allow filtering by project, phase, assignee, task status, and priority.
-- Allow staff to update task status.
-- Allow project managers to adjust dates.
-- Keep a history of schedule changes.
-- Respect client visibility settings.
-- Support a simplified client-facing timeline view.
-
-Preferred behavior:
-
-- Drag-and-drop task rescheduling.
-- Auto-shift dependent tasks when a blocking task moves.
-- Critical path highlighting.
-- Color-coded statuses.
-- Progress percentage on task bars.
-- Expand/collapse phases.
-- Export to PDF or CSV.
-- Calendar sync in a future phase.
-
----
-
-## Client Visibility Rules
-
-Not everything in the Gantt chart should be visible to clients.
-
-Client-visible items may include:
-
-- Major phases
-- Key milestones
-- Approved schedule updates
-- Final walkthrough dates
-- Client decision deadlines
-- Punch items requiring client approval
-
-Internal-only items may include:
-
-- Staff notes
-- Subcontractor/vendor comments
-- Internal task assignments
-- Cost-sensitive work
-- Scheduling conflicts
-- Private delays
-- Internal blockers
-- Management notes
-
-Every phase, task, milestone, punch item, and schedule update should include a client visibility setting.
-
----
-
-## Notifications
-
-This feature should eventually support notifications.
-
-Potential notification triggers:
-
-- New task assigned
-- Task due soon
-- Task overdue
-- Task completed
-- Task blocked
-- Milestone reached
-- Schedule changed
-- Punch item added
-- Punch item completed
-- Client approval requested
-- Client approved punch item
-- Client reopened punch item
-
-Possible notification channels:
-
-- In-app notification
-- Email
-- SMS in a future phase
-- Dashboard alert
-
----
-
-## Reports and Exports
-
-Future reporting options:
-
-- Project schedule report
-- Open task report
-- Overdue task report
-- Punch list report
-- Client-visible timeline export
-- Subcontractor task report
-- Project closeout report
-- Schedule delay report
-
----
-
-## Suggested Implementation Phases
-
-### Phase 1 — Data and Basic UI
-
-Build the foundation.
-
-Tasks:
-
-- Create data models for phases, tasks, milestones, schedule updates, and punch items.
-- Add Project Management navigation to the Staff Dashboard.
-- Build basic task list page.
-- Build basic phase and milestone forms.
-- Build project-level schedule overview.
-- Add client visibility toggles.
-
----
-
-### Phase 2 — Gantt Timeline View
-
-Build the visual scheduling interface.
-
-Tasks:
-
-- Add Gantt chart component.
-- Display phases, tasks, and milestones.
-- Add filters and date controls.
-- Add status colors.
-- Add task details drawer/modal.
-- Add basic dependency display.
-
----
-
-### Phase 3 — Punch List and Closeout
-
-Build punch list management.
-
-Tasks:
-
-- Add punch item model and forms.
-- Add room/area grouping.
-- Add photo/file uploads.
-- Add completion workflow.
-- Add client approval workflow.
-- Connect punch items to project closeout status.
-
----
-
-### Phase 4 — Notifications and Client Visibility
-
-Improve communication.
-
-Tasks:
-
-- Add notification triggers.
-- Add client-visible timeline view.
-- Add client approval requests.
-- Add internal vs client-visible schedule updates.
-- Add activity log.
-
----
-
-### Phase 5 — Advanced Construction Management
-
-Add deeper scheduling and reporting.
-
-Tasks:
-
-- Add drag-and-drop rescheduling.
-- Add auto-shift dependent tasks.
-- Add schedule impact logging.
-- Add critical path indicators.
-- Add PDF/CSV exports.
-- Add reporting dashboard.
-- Add future calendar sync.
-
----
-
-## Suggested UI Style
-
-Follow the existing CMI dashboard design system.
-
-Preferred style direction:
-
-- Clean modern dashboard layout
-- ShadCN-style cards, tables, drawers, badges, tabs, and dialogs
-- Light/dark mode support if the app already supports it
-- Clear visual hierarchy
-- Soft borders
-- Rounded cards
-- Simple status badges
-- Minimal but useful color coding
-- Mobile-friendly where practical, but optimize for desktop staff use first
-
----
-
-## Suggested Components
-
-Potential components:
-
-- ProjectManagementOverview
-- ProjectGanttChart
-- ProjectTimeline
-- ProjectPhaseList
-- ProjectPhaseForm
-- ProjectTaskList
-- ProjectTaskForm
-- ProjectTaskDrawer
-- ProjectMilestoneList
-- ProjectMilestoneForm
-- TaskDependencyForm
-- ScheduleUpdateForm
-- SubcontractorAssignmentForm
-- PunchList
-- PunchItemForm
-- PunchItemDrawer
-- RoomAreaList
-- ClientScheduleVisibilitySettings
-- ScheduleHealthBadge
-- TaskStatusBadge
-- TaskPriorityBadge
-
----
-
-## Codex Instructions
-
-When implementing this feature:
-
-1. Review the current CMI Staff Dashboard structure before creating new files.
-2. Follow the existing app architecture, routing, naming conventions, styling system, and database patterns.
-3. Do not duplicate existing project, task, user, client, vendor, or subcontractor models if they already exist.
-4. Extend existing models when appropriate.
-5. Build this feature in phases.
-6. Start with the Staff Dashboard internal experience before the Client Dashboard.
-7. Keep client visibility settings in place from the beginning.
-8. Make the UI clean, practical, and construction-project focused.
-9. Use reusable components.
-10. Add mock data only if the database/API is not ready yet.
-11. Clearly document any assumptions before making structural changes.
-12. If a Gantt chart library is needed, recommend one before installing it.
-13. Prioritize working functionality over visual polish in the first pass.
-14. Keep the feature scalable for future SaaS-style project management features.
-
----
-
-## Starter Prompt for Codex
-
-Use the following prompt when starting this feature:
-
-```text
-Review the CMI Staff Dashboard codebase and the documentation file located at /docs/Gantt-Management.md.
-
-I want to add a Project Management module to the Staff Dashboard that includes a Gantt-style project timeline, project phases, milestones, task management, punch list management, schedule updates, subcontractor/vendor assignments, and client visibility controls.
-
-Before writing code, review the existing dashboard structure, routes, components, models, database schema, user roles, and styling system. Then provide a phased implementation plan based on the Gantt-Management.md document.
-
-Start with Phase 1: data structure review, navigation placement, basic Project Management overview page, task list page, phase form, milestone form, and client visibility toggles.
-
-Do not duplicate existing models. Extend the existing architecture where appropriate. Use the existing design system and dashboard UI patterns.
+## Data Model — `GANTT_ITEMS`
+
+Core fields used by the dashboard:
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | UUID | Primary key |
+| `title` | String | Item name |
+| `item_type` | String | `'project'`, `'task'`, `'milestone'`, `'phase'` |
+| `project` | String | Project key (used for grouping) |
+| `schedule_group_key` | String | Alternate grouping key |
+| `parent_item_id` | UUID | Parent task/project for nesting |
+| `phase` | String | Phase name |
+| `status` | String | Status value (see statuses below) |
+| `priority` | String | `'low'`, `'normal'`, `'high'`, `'critical'` |
+| `assignee` | String | Assigned user name or ID |
+| `start` | Date | Start date |
+| `end` | Date | End/due date |
+| `progress` | Integer | 0–100 percent complete |
+| `client_visible` | Boolean | Show on client-facing views |
+| `visible_on_gantt` | Boolean | Show bar in Gantt timeline |
+| `dependency_ids` | Array | IDs of blocking items |
+| `vendor` | String | Assigned vendor/subcontractor |
+| `notes` | String | Internal notes |
+| `fluent_task_id` | String | FluentBoards task ID (optional sync) |
+| `wp_post_id` | Integer | WordPress post ID (optional sync) |
+| `created_at` | Timestamp | |
+| `updated_at` | Timestamp | |
+
+### Status Values
+
+```
+not_started
+in_progress
+waiting
+delayed
+needs_review
+blocked
+complete
+cancelled
+```
+
+### Priority Values
+
+```
+low
+normal
+high
+critical
 ```
 
 ---
 
-## Success Criteria
+## Integration Notes
 
-This feature is successful when:
+### FluentBoards
 
-- CMI staff can create a project schedule.
-- Project managers can add phases, tasks, and milestones.
-- Staff can view and update assigned tasks.
-- Punch list items can be created and tracked.
-- Schedule changes can be logged.
-- Client visibility can be controlled per item.
-- The Gantt chart clearly shows project timing, progress, blockers, and milestones.
-- The system supports future client-facing project schedule views.
+- Used only for **My Tasks** tab
+- `fluent_task_id` on `GANTT_ITEMS` stores the linked FluentBoards task ID
+- Sync is one-way: CMI → FluentBoards on project create/update
+- Disconnecting FluentBoards has no impact on Gantt, List, Table, Kanban, or Calendar views
+
+### WordPress
+
+- Not used for project data
+- `wp_post_id` is reserved for future portfolio sync (when an internal project becomes a public portfolio item)
+- Portfolio items have their own data model (`portfolio` table) separate from `GANTT_ITEMS`
+
+### FluentBooking / FluentCRM
+
+- Bookings and contacts link to projects via `project_id` foreign keys in their respective tables
+- Gantt view does not pull from booking or CRM tables
+
+---
+
+## Security Notes
+
+- `GANTT_ITEMS` is protected by Supabase RLS — staff read/write, public no access
+- Project data never surfaces to unauthenticated requests
+- The FAB dock actions that modify data (`delete`, `complete`, `hide`) use the authenticated Supabase client
+- Vendor/client names shown in the UI are already stored in Supabase — no external API calls on FAB open
+- API keys, webhook secrets, and credentials are never stored in `GANTT_ITEMS`
+
+---
+
+## Planned Extensions
+
+### Short Term
+
+- Wire `loadGanttItems()` into the `nav()` function so stats populate immediately on section load (currently triggers on first Gantt render)
+- Add drag-and-drop reordering in Kanban columns
+- Progress inline edit on list/table rows
+- Bulk status change via table multi-select
+
+### Medium Term
+
+- Dependency arrows on Gantt timeline
+- Auto-shift dependent tasks when a blocking task moves
+- Critical path highlighting
+- Export schedule as PDF/CSV
+
+### Long Term
+
+- Client-facing schedule view (read-only, `client_visible` items only)
+- Calendar sync (Google Calendar / iCal)
+- Mobile-optimized timeline view
+- Subcontractor portal with task confirmation
+
+---
+
+## Related Files
+
+| File | Purpose |
+|---|---|
+| `staff-dashboard.html` | All dashboard JS, CSS, and HTML — primary implementation file |
+| `assets/cmi-project-templates.js` | `window.CMI_PROJECT_TEMPLATES` data |
+| `supabase/2026-05-28_user_management_phase1.sql` | Current Supabase schema migration |
+| `docs/features/Gantt-Management.md` | This file |
+
+---
+
+## Change Log
+
+| Date | Change |
+|---|---|
+| 2026-06-01 | Full rewrite to reflect live implementation: FAB dock, Supabase-first views, view tab structure, template gallery, stats bar, suppress pattern |
+| Initial | Original planning spec (pre-implementation) |
