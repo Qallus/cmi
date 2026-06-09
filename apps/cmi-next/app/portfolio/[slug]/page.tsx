@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 import { loadPortfolioItemBySlug } from "@/lib/portfolio/data";
 import { demoPortfolioItems } from "@/lib/portfolio/demo-data";
+import { SiteHeader } from "@/components/site/site-header";
+import { SiteFooter } from "@/components/site/site-footer";
 import { PortfolioGallery } from "./portfolio-detail-client";
 
 export default async function PortfolioDetailPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -22,21 +24,9 @@ export default async function PortfolioDetailPage({ params }: { params: Promise<
   const attributes = item.attributes_json || [];
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
-      <header className="sticky top-0 z-30 border-b border-border bg-card/95 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
-          <Link href="/" className="flex items-center gap-3">
-            <img src="/brand/cmi-logo-light.png" alt="Constructed Matter, Inc." className="h-10 w-auto dark:hidden" />
-            <img src="/brand/cmi-logo-dark.png" alt="Constructed Matter, Inc." className="hidden h-10 w-auto dark:block" />
-          </Link>
-          <nav className="flex items-center gap-6 text-sm font-medium text-muted-foreground">
-            <Link href="/portfolio" className="text-accent">Portfolio</Link>
-            <Link href="/book">Book</Link>
-            <Link href="/dashboard/portfolio">Dashboard</Link>
-          </nav>
-        </div>
-      </header>
-
+    <>
+      <SiteHeader />
+      <main className="min-h-screen bg-background text-foreground">
       <section className="relative min-h-[72vh] overflow-hidden bg-black text-white">
         {hero ? <img src={hero} alt="" className="absolute inset-0 h-full w-full object-cover opacity-70" /> : null}
         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/25 to-black/10" />
@@ -84,7 +74,9 @@ export default async function PortfolioDetailPage({ params }: { params: Promise<
           </div>
         </aside>
       </section>
-    </main>
+      </main>
+      <SiteFooter />
+    </>
   );
 }
 
