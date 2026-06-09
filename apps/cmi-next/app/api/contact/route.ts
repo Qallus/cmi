@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createContact } from "@/lib/contacts/data";
+import { createContactSubmission } from "@/lib/contact-submissions/data";
 
 export async function POST(req: NextRequest) {
   try {
@@ -10,21 +11,40 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Required fields are missing." }, { status: 400 });
     }
 
-    await createContact({
+    // Save raw submission first (always succeeds even if contact upsert fails)
+    let contactId: string | null = null;
+    try {
+      const contact = await createContact({
+        first_name: firstName,
+        last_name: lastName,
+        email,
+        phone: phone || null,
+        source: source || null,
+        notes: `Subject: ${subject}\n\n${message}`,
+        status: "active",
+        tags: ["website-contact"],
+        type: null,
+        company: null,
+        address: null,
+        city: null,
+        state: null,
+        zip: null,
+      });
+      contactId = contact.id;
+    } catch {
+      // Don't fail the submission if the contact record fails
+    }
+
+    await createContactSubmission({
       first_name: firstName,
       last_name: lastName,
       email,
       phone: phone || null,
-      source: source || null,
-      notes: `Subject: ${subject}\n\n${message}`,
-      status: "active",
-      tags: ["website-contact"],
-      type: null,
-      company: null,
-      address: null,
-      city: null,
-      state: null,
-      zip: null,
+      how_heard: source || null,
+      subject,
+      message,
+      status: "new",
+      contact_id: contactId,
     });
 
     return NextResponse.json({ ok: true });
