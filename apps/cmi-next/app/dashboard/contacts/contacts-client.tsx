@@ -4,6 +4,8 @@ import * as React from "react";
 import {
   Building2,
   ChevronDown,
+  CheckCircle2,
+  FileUp,
   Mail,
   MoreHorizontal,
   Phone,
@@ -78,6 +80,7 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = React.useState<string | null>(null);
+  const [showImport, setShowImport] = React.useState(false);
 
   const filtered = React.useMemo(() => {
     const q = search.toLowerCase();
@@ -209,6 +212,9 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
           </div>
           <div className="flex items-center gap-2">
             <Button size="sm" variant="outline" onClick={exportCSV}>Export CSV</Button>
+            <Button size="sm" variant="outline" onClick={() => setShowImport(true)}>
+              <FileUp className="h-3.5 w-3.5" /> Import
+            </Button>
             <Button size="sm" variant="accent" onClick={openAdd}>
               <Plus className="h-3.5 w-3.5" /> Add Contact
             </Button>
@@ -447,6 +453,22 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
         </Modal>
       )}
 
+      {/* Import modal */}
+      {showImport && (
+        <ImportModal
+          onClose={() => setShowImport(false)}
+          onImported={(imported) => {
+            setShowImport(false);
+            // Reload contacts list after import
+            fetch("/api/contacts")
+              .then((r) => r.json())
+              .then((data: Contact[]) => setContacts(data))
+              .catch(() => null);
+            alert(`Successfully imported ${imported} contact${imported !== 1 ? "s" : ""}.`);
+          }}
+        />
+      )}
+
       {/* Delete confirm */}
       {deleteConfirm && (
         <Modal title="Delete Contact" onClose={() => setDeleteConfirm(null)}>
@@ -485,6 +507,245 @@ function InfoRow({ icon: Icon, label, value }: { icon: React.ElementType; label:
       <div>
         <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
         <div className="text-sm">{value}</div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Import Modal ────────────────────────────────────────────
+
+const REQUIRED_FIELDS = [
+  { name: "first_name", desc: "Contact's first name" },
+  { name: "last_name",  desc: "Contact's last name" },
+  { name: "email",      desc: "Unique email address" },
+];
+const OPTIONAL_FIELDS = [
+  { name: "phone",    desc: "Phone number" },
+  { name: "company",  desc: "Company or organization" },
+  { name: "type",     desc: "Client | Lead | Vendor | Sub Contractor" },
+  { name: "status",   desc: "active | inactive | archived  (default: active)" },
+  { name: "address",  desc: "Street address" },
+  { name: "city",     desc: "City" },
+  { name: "state",    desc: "State abbreviation  (default: AZ)" },
+  { name: "zip",      desc: "Zip code" },
+  { name: "source",   desc: "Lead source" },
+  { name: "notes",    desc: "Internal notes" },
+  { name: "tags",     desc: 'Pipe-separated tags  e.g. "VIP|Phoenix|2026"' },
+];
+
+function parseCSV(text: string): Record<string, string>[] {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim());
+  if (lines.length < 2) return [];
+  const headers = lines[0].split(",").map((h) => h.trim().replace(/^"|"$/g, "").toLowerCase());
+  return lines.slice(1).map((line) => {
+    const vals: string[] = [];
+    let cur = "", inQuote = false;
+    for (const ch of line) {
+      if (ch === '"') { inQuote = !inQuote; continue; }
+      if (ch === "," && !inQuote) { vals.push(cur); cur = ""; continue; }
+      cur += ch;
+    }
+    vals.push(cur);
+    const row: Record<string, string> = {};
+    headers.forEach((h, i) => { row[h] = (vals[i] ?? "").trim(); });
+    return row;
+  }).filter((r) => r.email);
+}
+
+function downloadTemplate() {
+  const headers = [...REQUIRED_FIELDS, ...OPTIONAL_FIELDS].map((f) => f.name).join(",");
+  const example = "Jane,Smith,jane@example.com,(602) 555-0100,Acme Corp,Client,active,123 Main St,Scottsdale,AZ,85251,Referral,Notes here,VIP|Phoenix";
+  const blob = new Blob([headers + "\n" + example], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href = url; a.download = "contacts-template.csv"; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function ImportModal({ onClose, onImported }: { onClose: () => void; onImported: (n: number) => void }) {
+  const [tab, setTab] = React.useState<"guide" | "upload">("guide");
+  const [rows, setRows] = React.useState<Record<string, string>[]>([]);
+  const [parseError, setParseError] = React.useState<string | null>(null);
+  const [duplicateAction, setDuplicateAction] = React.useState<"skip" | "overwrite">("skip");
+  const [importing, setImporting] = React.useState(false);
+  const [result, setResult] = React.useState<{ imported: number; skipped: number; errors: string[] } | null>(null);
+
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const parsed = parseCSV(ev.target?.result as string);
+        if (parsed.length === 0) { setParseError("No valid rows found. Make sure your CSV has a header row and an email column."); setRows([]); return; }
+        setRows(parsed); setParseError(null); setTab("upload");
+      } catch { setParseError("Could not parse file. Please use the CSV template."); }
+    };
+    reader.readAsText(file);
+  }
+
+  async function doImport() {
+    if (rows.length === 0) return;
+    setImporting(true);
+    try {
+      const contacts = rows.map((r) => ({
+        first_name: r.first_name || r["first name"] || "",
+        last_name:  r.last_name  || r["last name"]  || "",
+        email:      r.email || "",
+        phone:      r.phone || "",
+        company:    r.company || "",
+        type:       (["Client","Lead","Vendor","Sub Contractor"].includes(r.type) ? r.type : "Lead") as ContactType,
+        status:     (["active","inactive","archived"].includes(r.status) ? r.status : "active") as ContactStatus,
+        address:    r.address || "",
+        city:       r.city || "",
+        state:      r.state || "AZ",
+        zip:        r.zip || "",
+        source:     r.source || "",
+        notes:      r.notes || "",
+        tags:       r.tags ? r.tags.split("|").map((t) => t.trim()).filter(Boolean) : [],
+      }));
+      const res = await fetch("/api/contacts/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contacts, duplicateAction }),
+      });
+      const json = await res.json() as { imported: number; skipped: number; errors: string[]; error?: string };
+      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+      setResult(json);
+      if (json.errors.length === 0) onImported(json.imported);
+    } catch (err) {
+      setParseError(err instanceof Error ? err.message : "Import failed.");
+    } finally { setImporting(false); }
+  }
+
+  const previewCols = ["first_name", "last_name", "email", "type", "company"];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative z-10 flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-border bg-card shadow-xl">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <h2 className="font-semibold">Import Contacts</h2>
+          <button type="button" className="rounded p-1 text-muted-foreground hover:text-foreground" onClick={onClose}><X className="h-4 w-4" /></button>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex border-b border-border bg-card">
+          {(["guide", "upload"] as const).map((t) => (
+            <button key={t} type="button" onClick={() => setTab(t)}
+              className={cn("px-5 py-2.5 text-sm font-medium transition border-b-2 -mb-px",
+                tab === t ? "border-accent text-accent" : "border-transparent text-muted-foreground hover:text-foreground")}>
+              {t === "guide" ? "Field Reference" : "Upload CSV"}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5">
+          {tab === "guide" && (
+            <div className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-accent">Required</div>
+                  <div className="rounded-lg border border-border divide-y divide-border">
+                    {REQUIRED_FIELDS.map((f) => (
+                      <div key={f.name} className="flex items-start gap-3 px-3 py-2">
+                        <code className="mt-0.5 shrink-0 rounded bg-accent/10 px-1.5 py-0.5 text-[11px] font-mono text-accent">{f.name}</code>
+                        <span className="text-xs text-muted-foreground">{f.desc}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Optional</div>
+                  <div className="rounded-lg border border-border divide-y divide-border">
+                    {OPTIONAL_FIELDS.map((f) => (
+                      <div key={f.name} className="flex items-start gap-3 px-3 py-2">
+                        <code className="mt-0.5 shrink-0 rounded bg-muted px-1.5 py-0.5 text-[11px] font-mono text-muted-foreground">{f.name}</code>
+                        <span className="text-xs text-muted-foreground">{f.desc}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 rounded-lg border border-dashed border-border bg-muted/30 p-4">
+                <FileUp className="h-5 w-5 shrink-0 text-muted-foreground" />
+                <div className="flex-1 text-sm text-muted-foreground">Download the CSV template with all columns pre-filled and one example row.</div>
+                <Button size="sm" variant="outline" onClick={downloadTemplate}>Download Template</Button>
+              </div>
+              <p className="text-xs text-muted-foreground">Columns can be in any order. Extra columns are ignored. The <code className="rounded bg-muted px-1 text-[11px]">email</code> column is used to detect duplicates.</p>
+            </div>
+          )}
+
+          {tab === "upload" && (
+            <div className="space-y-4">
+              {parseError && <div className="rounded bg-destructive/10 px-3 py-2 text-sm text-destructive">{parseError}</div>}
+
+              {result ? (
+                <div className="rounded-lg border border-success/30 bg-success/5 p-4">
+                  <div className="flex items-center gap-2 font-medium text-success"><CheckCircle2 className="h-4 w-4" /> Import complete</div>
+                  <div className="mt-2 text-sm text-muted-foreground">
+                    {result.imported} imported · {result.skipped} skipped
+                    {result.errors.length > 0 && <div className="mt-1 text-destructive">{result.errors.slice(0, 3).join(", ")}</div>}
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <label className="flex min-h-[100px] cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-muted/20 text-sm text-muted-foreground transition hover:border-accent hover:bg-accent/5">
+                    <FileUp className="h-6 w-6" />
+                    <span>{rows.length > 0 ? `${rows.length} rows loaded — select a different file` : "Click to select a CSV file"}</span>
+                    <input type="file" accept=".csv,text/csv" className="sr-only" onChange={handleFile} />
+                  </label>
+
+                  {rows.length > 0 && (
+                    <>
+                      <div className="overflow-x-auto rounded-lg border border-border">
+                        <table className="w-full border-collapse text-xs">
+                          <thead className="bg-muted/40">
+                            <tr>
+                              {previewCols.map((c) => <th key={c} className="px-3 py-2 text-left font-semibold text-muted-foreground">{c}</th>)}
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border">
+                            {rows.slice(0, 5).map((r, i) => (
+                              <tr key={i} className="hover:bg-muted/30">
+                                {previewCols.map((c) => <td key={c} className="max-w-[140px] truncate px-3 py-2 text-muted-foreground">{r[c] || "—"}</td>)}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        {rows.length > 5 && <div className="border-t border-border px-3 py-2 text-xs text-muted-foreground">+ {rows.length - 5} more rows</div>}
+                      </div>
+
+                      <div className="flex items-center justify-between rounded-lg border border-border bg-card px-4 py-3">
+                        <span className="text-sm font-medium">{rows.length} contact{rows.length !== 1 ? "s" : ""} ready</span>
+                        <div className="flex items-center gap-3 text-sm">
+                          <span className="text-muted-foreground">Duplicates:</span>
+                          {(["skip", "overwrite"] as const).map((opt) => (
+                            <label key={opt} className="flex items-center gap-1.5 cursor-pointer">
+                              <input type="radio" name="dup" checked={duplicateAction === opt} onChange={() => setDuplicateAction(opt)} className="accent-accent" />
+                              <span className="capitalize">{opt}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex justify-end gap-2 border-t border-border px-5 py-4">
+          <Button size="sm" variant="outline" onClick={onClose}>Cancel</Button>
+          {tab === "guide"
+            ? <Button size="sm" variant="accent" onClick={() => setTab("upload")}><FileUp className="h-3.5 w-3.5" /> Upload CSV</Button>
+            : <Button size="sm" variant="accent" onClick={() => void doImport()} disabled={rows.length === 0 || importing || !!result}>
+                {importing ? "Importing…" : `Import ${rows.length} Contact${rows.length !== 1 ? "s" : ""}`}
+              </Button>
+          }
+        </div>
       </div>
     </div>
   );

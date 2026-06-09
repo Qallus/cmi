@@ -1,8 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { CheckCircle2, Eye, EyeOff, Image, Loader2, Pencil, Plus, Share2, Trash2, Upload, Video, X } from "lucide-react";
+import { CheckCircle2, Columns2, Eye, EyeOff, GripVertical, Image, LayoutGrid, List, Loader2, Pencil, Plus, Share2, Table2, Trash2, Upload, Video, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+
+type ViewMode = "cards" | "list" | "table" | "kanban";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -107,9 +109,15 @@ function draftToItem(draft: Draft): PortfolioItem {
 export function PortfolioClient({ initialItems, demoMode }: { initialItems: PortfolioItem[]; demoMode: boolean }) {
   const [items, setItems] = React.useState(initialItems);
   const [activeCategory, setActiveCategory] = React.useState("All");
+  const [view, setView] = React.useState<ViewMode>("cards");
   const [draft, setDraft] = React.useState<Draft | null>(null);
   const [saving, setSaving] = React.useState(false);
   const [notice, setNotice] = React.useState<string | null>(demoMode ? "Demo mode: portfolio changes are local until Supabase is configured." : null);
+
+  // Drag state
+  const [draggingId, setDraggingId] = React.useState<string | null>(null);
+  const [dragOverId, setDragOverId] = React.useState<string | null>(null);
+  const [dragOverCol, setDragOverCol] = React.useState<string | null>(null);
 
   const filtered = activeCategory === "All" ? items : items.filter(item => item.category === activeCategory);
   const categoryList = ["All", ...Array.from(new Set([...categories, ...items.map(item => item.category || "").filter(Boolean)]))];
@@ -187,6 +195,82 @@ export function PortfolioClient({ initialItems, demoMode }: { initialItems: Port
     setNotice(`Copied portfolio link: ${url}`);
   }
 
+  // ── Drag and drop ──────────────────────────────────────────────
+  function onDragStart(e: React.DragEvent, id: string) {
+    setDraggingId(id); e.dataTransfer.effectAllowed = "move";
+  }
+  function onDragOver(e: React.DragEvent, id: string) {
+    e.preventDefault(); if (id !== dragOverId) setDragOverId(id);
+  }
+  function onDragOverCol(e: React.DragEvent, col: string) {
+    e.preventDefault(); if (col !== dragOverCol) setDragOverCol(col); setDragOverId(null);
+  }
+  function onDragEnd() { setDraggingId(null); setDragOverId(null); setDragOverCol(null); }
+
+  function onDrop(e: React.DragEvent, targetId: string, newCategory?: string) {
+    e.preventDefault();
+    const fromId = draggingId; onDragEnd();
+    if (!fromId || fromId === targetId) return;
+    reorder(fromId, targetId, newCategory);
+  }
+  function onDropCol(e: React.DragEvent, toCategory: string) {
+    e.preventDefault();
+    const fromId = draggingId; onDragEnd();
+    if (!fromId) return;
+    const from = items.find((i) => i.id === fromId);
+    if (!from || from.category === toCategory) return;
+    const without = items.filter((i) => i.id !== fromId);
+    const lastInCol = [...without].reverse().find((i) => i.category === toCategory);
+    const insertAt = lastInCol ? without.findIndex((i) => i.id === lastInCol.id) + 1 : without.length;
+    without.splice(insertAt, 0, { ...from, category: toCategory });
+    persistReorder(without, fromId, toCategory);
+  }
+
+  function reorder(fromId: string, toId: string, newCategory?: string) {
+    const fromIdx = items.findIndex((i) => i.id === fromId);
+    const toIdx = items.findIndex((i) => i.id === toId);
+    if (fromIdx === -1 || toIdx === -1) return;
+    const next = [...items];
+    const [dragged] = next.splice(fromIdx, 1);
+    next.splice(toIdx, 0, newCategory !== undefined ? { ...dragged, category: newCategory } : dragged);
+    persistReorder(next, fromId, newCategory);
+  }
+
+  function persistReorder(ordered: PortfolioItem[], changedCatId?: string, newCat?: string) {
+    const withOrder = ordered.map((item, i) => ({ ...item, sort_order: i + 1 }));
+    setItems(withOrder);
+    if (demoMode) return;
+    void Promise.all(
+      withOrder
+        .filter((item) => {
+          const orig = items.find((o) => o.id === item.id);
+          return orig && (orig.sort_order !== item.sort_order || (item.id === changedCatId && newCat !== undefined));
+        })
+        .map((item) => {
+          const body: Record<string, unknown> = { sort_order: item.sort_order };
+          if (item.id === changedCatId && newCat !== undefined) body.category = newCat;
+          return fetch(`/api/admin/portfolio/${item.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+        })
+    );
+  }
+
+  const kanbanCols = React.useMemo(() => {
+    const cats = Array.from(new Set(items.map((i) => i.category || "Uncategorized")));
+    return cats.map((cat) => ({ cat, items: filtered.filter((i) => (i.category || "Uncategorized") === cat) }));
+  }, [items, filtered]);
+
+  const dragProps = (item: PortfolioItem, cat?: string) => ({
+    draggable: true as const,
+    onDragStart: (e: React.DragEvent) => onDragStart(e, item.id),
+    onDragOver: (e: React.DragEvent) => onDragOver(e, item.id),
+    onDrop: (e: React.DragEvent) => onDrop(e, item.id, cat),
+    onDragEnd,
+  });
+
   return (
     <div className="space-y-5 p-4 md:p-6">
       <header className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -195,10 +279,21 @@ export function PortfolioClient({ initialItems, demoMode }: { initialItems: Port
           <h1 className="mt-2 font-display text-2xl font-semibold tracking-tight">Portfolio</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">Manage dashboard-driven project stories, media, categories, and public visibility from one place.</p>
         </div>
-        <Button onClick={() => setDraft({ ...emptyDraft })}>
-          <Plus className="h-4 w-4" />
-          Add Portfolio
-        </Button>
+        <div className="flex items-center gap-2">
+          <div className="flex rounded-md border border-border bg-card p-0.5">
+            {([["cards", LayoutGrid], ["list", List], ["table", Table2], ["kanban", Columns2]] as [ViewMode, React.ElementType][]).map(([v, Icon]) => (
+              <button key={v} type="button" onClick={() => setView(v)}
+                className={cn("flex h-7 w-7 items-center justify-center rounded transition", view === v ? "bg-accent/15 text-accent" : "text-muted-foreground hover:text-foreground")}
+                title={v.charAt(0).toUpperCase() + v.slice(1)}>
+                <Icon className="h-3.5 w-3.5" />
+              </button>
+            ))}
+          </div>
+          <Button onClick={() => setDraft({ ...emptyDraft })}>
+            <Plus className="h-4 w-4" />
+            Add Portfolio
+          </Button>
+        </div>
       </header>
 
       {notice ? <div className="rounded-lg border border-accent/30 bg-accent/10 px-4 py-3 text-sm text-muted-foreground">{notice}</div> : null}
@@ -216,35 +311,168 @@ export function PortfolioClient({ initialItems, demoMode }: { initialItems: Port
         ))}
       </div>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {filtered.map(item => (
-          <Card key={item.id} className="overflow-hidden">
-            <div className="aspect-[4/3] bg-muted">
-              {item.featured_image ? <img src={item.featured_image} alt="" className="h-full w-full object-cover" /> : <div className="grid h-full place-items-center text-muted-foreground"><Image className="h-8 w-8" /></div>}
-            </div>
-            <CardContent className="p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <h2 className="truncate text-sm font-semibold">{item.title}</h2>
-                  <p className="mt-1 truncate text-xs text-muted-foreground">{item.category || "Uncategorized"} · {item.year || "No year"}</p>
+      {/* ── Cards view ── */}
+      {view === "cards" && (
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {filtered.map(item => (
+            <Card key={item.id} {...dragProps(item)}
+              className={cn("overflow-hidden cursor-grab active:cursor-grabbing transition",
+                draggingId === item.id ? "opacity-40 scale-95" : "",
+                dragOverId === item.id ? "ring-2 ring-accent" : "")}>
+              <div className="aspect-[4/3] bg-muted">
+                {item.featured_image ? <img src={item.featured_image} alt="" className="h-full w-full object-cover" /> : <div className="grid h-full place-items-center text-muted-foreground"><Image className="h-8 w-8" /></div>}
+              </div>
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h2 className="truncate text-sm font-semibold">{item.title}</h2>
+                    <p className="mt-1 truncate text-xs text-muted-foreground">{item.category || "Uncategorized"} · {item.year || "No year"}</p>
+                  </div>
+                  <Badge tone={item.status === "published" ? "success" : item.status === "hidden" ? "warning" : "default"}>{item.status}</Badge>
                 </div>
-                <Badge tone={item.status === "published" ? "success" : item.status === "hidden" ? "warning" : "default"}>{item.status}</Badge>
+                <div className="mt-3 flex flex-wrap gap-1">
+                  {item.is_featured ? <Badge tone="accent">Featured</Badge> : null}
+                  {(item.gallery_images || []).length ? <Badge>{item.gallery_images?.length} images</Badge> : null}
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Button size="sm" variant="outline" onClick={() => setDraft(itemToDraft(item))}><Pencil className="h-3.5 w-3.5" /> Edit</Button>
+                  <Button size="sm" variant="outline" onClick={() => void share(item)}><Share2 className="h-3.5 w-3.5" /> Share</Button>
+                  <Button size="sm" variant="outline" onClick={() => void quickStatus(item, item.status === "hidden" ? "published" : "hidden")}>{item.status === "hidden" ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}{item.status === "hidden" ? " Show" : " Hide"}</Button>
+                  <Button size="sm" variant="ghost" className="text-destructive" onClick={() => void deletePortfolio(item)}><Trash2 className="h-3.5 w-3.5" /> Delete</Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </section>
+      )}
+
+      {/* ── List view ── */}
+      {view === "list" && (
+        <div className="space-y-2">
+          {filtered.map(item => (
+            <div key={item.id} {...dragProps(item)}
+              className={cn("flex items-center gap-4 rounded-xl border bg-card p-4 cursor-grab active:cursor-grabbing transition",
+                draggingId === item.id ? "opacity-40" : "",
+                dragOverId === item.id ? "border-accent ring-1 ring-accent" : "border-border hover:border-accent/40")}>
+              <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground/40" />
+              <div className="h-14 w-20 shrink-0 overflow-hidden rounded-lg bg-muted">
+                {item.featured_image ? <img src={item.featured_image} alt="" className="h-full w-full object-cover" /> : <div className="grid h-full place-items-center"><Image className="h-5 w-5 text-muted-foreground/40" /></div>}
               </div>
-              <div className="mt-3 flex flex-wrap gap-1">
-                {item.is_featured ? <Badge tone="accent">Featured</Badge> : null}
-                {(item.gallery_images || []).length ? <Badge>{item.gallery_images?.length} images</Badge> : null}
-                {(item.video_urls || []).length ? <Badge>{item.video_urls?.length} videos</Badge> : null}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold truncate">{item.title}</span>
+                  <Badge tone={item.status === "published" ? "success" : item.status === "hidden" ? "warning" : "default"}>{item.status}</Badge>
+                  {item.is_featured && <Badge tone="accent">Featured</Badge>}
+                </div>
+                <p className="mt-0.5 text-xs text-muted-foreground">{item.category || "Uncategorized"} · {item.location || "Arizona"} · {item.year || "—"}</p>
               </div>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <Button size="sm" variant="outline" onClick={() => setDraft(itemToDraft(item))}><Pencil className="h-3.5 w-3.5" /> Edit</Button>
-                <Button size="sm" variant="outline" onClick={() => share(item)}><Share2 className="h-3.5 w-3.5" /> Share</Button>
-                <Button size="sm" variant="outline" onClick={() => quickStatus(item, item.status === "hidden" ? "published" : "hidden")}>{item.status === "hidden" ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />} {item.status === "hidden" ? "Show" : "Hide"}</Button>
-                <Button size="sm" variant="ghost" className="text-destructive" onClick={() => deletePortfolio(item)}><Trash2 className="h-3.5 w-3.5" /> Delete</Button>
+              <div className="flex shrink-0 items-center gap-1">
+                <Button size="sm" variant="outline" onClick={() => setDraft(itemToDraft(item))}><Pencil className="h-3.5 w-3.5" /></Button>
+                <Button size="sm" variant="outline" onClick={() => void share(item)}><Share2 className="h-3.5 w-3.5" /></Button>
+                <Button size="sm" variant="outline" onClick={() => void quickStatus(item, item.status === "hidden" ? "published" : "hidden")}>{item.status === "hidden" ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}</Button>
+                <Button size="sm" variant="ghost" className="text-destructive" onClick={() => void deletePortfolio(item)}><Trash2 className="h-3.5 w-3.5" /></Button>
               </div>
-            </CardContent>
-          </Card>
-        ))}
-      </section>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Table view ── */}
+      {view === "table" && (
+        <div className="overflow-x-auto rounded-xl border border-border">
+          <table className="w-full min-w-[700px] border-collapse text-sm">
+            <thead className="bg-card">
+              <tr className="border-b border-border text-left">
+                <th className="w-8 px-2 py-3" />
+                <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Project</th>
+                <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Category</th>
+                <th className="hidden px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground md:table-cell">Location</th>
+                <th className="hidden px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground sm:table-cell">Year</th>
+                <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Status</th>
+                <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {filtered.map(item => (
+                <tr key={item.id} {...dragProps(item)}
+                  className={cn("cursor-grab transition active:cursor-grabbing",
+                    draggingId === item.id ? "opacity-40 bg-muted/20" : "",
+                    dragOverId === item.id ? "bg-accent/5 outline outline-1 outline-accent" : "hover:bg-muted/30")}>
+                  <td className="px-2 py-3 text-center"><GripVertical className="h-4 w-4 mx-auto text-muted-foreground/40" /></td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-14 shrink-0 overflow-hidden rounded bg-muted">
+                        {item.featured_image ? <img src={item.featured_image} alt="" className="h-full w-full object-cover" /> : <div className="grid h-full place-items-center"><Image className="h-4 w-4 text-muted-foreground/40" /></div>}
+                      </div>
+                      <div>
+                        <div className="font-medium">{item.title}</div>
+                        {item.is_featured && <span className="text-[11px] text-accent">Featured</span>}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-muted-foreground">{item.category || "—"}</td>
+                  <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">{item.location || "—"}</td>
+                  <td className="hidden px-4 py-3 text-muted-foreground sm:table-cell">{item.year || "—"}</td>
+                  <td className="px-4 py-3"><Badge tone={item.status === "published" ? "success" : item.status === "hidden" ? "warning" : "default"}>{item.status}</Badge></td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-1">
+                      <Button size="sm" variant="outline" onClick={() => setDraft(itemToDraft(item))}><Pencil className="h-3.5 w-3.5" /></Button>
+                      <Button size="sm" variant="outline" onClick={() => void share(item)}><Share2 className="h-3.5 w-3.5" /></Button>
+                      <Button size="sm" variant="outline" onClick={() => void quickStatus(item, item.status === "hidden" ? "published" : "hidden")}>{item.status === "hidden" ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}</Button>
+                      <Button size="sm" variant="ghost" className="text-destructive" onClick={() => void deletePortfolio(item)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* ── Kanban view ── */}
+      {view === "kanban" && (
+        <div className="flex gap-4 overflow-x-auto pb-4">
+          {kanbanCols.map(({ cat, items: colItems }) => (
+            <div key={cat} className="flex w-64 shrink-0 flex-col gap-3"
+              onDragOver={(e) => onDragOverCol(e, cat)} onDrop={(e) => onDropCol(e, cat)}>
+              <div className={cn("flex items-center justify-between rounded-lg border px-3 py-2 transition",
+                dragOverCol === cat ? "border-accent bg-accent/5" : "border-border bg-card")}>
+                <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">{cat}</span>
+                <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">{colItems.length}</span>
+              </div>
+              <div className="flex flex-col gap-2">
+                {colItems.map(item => (
+                  <div key={item.id} {...dragProps(item, cat)}
+                    className={cn("cursor-grab overflow-hidden rounded-xl border bg-card transition active:cursor-grabbing",
+                      draggingId === item.id ? "opacity-40 scale-95" : "",
+                      dragOverId === item.id ? "border-accent ring-1 ring-accent" : "border-border hover:border-accent/40 hover:shadow-sm")}>
+                    <div className="aspect-[16/9] bg-muted">
+                      {item.featured_image ? <img src={item.featured_image} alt="" className="h-full w-full object-cover" /> : <div className="grid h-full place-items-center"><Image className="h-5 w-5 text-muted-foreground/30" /></div>}
+                    </div>
+                    <div className="p-3">
+                      <div className="flex items-start justify-between gap-1">
+                        <span className="text-xs font-semibold leading-snug">{item.title}</span>
+                        <Badge tone={item.status === "published" ? "success" : item.status === "hidden" ? "warning" : "default"}>{item.status}</Badge>
+                      </div>
+                      <p className="mt-1 text-[11px] text-muted-foreground">{item.year || "—"} · {item.location || "AZ"}</p>
+                      <div className="mt-2 flex gap-1">
+                        <Button size="sm" variant="outline" onClick={() => setDraft(itemToDraft(item))}><Pencil className="h-3 w-3" /></Button>
+                        <Button size="sm" variant="outline" onClick={() => void share(item)}><Share2 className="h-3 w-3" /></Button>
+                        <Button size="sm" variant="outline" onClick={() => void quickStatus(item, item.status === "hidden" ? "published" : "hidden")}>{item.status === "hidden" ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}</Button>
+                        <Button size="sm" variant="ghost" className="text-destructive" onClick={() => void deletePortfolio(item)}><Trash2 className="h-3 w-3" /></Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {colItems.length === 0 && (
+                  <div className={cn("flex h-16 items-center justify-center rounded-xl border-2 border-dashed text-xs text-muted-foreground transition",
+                    dragOverCol === cat ? "border-accent bg-accent/5 text-accent" : "border-border")}>Drop here</div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {!filtered.length ? <div className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted-foreground">No portfolio items yet.</div> : null}
 
