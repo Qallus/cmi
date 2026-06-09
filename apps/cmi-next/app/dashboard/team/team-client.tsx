@@ -52,7 +52,7 @@ function Avatar({ member, hovered, size = "card" }: { member: TeamMember; hovere
   }
   // card size — full bleed with gradient overlay
   return (
-    <div className="relative h-72 overflow-hidden bg-muted">
+    <div className="relative h-[475px] overflow-hidden bg-muted">
       {src ? (
         <img
           src={src}
