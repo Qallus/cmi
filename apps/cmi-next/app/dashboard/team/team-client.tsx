@@ -52,7 +52,7 @@ function Avatar({ member, hovered, size = "card" }: { member: TeamMember; hovere
   }
   // card size — full bleed with gradient overlay
   return (
-    <div className="relative h-56 overflow-hidden bg-muted">
+    <div className="relative h-72 overflow-hidden bg-muted">
       {src ? (
         <img
           src={src}
@@ -168,7 +168,7 @@ export function TeamClient({ initialMembers }: { initialMembers: TeamMember[] })
       {/* ── Grid view ────────────────────────────────────── */}
       {view === "grid" && (
         <>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {active.map((m) => (
               <div
                 key={m.id}
