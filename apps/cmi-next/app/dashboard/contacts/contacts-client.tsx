@@ -1,0 +1,512 @@
+"use client";
+
+import * as React from "react";
+import {
+  Building2,
+  ChevronDown,
+  Mail,
+  MoreHorizontal,
+  Phone,
+  Plus,
+  Search,
+  Tag,
+  Trash2,
+  User,
+  X,
+} from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
+import type { Contact, ContactDraft, ContactStatus, ContactType } from "@/lib/contacts/types";
+
+const CONTACT_TYPES: ContactType[] = ["Lead", "Client", "Vendor", "Sub Contractor"];
+const STATUSES: ContactStatus[] = ["active", "inactive", "archived"];
+const STATES = ["AZ", "CA", "NV", "CO", "UT", "NM", "TX", "FL", "NY", "WA", "OR", "ID", "MT"];
+
+const TYPE_TONES: Record<string, "accent" | "success" | "warning" | "default"> = {
+  Client: "success",
+  Lead: "warning",
+  Vendor: "info" as "default",
+  "Sub Contractor": "default",
+};
+
+function statusTone(s: string): "success" | "warning" | "danger" | "default" {
+  if (s === "active") return "success";
+  if (s === "inactive") return "warning";
+  if (s === "archived") return "danger";
+  return "default";
+}
+
+function initials(c: Contact) {
+  return [(c.first_name[0] ?? ""), (c.last_name[0] ?? "")].join("").toUpperCase() || "?";
+}
+
+function fullName(c: Contact) {
+  return [c.first_name, c.last_name].filter(Boolean).join(" ") || c.email;
+}
+
+const EMPTY_DRAFT: ContactDraft = {
+  first_name: "",
+  last_name: "",
+  email: "",
+  phone: "",
+  company: "",
+  type: "Lead",
+  status: "active",
+  address: "",
+  city: "",
+  state: "AZ",
+  zip: "",
+  notes: "",
+  tags: [],
+  source: "",
+};
+
+type ModalMode = "add" | "edit" | "view";
+
+export function ContactsClient({ initialContacts }: { initialContacts: Contact[] }) {
+  const [contacts, setContacts] = React.useState<Contact[]>(initialContacts);
+  const [search, setSearch] = React.useState("");
+  const [typeFilter, setTypeFilter] = React.useState<string>("all");
+  const [statusFilter, setStatusFilter] = React.useState<string>("all");
+  const [perPage, setPerPage] = React.useState(25);
+  const [page, setPage] = React.useState(1);
+  const [modal, setModal] = React.useState<{ mode: ModalMode; contact?: Contact } | null>(null);
+  const [draft, setDraft] = React.useState<ContactDraft>(EMPTY_DRAFT);
+  const [tagInput, setTagInput] = React.useState("");
+  const [saving, setSaving] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = React.useState<string | null>(null);
+
+  const filtered = React.useMemo(() => {
+    const q = search.toLowerCase();
+    return contacts.filter((c) => {
+      if (q && !fullName(c).toLowerCase().includes(q) && !c.email.toLowerCase().includes(q) && !(c.phone ?? "").includes(q) && !(c.company ?? "").toLowerCase().includes(q)) return false;
+      if (typeFilter !== "all" && c.type !== typeFilter) return false;
+      if (statusFilter !== "all" && c.status !== statusFilter) return false;
+      return true;
+    });
+  }, [contacts, search, typeFilter, statusFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
+  const pageContacts = filtered.slice((page - 1) * perPage, page * perPage);
+
+  function openAdd() {
+    setDraft({ ...EMPTY_DRAFT });
+    setTagInput("");
+    setError(null);
+    setModal({ mode: "add" });
+  }
+
+  function openView(c: Contact) {
+    setModal({ mode: "view", contact: c });
+    setError(null);
+  }
+
+  function openEdit(c: Contact) {
+    setDraft({
+      first_name: c.first_name,
+      last_name: c.last_name,
+      email: c.email,
+      phone: c.phone ?? "",
+      company: c.company ?? "",
+      type: c.type ?? "Lead",
+      status: c.status as ContactStatus,
+      address: c.address ?? "",
+      city: c.city ?? "",
+      state: c.state ?? "AZ",
+      zip: c.zip ?? "",
+      notes: c.notes ?? "",
+      tags: c.tags ?? [],
+      source: c.source ?? "",
+    });
+    setTagInput("");
+    setError(null);
+    setModal({ mode: "edit", contact: c });
+  }
+
+  function closeModal() {
+    setModal(null);
+    setError(null);
+  }
+
+  function addTag() {
+    const t = tagInput.trim();
+    if (!t || (draft.tags ?? []).includes(t)) { setTagInput(""); return; }
+    setDraft((d) => ({ ...d, tags: [...(d.tags ?? []), t] }));
+    setTagInput("");
+  }
+
+  function removeTag(t: string) {
+    setDraft((d) => ({ ...d, tags: (d.tags ?? []).filter((x) => x !== t) }));
+  }
+
+  async function saveContact() {
+    if (!draft.email) { setError("Email is required."); return; }
+    setSaving(true);
+    setError(null);
+    try {
+      if (modal?.mode === "add") {
+        const res = await fetch("/api/contacts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(draft) });
+        const json = await res.json() as Contact & { error?: string };
+        if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+        setContacts((prev) => [json, ...prev]);
+      } else if (modal?.mode === "edit" && modal.contact) {
+        const res = await fetch(`/api/contacts/${modal.contact.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(draft) });
+        const json = await res.json() as Contact & { error?: string };
+        if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+        setContacts((prev) => prev.map((c) => (c.id === json.id ? json : c)));
+      }
+      closeModal();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Save failed.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function confirmDelete(id: string) {
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/contacts/${id}`, { method: "DELETE" });
+      if (!res.ok && res.status !== 204) throw new Error("Delete failed.");
+      setContacts((prev) => prev.filter((c) => c.id !== id));
+      setDeleteConfirm(null);
+      if (modal?.contact?.id === id) closeModal();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Delete failed.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function exportCSV() {
+    const cols = ["first_name", "last_name", "email", "phone", "company", "type", "status", "city", "state", "tags"];
+    const rows = [cols.join(","), ...filtered.map((c) => cols.map((k) => {
+      const v = (c as Record<string, unknown>)[k];
+      const s = Array.isArray(v) ? v.join("|") : String(v ?? "");
+      return `"${s.replace(/"/g, '""')}"`;
+    }).join(","))];
+    const blob = new Blob([rows.join("\n")], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "contacts.csv"; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  const viewContact = modal?.contact;
+
+  return (
+    <div className="flex h-[calc(100vh-56px)] flex-col">
+      {/* Header */}
+      <div className="border-b border-border bg-card px-4 py-4 md:px-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">CRM</div>
+            <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight">Contacts</h1>
+            <p className="mt-1 text-sm text-muted-foreground">{contacts.length} total contacts</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={exportCSV}>Export CSV</Button>
+            <Button size="sm" variant="accent" onClick={openAdd}>
+              <Plus className="h-3.5 w-3.5" /> Add Contact
+            </Button>
+          </div>
+        </div>
+
+        {/* Filters */}
+        <div className="mt-3 flex flex-wrap gap-2">
+          <div className="relative flex-1 min-w-[180px] max-w-xs">
+            <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Search name, email, phone…"
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+              className="h-8 w-full rounded-md border border-border bg-background pl-8 pr-3 text-sm outline-none focus:border-accent"
+            />
+          </div>
+          <select
+            value={typeFilter}
+            onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }}
+            className="h-8 rounded-md border border-border bg-background px-3 text-sm text-muted-foreground outline-none focus:border-accent"
+          >
+            <option value="all">All Types</option>
+            {CONTACT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+          <select
+            value={statusFilter}
+            onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+            className="h-8 rounded-md border border-border bg-background px-3 text-sm text-muted-foreground outline-none focus:border-accent"
+          >
+            <option value="all">All Statuses</option>
+            {STATUSES.map((s) => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
+          </select>
+          <select
+            value={perPage}
+            onChange={(e) => { setPerPage(Number(e.target.value)); setPage(1); }}
+            className="h-8 rounded-md border border-border bg-background px-3 text-sm text-muted-foreground outline-none focus:border-accent"
+          >
+            {[25, 50, 100].map((n) => <option key={n} value={n}>{n} / page</option>)}
+          </select>
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="flex-1 overflow-auto">
+        <table className="w-full min-w-[640px] border-collapse text-sm">
+          <thead className="sticky top-0 z-10 bg-card">
+            <tr className="border-b border-border text-left">
+              <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Name</th>
+              <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Email</th>
+              <th className="hidden px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground md:table-cell">Phone</th>
+              <th className="hidden px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground lg:table-cell">Company</th>
+              <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Type</th>
+              <th className="hidden px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground sm:table-cell">Status</th>
+              <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Tags</th>
+              <th className="w-10 px-4 py-3" />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {pageContacts.length === 0 && (
+              <tr><td colSpan={8} className="px-4 py-12 text-center text-sm text-muted-foreground">No contacts found.</td></tr>
+            )}
+            {pageContacts.map((c) => (
+              <tr key={c.id} className="transition hover:bg-muted/30 cursor-pointer" onClick={() => openView(c)}>
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent/15 text-xs font-semibold text-accent">{initials(c)}</div>
+                    <span className="font-medium">{fullName(c)}</span>
+                  </div>
+                </td>
+                <td className="px-4 py-3 text-muted-foreground">{c.email}</td>
+                <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">{c.phone ?? "—"}</td>
+                <td className="hidden px-4 py-3 text-muted-foreground lg:table-cell">{c.company ?? "—"}</td>
+                <td className="px-4 py-3">
+                  {c.type ? <Badge tone={TYPE_TONES[c.type] ?? "default"}>{c.type}</Badge> : <span className="text-muted-foreground">—</span>}
+                </td>
+                <td className="hidden px-4 py-3 sm:table-cell">
+                  <Badge tone={statusTone(c.status)}>{c.status}</Badge>
+                </td>
+                <td className="px-4 py-3">
+                  <div className="flex flex-wrap gap-1">
+                    {(c.tags ?? []).slice(0, 2).map((t) => (
+                      <span key={t} className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">{t}</span>
+                    ))}
+                    {(c.tags ?? []).length > 2 && <span className="text-[11px] text-muted-foreground">+{(c.tags ?? []).length - 2}</span>}
+                  </div>
+                </td>
+                <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    type="button"
+                    className="rounded p-1 text-muted-foreground hover:text-foreground"
+                    onClick={(e) => { e.stopPropagation(); openEdit(c); }}
+                  >
+                    <MoreHorizontal className="h-4 w-4" />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between border-t border-border px-4 py-3 text-sm text-muted-foreground">
+          <span>{filtered.length} contacts</span>
+          <div className="flex items-center gap-2">
+            <button type="button" className="rounded border border-border px-2 py-1 text-xs disabled:opacity-40" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Prev</button>
+            <span className="text-xs">{page} / {totalPages}</span>
+            <button type="button" className="rounded border border-border px-2 py-1 text-xs disabled:opacity-40" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>Next</button>
+          </div>
+        </div>
+      )}
+
+      {/* View Modal */}
+      {modal?.mode === "view" && viewContact && (
+        <Modal title={fullName(viewContact)} onClose={closeModal}>
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-accent/15 text-xl font-semibold text-accent">{initials(viewContact)}</div>
+              <div>
+                <div className="text-lg font-semibold">{fullName(viewContact)}</div>
+                {viewContact.company && <div className="text-sm text-muted-foreground">{viewContact.company}</div>}
+                <div className="mt-1 flex gap-2">
+                  {viewContact.type && <Badge tone={TYPE_TONES[viewContact.type] ?? "default"}>{viewContact.type}</Badge>}
+                  <Badge tone={statusTone(viewContact.status)}>{viewContact.status}</Badge>
+                </div>
+              </div>
+            </div>
+            <div className="grid gap-3 rounded-lg border border-border p-4 text-sm sm:grid-cols-2">
+              <InfoRow icon={Mail} label="Email" value={viewContact.email} />
+              <InfoRow icon={Phone} label="Phone" value={viewContact.phone ?? "—"} />
+              <InfoRow icon={Building2} label="Company" value={viewContact.company ?? "—"} />
+              <InfoRow icon={User} label="Source" value={viewContact.source ?? "—"} />
+              {(viewContact.city || viewContact.state) && (
+                <InfoRow icon={Building2} label="Location" value={[viewContact.city, viewContact.state, viewContact.zip].filter(Boolean).join(", ")} />
+              )}
+            </div>
+            {(viewContact.tags ?? []).length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {(viewContact.tags ?? []).map((t) => (
+                  <span key={t} className="flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground"><Tag className="h-3 w-3" />{t}</span>
+                ))}
+              </div>
+            )}
+            {viewContact.notes && (
+              <div className="rounded-lg bg-muted/40 px-4 py-3 text-sm text-muted-foreground whitespace-pre-wrap">{viewContact.notes}</div>
+            )}
+            <div className="flex justify-end gap-2 pt-2">
+              <Button size="sm" variant="outline" onClick={() => { closeModal(); setTimeout(() => openEdit(viewContact), 50); }}>Edit</Button>
+              <Button size="sm" variant="outline" className="text-destructive hover:border-destructive" onClick={() => setDeleteConfirm(viewContact.id)}>Delete</Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Add / Edit Modal */}
+      {(modal?.mode === "add" || modal?.mode === "edit") && (
+        <Modal title={modal.mode === "add" ? "Add Contact" : "Edit Contact"} onClose={closeModal} wide>
+          <div className="space-y-4">
+            {error && <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="First Name" required>
+                <input className={inputCls} value={draft.first_name} onChange={(e) => setDraft((d) => ({ ...d, first_name: e.target.value }))} />
+              </Field>
+              <Field label="Last Name">
+                <input className={inputCls} value={draft.last_name} onChange={(e) => setDraft((d) => ({ ...d, last_name: e.target.value }))} />
+              </Field>
+              <Field label="Email" required>
+                <input type="email" className={inputCls} value={draft.email} onChange={(e) => setDraft((d) => ({ ...d, email: e.target.value }))} />
+              </Field>
+              <Field label="Phone">
+                <input type="tel" className={inputCls} value={draft.phone ?? ""} onChange={(e) => setDraft((d) => ({ ...d, phone: e.target.value }))} />
+              </Field>
+              <Field label="Company">
+                <input className={inputCls} value={draft.company ?? ""} onChange={(e) => setDraft((d) => ({ ...d, company: e.target.value }))} />
+              </Field>
+              <Field label="Job Title / Source">
+                <input className={inputCls} value={draft.source ?? ""} onChange={(e) => setDraft((d) => ({ ...d, source: e.target.value }))} />
+              </Field>
+              <Field label="Type">
+                <select className={inputCls} value={draft.type ?? "Lead"} onChange={(e) => setDraft((d) => ({ ...d, type: e.target.value as ContactType }))}>
+                  {CONTACT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </Field>
+              <Field label="Status">
+                <select className={inputCls} value={draft.status} onChange={(e) => setDraft((d) => ({ ...d, status: e.target.value }))}>
+                  {STATUSES.map((s) => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
+                </select>
+              </Field>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Field label="City" className="sm:col-span-1">
+                <input className={inputCls} value={draft.city ?? ""} onChange={(e) => setDraft((d) => ({ ...d, city: e.target.value }))} />
+              </Field>
+              <Field label="State">
+                <select className={inputCls} value={draft.state ?? "AZ"} onChange={(e) => setDraft((d) => ({ ...d, state: e.target.value }))}>
+                  {STATES.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </Field>
+              <Field label="Zip">
+                <input className={inputCls} value={draft.zip ?? ""} onChange={(e) => setDraft((d) => ({ ...d, zip: e.target.value }))} />
+              </Field>
+            </div>
+            <Field label="Address">
+              <input className={inputCls} value={draft.address ?? ""} onChange={(e) => setDraft((d) => ({ ...d, address: e.target.value }))} />
+            </Field>
+            <Field label="Tags">
+              <div className="flex flex-wrap gap-1.5 rounded-md border border-border bg-background p-2">
+                {(draft.tags ?? []).map((t) => (
+                  <span key={t} className="flex items-center gap-1 rounded-full bg-accent/15 px-2 py-0.5 text-xs text-accent">
+                    {t}
+                    <button type="button" onClick={() => removeTag(t)}><X className="h-3 w-3" /></button>
+                  </span>
+                ))}
+                <input
+                  className="min-w-[80px] flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                  placeholder="Add tag…"
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addTag(); } }}
+                />
+              </div>
+            </Field>
+            <Field label="Notes">
+              <textarea className={cn(inputCls, "min-h-[80px] resize-none")} value={draft.notes ?? ""} onChange={(e) => setDraft((d) => ({ ...d, notes: e.target.value }))} />
+            </Field>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button size="sm" variant="outline" onClick={closeModal} disabled={saving}>Cancel</Button>
+              <Button size="sm" variant="accent" onClick={() => void saveContact()} disabled={saving}>
+                {saving ? "Saving…" : modal.mode === "add" ? "Add Contact" : "Save Changes"}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Delete confirm */}
+      {deleteConfirm && (
+        <Modal title="Delete Contact" onClose={() => setDeleteConfirm(null)}>
+          <p className="text-sm text-muted-foreground">This will permanently delete the contact and cannot be undone.</p>
+          <div className="mt-4 flex justify-end gap-2">
+            <Button size="sm" variant="outline" onClick={() => setDeleteConfirm(null)} disabled={saving}>Cancel</Button>
+            <Button size="sm" variant="outline" className="border-destructive text-destructive hover:bg-destructive/10" onClick={() => void confirmDelete(deleteConfirm)} disabled={saving}>
+              {saving ? "Deleting…" : "Delete"}
+            </Button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ─── Shared sub-components ───────────────────────────────────
+
+const inputCls = "h-9 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-accent";
+
+function Field({ label, required, className, children }: { label: string; required?: boolean; className?: string; children: React.ReactNode }) {
+  return (
+    <div className={cn("flex flex-col gap-1", className)}>
+      <label className="text-xs font-medium text-muted-foreground">
+        {label}{required && <span className="ml-0.5 text-destructive">*</span>}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+function InfoRow({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string }) {
+  return (
+    <div className="flex items-start gap-2">
+      <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+      <div>
+        <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
+        <div className="text-sm">{value}</div>
+      </div>
+    </div>
+  );
+}
+
+function Modal({ title, onClose, wide, children }: { title: string; onClose: () => void; wide?: boolean; children: React.ReactNode }) {
+  React.useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={onClose} />
+      <div className={cn("relative z-10 max-h-[90vh] w-full overflow-y-auto rounded-xl border border-border bg-card shadow-xl", wide ? "max-w-2xl" : "max-w-lg")}>
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <h2 className="font-semibold">{title}</h2>
+          <button type="button" className="rounded p-1 text-muted-foreground hover:text-foreground" onClick={onClose}><X className="h-4 w-4" /></button>
+        </div>
+        <div className="p-5">{children}</div>
+      </div>
+    </div>
+  );
+}
