@@ -52,6 +52,11 @@ export async function POST(request: Request) {
       size: file.size
     });
   } catch (error) {
-    return NextResponse.json({ message: error instanceof Error ? error.message : "Upload failed." }, { status: 400 });
+    const message = error instanceof Error ? error.message : "Upload failed.";
+    return NextResponse.json({
+      message: message === "Supabase server credentials are not configured."
+        ? "Media uploads need Supabase server credentials. Add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to apps/cmi-next/.env.local, then restart the app. You can paste an image URL instead for now."
+        : message
+    }, { status: message === "Supabase server credentials are not configured." ? 503 : 400 });
   }
 }

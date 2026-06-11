@@ -4,6 +4,7 @@ import * as React from "react";
 import { MoreHorizontal, Plus, Search, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { Quote, QuoteDraft, QuoteStatus } from "@/lib/quotes/types";
 
@@ -248,9 +249,9 @@ export function QuotesClient({ initialQuotes }: { initialQuotes: Quote[] }) {
                 <Field label="Email"><input type="email" className={inputCls} value={draft.email ?? ""} onChange={(e) => setDraft((d) => ({ ...d, email: e.target.value }))} /></Field>
                 <Field label="Phone"><input type="tel" className={inputCls} value={draft.phone ?? ""} onChange={(e) => setDraft((d) => ({ ...d, phone: e.target.value }))} /></Field>
                 <Field label="Source">
-                  <select className={inputCls} value={draft.source ?? "Website"} onChange={(e) => setDraft((d) => ({ ...d, source: e.target.value }))}>
+                  <Select value={draft.source ?? "Website"} onChange={(e) => setDraft((d) => ({ ...d, source: e.target.value }))}>
                     {SOURCES.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
+                  </Select>
                 </Field>
               </div>
             </Section>
@@ -258,29 +259,29 @@ export function QuotesClient({ initialQuotes }: { initialQuotes: Quote[] }) {
             <Section title="Project Details">
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field label="Project Type">
-                  <select className={inputCls} value={draft.project_type ?? ""} onChange={(e) => setDraft((d) => ({ ...d, project_type: e.target.value }))}>
+                  <Select value={draft.project_type ?? ""} onChange={(e) => setDraft((d) => ({ ...d, project_type: e.target.value }))}>
                     <option value="">— Select —</option>
                     {PROJECT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                  </select>
+                  </Select>
                 </Field>
                 <Field label="Location"><input className={inputCls} value={draft.location ?? ""} onChange={(e) => setDraft((d) => ({ ...d, location: e.target.value }))} /></Field>
                 <Field label="Square Footage"><input type="number" className={inputCls} value={draft.sq_ft ?? ""} onChange={(e) => setDraft((d) => ({ ...d, sq_ft: e.target.value ? Number(e.target.value) : null }))} /></Field>
                 <Field label="Budget Range">
-                  <select className={inputCls} value={draft.budget_range ?? ""} onChange={(e) => setDraft((d) => ({ ...d, budget_range: e.target.value }))}>
+                  <Select value={draft.budget_range ?? ""} onChange={(e) => setDraft((d) => ({ ...d, budget_range: e.target.value }))}>
                     <option value="">— Select —</option>
                     {BUDGET_RANGES.map((b) => <option key={b} value={b}>{b}</option>)}
-                  </select>
+                  </Select>
                 </Field>
                 <Field label="Timeline">
-                  <select className={inputCls} value={draft.timeline ?? ""} onChange={(e) => setDraft((d) => ({ ...d, timeline: e.target.value }))}>
+                  <Select value={draft.timeline ?? ""} onChange={(e) => setDraft((d) => ({ ...d, timeline: e.target.value }))}>
                     <option value="">— Select —</option>
                     {TIMELINES.map((t) => <option key={t} value={t}>{t}</option>)}
-                  </select>
+                  </Select>
                 </Field>
                 <Field label="Status">
-                  <select className={inputCls} value={draft.status} onChange={(e) => setDraft((d) => ({ ...d, status: e.target.value as QuoteStatus }))}>
+                  <Select value={draft.status} onChange={(e) => setDraft((d) => ({ ...d, status: e.target.value as QuoteStatus }))}>
                     {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
+                  </Select>
                 </Field>
               </div>
               <Field label="Services Requested" className="mt-3">
@@ -377,3 +378,4 @@ function Modal({ title, onClose, wide, children }: { title: string; onClose: () 
     </div>
   );
 }
+

@@ -11,6 +11,7 @@ export function ThemeToggle() {
     const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
     const nextDark = stored ? stored === "dark" : prefersDark;
     document.documentElement.classList.toggle("dark", nextDark);
+    document.documentElement.dataset.theme = nextDark ? "dark" : "light";
     setDark(nextDark);
   }, []);
 
@@ -22,6 +23,7 @@ export function ThemeToggle() {
       onClick={() => {
         const next = !dark;
         document.documentElement.classList.toggle("dark", next);
+        document.documentElement.dataset.theme = next ? "dark" : "light";
         localStorage.setItem("cmi-theme", next ? "dark" : "light");
         setDark(next);
       }}

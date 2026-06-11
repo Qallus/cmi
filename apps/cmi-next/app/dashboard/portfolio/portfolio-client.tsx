@@ -483,16 +483,20 @@ export function PortfolioClient({ initialItems, demoMode }: { initialItems: Port
 
 function PortfolioEditor({ draft, saving, onChange, onClose, onSave }: { draft: Draft; saving: boolean; onChange: (draft: Draft) => void; onClose: () => void; onSave: (draft: Draft) => void }) {
   const [uploading, setUploading] = React.useState<string | null>(null);
+  const [uploadError, setUploadError] = React.useState<string | null>(null);
 
   const update = <K extends keyof Draft>(key: K, value: Draft[K]) => onChange({ ...draft, [key]: value });
   const upload = async (field: "featured_image" | "gallery_images" | "video_urls", file: File | null) => {
     if (!file) return;
     setUploading(field);
+    setUploadError(null);
     try {
       const media = await uploadMedia(file, "portfolio");
       if (field === "featured_image") update("featured_image", media.url);
       if (field === "gallery_images") update("gallery_images", [...(draft.gallery_images || []), media.url]);
       if (field === "video_urls") update("video_urls", [...(draft.video_urls || []), media.url]);
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : "Upload failed.");
     } finally {
       setUploading(null);
     }
@@ -560,6 +564,7 @@ function PortfolioEditor({ draft, saving, onChange, onClose, onSave }: { draft: 
           <MediaUpload label="Featured Image" icon={Image} uploading={uploading === "featured_image"} url={draft.featured_image || ""} accept="image/*" onFile={file => upload("featured_image", file)} onUrl={value => update("featured_image", value)} />
           <MediaUpload label="Gallery Images" icon={Upload} uploading={uploading === "gallery_images"} url={(draft.gallery_images || []).join("\n")} accept="image/*" multiple onFile={file => upload("gallery_images", file)} onUrl={value => update("gallery_images", lines(value))} textarea />
           <MediaUpload label="Videos" icon={Video} uploading={uploading === "video_urls"} url={(draft.video_urls || []).join("\n")} accept="video/*" multiple onFile={file => upload("video_urls", file)} onUrl={value => update("video_urls", lines(value))} textarea />
+          {uploadError ? <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive lg:col-span-2">{uploadError}</div> : null}
 
           <TagPicker title="Services Used" values={draft.services_used || []} options={serviceOptions} onChange={value => update("services_used", value)} />
           <AttributesEditor values={draft.attributes_json || []} onChange={value => update("attributes_json", value)} />
@@ -667,7 +672,7 @@ async function uploadMedia(file: File, folder: string) {
   form.append("file", file);
   form.append("folder", folder);
   const res = await fetch("/api/admin/uploads", { method: "POST", body: form });
-  const json = await res.json();
+  const json = await res.json().catch(() => ({ message: "Upload failed." }));
   if (!res.ok) throw new Error(json.message || "Upload failed.");
   return json as { url: string };
 }

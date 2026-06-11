@@ -8,6 +8,30 @@ export async function loadTeamMembers(): Promise<TeamMember[]> {
   return (data ?? []) as TeamMember[];
 }
 
+export async function loadActiveTeamMembers(): Promise<TeamMember[]> {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("team_members")
+    .select("*")
+    .eq("status", "active")
+    .order("sort_order")
+    .order("name");
+  if (error) throw new Error(error.message);
+  return (data ?? []) as TeamMember[];
+}
+
+export async function loadTeamMemberBySlug(slug: string): Promise<TeamMember | null> {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("team_members")
+    .select("*")
+    .eq("slug", slug)
+    .eq("status", "active")
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return (data ?? null) as TeamMember | null;
+}
+
 export async function createTeamMember(draft: TeamMemberDraft): Promise<TeamMember> {
   const supabase = getSupabaseAdmin();
   const slug = draft.slug || draft.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");

@@ -4,6 +4,7 @@ import * as React from "react";
 import { FileText, Plus, Search, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input, Select } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { Document } from "./page";
 
@@ -224,11 +225,11 @@ export function DocumentsClient({ initialDocs }: { initialDocs: Document[] }) {
               <div className="grid gap-3 sm:grid-cols-2">
                 <F label="Title" required><input className={iCls} value={draft.title} onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))} /></F>
                 <F label="Status">
-                  <select className={iCls} value={draft.status} onChange={(e) => setDraft((d) => ({ ...d, status: e.target.value }))}>
+                  <Select value={draft.status} onChange={(e) => setDraft((d) => ({ ...d, status: e.target.value }))}>
                     {DOC_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
+                  </Select>
                 </F>
-                <F label="Date"><input type="date" className={iCls} value={draft.date ?? ""} onChange={(e) => setDraft((d) => ({ ...d, date: e.target.value }))} /></F>
+                <F label="Date"><Input type="date" value={draft.date ?? ""} onChange={(e) => setDraft((d) => ({ ...d, date: e.target.value }))} /></F>
               </div>
             </DocSection>
 
@@ -244,8 +245,8 @@ export function DocumentsClient({ initialDocs }: { initialDocs: Document[] }) {
               <div className="grid gap-3 sm:grid-cols-2">
                 <F label="Project Title"><input className={iCls} value={draft.project ?? ""} onChange={(e) => setDraft((d) => ({ ...d, project: e.target.value }))} /></F>
                 <F label="Location"><input className={iCls} value={draft.location ?? ""} onChange={(e) => setDraft((d) => ({ ...d, location: e.target.value }))} /></F>
-                <F label="Start Date"><input type="date" className={iCls} value={draft.start_date ?? ""} onChange={(e) => setDraft((d) => ({ ...d, start_date: e.target.value }))} /></F>
-                <F label="Completion Date"><input type="date" className={iCls} value={draft.completion_date ?? ""} onChange={(e) => setDraft((d) => ({ ...d, completion_date: e.target.value }))} /></F>
+                <F label="Start Date"><Input type="date" value={draft.start_date ?? ""} onChange={(e) => setDraft((d) => ({ ...d, start_date: e.target.value }))} /></F>
+                <F label="Completion Date"><Input type="date" value={draft.completion_date ?? ""} onChange={(e) => setDraft((d) => ({ ...d, completion_date: e.target.value }))} /></F>
               </div>
               <F label="Scope / Description" className="mt-3">
                 <textarea className={cn(iCls, "min-h-[80px] resize-none")} value={draft.description ?? ""} onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))} />
@@ -257,9 +258,9 @@ export function DocumentsClient({ initialDocs }: { initialDocs: Document[] }) {
                 <F label="Contract Value ($)"><input className={iCls} value={draft.value ?? ""} onChange={(e) => setDraft((d) => ({ ...d, value: e.target.value }))} /></F>
                 <F label="Deposit"><input className={iCls} placeholder="e.g. 50% or $5,000" value={draft.deposit ?? ""} onChange={(e) => setDraft((d) => ({ ...d, deposit: e.target.value }))} /></F>
                 <F label="Payment Schedule">
-                  <select className={iCls} value={draft.payment_schedule ?? ""} onChange={(e) => setDraft((d) => ({ ...d, payment_schedule: e.target.value }))}>
+                  <Select value={draft.payment_schedule ?? ""} onChange={(e) => setDraft((d) => ({ ...d, payment_schedule: e.target.value }))}>
                     {PAYMENT_SCHEDULES.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
+                  </Select>
                 </F>
                 <F label="Payment Terms"><input className={iCls} value={draft.payment_terms ?? ""} onChange={(e) => setDraft((d) => ({ ...d, payment_terms: e.target.value }))} /></F>
               </div>
@@ -280,9 +281,9 @@ export function DocumentsClient({ initialDocs }: { initialDocs: Document[] }) {
             <DocSection title="Signatures">
               <div className="grid gap-3 sm:grid-cols-2">
                 <F label="CMI Representative">
-                  <select className={iCls} value={draft.cmi_rep ?? ""} onChange={(e) => setDraft((d) => ({ ...d, cmi_rep: e.target.value }))}>
+                  <Select value={draft.cmi_rep ?? ""} onChange={(e) => setDraft((d) => ({ ...d, cmi_rep: e.target.value }))}>
                     {CMI_REPS.map((r) => <option key={r} value={r}>{r}</option>)}
-                  </select>
+                  </Select>
                 </F>
                 <F label="Prepared By"><input className={iCls} value={draft.prepared_by ?? ""} onChange={(e) => setDraft((d) => ({ ...d, prepared_by: e.target.value }))} /></F>
               </div>
@@ -332,3 +333,4 @@ function DocModal({ title, onClose, wide, children }: { title: string; onClose: 
     </div>
   );
 }
+

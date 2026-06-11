@@ -99,9 +99,7 @@ export default function ContactPage() {
                     Prefer to meet in person or over a call? Schedule a free 30-minute consultation with our team.
                   </p>
                   <a
-                    href="https://wp-constructedmatter-com-985548.hostingersite.com/?fluent-booking=calendar&host=jwaters-1772651529&event=30min"
-                    target="_blank"
-                    rel="noreferrer"
+                    href="/book"
                     className="inline-flex items-center gap-2 rounded-lg bg-white px-5 py-2.5 text-[13px] font-semibold text-accent transition hover:opacity-90"
                   >
                     Schedule Now

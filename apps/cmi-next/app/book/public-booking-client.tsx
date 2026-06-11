@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { CalendarClock, CheckCircle2, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, CalendarClock, CheckCircle2, Clock3, Loader2, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Textarea } from "@/components/ui/input";
@@ -12,7 +12,10 @@ function todayKey() {
   return new Date().toISOString().slice(0, 10);
 }
 
+type BookingStep = 1 | 2 | 3;
+
 export function PublicBookingClient({ appointmentTypes, demoMode, setupMessage }: { appointmentTypes: AppointmentType[]; demoMode: boolean; setupMessage?: string }) {
+  const [step, setStep] = React.useState<BookingStep>(1);
   const [selectedTypeId, setSelectedTypeId] = React.useState(appointmentTypes[0]?.id || "");
   const [date, setDate] = React.useState(todayKey());
   const [slots, setSlots] = React.useState<BookingSlot[]>([]);
@@ -22,6 +25,13 @@ export function PublicBookingClient({ appointmentTypes, demoMode, setupMessage }
   const [notice, setNotice] = React.useState<string | null>(demoMode ? setupMessage || "Demo mode is using sample booking options." : null);
   const [confirmed, setConfirmed] = React.useState(false);
   const selectedType = appointmentTypes.find(type => type.id === selectedTypeId) || appointmentTypes[0];
+  const selectedSlotLabel = React.useMemo(() => {
+    const slot = slots.find(item => item.start === selectedSlot);
+    if (slot) return slot.label;
+    if (!selectedSlot) return "";
+    return new Date(selectedSlot).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "America/Phoenix" });
+  }, [selectedSlot, slots]);
+  const detailsComplete = Boolean(form.first_name.trim() && form.last_name.trim() && form.email.trim());
 
   async function loadSlots() {
     if (!selectedTypeId || !date) return;
@@ -87,12 +97,10 @@ export function PublicBookingClient({ appointmentTypes, demoMode, setupMessage }
 
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-8 md:py-12">
+      <div className="mx-auto flex max-w-7xl flex-col gap-6 px-5 py-8 md:py-12 lg:px-8">
         <header className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
-            <img src="/brand/cmi-logo-light.png" alt="Constructed Matter, Inc." className="h-9 w-auto object-contain dark:hidden" />
-            <img src="/brand/cmi-logo-dark.png" alt="Constructed Matter, Inc." className="hidden h-9 w-auto object-contain dark:block" />
-            <div className="mt-8 text-[10px] uppercase tracking-[0.18em] text-accent">Book Appointment</div>
+            <div className="text-[10px] uppercase tracking-[0.18em] text-accent">Book Appointment</div>
             <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight">Schedule With Constructed Matter</h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
               Choose a construction appointment type, select a time, and share enough context for the CMI team to connect it to your contact and project record.
@@ -115,77 +123,183 @@ export function PublicBookingClient({ appointmentTypes, demoMode, setupMessage }
             </CardContent>
           </Card>
         ) : (
-          <form onSubmit={submit} className="grid gap-6 lg:grid-cols-[1fr_420px]">
+          <form onSubmit={submit} className="grid gap-6 lg:grid-cols-[1fr_340px]">
             <section className="space-y-5">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Appointment Type</CardTitle>
-                  <CardDescription>Select the meeting that best matches what you need.</CardDescription>
-                </CardHeader>
-                <CardContent className="grid gap-3">
-                  {appointmentTypes.map(type => (
-                    <button key={type.id} type="button" className={cn("rounded-lg border border-border p-4 text-left transition hover:border-accent", selectedTypeId === type.id && "border-accent bg-accent/10")} onClick={() => { setSelectedTypeId(type.id); setSelectedSlot(""); setSlots([]); }}>
-                      <div className="font-medium">{type.name}</div>
-                      <div className="mt-2 text-sm text-muted-foreground">{type.description}</div>
-                      <div className="mt-3 text-xs text-muted-foreground">{type.duration_minutes} minutes</div>
+              <div className="grid gap-3 md:grid-cols-3">
+                {[
+                  { id: 1 as BookingStep, title: "Appointment", text: selectedType?.name || "Choose type", icon: CalendarClock },
+                  { id: 2 as BookingStep, title: "Date & Time", text: selectedSlotLabel || "Pick availability", icon: Clock3 },
+                  { id: 3 as BookingStep, title: "Your Details", text: detailsComplete ? `${form.first_name} ${form.last_name}` : "Contact info", icon: UserRound }
+                ].map(item => {
+                  const Icon = item.icon;
+                  const complete = item.id === 1 ? Boolean(selectedTypeId) : item.id === 2 ? Boolean(selectedSlot) : detailsComplete;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className={cn(
+                        "rounded-lg border border-border bg-card p-4 text-left transition hover:border-accent",
+                        step === item.id && "border-accent bg-accent/10",
+                        complete && step !== item.id && "border-success/30"
+                      )}
+                      onClick={() => {
+                        if (item.id === 2 && !selectedTypeId) return;
+                        if (item.id === 3 && !selectedSlot) return;
+                        setStep(item.id);
+                      }}
+                    >
+                      <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                        <Icon className="h-3.5 w-3.5" />
+                        Step {item.id}
+                      </div>
+                      <div className="mt-2 font-medium">{item.title}</div>
+                      <div className="mt-1 truncate text-xs text-muted-foreground">{item.text}</div>
                     </button>
-                  ))}
-                </CardContent>
-              </Card>
+                  );
+                })}
+              </div>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>Date & Time</CardTitle>
-                  <CardDescription>Available times are shown in Arizona time.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid gap-3 md:grid-cols-[240px_auto]">
-                    <Input type="date" value={date} onChange={event => setDate(event.target.value)} />
-                    <Button type="button" variant="outline" onClick={loadSlots} disabled={loading}>
-                      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarClock className="h-4 w-4" />}
-                      Check Availability
-                    </Button>
-                  </div>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {slots.map(slot => (
-                      <button key={slot.start} type="button" className={cn("rounded-md border border-border px-3 py-2 text-sm", selectedSlot === slot.start ? "border-accent bg-accent text-accent-foreground" : "hover:border-accent")} onClick={() => setSelectedSlot(slot.start)}>
-                        {slot.label}
+              {step === 1 ? (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Choose Appointment Type</CardTitle>
+                    <CardDescription>Select the meeting that best matches what you need.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="grid gap-3">
+                    {appointmentTypes.map(type => (
+                      <button
+                        key={type.id}
+                        type="button"
+                        className={cn("rounded-lg border border-border p-4 text-left transition hover:border-accent", selectedTypeId === type.id && "border-accent bg-accent/10")}
+                        onClick={() => { setSelectedTypeId(type.id); setSelectedSlot(""); setSlots([]); }}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="font-medium">{type.name}</div>
+                            <div className="mt-2 text-sm text-muted-foreground">{type.description}</div>
+                          </div>
+                          {selectedTypeId === type.id ? <CheckCircle2 className="h-5 w-5 shrink-0 text-accent" /> : null}
+                        </div>
+                        <div className="mt-3 text-xs text-muted-foreground">{type.duration_minutes} minutes</div>
                       </button>
                     ))}
-                    {!slots.length ? <span className="text-sm text-muted-foreground">Pick a date and check availability.</span> : null}
-                  </div>
-                </CardContent>
-              </Card>
+                    <div className="flex justify-end pt-2">
+                      <Button type="button" variant="accent" disabled={!selectedTypeId} onClick={() => setStep(2)}>
+                        Continue
+                        <ArrowRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : null}
+
+              {step === 2 ? (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Select Date & Time</CardTitle>
+                    <CardDescription>Available times are shown in Arizona time.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid gap-3 md:grid-cols-[240px_auto]">
+                      <Input type="date" value={date} onChange={event => { setDate(event.target.value); setSelectedSlot(""); setSlots([]); }} />
+                      <Button type="button" variant="outline" onClick={loadSlots} disabled={loading || !selectedTypeId}>
+                        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarClock className="h-4 w-4" />}
+                        Check Availability
+                      </Button>
+                    </div>
+                    <div className="mt-5 grid gap-2 sm:grid-cols-2 md:grid-cols-3">
+                      {slots.map(slot => (
+                        <button
+                          key={slot.start}
+                          type="button"
+                          className={cn("rounded-md border border-border px-3 py-3 text-sm transition hover:border-accent", selectedSlot === slot.start ? "border-accent bg-accent text-accent-foreground" : "bg-card")}
+                          onClick={() => setSelectedSlot(slot.start)}
+                        >
+                          {slot.label}
+                        </button>
+                      ))}
+                    </div>
+                    {!slots.length ? <div className="mt-4 rounded-lg border border-dashed border-border p-5 text-sm text-muted-foreground">Pick a date and check availability to see open appointment times.</div> : null}
+                    <div className="mt-5 flex flex-wrap justify-between gap-2">
+                      <Button type="button" variant="outline" onClick={() => setStep(1)}>
+                        <ArrowLeft className="h-4 w-4" />
+                        Back
+                      </Button>
+                      <Button type="button" variant="accent" disabled={!selectedSlot} onClick={() => setStep(3)}>
+                        Continue
+                        <ArrowRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : null}
+
+              {step === 3 ? (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Your Details</CardTitle>
+                    <CardDescription>This creates or updates a contact and can prepare client access if needed.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <Input required placeholder="First name" value={form.first_name} onChange={event => setForm({ ...form, first_name: event.target.value })} />
+                      <Input required placeholder="Last name" value={form.last_name} onChange={event => setForm({ ...form, last_name: event.target.value })} />
+                      <Input required type="email" placeholder="Email" value={form.email} onChange={event => setForm({ ...form, email: event.target.value })} />
+                      <Input placeholder="Phone" value={form.phone} onChange={event => setForm({ ...form, phone: event.target.value })} />
+                      <Input placeholder="Company / organization" value={form.company_name} onChange={event => setForm({ ...form, company_name: event.target.value })} />
+                      <Input placeholder="Project name if known" value={form.project_name} onChange={event => setForm({ ...form, project_name: event.target.value })} />
+                    </div>
+                    <Textarea placeholder="Project details, site address, preferred notes..." value={form.notes} onChange={event => setForm({ ...form, notes: event.target.value })} />
+                    <label className="flex items-center gap-2 rounded-lg border border-border p-3 text-sm">
+                      <input type="checkbox" checked={form.sms_consent} onChange={event => setForm({ ...form, sms_consent: event.target.checked })} />
+                      I agree to receive SMS updates for this appointment.
+                    </label>
+                    <div className="flex flex-wrap justify-between gap-2 pt-2">
+                      <Button type="button" variant="outline" onClick={() => setStep(2)}>
+                        <ArrowLeft className="h-4 w-4" />
+                        Back
+                      </Button>
+                      <Button type="submit" variant="accent" disabled={loading || !selectedSlot || !detailsComplete}>
+                        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                        Request Appointment
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : null}
             </section>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Your Details</CardTitle>
-                <CardDescription>This creates or updates a contact and can prepare client access if needed.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-1">
-                  <Input required placeholder="First name" value={form.first_name} onChange={event => setForm({ ...form, first_name: event.target.value })} />
-                  <Input required placeholder="Last name" value={form.last_name} onChange={event => setForm({ ...form, last_name: event.target.value })} />
-                  <Input required type="email" placeholder="Email" value={form.email} onChange={event => setForm({ ...form, email: event.target.value })} />
-                  <Input placeholder="Phone" value={form.phone} onChange={event => setForm({ ...form, phone: event.target.value })} />
-                  <Input placeholder="Company / organization" value={form.company_name} onChange={event => setForm({ ...form, company_name: event.target.value })} />
-                  <Input placeholder="Project name if known" value={form.project_name} onChange={event => setForm({ ...form, project_name: event.target.value })} />
-                  <Textarea placeholder="Project details, site address, preferred notes..." value={form.notes} onChange={event => setForm({ ...form, notes: event.target.value })} />
-                </div>
-                <label className="flex items-center gap-2 rounded-lg border border-border p-3 text-sm">
-                  <input type="checkbox" checked={form.sms_consent} onChange={event => setForm({ ...form, sms_consent: event.target.checked })} />
-                  I agree to receive SMS updates for this appointment.
-                </label>
-                <Button type="submit" variant="accent" className="w-full" disabled={loading || !selectedSlot}>
-                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                  Request Appointment
-                </Button>
-              </CardContent>
-            </Card>
+            <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Booking Summary</CardTitle>
+                  <CardDescription>Review your appointment request before sending it to CMI.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4 text-sm">
+                  <SummaryRow label="Appointment" value={selectedType?.name || "Not selected"} />
+                  <SummaryRow label="Duration" value={selectedType ? `${selectedType.duration_minutes} minutes` : "Not selected"} />
+                  <SummaryRow label="Date" value={date ? new Date(`${date}T00:00:00`).toLocaleDateString("en-US", { dateStyle: "medium" }) : "Not selected"} />
+                  <SummaryRow label="Time" value={selectedSlotLabel || "Not selected"} />
+                  <SummaryRow label="Contact" value={detailsComplete ? `${form.first_name} ${form.last_name}` : "Add contact details"} />
+                  <SummaryRow label="Project" value={form.project_name || "Project name can be added later"} />
+                </CardContent>
+              </Card>
+              <div className="rounded-lg border border-border bg-card p-4 text-xs leading-5 text-muted-foreground">
+                Requests create a booking record and can connect to contacts, client access, and Project Manager timeline items once Supabase is configured.
+              </div>
+            </aside>
           </form>
         )}
       </div>
     </main>
+  );
+}
+
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-start justify-between gap-4 border-b border-border pb-3 last:border-b-0 last:pb-0">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="max-w-48 text-right font-medium">{value}</span>
+    </div>
   );
 }

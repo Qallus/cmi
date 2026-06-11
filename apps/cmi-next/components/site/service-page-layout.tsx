@@ -82,9 +82,9 @@ export function ServicePageLayout({
         </section>
 
         {/* Stats Bar */}
-        <div className="border-y border-border bg-black">
+        <div className="bg-black">
           <div className="mx-auto max-w-7xl px-5 lg:px-8">
-            <div className={`grid divide-x divide-border py-6`} style={{ gridTemplateColumns: `repeat(${stats.length}, minmax(0, 1fr))` }}>
+            <div className="grid gap-4 py-6" style={{ gridTemplateColumns: `repeat(${stats.length}, minmax(0, 1fr))` }}>
               {stats.map((s) => (
                 <div key={s.label} className="px-6 text-center">
                   <div className="font-display text-3xl font-semibold text-accent">{s.value}</div>

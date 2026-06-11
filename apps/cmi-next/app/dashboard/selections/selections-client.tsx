@@ -550,9 +550,11 @@ function ProductModal({ draft, saving, onChange, onClose, onSave }: { draft: Pro
   const update = <K extends keyof ProductDraft>(key: K, value: ProductDraft[K]) => onChange({ ...draft, [key]: value });
   const [showUrlFields, setShowUrlFields] = React.useState(false);
   const [uploading, setUploading] = React.useState<string | null>(null);
+  const [uploadError, setUploadError] = React.useState<string | null>(null);
   const upload = async (field: "image_url" | "gallery_urls" | "video_url", file: File | null) => {
     if (!file) return;
     setUploading(field);
+    setUploadError(null);
     try {
       const url = await uploadMedia(file, "products");
       if (field === "gallery_urls") {
@@ -560,6 +562,8 @@ function ProductModal({ draft, saving, onChange, onClose, onSave }: { draft: Pro
       } else {
         update(field, url);
       }
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : "Upload failed.");
     } finally {
       setUploading(null);
     }
@@ -597,6 +601,7 @@ function ProductModal({ draft, saving, onChange, onClose, onSave }: { draft: Pro
             uploading={uploading}
             onUpload={upload}
           />
+          {uploadError ? <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{uploadError}</div> : null}
           <label className="inline-flex items-center gap-2 text-sm text-muted-foreground">
             <input type="checkbox" checked={showUrlFields} onChange={event => setShowUrlFields(event.target.checked)} />
             Use URLs instead of upload
@@ -632,9 +637,11 @@ function SelectionModal({ data, products, draft, saving, onChange, onClose, onSa
   const selectedProduct = products.find(product => product.id === draft.product_id);
   const [showUrlFields, setShowUrlFields] = React.useState(false);
   const [uploading, setUploading] = React.useState<string | null>(null);
+  const [uploadError, setUploadError] = React.useState<string | null>(null);
   const upload = async (field: "image_url" | "gallery_urls" | "video_url", file: File | null) => {
     if (!file) return;
     setUploading(field);
+    setUploadError(null);
     try {
       const url = await uploadMedia(file, "selections");
       if (field === "gallery_urls") {
@@ -642,6 +649,8 @@ function SelectionModal({ data, products, draft, saving, onChange, onClose, onSa
       } else {
         update(field, url);
       }
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : "Upload failed.");
     } finally {
       setUploading(null);
     }
@@ -757,6 +766,7 @@ function SelectionModal({ data, products, draft, saving, onChange, onClose, onSa
             uploading={uploading}
             onUpload={upload}
           />
+          {uploadError ? <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{uploadError}</div> : null}
           <label className="inline-flex items-center gap-2 text-sm text-muted-foreground">
             <input type="checkbox" checked={showUrlFields} onChange={event => setShowUrlFields(event.target.checked)} />
             Use URLs instead of upload
@@ -865,7 +875,7 @@ async function uploadMedia(file: File, folder: string) {
     method: "POST",
     body: form
   });
-  const json = await response.json();
+  const json = await response.json().catch(() => ({ message: "Upload failed." }));
   if (!response.ok) throw new Error(json.message || "Upload failed.");
   return String(json.url || "");
 }

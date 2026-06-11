@@ -188,7 +188,7 @@ export function AgentClient({ configured }: { configured: boolean }) {
       <header className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
           <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-            Hermes Agent
+            Bolt AI Agent
           </div>
           <h1 className="mt-2 font-display text-2xl font-semibold tracking-tight">
             Agent Chat

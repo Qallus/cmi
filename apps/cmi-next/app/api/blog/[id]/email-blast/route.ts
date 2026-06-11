@@ -8,7 +8,8 @@ export async function POST(
   try {
     const { id } = await params;
     const body = await req.json() as {
-      recipients: "contacts" | "staff" | "subscribers" | "all";
+      recipients: "contacts" | "staff" | "subscribers" | "all" | "manual";
+      recipient_emails?: string[];
       subject: string;
       when: "now" | "scheduled";
       scheduled_at: string | null;
@@ -29,6 +30,9 @@ export async function POST(
 
     // Resolve recipient emails based on selection
     let emails: string[] = [];
+    const manualEmails = (body.recipient_emails ?? [])
+      .map(email => String(email || "").trim().toLowerCase())
+      .filter(email => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email));
 
     if (body.recipients === "contacts" || body.recipients === "all") {
       const { data: contacts } = await supabase
@@ -59,6 +63,10 @@ export async function POST(
       emails.push(...(subs ?? []).map((c: { email: string }) => c.email).filter(Boolean));
     }
 
+    if (body.recipients === "manual" || manualEmails.length > 0) {
+      emails.push(...manualEmails);
+    }
+
     // Deduplicate
     emails = [...new Set(emails)];
 
@@ -67,18 +75,28 @@ export async function POST(
     }
 
     // Log to integration_logs — actual Resend batch send would go here
+    const logPayload = {
+      post_id: id,
+      subject: body.subject || post.title,
+      recipients: body.recipients,
+      recipient_emails: manualEmails,
+      recipient_count: emails.length,
+      when: body.when,
+      scheduled_at: body.scheduled_at,
+    };
+
     await supabase.from("integration_logs").insert({
+      provider: "resend",
+      direction: "outbound",
+      entity_type: "blog_posts",
+      entity_id: id,
+      action: "email_blast_queued",
       source: "blog_email_blast",
       event_type: "email_blast_queued",
-      payload: {
-        post_id: id,
-        subject: body.subject || post.title,
-        recipients: body.recipients,
-        recipient_count: emails.length,
-        when: body.when,
-        scheduled_at: body.scheduled_at,
-      },
+      payload: logPayload,
+      request_payload: logPayload,
       status: "queued",
+      message: `Queued blog email blast for ${emails.length} recipient${emails.length === 1 ? "" : "s"}.`,
     }).throwOnError();
 
     return NextResponse.json({

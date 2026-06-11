@@ -397,6 +397,8 @@ export function ProjectManagerClient({ initialData, demoMode = false }: { initia
   const selectedTemplate = React.useMemo(() => templates.find(template => template.id === templateId) || templates[0], [templateId, templates]);
   const selectedTemplateTasks = React.useMemo(() => templateTasks.filter(task => task.template_id === templateId), [templateId, templateTasks]);
   const templateSummaries = React.useMemo(() => buildTemplateSummaries(templates, templateTasks), [templates, templateTasks]);
+  const itemLevelFiltersActive = Boolean(filters.type || filters.status || filters.priority || filters.phase || filters.assignee || filters.quick);
+  const includeProjectSummaryRows = !itemLevelFiltersActive;
   const projectViews = React.useMemo(() => buildProjectViewModels(filteredItems), [filteredItems]);
   const myTaskProjectViews = React.useMemo(() => buildProjectViewModels(myTaskItems), [myTaskItems]);
   const visibleProjectViews = React.useMemo(() => (
@@ -408,8 +410,8 @@ export function ProjectManagerClient({ initialData, demoMode = false }: { initia
       .filter(project => project.visibleItems.length)
   ), [projectViews]);
   const ganttItems = React.useMemo(() => (
-    visibleProjectViews.flatMap(project => [project.summaryItem, ...project.visibleItems])
-  ), [visibleProjectViews]);
+    visibleProjectViews.flatMap(project => includeProjectSummaryRows ? [project.summaryItem, ...project.visibleItems] : project.visibleItems)
+  ), [includeProjectSummaryRows, visibleProjectViews]);
   const groups = React.useMemo(() => {
     const map = new Map<string, ProjectScheduleItem[]>();
     filteredItems.forEach(item => {
@@ -1140,6 +1142,7 @@ export function ProjectManagerClient({ initialData, demoMode = false }: { initia
           ) : activeView === "kanban" ? (
             <KanbanPreview
               projects={projectViews}
+              includeProjectSummaryRows={includeProjectSummaryRows}
               onEdit={openScheduleItem}
               onStatusChange={(item, status) => patchScheduleItem(item, { status, progress: status === "complete" ? 100 : item.progress })}
             />
@@ -1148,7 +1151,7 @@ export function ProjectManagerClient({ initialData, demoMode = false }: { initia
           ) : activeView === "list" ? (
             <ListView projects={projectViews} onEdit={openScheduleItem} />
           ) : activeView === "table" ? (
-            <TableView projects={projectViews} onEdit={openScheduleItem} />
+            <TableView projects={projectViews} includeProjectSummaryRows={includeProjectSummaryRows} onEdit={openScheduleItem} />
           ) : activeView === "templates" ? (
             <TemplatesView
               summaries={templateSummaries}
@@ -1162,7 +1165,7 @@ export function ProjectManagerClient({ initialData, demoMode = false }: { initia
               onApply={id => { applyTemplate(id); setActiveView("gantt"); }}
             />
           ) : (
-            <CalendarView projects={projectViews} onEdit={openScheduleItem} />
+            <CalendarView projects={projectViews} includeProjectSummaryRows={includeProjectSummaryRows} onEdit={openScheduleItem} />
           )}
         </CardContent>
       </Card>
@@ -1492,19 +1495,21 @@ function TemplateLibrary({
 
 function KanbanPreview({
   projects,
+  includeProjectSummaryRows,
   onEdit,
   onStatusChange
 }: {
   projects: ProjectViewModel[];
+  includeProjectSummaryRows: boolean;
   onEdit: (item: ProjectScheduleItem) => void;
   onStatusChange: (item: ProjectScheduleItem, status: ScheduleStatus) => Promise<boolean> | boolean;
 }) {
   const columns: ScheduleStatus[] = ["pending", "scheduled", "in_progress", "waiting", "blocked", "needs_approval", "complete", "canceled"];
   const [draggedId, setDraggedId] = React.useState<string | null>(null);
   const cards = React.useMemo(() => projects.flatMap(project => [
-    { id: project.summaryItem.id, item: project.summaryItem, projectName: project.name, isParent: true },
+    ...(includeProjectSummaryRows ? [{ id: project.summaryItem.id, item: project.summaryItem, projectName: project.name, isParent: true }] : []),
     ...project.items.map(item => ({ id: item.id, item, projectName: project.name, isParent: false }))
-  ]), [projects]);
+  ]), [includeProjectSummaryRows, projects]);
   return (
     <div className="grid gap-3 overflow-x-auto md:grid-cols-4 xl:grid-cols-8">
       {columns.map(status => {
@@ -1609,10 +1614,18 @@ function ListView({ projects, onEdit }: { projects: ProjectViewModel[]; onEdit: 
   );
 }
 
-function TableView({ projects, onEdit }: { projects: ProjectViewModel[]; onEdit: (item: ProjectScheduleItem) => void }) {
+function TableView({
+  projects,
+  includeProjectSummaryRows,
+  onEdit
+}: {
+  projects: ProjectViewModel[];
+  includeProjectSummaryRows: boolean;
+  onEdit: (item: ProjectScheduleItem) => void;
+}) {
   const [sortKey, setSortKey] = React.useState<"project" | "status" | "start" | "end" | "progress">("start");
   const rows = React.useMemo(() => {
-    const allRows = projects.flatMap(project => [project.summaryItem, ...project.items]);
+    const allRows = projects.flatMap(project => includeProjectSummaryRows ? [project.summaryItem, ...project.items] : project.items);
     return [...allRows].sort((a, b) => {
       if (sortKey === "project") return projectKeyForItem(a).localeCompare(projectKeyForItem(b)) || a.start_date.localeCompare(b.start_date);
       if (sortKey === "status") return a.status.localeCompare(b.status) || a.start_date.localeCompare(b.start_date);
@@ -1620,7 +1633,7 @@ function TableView({ projects, onEdit }: { projects: ProjectViewModel[]; onEdit:
       if (sortKey === "progress") return (b.progress || 0) - (a.progress || 0);
       return a.start_date.localeCompare(b.start_date);
     });
-  }, [projects, sortKey]);
+  }, [includeProjectSummaryRows, projects, sortKey]);
   const sortButton = (key: typeof sortKey, label: string) => (
     <button type="button" className="font-medium hover:text-accent" onClick={() => setSortKey(key)}>{label}{sortKey === key ? " *" : ""}</button>
   );
@@ -1662,11 +1675,28 @@ function TableView({ projects, onEdit }: { projects: ProjectViewModel[]; onEdit:
   );
 }
 
-function CalendarView({ projects, onEdit }: { projects: ProjectViewModel[]; onEdit: (item: ProjectScheduleItem) => void }) {
+function CalendarView({
+  projects,
+  includeProjectSummaryRows,
+  onEdit
+}: {
+  projects: ProjectViewModel[];
+  includeProjectSummaryRows: boolean;
+  onEdit: (item: ProjectScheduleItem) => void;
+}) {
   const today = dateOnly(new Date());
-  const calendarStart = addDays(today, -3);
-  const days = Array.from({ length: 14 }, (_, index) => addDays(calendarStart, index));
-  const rows = React.useMemo(() => projects.flatMap(project => [project.summaryItem, ...project.items]), [projects]);
+  const rows = React.useMemo(() => projects.flatMap(project => includeProjectSummaryRows ? [project.summaryItem, ...project.items] : project.items), [includeProjectSummaryRows, projects]);
+  const calendarStart = React.useMemo(() => {
+    if (!rows.length) return addDays(today, -3);
+    const earliest = rows.reduce((start, item) => item.start_date < start ? item.start_date : start, rows[0].start_date);
+    return addDays(earliest, -1);
+  }, [rows, today]);
+  const calendarDayCount = React.useMemo(() => {
+    if (!rows.length) return 14;
+    const latest = rows.reduce((end, item) => item.end_date > end ? item.end_date : end, rows[0].end_date);
+    return Math.min(42, Math.max(14, daysBetween(calendarStart, latest) + 2));
+  }, [calendarStart, rows]);
+  const days = React.useMemo(() => Array.from({ length: calendarDayCount }, (_, index) => addDays(calendarStart, index)), [calendarDayCount, calendarStart]);
   return (
     <div className="grid gap-2 overflow-auto rounded-lg border border-border p-3 md:grid-cols-7">
       {days.map(day => {

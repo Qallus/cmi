@@ -1,0 +1,110 @@
+import type { TeamMember } from "./types";
+
+const now = "2026-06-10T00:00:00.000Z";
+
+export const fallbackTeamMembers: TeamMember[] = [
+  {
+    id: "fallback-brandon-fadden",
+    wp_post_id: null,
+    name: "Brandon Fadden",
+    slug: "brandon-fadden",
+    role: "Principal / President",
+    department: "Leadership",
+    tagline: "Builder, leader, and big-picture thinker. Unshakable under pressure, driven by integrity.",
+    bio: "With over two decades of construction experience and a degree in Construction Management from NAU, Brandon has overseen more than $200 million in construction, spanning multifamily, mixed-use, healthcare, retail, and industrial. As President of CMI, he leads with steady conviction, building strong teams and delivering spaces that are functional and lasting.",
+    email: "hello@constructedmatter.com",
+    phone: "(480) 628-4458",
+    profile_photo: "https://wp-constructedmatter-com-985548.hostingersite.com/wp-content/uploads/2026/04/Brandon-Fadden.webp",
+    secondary_photo: "https://wp-constructedmatter-com-985548.hostingersite.com/wp-content/uploads/2026/04/brandon_fadden_2.jpg",
+    attributes: ["Leadership", "Commercial", "Multifamily", "Construction Mgmt"],
+    availability: "Available for leadership, commercial, and strategic project conversations.",
+    sort_order: 1,
+    status: "active",
+    created_at: now,
+    updated_at: now
+  },
+  {
+    id: "fallback-joseph-ballard",
+    wp_post_id: null,
+    name: "Joseph Ballard",
+    slug: "joseph-ballard",
+    role: "Principal / Construction Manager",
+    department: "Leadership",
+    tagline: "Founder, designer, and detail-obsessed field leader.",
+    bio: "With over 20 years in the construction industry, Joe brings a rare combination of design sensibility, technical expertise, and boots-on-the-ground experience, managing high-end custom homes and commercial tenant improvement projects across the country. At CMI, Joe leads construction operations in the field: hands-on, solution-driven, and committed to getting every detail right.",
+    email: "hello@constructedmatter.com",
+    phone: "(480) 628-4458",
+    profile_photo: "https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/11e8879b-0a8a-43df-8fa4-9ffb548f8e93/ConstructedMatter-LHP-26.jpg?format=1500w",
+    secondary_photo: "https://wp-constructedmatter-com-985548.hostingersite.com/wp-content/uploads/2026/04/joe_ballard_2-scaled.jpg",
+    attributes: ["Construction Management", "Custom Homes", "Commercial TI", "Field Operations"],
+    availability: "Available for project planning, field coordination, and construction oversight.",
+    sort_order: 2,
+    status: "active",
+    created_at: now,
+    updated_at: now
+  },
+  {
+    id: "fallback-ben-peck",
+    wp_post_id: null,
+    name: "Ben Peck",
+    slug: "ben-peck",
+    role: "Project Manager",
+    department: "Project Management",
+    tagline: "Detail-oriented, quietly determined, and always thinking three steps ahead.",
+    bio: "Ben's background spans both architecture and construction, giving him a rare dual lens on how ideas become buildings. His experience covers custom homes, tenant improvements, multifamily work, design coordination, permitting, zoning, entitlements, and on-site construction management.",
+    email: "hello@constructedmatter.com",
+    phone: "(480) 628-4458",
+    profile_photo: "https://wp-constructedmatter-com-985548.hostingersite.com/wp-content/uploads/2026/04/ben_peck.webp",
+    secondary_photo: "https://wp-constructedmatter-com-985548.hostingersite.com/wp-content/uploads/2026/04/ben_peck_2.png",
+    attributes: ["Renovations and Additions", "Architecture", "Permitting", "Design Coordination"],
+    availability: "Available for project management and design coordination.",
+    sort_order: 3,
+    status: "active",
+    created_at: now,
+    updated_at: now
+  },
+  {
+    id: "fallback-angel-gutierrez",
+    wp_post_id: null,
+    name: "Angel Gutierrez",
+    slug: "angel-gutierrez",
+    role: "Field Operations Coordinator",
+    department: "Field Operations",
+    bio: "Angel supports jobsite coordination, trade communication, and field operations so projects keep moving with clarity.",
+    tagline: null,
+    email: "hello@constructedmatter.com",
+    phone: "(480) 628-4458",
+    profile_photo: "https://wp-constructedmatter-com-985548.hostingersite.com/wp-content/uploads/2026/04/angel_gutierrez.webp",
+    secondary_photo: "https://wp-constructedmatter-com-985548.hostingersite.com/wp-content/uploads/2026/04/552aef38-63f0-4d7e-b0ac-1ede2cb13a2a.jpeg",
+    attributes: ["Field Operations", "Trade Coordination"],
+    availability: "Available for field coordination and project support.",
+    sort_order: 4,
+    status: "active",
+    created_at: now,
+    updated_at: now
+  },
+  {
+    id: "fallback-yovana-hernandez",
+    wp_post_id: null,
+    name: "Yovana Hernandez",
+    slug: "yovana-hernandez",
+    role: "Executive Operations & Project Coordinator",
+    department: "Operations",
+    bio: "Yovana keeps project communication, scheduling, and operational details organized across the CMI team.",
+    tagline: null,
+    email: "hello@constructedmatter.com",
+    phone: "(480) 628-4458",
+    profile_photo: "https://wp-constructedmatter-com-985548.hostingersite.com/wp-content/uploads/2026/04/yovana_hernandez.webp",
+    secondary_photo: "https://wp-constructedmatter-com-985548.hostingersite.com/wp-content/uploads/2026/04/IMG_7145-scaled-e1776128272358.png",
+    attributes: ["Operations", "Project Coordination", "Executive Support"],
+    availability: "Available for operations and project coordination support.",
+    sort_order: 5,
+    status: "active",
+    created_at: now,
+    updated_at: now
+  }
+];
+
+export function slugForTeamMember(member: Pick<TeamMember, "name" | "slug">) {
+  return member.slug || member.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}

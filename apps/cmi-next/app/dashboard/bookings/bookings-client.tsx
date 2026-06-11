@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { CalendarClock, CheckCircle2, Clock, Loader2, Plus, Search, UserPlus, XCircle } from "lucide-react";
+import Link from "next/link";
+import { CalendarClock, CheckCircle2, Clock, Contact, FolderKanban, Loader2, MoreHorizontal, Plus, Search, UserPlus, UserRound, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -42,6 +43,71 @@ const statusTone: Record<AppointmentStatus, "default" | "accent" | "success" | "
   awaiting_staff: "warning",
   awaiting_project_info: "warning"
 };
+
+function AppointmentLinksFab({ appointment }: { appointment: BookingAppointment }) {
+  const [open, setOpen] = React.useState(false);
+  const contactHref = appointment.contact_id
+    ? `/dashboard/contacts?id=${encodeURIComponent(appointment.contact_id)}`
+    : appointment.customer_email
+      ? `/dashboard/contacts?search=${encodeURIComponent(appointment.customer_email)}`
+      : "/dashboard/contacts";
+  const userHref = appointment.staff_user_id
+    ? `/dashboard/users?id=${encodeURIComponent(appointment.staff_user_id)}`
+    : appointment.customer_email
+      ? `/dashboard/users?search=${encodeURIComponent(appointment.customer_email)}`
+      : "/dashboard/users";
+  const ganttHref = appointment.project_schedule_item_id
+    ? `/dashboard/project-manager?schedule_item=${encodeURIComponent(appointment.project_schedule_item_id)}`
+    : appointment.project_id
+      ? `/dashboard/project-manager?project=${encodeURIComponent(appointment.project_id)}`
+      : appointment.project_name
+        ? `/dashboard/project-manager?search=${encodeURIComponent(appointment.project_name)}`
+        : "/dashboard/project-manager";
+
+  const actions = [
+    { label: "Contact", href: contactHref, icon: Contact, available: Boolean(appointment.contact_id || appointment.customer_email) },
+    { label: "User", href: userHref, icon: UserRound, available: Boolean(appointment.staff_user_id || appointment.customer_email) },
+    { label: "Gantt", href: ganttHref, icon: FolderKanban, available: Boolean(appointment.project_schedule_item_id || appointment.project_id || appointment.project_name || appointment.show_on_project_manager) }
+  ];
+
+  return (
+    <div className="relative flex justify-end" onClick={event => event.stopPropagation()}>
+      {open ? (
+        <div className="absolute bottom-10 right-0 z-20 w-44 rounded-xl border border-border bg-card p-1.5 shadow-xl">
+          {actions.map(action => {
+            const Icon = action.icon;
+            return (
+              <Link
+                key={action.label}
+                href={action.href}
+                className={cn(
+                  "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition hover:bg-muted",
+                  !action.available && "text-muted-foreground"
+                )}
+                onClick={() => setOpen(false)}
+              >
+                <Icon className="h-4 w-4 text-accent" />
+                <span>{action.label}</span>
+              </Link>
+            );
+          })}
+        </div>
+      ) : null}
+      <button
+        type="button"
+        className={cn(
+          "inline-flex h-9 w-9 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition hover:border-accent hover:text-accent",
+          open && "border-accent bg-accent text-accent-foreground hover:text-accent-foreground"
+        )}
+        aria-label="Open booking links"
+        aria-expanded={open}
+        onClick={() => setOpen(current => !current)}
+      >
+        <MoreHorizontal className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
 
 function todayKey() {
   return new Date().toISOString().slice(0, 10);
@@ -283,7 +349,19 @@ export function BookingsClient({ initialData, demoMode, setupMessage }: { initia
                   <div>Appointment</div><div>When</div><div>Project</div><div>Status</div><div>Links</div>
                 </div>
                 {filtered.map(appointment => (
-                  <button key={appointment.id} type="button" className={cn("grid w-full grid-cols-[1.4fr_1fr_150px_130px_130px] items-center border-b border-border px-4 py-3 text-left text-sm hover:bg-muted/50", selected?.id === appointment.id && "bg-accent/8")} onClick={() => setSelected(appointment)}>
+                  <div
+                    key={appointment.id}
+                    role="button"
+                    tabIndex={0}
+                    className={cn("grid w-full grid-cols-[1.4fr_1fr_150px_130px_130px] items-center border-b border-border px-4 py-3 text-left text-sm hover:bg-muted/50", selected?.id === appointment.id && "bg-accent/8")}
+                    onClick={() => setSelected(appointment)}
+                    onKeyDown={event => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        setSelected(appointment);
+                      }
+                    }}
+                  >
                     <div className="min-w-0">
                       <div className="truncate font-medium">{appointment.title}</div>
                       <div className="truncate text-xs text-muted-foreground">{appointment.customer_email || "No email"} {appointment.customer_phone ? `- ${appointment.customer_phone}` : ""}</div>
@@ -291,12 +369,8 @@ export function BookingsClient({ initialData, demoMode, setupMessage }: { initia
                     <div className="text-muted-foreground">{formatDateTime(appointment.start_time)}</div>
                     <div className="truncate text-muted-foreground">{appointment.project_name || "-"}</div>
                     <div><Badge tone={statusTone[appointment.status]}>{appointment.status}</Badge></div>
-                    <div className="flex flex-wrap gap-1">
-                      {appointment.contact_id ? <Badge tone="success">Contact</Badge> : null}
-                      {appointment.staff_user_id ? <Badge tone="info">User</Badge> : null}
-                      {appointment.project_schedule_item_id ? <Badge tone="accent">Gantt</Badge> : null}
-                    </div>
-                  </button>
+                    <AppointmentLinksFab appointment={appointment} />
+                  </div>
                 ))}
                 {!filtered.length ? <div className="p-8 text-center text-sm text-muted-foreground">No bookings match those filters.</div> : null}
               </div>

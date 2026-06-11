@@ -35,22 +35,22 @@ const nav: NavItem[] = [
   { href: "/", label: "Back to Site", icon: ArrowLeft },
 ];
 
-export function DashboardNav() {
+export function DashboardNav({ collapsed = false }: { collapsed?: boolean }) {
   const pathname = usePathname();
   return (
-    <nav className="flex-1 space-y-1 overflow-y-auto px-2 py-4">
+    <nav className={`flex-1 space-y-1 overflow-y-auto py-4 ${collapsed ? "px-2" : "px-2"}`}>
       {nav.map((item) => {
         if ("section" in item) {
-          return <div key={item.section} className="mt-5 border-t border-border px-3 pt-4 text-[10px] uppercase tracking-[0.16em] text-muted-foreground" />;
+          return <div key={item.section} className={`mt-5 border-t border-border pt-4 text-[10px] uppercase tracking-[0.16em] text-muted-foreground ${collapsed ? "mx-2 px-0" : "px-3"}`} />;
         }
         const active = item.href !== "/" && pathname.startsWith(item.href);
-        const className = `flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-[13px] font-medium transition ${
+        const className = `flex w-full items-center rounded-md py-2 text-left text-[13px] font-medium transition ${collapsed ? "justify-center px-2" : "gap-3 px-3"} ${
           active ? "bg-accent/12 text-accent" : "text-muted-foreground hover:bg-muted hover:text-foreground"
         }`;
         return (
-          <Link key={item.href} href={item.href} className={className}>
+          <Link key={item.href} href={item.href} className={className} title={collapsed ? item.label : undefined}>
             <item.icon className="h-3.5 w-3.5" />
-            {item.label}
+            {!collapsed ? item.label : null}
           </Link>
         );
       })}

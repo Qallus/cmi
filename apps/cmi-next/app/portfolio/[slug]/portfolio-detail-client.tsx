@@ -9,13 +9,24 @@ export function PortfolioGallery({ images, title }: { images: string[]; title: s
 
   return (
     <>
-      <div className="border-t border-border bg-card">
-        <div className="mx-auto flex max-w-7xl gap-4 overflow-x-auto px-6 py-5">
-          {images.map((image, index) => (
-            <button key={`${image}-${index}`} type="button" className="h-20 w-36 shrink-0 overflow-hidden rounded-md border border-border bg-muted" onClick={() => setActive(index)}>
-              <img src={image} alt="" className="h-full w-full object-cover" />
-            </button>
-          ))}
+      <div className="bg-background py-7">
+        <div
+          className="cmi-portfolio-gallery-scroll overflow-x-auto pb-5"
+          style={{ marginLeft: "max(1.5rem, calc((100vw - 80rem) / 2 + 1.5rem))" }}
+        >
+          <div className="flex gap-5 pr-0">
+            {images.map((image, index) => (
+              <button
+                key={`${image}-${index}`}
+                type="button"
+                className="group h-28 w-52 shrink-0 overflow-hidden rounded-xl bg-muted text-left shadow-sm outline-none ring-offset-background transition hover:-translate-y-0.5 hover:shadow-lg focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={() => setActive(index)}
+                aria-label={`Open ${title} image ${index + 1}`}
+              >
+                <img src={image} alt="" className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.04]" />
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

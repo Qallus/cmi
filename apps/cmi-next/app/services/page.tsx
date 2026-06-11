@@ -80,7 +80,7 @@ export default function ServicesPage() {
           <div className="mx-auto max-w-7xl px-5 lg:px-8">
             <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
               {SERVICES.map((s) => (
-                <Link key={s.href} href={s.href} className="group flex flex-col overflow-hidden rounded-2xl border border-border bg-card transition hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md">
+                <Link key={s.href} href={s.href} className="group flex flex-col overflow-hidden rounded-2xl bg-card shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
                   <div className="aspect-video overflow-hidden">
                     <img src={s.image} alt={s.title} className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.04]" />
                   </div>

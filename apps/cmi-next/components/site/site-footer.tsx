@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Facebook, Instagram, Linkedin, Mail, MapPin, Phone } from "lucide-react";
+import { ContactFab } from "./contact-fab";
 
 const SERVICES_LINKS = [
   { label: "Residential",                        href: "/services/residential" },
@@ -20,7 +21,8 @@ const COMPANY_LINKS = [
 
 export function SiteFooter() {
   return (
-    <footer className="border-t border-border bg-[#111111] text-white">
+    <>
+    <footer className="bg-[#111111] text-white">
       <div className="mx-auto max-w-7xl px-5 py-16 lg:px-8">
         {/* Top grid */}
         <div className="grid gap-12 md:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_1fr]">
@@ -113,5 +115,7 @@ export function SiteFooter() {
         </div>
       </div>
     </footer>
+    <ContactFab />
+    </>
   );
 }

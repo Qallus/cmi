@@ -40,3 +40,9 @@ export interface SendSmsPayload {
   contact_id?: string;
   project_id?: string;
 }
+
+export interface SendCallPayload {
+  to: string;
+  contact_id?: string;
+  project_id?: string;
+}

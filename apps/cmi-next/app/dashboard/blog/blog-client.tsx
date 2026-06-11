@@ -6,7 +6,7 @@ import {
   Link2, List, ListOrdered, MoreHorizontal,
   Newspaper, Plus, Quote, Search, Underline, X,
   Calendar, Send, Mail, Users, ChevronDown, Code2,
-  AlignLeft, CheckCircle2,
+  AlignLeft, CheckCircle2, Eye,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,7 +24,7 @@ const STATUS_TONES: Record<BlogStatus, "warning" | "success" | "info" | "default
 };
 
 type EditorMode = "standard" | "html";
-type EmailRecipients = "contacts" | "staff" | "subscribers" | "all";
+type EmailRecipients = "contacts" | "staff" | "subscribers" | "all" | "manual";
 type View = "list" | "editor";
 
 function formatDate(iso: string) {
@@ -59,6 +59,7 @@ export function BlogClient({ initialPosts }: { initialPosts: BlogPost[] }) {
   const [error, setError] = React.useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = React.useState<string | null>(null);
   const [tagInput, setTagInput] = React.useState("");
+  const [showPreview, setShowPreview] = React.useState(false);
 
   // Editor mode (Standard vs HTML)
   const [editorMode, setEditorMode] = React.useState<EditorMode>("standard");
@@ -72,7 +73,10 @@ export function BlogClient({ initialPosts }: { initialPosts: BlogPost[] }) {
   // Email blast
   const [emailBlastEnabled, setEmailBlastEnabled] = React.useState(false);
   const [emailRecipients, setEmailRecipients] = React.useState<EmailRecipients>("contacts");
+  const [manualRecipients, setManualRecipients] = React.useState<string[]>([]);
+  const [manualRecipientInput, setManualRecipientInput] = React.useState("");
   const [emailSubject, setEmailSubject] = React.useState("");
+  const [emailDrawerOpen, setEmailDrawerOpen] = React.useState(false);
   const [emailSending, setEmailSending] = React.useState(false);
   const [emailSent, setEmailSent] = React.useState(false);
   const [emailError, setEmailError] = React.useState<string | null>(null);
@@ -104,6 +108,9 @@ export function BlogClient({ initialPosts }: { initialPosts: BlogPost[] }) {
     setError(null);
     setEditorMode("standard");
     setEmailBlastEnabled(false);
+    setEmailDrawerOpen(false);
+    setManualRecipients([]);
+    setManualRecipientInput("");
     setEmailSent(false);
     setEmailError(null);
     setScheduleDate("");
@@ -117,6 +124,9 @@ export function BlogClient({ initialPosts }: { initialPosts: BlogPost[] }) {
     setError(null);
     setEditorMode("standard");
     setEmailBlastEnabled(false);
+    setEmailDrawerOpen(false);
+    setManualRecipients([]);
+    setManualRecipientInput("");
     setEmailSent(false);
     setEmailError(null);
     setScheduleDate(p.published_at ? p.published_at.slice(0, 16) : "");
@@ -157,9 +167,45 @@ export function BlogClient({ initialPosts }: { initialPosts: BlogPost[] }) {
     setTagInput("");
   }
 
+  function addManualRecipients(raw = manualRecipientInput) {
+    const next = raw
+      .split(/[\s,;]+/)
+      .map(email => email.trim().toLowerCase())
+      .filter(email => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email));
+
+    if (!next.length) {
+      setManualRecipientInput("");
+      return;
+    }
+
+    setManualRecipients(current => Array.from(new Set([...current, ...next])));
+    setManualRecipientInput("");
+    if (emailRecipients !== "manual") setEmailRecipients("manual");
+  }
+
+  function removeManualRecipient(email: string) {
+    setManualRecipients(current => current.filter(item => item !== email));
+  }
+
+  function toggleEmailBlast() {
+    setEmailBlastEnabled(current => {
+      const next = !current;
+      if (next) setEmailDrawerOpen(true);
+      return next;
+    });
+    setEmailSent(false);
+    setEmailError(null);
+  }
+
   function getContent() {
     if (editorMode === "html") return draft.content ?? "";
     return editorRef.current?.innerHTML ?? draft.content ?? "";
+  }
+
+  function openPreview() {
+    const content = getContent();
+    setDraft((current) => ({ ...current, content }));
+    setShowPreview(true);
   }
 
   async function save(status?: BlogStatus) {
@@ -232,6 +278,7 @@ export function BlogClient({ initialPosts }: { initialPosts: BlogPost[] }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           recipients: emailRecipients,
+          recipient_emails: manualRecipients,
           subject: emailSubject || draft.title,
           when,
           scheduled_at: when === "scheduled" ? scheduleDate : null,
@@ -348,6 +395,7 @@ export function BlogClient({ initialPosts }: { initialPosts: BlogPost[] }) {
 
   // ── Editor view ─────────────────────────────────────────────
   return (
+    <>
     <div className="flex h-[calc(100vh-56px)] flex-col">
       {/* Top toolbar */}
       <div className="flex items-center justify-between border-b border-border bg-card px-4 py-2 gap-2">
@@ -357,6 +405,11 @@ export function BlogClient({ initialPosts }: { initialPosts: BlogPost[] }) {
 
         <div className="flex items-center gap-2 flex-wrap justify-end">
           {error && <span className="text-xs text-destructive">{error}</span>}
+
+          <Button size="sm" variant="outline" onClick={openPreview} disabled={saving}>
+            <Eye className="h-3.5 w-3.5" />
+            Preview
+          </Button>
 
           <Button size="sm" variant="outline" onClick={() => void save("draft")} disabled={saving}>
             Save Draft
@@ -577,7 +630,7 @@ export function BlogClient({ initialPosts }: { initialPosts: BlogPost[] }) {
               {/* Toggle */}
               <button
                 type="button"
-                onClick={() => { setEmailBlastEnabled((v) => !v); setEmailSent(false); setEmailError(null); }}
+                onClick={toggleEmailBlast}
                 className={cn(
                   "flex w-full items-center justify-between rounded-md border px-3 py-2 text-sm transition",
                   emailBlastEnabled
@@ -594,7 +647,24 @@ export function BlogClient({ initialPosts }: { initialPosts: BlogPost[] }) {
                 </div>
               </button>
 
-              {emailBlastEnabled && (
+              {emailBlastEnabled ? (
+                <div className="mt-3 space-y-2">
+                  <button type="button" className="w-full rounded-md border border-border px-3 py-2 text-left text-xs text-muted-foreground transition hover:border-accent hover:text-foreground" onClick={() => setEmailDrawerOpen(true)}>
+                    Configure recipients, subject, and send timing
+                  </button>
+                  <div className="rounded-md bg-muted px-3 py-2 text-[11px] text-muted-foreground">
+                    {emailRecipients === "manual"
+                      ? `${manualRecipients.length} specific recipient${manualRecipients.length === 1 ? "" : "s"}`
+                      : emailRecipients === "all"
+                        ? "Audience: Everyone"
+                        : `Audience: ${emailRecipients.charAt(0).toUpperCase()}${emailRecipients.slice(1)}`}
+                  </div>
+                  {emailError ? <p className="rounded-md bg-destructive/10 px-2.5 py-2 text-[11px] text-destructive">{emailError}</p> : null}
+                  {emailSent ? <p className="flex items-center gap-1.5 rounded-md bg-success/10 px-2.5 py-2 text-[11px] text-success"><CheckCircle2 className="h-3 w-3" /> Email blast queued successfully.</p> : null}
+                </div>
+              ) : null}
+
+              {false && emailBlastEnabled && (
                 <div className="mt-3 space-y-3">
                   {/* Recipients */}
                   <Field label="Recipients">
@@ -654,7 +724,7 @@ export function BlogClient({ initialPosts }: { initialPosts: BlogPost[] }) {
                       variant="accent"
                       className="w-full"
                       disabled={emailSending || emailSent}
-                      onClick={() => void sendEmailBlast(editingPost.id, "now")}
+                      onClick={() => editingPost ? void sendEmailBlast(editingPost.id, "now") : undefined}
                     >
                       <Send className="h-3.5 w-3.5" />
                       {emailSending ? "Sending…" : emailSent ? "Sent!" : "Send Now"}
@@ -666,6 +736,268 @@ export function BlogClient({ initialPosts }: { initialPosts: BlogPost[] }) {
 
           </div>
         </aside>
+      </div>
+    </div>
+    {showPreview ? (
+      <BlogPreviewModal
+        draft={{ ...draft, content: getContent() }}
+        onClose={() => setShowPreview(false)}
+      />
+    ) : null}
+    {emailDrawerOpen ? (
+      <BlogEmailDrawer
+        draft={draft}
+        editingPost={editingPost}
+        emailRecipients={emailRecipients}
+        setEmailRecipients={setEmailRecipients}
+        manualRecipients={manualRecipients}
+        manualRecipientInput={manualRecipientInput}
+        setManualRecipientInput={setManualRecipientInput}
+        addManualRecipients={addManualRecipients}
+        removeManualRecipient={removeManualRecipient}
+        emailSubject={emailSubject}
+        setEmailSubject={setEmailSubject}
+        scheduleDate={scheduleDate}
+        emailSending={emailSending}
+        emailSent={emailSent}
+        emailError={emailError}
+        onSendNow={() => editingPost ? void sendEmailBlast(editingPost.id, "now") : undefined}
+        onClose={() => setEmailDrawerOpen(false)}
+      />
+    ) : null}
+    </>
+  );
+}
+
+function BlogEmailDrawer({
+  draft,
+  editingPost,
+  emailRecipients,
+  setEmailRecipients,
+  manualRecipients,
+  manualRecipientInput,
+  setManualRecipientInput,
+  addManualRecipients,
+  removeManualRecipient,
+  emailSubject,
+  setEmailSubject,
+  scheduleDate,
+  emailSending,
+  emailSent,
+  emailError,
+  onSendNow,
+  onClose
+}: {
+  draft: BlogDraft;
+  editingPost: BlogPost | null;
+  emailRecipients: EmailRecipients;
+  setEmailRecipients: React.Dispatch<React.SetStateAction<EmailRecipients>>;
+  manualRecipients: string[];
+  manualRecipientInput: string;
+  setManualRecipientInput: React.Dispatch<React.SetStateAction<string>>;
+  addManualRecipients: (raw?: string) => void;
+  removeManualRecipient: (email: string) => void;
+  emailSubject: string;
+  setEmailSubject: React.Dispatch<React.SetStateAction<string>>;
+  scheduleDate: string;
+  emailSending: boolean;
+  emailSent: boolean;
+  emailError: string | null;
+  onSendNow: () => void | undefined;
+  onClose: () => void;
+}) {
+  const recipientOptions: { value: EmailRecipients; label: string; description: string; icon: React.ElementType }[] = [
+    { value: "contacts", label: "All Contacts", description: "Every active contact in the CRM.", icon: Users },
+    { value: "staff", label: "All Staff Users", description: "Internal staff user records.", icon: Users },
+    { value: "subscribers", label: "Subscribers", description: "Contacts tagged as subscribers.", icon: Mail },
+    { value: "all", label: "Everyone", description: "Contacts, staff, and subscribers.", icon: Users },
+    { value: "manual", label: "Specific Emails", description: "One user or multiple typed recipients.", icon: Mail }
+  ];
+
+  return (
+    <div className="fixed inset-0 z-[90] flex items-end bg-background/60 backdrop-blur-sm">
+      <button type="button" className="absolute inset-0 cursor-default" aria-label="Close email drawer" onClick={onClose} />
+      <div className="relative mx-auto max-h-[88vh] w-full max-w-5xl overflow-hidden rounded-t-3xl border border-border bg-card shadow-2xl">
+        <div className="mx-auto mt-3 h-1.5 w-14 rounded-full bg-muted" />
+        <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-5">
+          <div>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-accent">Email Blast</div>
+            <h2 className="mt-1 font-display text-2xl font-semibold">Send Blog Post as Email</h2>
+            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">Choose an audience, add one-off recipients, and review the send behavior before publishing.</p>
+          </div>
+          <Button type="button" variant="outline" size="icon" onClick={onClose} aria-label="Close email drawer">
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <div className="grid max-h-[calc(88vh-118px)] gap-6 overflow-y-auto p-6 lg:grid-cols-[1.2fr_0.8fr]">
+          <div className="space-y-5">
+            <Field label="Recipients">
+              <div className="grid gap-2 sm:grid-cols-2">
+                {recipientOptions.map(({ value, label, description, icon: Icon }) => (
+                  <label key={value} className={cn(
+                    "flex cursor-pointer items-start gap-3 rounded-xl border p-3 text-sm transition",
+                    emailRecipients === value ? "border-accent bg-accent/10 text-accent" : "border-border text-muted-foreground hover:border-accent/40 hover:text-foreground"
+                  )}>
+                    <input type="radio" name="email_recipients_drawer" value={value} checked={emailRecipients === value} onChange={() => setEmailRecipients(value)} className="sr-only" />
+                    <Icon className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span className="min-w-0">
+                      <span className="block font-semibold">{label}</span>
+                      <span className="mt-0.5 block text-xs opacity-75">{description}</span>
+                    </span>
+                    {emailRecipients === value ? <CheckCircle2 className="ml-auto mt-0.5 h-4 w-4 shrink-0" /> : null}
+                  </label>
+                ))}
+              </div>
+            </Field>
+
+            <Field label="Specific Recipient Emails">
+              <div className="rounded-xl border border-border bg-background p-3">
+                <div className="flex flex-wrap gap-1.5">
+                  {manualRecipients.map(email => (
+                    <span key={email} className="flex items-center gap-1 rounded-full bg-accent/15 px-2.5 py-1 text-xs text-accent">
+                      {email}
+                      <button type="button" onClick={() => removeManualRecipient(email)} aria-label={`Remove ${email}`}>
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <textarea
+                  className="mt-3 min-h-24 w-full resize-none bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                  placeholder="Type one email, or paste multiple separated by commas, spaces, or new lines."
+                  value={manualRecipientInput}
+                  onChange={(event) => setManualRecipientInput(event.target.value)}
+                  onBlur={() => addManualRecipients()}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+                      event.preventDefault();
+                      addManualRecipients();
+                    }
+                  }}
+                />
+                <div className="mt-3 flex items-center justify-between gap-3">
+                  <p className="text-xs text-muted-foreground">{manualRecipients.length} specific recipient{manualRecipients.length === 1 ? "" : "s"} added.</p>
+                  <Button type="button" size="sm" variant="outline" onClick={() => addManualRecipients()}>Add Emails</Button>
+                </div>
+              </div>
+            </Field>
+
+            <Field label="Email Subject">
+              <input
+                className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-accent"
+                placeholder={draft.title || "Email subject"}
+                value={emailSubject}
+                onChange={(event) => setEmailSubject(event.target.value)}
+              />
+            </Field>
+          </div>
+
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-border bg-background p-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Send Timing</div>
+              {draft.status === "scheduled" ? (
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  Sends when the post publishes{scheduleDate ? ` on ${new Date(scheduleDate).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}` : ""}.
+                </p>
+              ) : (
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">Sends immediately when you click <strong>Publish</strong>.</p>
+              )}
+            </div>
+
+            <div className="rounded-2xl border border-border bg-background p-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Post</div>
+              <h3 className="mt-2 font-display text-2xl font-semibold">{draft.title || "Untitled post"}</h3>
+              <p className="mt-2 line-clamp-4 text-sm leading-6 text-muted-foreground">{draft.excerpt || "No excerpt added yet."}</p>
+            </div>
+
+            {emailError ? <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{emailError}</p> : null}
+            {emailSent ? <p className="flex items-center gap-2 rounded-md bg-success/10 px-3 py-2 text-sm text-success"><CheckCircle2 className="h-4 w-4" /> Email blast queued successfully.</p> : null}
+
+            <div className="flex flex-col gap-2 pt-2">
+              {editingPost?.status === "published" ? (
+                <Button
+                  type="button"
+                  variant="accent"
+                  disabled={emailSending || emailSent}
+                  onClick={onSendNow}
+                >
+                  <Send className="h-4 w-4" />
+                  {emailSending ? "Sending..." : emailSent ? "Sent" : "Send Now"}
+                </Button>
+              ) : (
+                <Button type="button" variant="accent" onClick={onClose}>
+                  Save Email Settings
+                </Button>
+              )}
+              <Button type="button" variant="outline" onClick={onClose}>Close</Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BlogPreviewModal({ draft, onClose }: { draft: BlogDraft; onClose: () => void }) {
+  const displayDate = draft.published_at ? new Date(draft.published_at) : new Date();
+
+  return (
+    <div className="fixed inset-0 z-[80] bg-background/80 p-4 backdrop-blur-sm">
+      <div className="mx-auto flex h-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
+          <div>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-accent">Blog Preview</div>
+            <h2 className="mt-1 font-display text-2xl font-semibold">Review Post</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Previewing the current dashboard draft before it is saved or published.</p>
+          </div>
+          <Button type="button" variant="outline" size="icon" onClick={onClose} aria-label="Close preview">
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto bg-background">
+          <article className="mx-auto max-w-4xl px-5 py-10 lg:px-8 lg:py-14">
+            {draft.featured_image ? (
+              <div className="mb-8 overflow-hidden rounded-2xl border border-border bg-muted">
+                <img src={draft.featured_image} alt="" className="max-h-[420px] w-full object-cover" />
+              </div>
+            ) : null}
+
+            <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-accent">
+              {draft.category || "Constructed Matter"}
+            </div>
+            <h1 className="mt-4 font-display text-4xl font-semibold leading-tight tracking-tight lg:text-6xl">
+              {draft.title || "Untitled Blog Post"}
+            </h1>
+            <div className="mt-4 flex flex-wrap gap-2 text-sm text-muted-foreground">
+              <span>{draft.author || "Constructed Matter"}</span>
+              <span>/</span>
+              <span>{displayDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</span>
+              <span>/</span>
+              <span className="capitalize">{draft.status}</span>
+            </div>
+
+            {draft.excerpt ? (
+              <p className="mt-6 border-l-2 border-accent pl-5 text-lg leading-8 text-muted-foreground">
+                {draft.excerpt}
+              </p>
+            ) : null}
+
+            {draft.tags?.length ? (
+              <div className="mt-6 flex flex-wrap gap-2">
+                {draft.tags.map(tag => (
+                  <span key={tag} className="rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground">{tag}</span>
+                ))}
+              </div>
+            ) : null}
+
+            <div
+              className="prose prose-neutral mt-10 max-w-none dark:prose-invert prose-headings:font-display prose-a:text-accent"
+              dangerouslySetInnerHTML={{ __html: draft.content || "<p>No content has been added yet.</p>" }}
+            />
+          </article>
+        </div>
       </div>
     </div>
   );

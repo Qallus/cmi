@@ -21,16 +21,18 @@ create index if not exists contact_submissions_contact_id_idx on contact_submiss
 -- RLS: staff only
 alter table contact_submissions enable row level security;
 
+drop policy if exists "staff_read_contact_submissions" on contact_submissions;
 create policy "staff_read_contact_submissions"
   on contact_submissions for select
   using (
     exists (
       select 1 from staff_users su
-      where su.user_id = auth.uid()
-        and su.is_active = true
+      where su.auth_user_id = auth.uid()
+        and su.status = 'active'
     )
   );
 
+drop policy if exists "service_role_all_contact_submissions" on contact_submissions;
 create policy "service_role_all_contact_submissions"
   on contact_submissions for all
   using (auth.role() = 'service_role')

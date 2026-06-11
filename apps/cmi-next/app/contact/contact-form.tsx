@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ArrowRight } from "lucide-react";
+import { Select } from "@/components/ui/input";
 
 const HOW_DID_YOU_HEAR = [
   "Google Search",
@@ -139,21 +140,20 @@ export function ContactForm() {
         </div>
       </div>
 
-      {/* How did you hear */}
       <div>
         <label htmlFor="source" className="mb-1.5 block text-sm font-medium">
           How did you hear about us?
         </label>
-        <select
+        <Select
           id="source"
           name="source"
-          className="w-full rounded-lg border border-border bg-card px-4 py-2.5 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent"
+          className="[&>button]:h-12 [&>button]:rounded-lg [&>button]:px-4"
         >
           <option value="">Select an option</option>
           {HOW_DID_YOU_HEAR.map((opt) => (
             <option key={opt} value={opt}>{opt}</option>
           ))}
-        </select>
+        </Select>
       </div>
 
       {/* Subject */}

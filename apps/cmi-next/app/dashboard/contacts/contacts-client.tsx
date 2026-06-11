@@ -19,6 +19,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Select } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { Contact, ContactDraft, ContactStatus, ContactType } from "@/lib/contacts/types";
 
@@ -81,6 +82,18 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
   const [error, setError] = React.useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = React.useState<string | null>(null);
   const [showImport, setShowImport] = React.useState(false);
+  const [contactAction, setContactAction] = React.useState<{ type: "call" | "sms" | "email"; contact: Contact } | null>(null);
+
+  React.useEffect(() => {
+    function handleDashboardSearch(event: Event) {
+      const detail = (event as CustomEvent<{ value?: string }>).detail;
+      setSearch(detail?.value || "");
+      setPage(1);
+    }
+
+    window.addEventListener("cmi-dashboard-search", handleDashboardSearch);
+    return () => window.removeEventListener("cmi-dashboard-search", handleDashboardSearch);
+  }, []);
 
   const filtered = React.useMemo(() => {
     const q = search.toLowerCase();
@@ -233,29 +246,29 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
               className="h-8 w-full rounded-md border border-border bg-background pl-8 pr-3 text-sm outline-none focus:border-accent"
             />
           </div>
-          <select
+          <Select
             value={typeFilter}
             onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }}
-            className="h-8 rounded-md border border-border bg-background px-3 text-sm text-muted-foreground outline-none focus:border-accent"
+            className="w-44 [&>button]:h-8"
           >
             <option value="all">All Types</option>
             {CONTACT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-          </select>
-          <select
+          </Select>
+          <Select
             value={statusFilter}
             onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-            className="h-8 rounded-md border border-border bg-background px-3 text-sm text-muted-foreground outline-none focus:border-accent"
+            className="w-44 [&>button]:h-8"
           >
             <option value="all">All Statuses</option>
             {STATUSES.map((s) => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
-          </select>
-          <select
+          </Select>
+          <Select
             value={perPage}
             onChange={(e) => { setPerPage(Number(e.target.value)); setPage(1); }}
-            className="h-8 rounded-md border border-border bg-background px-3 text-sm text-muted-foreground outline-none focus:border-accent"
+            className="w-32 [&>button]:h-8"
           >
             {[25, 50, 100].map((n) => <option key={n} value={n}>{n} / page</option>)}
-          </select>
+          </Select>
         </div>
       </div>
 
@@ -364,6 +377,7 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
             {viewContact.notes && (
               <div className="rounded-lg bg-muted/40 px-4 py-3 text-sm text-muted-foreground whitespace-pre-wrap">{viewContact.notes}</div>
             )}
+            <ContactQuickActions contact={viewContact} onAction={(type) => setContactAction({ type, contact: viewContact })} />
             <div className="flex justify-end gap-2 pt-2">
               <Button size="sm" variant="outline" onClick={() => { closeModal(); setTimeout(() => openEdit(viewContact), 50); }}>Edit</Button>
               <Button size="sm" variant="outline" className="text-destructive hover:border-destructive" onClick={() => setDeleteConfirm(viewContact.id)}>Delete</Button>
@@ -397,14 +411,14 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
                 <input className={inputCls} value={draft.source ?? ""} onChange={(e) => setDraft((d) => ({ ...d, source: e.target.value }))} />
               </Field>
               <Field label="Type">
-                <select className={inputCls} value={draft.type ?? "Lead"} onChange={(e) => setDraft((d) => ({ ...d, type: e.target.value as ContactType }))}>
+                <Select value={draft.type ?? "Lead"} onChange={(e) => setDraft((d) => ({ ...d, type: e.target.value as ContactType }))}>
                   {CONTACT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                </select>
+                </Select>
               </Field>
               <Field label="Status">
-                <select className={inputCls} value={draft.status} onChange={(e) => setDraft((d) => ({ ...d, status: e.target.value }))}>
+                <Select value={draft.status} onChange={(e) => setDraft((d) => ({ ...d, status: e.target.value }))}>
                   {STATUSES.map((s) => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
-                </select>
+                </Select>
               </Field>
             </div>
             <div className="grid gap-3 sm:grid-cols-3">
@@ -412,9 +426,9 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
                 <input className={inputCls} value={draft.city ?? ""} onChange={(e) => setDraft((d) => ({ ...d, city: e.target.value }))} />
               </Field>
               <Field label="State">
-                <select className={inputCls} value={draft.state ?? "AZ"} onChange={(e) => setDraft((d) => ({ ...d, state: e.target.value }))}>
+                <Select value={draft.state ?? "AZ"} onChange={(e) => setDraft((d) => ({ ...d, state: e.target.value }))}>
                   {STATES.map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
+                </Select>
               </Field>
               <Field label="Zip">
                 <input className={inputCls} value={draft.zip ?? ""} onChange={(e) => setDraft((d) => ({ ...d, zip: e.target.value }))} />
@@ -481,6 +495,14 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
           </div>
         </Modal>
       )}
+
+      {contactAction && (
+        <ContactActionModal
+          action={contactAction.type}
+          contact={contactAction.contact}
+          onClose={() => setContactAction(null)}
+        />
+      )}
     </div>
   );
 }
@@ -509,6 +531,115 @@ function InfoRow({ icon: Icon, label, value }: { icon: React.ElementType; label:
         <div className="text-sm">{value}</div>
       </div>
     </div>
+  );
+}
+
+function ContactQuickActions({ contact, onAction }: { contact: Contact; onAction: (type: "call" | "sms" | "email") => void }) {
+  return (
+    <div className="rounded-xl border border-border bg-background p-3">
+      <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Quick Actions</div>
+      <div className="grid grid-cols-3 gap-2">
+        <Button type="button" size="sm" variant="outline" disabled={!contact.phone} onClick={() => onAction("call")}>
+          <Phone className="h-3.5 w-3.5" /> Call
+        </Button>
+        <Button type="button" size="sm" variant="outline" disabled={!contact.phone} onClick={() => onAction("sms")}>
+          <Mail className="h-3.5 w-3.5" /> Text
+        </Button>
+        <Button type="button" size="sm" variant="outline" disabled={!contact.email} onClick={() => onAction("email")}>
+          <Mail className="h-3.5 w-3.5" /> Email
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function ContactActionModal({
+  action,
+  contact,
+  onClose,
+}: {
+  action: "call" | "sms" | "email";
+  contact: Contact;
+  onClose: () => void;
+}) {
+  const [message, setMessage] = React.useState("");
+  const [subject, setSubject] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  const [notice, setNotice] = React.useState<string | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
+
+  const contactName = fullName(contact);
+  const title = action === "call" ? `Call ${contactName}` : action === "sms" ? `Text ${contactName}` : `Email ${contactName}`;
+
+  async function submit() {
+    setBusy(true); setError(null); setNotice(null);
+    try {
+      const payload =
+        action === "call"
+          ? { channel: "call", to: contact.phone, contact_id: contact.id }
+          : action === "sms"
+            ? { channel: "sms", to: contact.phone, body: message, contact_id: contact.id }
+            : { channel: "email", to: contact.email, subject, body: message, contact_id: contact.id };
+
+      if ((action === "sms" || action === "email") && !message) throw new Error("Message is required.");
+      if (action === "email" && !subject) throw new Error("Subject is required.");
+
+      const res = await fetch("/api/communications/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json() as { error?: string };
+      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+      setNotice(action === "call" ? "Call queued. Answer your phone to connect." : "Message sent.");
+      if (action !== "call") setTimeout(onClose, 900);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Action failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal title={title} onClose={onClose}>
+      <div className="space-y-4">
+        {error ? <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div> : null}
+        {notice ? <div className="rounded-md bg-success/10 px-3 py-2 text-sm text-success">{notice}</div> : null}
+
+        {action === "call" ? (
+          <>
+            <Field label="Recipient">
+              <input className={inputCls} value={contact.phone ?? ""} readOnly />
+            </Field>
+            <div className="rounded-lg border border-border bg-muted/40 p-3 text-xs leading-5 text-muted-foreground">
+              This call will be placed from the Constructed Matter Twilio number, +1 480 906 4400.
+            </div>
+          </>
+        ) : (
+          <>
+            <Field label={action === "email" ? "Email" : "Phone"}>
+              <input className={inputCls} value={action === "email" ? contact.email : contact.phone ?? ""} readOnly />
+            </Field>
+            {action === "email" ? (
+              <Field label="Subject" required>
+                <input className={inputCls} value={subject} onChange={(e) => setSubject(e.target.value)} />
+              </Field>
+            ) : null}
+            <Field label="Message" required>
+              <textarea className={cn(inputCls, "min-h-[120px] resize-none py-2")} value={message} onChange={(e) => setMessage(e.target.value)} />
+            </Field>
+          </>
+        )}
+
+        <div className="flex justify-end gap-2">
+          <Button size="sm" variant="outline" onClick={onClose} disabled={busy}>Cancel</Button>
+          <Button size="sm" variant="accent" onClick={() => void submit()} disabled={busy}>
+            {action === "call" ? <Phone className="h-3.5 w-3.5" /> : <Mail className="h-3.5 w-3.5" />}
+            {busy ? "Working..." : action === "call" ? "Start Call" : "Send"}
+          </Button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 

@@ -4,7 +4,7 @@ import * as React from "react";
 import {
   Mail, MessageSquare, Phone, Send, Plus, RefreshCw, Clock,
   CheckCircle2, XCircle, ArrowDownLeft, ArrowUpRight, X,
-  ClipboardList, ChevronDown,
+  ClipboardList, ChevronDown, UserRound,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -64,7 +64,12 @@ interface ComposePayload {
   body: string;
 }
 
+interface CallPayload {
+  to: string;
+}
+
 const EMPTY_COMPOSE: ComposePayload = { channel: "email", to: "", subject: "", body: "" };
+const EMPTY_CALL: CallPayload = { to: "" };
 
 export function CommunicationsClient({
   initialMessages,
@@ -80,6 +85,10 @@ export function CommunicationsClient({
   const [draft, setDraft] = React.useState<ComposePayload>(EMPTY_COMPOSE);
   const [sending, setSending] = React.useState(false);
   const [sendError, setSendError] = React.useState<string | null>(null);
+  const [callDraft, setCallDraft] = React.useState<CallPayload>(EMPTY_CALL);
+  const [calling, setCalling] = React.useState(false);
+  const [callError, setCallError] = React.useState<string | null>(null);
+  const [callNotice, setCallNotice] = React.useState<string | null>(null);
   const [selected, setSelected] = React.useState<Message | null>(null);
   const [selectedSubmission, setSelectedSubmission] = React.useState<ContactSubmission | null>(null);
   const [submissionFilter, setSubmissionFilter] = React.useState<ContactSubmissionStatus | "all">("all");
@@ -126,6 +135,24 @@ export function CommunicationsClient({
     } finally { setSending(false); }
   }
 
+  async function startCall() {
+    if (!callDraft.to) { setCallError("Recipient phone number is required."); return; }
+    setCalling(true); setCallError(null); setCallNotice(null);
+    try {
+      const res = await fetch("/api/communications/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ channel: "call", ...callDraft }),
+      });
+      const json = await res.json() as Message & { error?: string };
+      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+      setMessages((prev) => [json, ...prev]);
+      setCallNotice("Call queued from the Constructed Matter Twilio number.");
+    } catch (err) {
+      setCallError(err instanceof Error ? err.message : "Call failed.");
+    } finally { setCalling(false); }
+  }
+
   async function updateSubmissionStatus(id: string, status: ContactSubmissionStatus) {
     try {
       await fetch("/api/contact-submissions", {
@@ -140,7 +167,7 @@ export function CommunicationsClient({
         setSelectedSubmission((prev) => prev ? { ...prev, status } : prev);
       }
     } catch {
-      // silent fail — optimistic update already applied
+      // silent fail â€” optimistic update already applied
     }
   }
 
@@ -160,6 +187,9 @@ export function CommunicationsClient({
           <h1 className="mt-0.5 font-display text-2xl font-semibold tracking-tight">Communications</h1>
         </div>
         <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => setTab("call")}>
+            <Phone className="h-3.5 w-3.5" /> New Call
+          </Button>
           <Button size="sm" variant="outline" onClick={() => openCompose("sms")}>
             <MessageSquare className="h-3.5 w-3.5" /> New SMS
           </Button>
@@ -284,6 +314,16 @@ export function CommunicationsClient({
         /* Original message list + detail pane */
         <div className="flex flex-1 overflow-hidden">
           <div className={cn("flex-1 overflow-y-auto divide-y divide-border", selected && "hidden md:block md:w-[360px] md:flex-none")}>
+            {tab === "call" && (
+              <CallDialer
+                draft={callDraft}
+                setDraft={setCallDraft}
+                calling={calling}
+                error={callError}
+                notice={callNotice}
+                onCall={() => void startCall()}
+              />
+            )}
             {filtered.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-24 text-center">
                 <div className="flex h-14 w-14 items-center justify-center rounded-full border border-border bg-card mb-4">
@@ -337,7 +377,7 @@ export function CommunicationsClient({
                       )}
                       {msg.channel === "call" ? (
                         <div className="mt-0.5 text-xs text-muted-foreground">
-                          Call · {formatDuration(msg.duration_seconds) ?? "—"}
+                          Call Â· {formatDuration(msg.duration_seconds) ?? "â€”"}
                         </div>
                       ) : msg.body ? (
                         <div className="mt-0.5 text-xs text-muted-foreground line-clamp-2">{msg.body}</div>
@@ -375,8 +415,8 @@ export function CommunicationsClient({
                   {selected.from_address && <InfoRow label="From" value={selected.from_address} />}
                   {selected.subject && <InfoRow label="Subject" value={selected.subject} />}
                   <InfoRow label="Status" value={selected.status} />
-                  <InfoRow label="Provider" value={selected.provider ?? "—"} />
-                  {selected.duration_seconds && <InfoRow label="Duration" value={formatDuration(selected.duration_seconds) ?? "—"} />}
+                  <InfoRow label="Provider" value={selected.provider ?? "â€”"} />
+                  {selected.duration_seconds && <InfoRow label="Duration" value={formatDuration(selected.duration_seconds) ?? "â€”"} />}
                   <InfoRow label="Sent" value={new Date(selected.sent_at).toLocaleString()} />
                   {selected.error_message && (
                     <div className="rounded bg-destructive/10 px-3 py-2 text-xs text-destructive">{selected.error_message}</div>
@@ -452,19 +492,19 @@ export function CommunicationsClient({
               </CF>
               {draft.channel === "email" && (
                 <CF label="Subject">
-                  <input className={iCls} placeholder="Email subject…" value={draft.subject} onChange={(e) => setDraft((d) => ({ ...d, subject: e.target.value }))} />
+                  <input className={iCls} placeholder="Email subjectâ€¦" value={draft.subject} onChange={(e) => setDraft((d) => ({ ...d, subject: e.target.value }))} />
                 </CF>
               )}
               <CF label="Message">
                 <textarea
                   className={cn(iCls, "min-h-[120px] resize-none")}
-                  placeholder={draft.channel === "email" ? "Write your email…" : "Write your SMS (160 chars per segment)…"}
+                  placeholder={draft.channel === "email" ? "Write your emailâ€¦" : "Write your SMS (160 chars per segment)â€¦"}
                   value={draft.body}
                   onChange={(e) => setDraft((d) => ({ ...d, body: e.target.value }))}
                 />
                 {draft.channel === "sms" && draft.body && (
                   <div className="mt-1 text-right text-[11px] text-muted-foreground">
-                    {draft.body.length} chars · {Math.ceil(draft.body.length / 160)} segment{Math.ceil(draft.body.length / 160) !== 1 ? "s" : ""}
+                    {draft.body.length} chars Â· {Math.ceil(draft.body.length / 160)} segment{Math.ceil(draft.body.length / 160) !== 1 ? "s" : ""}
                   </div>
                 )}
               </CF>
@@ -472,7 +512,7 @@ export function CommunicationsClient({
                 <Button size="sm" variant="outline" onClick={() => setComposing(false)} disabled={sending}>Cancel</Button>
                 <Button size="sm" variant="accent" onClick={() => void send()} disabled={sending}>
                   <Send className="h-3.5 w-3.5" />
-                  {sending ? "Sending…" : "Send"}
+                  {sending ? "Sendingâ€¦" : "Send"}
                 </Button>
               </div>
             </div>
@@ -511,8 +551,8 @@ export function CommunicationsClient({
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <ModalField label="First Name" value={selectedSubmission.first_name} />
                 <ModalField label="Last Name" value={selectedSubmission.last_name} />
-                <ModalField label="Email" value={selectedSubmission.email} />
-                <ModalField label="Phone" value={selectedSubmission.phone ?? "—"} />
+                <ContactActionField label="Email" value={selectedSubmission.email} email={selectedSubmission.email} contactId={selectedSubmission.contact_id} />
+                <ContactActionField label="Phone" value={selectedSubmission.phone ?? "—"} phone={selectedSubmission.phone} contactId={selectedSubmission.contact_id} />
                 <ModalField label="How They Heard" value={selectedSubmission.how_heard ?? "—"} />
                 <ModalField label="Subject" value={selectedSubmission.subject} />
               </div>
@@ -570,6 +610,100 @@ export function CommunicationsClient({
   );
 }
 
+function CallDialer({
+  draft,
+  setDraft,
+  calling,
+  error,
+  notice,
+  onCall,
+}: {
+  draft: CallPayload;
+  setDraft: React.Dispatch<React.SetStateAction<CallPayload>>;
+  calling: boolean;
+  error: string | null;
+  notice: string | null;
+  onCall: () => void;
+}) {
+  const keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "+", "0", "#"];
+
+  function append(value: string) {
+    setDraft((prev) => ({ ...prev, to: `${prev.to}${value}` }));
+  }
+
+  function backspace() {
+    setDraft((prev) => ({ ...prev, to: prev.to.slice(0, -1) }));
+  }
+
+  return (
+    <div className="border-b border-border bg-card/70 p-5">
+      <div className="grid gap-5 lg:grid-cols-[360px_1fr]">
+        <div className="rounded-xl border border-border bg-background p-4 shadow-sm">
+          <div className="flex items-center gap-2">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent/10 text-accent">
+              <Phone className="h-4 w-4" />
+            </div>
+            <div>
+              <div className="text-sm font-semibold">Twilio Dialer</div>
+              <div className="text-xs text-muted-foreground">Click-to-call bridge for outbound calls.</div>
+            </div>
+          </div>
+
+          {error ? <div className="mt-4 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div> : null}
+          {notice ? <div className="mt-4 rounded-lg bg-success/10 px-3 py-2 text-sm text-success">{notice}</div> : null}
+
+          <div className="mt-4 space-y-3">
+            <CF label="Recipient phone">
+              <div className="flex gap-2">
+                <input
+                  className={iCls}
+                  placeholder="+1 602 555 0100"
+                  value={draft.to}
+                  onChange={(e) => setDraft((prev) => ({ ...prev, to: e.target.value }))}
+                />
+                <Button type="button" size="sm" variant="outline" onClick={backspace} disabled={!draft.to || calling}>
+                  Delete
+                </Button>
+              </div>
+            </CF>
+          </div>
+
+          <div className="mt-4 grid grid-cols-3 gap-2">
+            {keys.map((key) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => append(key)}
+                disabled={calling}
+                className="flex h-11 items-center justify-center rounded-lg border border-border bg-card text-base font-semibold transition hover:border-accent hover:text-accent disabled:opacity-50"
+              >
+                {key}
+              </button>
+            ))}
+          </div>
+
+          <Button type="button" variant="accent" className="mt-4 w-full" onClick={onCall} disabled={calling}>
+            <Phone className="h-4 w-4" />
+            {calling ? "Queueing call..." : "Start Outbound Call"}
+          </Button>
+        </div>
+
+        <div className="rounded-xl border border-border bg-background p-4">
+          <div className="text-sm font-semibold">How this call works</div>
+          <div className="mt-3 space-y-3 text-sm leading-6 text-muted-foreground">
+            <p>1. Calls are placed from the Constructed Matter Twilio number: +1 480 906 4400.</p>
+            <p>2. Enter the recipient number and start the outbound call.</p>
+            <p>3. The queued call is saved into Communications when the messages table is installed.</p>
+          </div>
+          <div className="mt-4 rounded-lg border border-border bg-muted/40 p-3 text-xs leading-5 text-muted-foreground">
+            For live two-way browser calling with microphone controls, the next phase is adding a TwiML App, Twilio Voice SDK access tokens, and a browser softphone.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex gap-3">
@@ -588,6 +722,45 @@ function ModalField({ label, value }: { label: string; value: string }) {
   );
 }
 
+function ContactActionField({
+  label,
+  value,
+  email,
+  phone,
+  contactId,
+}: {
+  label: string;
+  value: string;
+  email?: string | null;
+  phone?: string | null;
+  contactId?: string | null;
+}) {
+  const profileHref = contactId ? `/dashboard/contacts?id=${encodeURIComponent(contactId)}` : email ? `/dashboard/contacts?search=${encodeURIComponent(email)}` : "/dashboard/contacts";
+  return (
+    <div className="group relative">
+      <div className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">{label}</div>
+      <a href={email ? `mailto:${email}` : phone ? `tel:${phone}` : profileHref} className="text-sm font-medium text-foreground underline-offset-4 transition hover:text-accent hover:underline">
+        {value}
+      </a>
+      <div className="pointer-events-none absolute left-0 top-full z-20 mt-2 hidden min-w-44 rounded-lg border border-border bg-card p-1 text-xs shadow-xl group-hover:block group-hover:pointer-events-auto">
+        {email ? (
+          <a href={`mailto:${email}`} className="flex items-center gap-2 rounded-md px-2.5 py-2 hover:bg-muted">
+            <Mail className="h-3.5 w-3.5 text-accent" /> Email
+          </a>
+        ) : null}
+        {phone ? (
+          <a href={`tel:${phone}`} className="flex items-center gap-2 rounded-md px-2.5 py-2 hover:bg-muted">
+            <Phone className="h-3.5 w-3.5 text-accent" /> Call
+          </a>
+        ) : null}
+        <a href={profileHref} className="flex items-center gap-2 rounded-md px-2.5 py-2 hover:bg-muted">
+          <UserRound className="h-3.5 w-3.5 text-accent" /> Contact profile
+        </a>
+      </div>
+    </div>
+  );
+}
+
 function CF({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
@@ -598,3 +771,4 @@ function CF({ label, children }: { label: string; children: React.ReactNode }) {
 }
 
 const iCls = "h-9 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-accent";
+

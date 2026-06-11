@@ -12,7 +12,7 @@
 
     --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
     --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
-    --font-display: "Geist", ui-sans-serif, system-ui, sans-serif;
+    --font-display: Georgia, "Times New Roman", ui-serif, serif;
 
     --shadow-xs: 0 1px 2px 0 rgb(20 14 6 / 0.04);
     --shadow-sm: 0 1px 3px 0 rgb(20 14 6 / 0.06), 0 1px 2px -1px rgb(20 14 6 / 0.06);
@@ -206,6 +206,28 @@
   .cmi-gantt-scrollbar::-webkit-scrollbar-button:horizontal:decrement {
     background-image: linear-gradient(45deg, transparent 50%, var(--muted-foreground) 50%), linear-gradient(135deg, var(--muted-foreground) 50%, transparent 50%);
     background-position: 7px 5px, 7px 8px;
+  }
+
+  .cmi-portfolio-gallery-scroll {
+    scrollbar-color: color-mix(in oklch, var(--accent) 66%, var(--border)) transparent;
+    scrollbar-width: thin;
+  }
+
+  .cmi-portfolio-gallery-scroll::-webkit-scrollbar {
+    height: 8px;
+  }
+
+  .cmi-portfolio-gallery-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .cmi-portfolio-gallery-scroll::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: color-mix(in oklch, var(--accent) 55%, var(--border));
+  }
+
+  .cmi-portfolio-gallery-scroll::-webkit-scrollbar-thumb:hover {
+    background: var(--accent);
   }
 
   .cmi-gantt-scrollbar::-webkit-scrollbar-button:horizontal:increment {
