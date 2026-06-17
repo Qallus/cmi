@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { GripVertical, Trash2, Plus, Type, AlignLeft, MousePointerSquare, ImageIcon, Minus, Space, FootprintsIcon, LayoutTemplate } from "lucide-react";
+import { GripVertical, Trash2, Plus, Type, AlignLeft, MousePointerClick, ImageIcon, Minus, SeparatorHorizontal, PanelBottom, LayoutTemplate } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { EmailBlock, BlockType } from "./types";
 import { blocksToHtml } from "./renderer";
@@ -10,11 +10,11 @@ const PALETTE: { type: BlockType; label: string; icon: React.ElementType; desc: 
   { type: "header",  label: "Header",   icon: LayoutTemplate,      desc: "Logo / brand bar" },
   { type: "heading", label: "Heading",  icon: Type,                desc: "H1, H2 or H3 title" },
   { type: "text",    label: "Text",     icon: AlignLeft,           desc: "Body paragraph" },
-  { type: "button",  label: "Button",   icon: MousePointerSquare,  desc: "CTA button with link" },
+  { type: "button",  label: "Button",   icon: MousePointerClick,   desc: "CTA button with link" },
   { type: "image",   label: "Image",    icon: ImageIcon,           desc: "Image with optional link" },
   { type: "divider", label: "Divider",  icon: Minus,               desc: "Horizontal rule" },
-  { type: "spacer",  label: "Spacer",   icon: Space,               desc: "Empty vertical gap" },
-  { type: "footer",  label: "Footer",   icon: FootprintsIcon,      desc: "Company info footer" },
+  { type: "spacer",  label: "Spacer",   icon: SeparatorHorizontal, desc: "Empty vertical gap" },
+  { type: "footer",  label: "Footer",   icon: PanelBottom,         desc: "Company info footer" },
 ];
 
 function defaultBlock(type: BlockType): Omit<EmailBlock, "id"> {
