@@ -17,7 +17,7 @@ const ROLE_LABELS: Record<string, string> = {
 function buildInviteHtml(firstName: string, roleSlug: string, inviteLink: string): string {
   const roleLabel = ROLE_LABELS[roleSlug] ?? roleSlug;
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://my.constructedmatter.com";
-  const logoUrl = `${appUrl}/brand/cmi-logo-dark.png`;
+  const logoUrl = `${appUrl}/brand/CMI_Line_Logo_White.svg`;
 
   return `<!DOCTYPE html>
 <html>
