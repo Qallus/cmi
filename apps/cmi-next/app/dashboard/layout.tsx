@@ -50,13 +50,13 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         <div className={cn("flex h-[104px] items-start border-b border-border pt-4", collapsed ? "justify-center px-2" : "px-4")}>
           {collapsed ? (
             <>
-              <img src="/brand/cmi-favicon-black.png" alt="Constructed Matter, Inc." className="h-10 w-10 object-contain dark:hidden" />
-              <img src="/brand/cmi-favicon-white.png" alt="Constructed Matter, Inc." className="hidden h-10 w-10 object-contain dark:block" />
+              <img src="/brand/cmi-favicon-black.png" alt="CMI" className="h-10 w-10 object-contain dark:hidden" />
+              <img src="/brand/cmi-favicon-white.png" alt="CMI" className="hidden h-10 w-10 object-contain dark:block" />
             </>
           ) : (
             <a href="/" className="block">
-              <img src="/brand/cmi-logo-light.png" alt="Constructed Matter, Inc." className="h-[3.2rem] w-auto object-contain dark:hidden" />
-              <img src="/brand/cmi-logo-dark.png" alt="Constructed Matter, Inc." className="hidden h-[3.2rem] w-auto object-contain dark:block" />
+              <img src="/brand/CMI_Line_Logo_Black.svg" alt="Constructed Matter, Inc." className="h-[3.2rem] w-auto object-contain dark:hidden" />
+              <img src="/brand/CMI_Line_Logo_White.svg" alt="Constructed Matter, Inc." className="hidden h-[3.2rem] w-auto object-contain dark:block" />
             </a>
           )}
         </div>

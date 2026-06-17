@@ -52,8 +52,8 @@ export function SiteHeader() {
     <header className="sticky top-0 z-50 border-b border-transparent bg-background/98 shadow-sm backdrop-blur-xl supports-[backdrop-filter]:bg-background/95">
       <div className="mx-auto flex h-[72px] max-w-7xl items-center justify-between px-5 lg:px-8">
         <Link href="/" className="shrink-0">
-          <img src="/brand/cmi-logo-light.png" alt="Constructed Matter, Inc." className="h-9 w-auto dark:hidden" />
-          <img src="/brand/cmi-logo-dark.png" alt="Constructed Matter, Inc." className="hidden h-9 w-auto dark:block" />
+          <img src="/brand/CMI_Line_Logo_Black.svg" alt="Constructed Matter, Inc." className="h-9 w-auto dark:hidden" />
+          <img src="/brand/CMI_Line_Logo_White.svg" alt="Constructed Matter, Inc." className="hidden h-9 w-auto dark:block" />
         </Link>
 
         <nav className="hidden items-center gap-4 lg:flex">

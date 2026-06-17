@@ -29,7 +29,7 @@ export function SiteFooter() {
           {/* Brand col */}
           <div className="space-y-5">
             <img
-              src="/brand/cmi-logo-dark.png"
+              src="/brand/CMI_Line_Logo_White.svg"
               alt="Constructed Matter, Inc."
               className="h-9 w-auto"
             />

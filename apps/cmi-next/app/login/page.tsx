@@ -98,14 +98,14 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center gap-4">
           <img
-            src="/brand/cmi-logo-light.png"
+            src="/brand/cmi-favicon-black.png"
             alt="Constructed Matter, Inc."
-            className="h-10 w-auto object-contain dark:hidden"
+            className="h-14 w-14 object-contain dark:hidden"
           />
           <img
-            src="/brand/cmi-logo-dark.png"
+            src="/brand/cmi-favicon-white.png"
             alt="Constructed Matter, Inc."
-            className="hidden h-10 w-auto object-contain dark:block"
+            className="hidden h-14 w-14 object-contain dark:block"
           />
           <h1 className="text-xl font-semibold">Staff Dashboard</h1>
           <p className="text-center text-sm text-muted-foreground">
