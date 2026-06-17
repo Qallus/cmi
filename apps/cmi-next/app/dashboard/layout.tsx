@@ -22,12 +22,24 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = React.useState(false);
   const [dashboardSearch, setDashboardSearch] = React.useState("");
   const [sessionUser, setSessionUser] = React.useState<SessionUser | null>(null);
+  const [unreadCount, setUnreadCount] = React.useState(0);
 
   React.useEffect(() => {
     fetch("/api/auth/me")
       .then((r) => r.json())
       .then((data: { user?: SessionUser | null }) => { if (data.user) setSessionUser(data.user); })
       .catch(() => {});
+
+    // Fetch unread notification count (new contact submissions + unread messages)
+    function loadUnread() {
+      fetch("/api/notifications/unread-count")
+        .then(r => r.json())
+        .then((data: { count?: number }) => setUnreadCount(data.count ?? 0))
+        .catch(() => {});
+    }
+    loadUnread();
+    const interval = setInterval(loadUnread, 60_000);
+    return () => clearInterval(interval);
   }, []);
 
   async function handleSignOut() {
@@ -93,10 +105,14 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
               />
             </label>
             <ThemeToggle />
-            <button className="relative inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-card text-muted-foreground" type="button" title="Notifications">
+            <a href="/dashboard/communications" className="relative inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-card text-muted-foreground transition hover:text-foreground" title="Notifications">
               <Bell className="h-4 w-4" />
-              <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-accent" />
-            </button>
+              {unreadCount > 0 && (
+                <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-accent text-[10px] font-bold text-white">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
+            </a>
             <button
               className="rounded-md border border-border p-1.5 text-muted-foreground transition hover:border-red-400 hover:text-red-500"
               type="button"

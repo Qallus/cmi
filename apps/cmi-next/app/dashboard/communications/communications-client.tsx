@@ -4,14 +4,15 @@ import * as React from "react";
 import {
   Mail, MessageSquare, Phone, Send, Plus, RefreshCw, Clock,
   CheckCircle2, XCircle, ArrowDownLeft, ArrowUpRight, X,
-  ClipboardList, ChevronDown, UserRound,
+  ClipboardList, ChevronDown, UserRound, LayoutTemplate,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { Message, MessageChannel } from "@/lib/communications/types";
 import type { ContactSubmission, ContactSubmissionStatus } from "@/lib/contact-submissions/types";
+import { TemplateManager } from "@/components/email-builder/template-manager";
 
-type Tab = "all" | MessageChannel | "contact_form";
+type Tab = "all" | MessageChannel | "contact_form" | "templates";
 
 const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
   { key: "all",          label: "All",          icon: RefreshCw },
@@ -19,6 +20,7 @@ const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
   { key: "sms",          label: "SMS",           icon: MessageSquare },
   { key: "call",         label: "Calls",         icon: Phone },
   { key: "contact_form", label: "Contact Form",  icon: ClipboardList },
+  { key: "templates",    label: "Templates",     icon: LayoutTemplate },
 ];
 
 function statusIcon(status: string) {
@@ -230,8 +232,11 @@ export function CommunicationsClient({
         ))}
       </div>
 
-      {/* Contact Form submissions view */}
-      {tab === "contact_form" ? (
+      {tab === "templates" ? (
+        <div className="flex-1 overflow-hidden">
+          <TemplateManager />
+        </div>
+      ) : tab === "contact_form" ? (
         <div className="flex flex-1 overflow-hidden">
           <div className="flex-1 overflow-y-auto">
             {/* Sub-filter */}
