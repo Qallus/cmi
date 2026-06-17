@@ -1,24 +1,23 @@
+import { cookies } from "next/headers";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { MyProfileClient } from "./my-profile-client";
 
 export const metadata = { title: "My Profile - CMI Dashboard" };
 
 async function loadProfile() {
-  const supabase = getSupabaseAdmin();
-  const preferredEmails = ["jwaters@qallus.co", "jw.qallus@gmail.com", "jeremy@constructedmatter.com"];
+  const cookieStore = await cookies();
+  const token = cookieStore.get("cmi-session")?.value;
+  if (!token) return null;
 
-  for (const email of preferredEmails) {
-    const { data, error } = await supabase.from("team_members").select("*").eq("email", email).maybeSingle();
-    if (!error && data) return data;
-  }
+  const supabase = getSupabaseAdmin();
+
+  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+  if (authError || !user?.email) return null;
 
   const { data } = await supabase
     .from("team_members")
     .select("*")
-    .eq("status", "active")
-    .order("sort_order")
-    .order("name")
-    .limit(1)
+    .eq("email", user.email)
     .maybeSingle();
 
   return data ?? null;
