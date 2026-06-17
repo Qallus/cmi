@@ -98,8 +98,9 @@ export function CommunicationsClient({
   // Compose: multi-recipient + template state
   const [recipientTags, setRecipientTags] = React.useState<string[]>([]);
   const [recipientInput, setRecipientInput] = React.useState("");
-  const [composeTemplates, setComposeTemplates] = React.useState<{ id: string; name: string; subject: string; html: string }[]>([]);
+  const [composeTemplates, setComposeTemplates] = React.useState<{ id: string; name: string; subject: string }[]>([]);
   const [selectedTemplate, setSelectedTemplate] = React.useState<{ id: string; name: string; subject: string; html: string } | null>(null);
+  const [loadingTemplate, setLoadingTemplate] = React.useState(false);
   const [showTemplateMenu, setShowTemplateMenu] = React.useState(false);
   const [showTemplatePreview, setShowTemplatePreview] = React.useState(false);
   const templateMenuRef = React.useRef<HTMLDivElement>(null);
@@ -631,10 +632,17 @@ export function CommunicationsClient({
                               {composeTemplates.map(t => (
                                 <button key={t.id} type="button"
                                   onClick={() => {
-                                    setSelectedTemplate(t);
-                                    setDraft(d => ({ ...d, subject: t.subject || d.subject }));
                                     setShowTemplateMenu(false);
-                                    setShowTemplatePreview(true);
+                                    setLoadingTemplate(true);
+                                    fetch(`/api/admin/email-templates/${t.id}`)
+                                      .then(r => r.json() as Promise<{ template: { id: string; name: string; subject: string; html: string } }>)
+                                      .then(data => {
+                                        setSelectedTemplate({ id: data.template.id, name: data.template.name, subject: data.template.subject, html: data.template.html ?? "" });
+                                        setDraft(d => ({ ...d, subject: data.template.subject || d.subject }));
+                                        setShowTemplatePreview(true);
+                                      })
+                                      .catch(() => setSendError("Failed to load template."))
+                                      .finally(() => setLoadingTemplate(false));
                                   }}
                                   className={cn("flex w-full flex-col gap-0.5 px-3 py-2.5 text-left text-xs transition hover:bg-muted",
                                     selectedTemplate?.id === t.id && "bg-accent/5 text-accent"
@@ -653,8 +661,12 @@ export function CommunicationsClient({
               )}
 
               {/* Message / template preview */}
-              <CF label={selectedTemplate ? "Template Preview" : "Message"}>
-                {selectedTemplate ? (
+              <CF label={loadingTemplate ? "Loading template..." : selectedTemplate ? "Template Preview" : "Message"}>
+                {loadingTemplate ? (
+                  <div className="flex h-16 items-center justify-center rounded-md border border-border text-xs text-muted-foreground">
+                    Loading template...
+                  </div>
+                ) : selectedTemplate ? (
                   <div className="overflow-hidden rounded-md border border-border">
                     <div className="flex items-center justify-between border-b border-border bg-muted/40 px-3 py-1.5">
                       <span className="text-[11px] text-muted-foreground">Using: <strong className="text-foreground">{selectedTemplate.name}</strong></span>
@@ -665,8 +677,8 @@ export function CommunicationsClient({
                     </div>
                     {showTemplatePreview && (
                       <iframe
-                        srcDoc={selectedTemplate.html}
-                        className="h-48 w-full bg-white"
+                        srcDoc={selectedTemplate.html || "<p style='padding:16px;color:#888;font-family:sans-serif;font-size:13px'>No HTML content in this template.</p>"}
+                        className="h-64 w-full bg-white"
                         title="Template preview"
                         sandbox="allow-same-origin"
                       />
