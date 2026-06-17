@@ -12,15 +12,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Email and password are required." }, { status: 400 });
     }
 
-    const supabase = getSupabaseAdmin();
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    // Use separate client instances: signInWithPassword stores the user JWT in the
+    // client's memory, which would cause the subsequent staff_users query to run as
+    // that user (blocked by RLS) instead of as service role.
+    const authClient = getSupabaseAdmin();
+    const { data, error } = await authClient.auth.signInWithPassword({ email, password });
 
     if (error || !data.session) {
       return NextResponse.json({ error: "Invalid email or password." }, { status: 401 });
     }
 
-    // Verify the user is an active staff member
-    const { data: staff } = await supabase
+    // Fresh admin client — service role key, no user session, bypasses RLS
+    const { data: staff } = await getSupabaseAdmin()
       .from("staff_users")
       .select("id, role_slug, status")
       .eq("email", email)
