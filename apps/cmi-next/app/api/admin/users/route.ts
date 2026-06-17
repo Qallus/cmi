@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { requireAdmin, AuthError } from "@/lib/auth/require-admin";
 import { normalizeUser } from "@/lib/users/data";
 import type { UserInput, UserRole } from "@/lib/users/types";
+import { generateInviteLink, sendInviteEmail } from "@/lib/email/invite";
 
 const contactRoleTypes: Partial<Record<UserRole, "Client" | "Vendor" | "Sub Contractor" | "Lead">> = {
   client: "Client",
@@ -117,6 +118,18 @@ export async function POST(request: Request) {
     if (error) throw error;
 
     if (input.send_invite) {
+      let emailStatus = "failed";
+      const inviteLink = await generateInviteLink(input.email);
+      if (inviteLink) {
+        const result = await sendInviteEmail({
+          email: input.email,
+          firstName: input.first_name,
+          roleSlug: input.role_slug,
+          inviteLink,
+        });
+        emailStatus = result.ok ? "sent" : "failed";
+      }
+
       await supabase.from("user_invites").insert({
         email: input.email,
         phone: input.phone || null,
@@ -126,7 +139,7 @@ export async function POST(request: Request) {
         staff_user_id: data.id,
         notify_email: true,
         notify_sms: input.notify_sms,
-        email_status: "queued",
+        email_status: emailStatus,
         sms_status: input.notify_sms ? "queued" : null,
         invited_by_email: "dashboard"
       });

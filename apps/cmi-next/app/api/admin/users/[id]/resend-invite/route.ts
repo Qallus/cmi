@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { requireAdmin, AuthError } from "@/lib/auth/require-admin";
 import { normalizeUser } from "@/lib/users/data";
+import { generateInviteLink, sendInviteEmail } from "@/lib/email/invite";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -18,6 +19,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       .single();
     if (userError) throw userError;
 
+    let emailStatus = "failed";
+    const inviteLink = await generateInviteLink(user.email);
+    if (inviteLink) {
+      const result = await sendInviteEmail({
+        email: user.email,
+        firstName: user.first_name ?? user.display_name ?? "there",
+        roleSlug: user.role_slug,
+        inviteLink,
+      });
+      emailStatus = result.ok ? "sent" : "failed";
+    }
+
     await supabase.from("user_invites").insert({
       email: user.email,
       phone: user.phone,
@@ -27,16 +40,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       staff_user_id: user.id,
       notify_email: true,
       notify_sms: false,
-      email_status: "queued",
+      email_status: emailStatus,
       invited_by_email: "dashboard"
     });
 
     await supabase.from("user_activity_logs").insert({
       user_id: id,
       action: "invite.resent",
-      description: "User invite resent from dashboard.",
-      metadata: { role_slug: user.role_slug }
+      description: emailStatus === "sent" ? "Invite email resent successfully." : "Invite resent but email delivery failed — check RESEND_API_KEY.",
+      metadata: { role_slug: user.role_slug, email_status: emailStatus }
     });
+
+    if (emailStatus === "failed") {
+      return NextResponse.json({ message: "User status updated but email failed to send. Check server logs." }, { status: 500 });
+    }
 
     return NextResponse.json({ user: normalizeUser(user) });
   } catch (error) {
