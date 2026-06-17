@@ -49,7 +49,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true });
   } catch (err) {
-    console.error("[api/contact]", err);
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Failed to send message." },
       { status: 500 }

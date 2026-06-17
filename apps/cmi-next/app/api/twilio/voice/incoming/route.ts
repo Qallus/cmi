@@ -1,3 +1,5 @@
+import { createHmac } from "crypto";
+
 function twiml(body: string) {
   return new Response(body, {
     headers: { "Content-Type": "text/xml; charset=utf-8" },
@@ -13,7 +15,29 @@ function escapeXml(value: string) {
     .replace(/'/g, "&apos;");
 }
 
-export async function POST() {
+function verifyTwilioSignature(request: Request, body: string): boolean {
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  if (!authToken) return false;
+
+  const twilioSignature = request.headers.get("x-twilio-signature") ?? "";
+  const url = request.url;
+
+  // Build the base string: URL + sorted POST params concatenated
+  const params = new URLSearchParams(body);
+  const sortedKeys = [...params.keys()].sort();
+  const baseString = url + sortedKeys.map((k) => k + (params.get(k) ?? "")).join("");
+
+  const expected = createHmac("sha1", authToken).update(baseString).digest("base64");
+  return expected === twilioSignature;
+}
+
+export async function POST(request: Request) {
+  const rawBody = await request.text();
+
+  if (!verifyTwilioSignature(request, rawBody)) {
+    return new Response("Forbidden", { status: 403 });
+  }
+
   const forwardNumber = process.env.TWILIO_INBOUND_FORWARD_NUMBER || process.env.TWILIO_OUTBOUND_BRIDGE_NUMBER;
 
   if (!forwardNumber) {
@@ -33,5 +57,5 @@ export async function POST() {
 }
 
 export async function GET() {
-  return POST();
+  return new Response("Method Not Allowed", { status: 405 });
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { requireAdmin, AuthError } from "@/lib/auth/require-admin";
 import { normalizeUser } from "@/lib/users/data";
 import type { UserInput, UserRole, UserStatus } from "@/lib/users/types";
 
@@ -54,6 +55,7 @@ async function syncContact(supabase: ReturnType<typeof getSupabaseAdmin>, row: R
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    await requireAdmin(request);
     const { id } = await params;
     const supabase = getSupabaseAdmin();
     const body = await request.json();
@@ -99,6 +101,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     return NextResponse.json({ user: normalizeUser(data) });
   } catch (error) {
+    if (error instanceof AuthError) return NextResponse.json({ message: error.message }, { status: error.status });
     return NextResponse.json({ message: error instanceof Error ? error.message : "Could not update user." }, { status: 400 });
   }
 }

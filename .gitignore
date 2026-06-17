@@ -27,6 +27,10 @@ desktop.ini
 !.env.example
 secrets.json
 
+# Logs
+*.log
+logs/
+
 # Claude / MCP
 .claude/
 .mcp.json

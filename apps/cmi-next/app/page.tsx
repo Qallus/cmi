@@ -225,7 +225,7 @@ const REVIEWS = [
 
 export default function HomePage() {
   return (
-    <>
+    <div className="home-color-test">
       <SiteHeader />
       <main>
         {/* ── Hero ────────────────────────────────────────────── */}
@@ -468,6 +468,6 @@ export default function HomePage() {
         </section>
       </main>
       <SiteFooter />
-    </>
+    </div>
   );
 }

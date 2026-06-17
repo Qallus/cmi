@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { requireAdmin, AuthError } from "@/lib/auth/require-admin";
 
 function text(value: unknown) {
   const next = String(value || "").trim();
@@ -61,19 +62,22 @@ function cleanProduct(input: Record<string, unknown>, vendorId: string | null) {
   };
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    await requireAdmin(request);
     const supabase = getSupabaseAdmin();
     const { data, error } = await supabase.from("products").select("*").order("created_at", { ascending: false }).limit(250);
     if (error) throw error;
     return NextResponse.json({ products: data || [] });
   } catch (error) {
+    if (error instanceof AuthError) return NextResponse.json({ message: error.message }, { status: error.status });
     return NextResponse.json({ message: error instanceof Error ? error.message : "Products load failed." }, { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
   try {
+    await requireAdmin(request);
     const supabase = getSupabaseAdmin();
     const input = await request.json();
     const vendorId = await upsertVendor(supabase, text(input.vendor_name));
@@ -82,6 +86,7 @@ export async function POST(request: Request) {
     if (error) throw error;
     return NextResponse.json({ product: data });
   } catch (error) {
+    if (error instanceof AuthError) return NextResponse.json({ message: error.message }, { status: error.status });
     return NextResponse.json({ message: error instanceof Error ? error.message : "Product create failed." }, { status: 400 });
   }
 }

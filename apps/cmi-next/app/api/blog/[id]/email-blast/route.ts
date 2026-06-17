@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { requireAdmin, AuthError } from "@/lib/auth/require-admin";
 
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    await requireAdmin(req);
     const { id } = await params;
     const body = await req.json() as {
       recipients: "contacts" | "staff" | "subscribers" | "all" | "manual";
@@ -105,7 +107,7 @@ export async function POST(
       when: body.when,
     });
   } catch (err) {
-    console.error("[api/blog/email-blast]", err);
+    if (err instanceof AuthError) return NextResponse.json({ error: err.message }, { status: err.status });
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Failed to queue email blast." },
       { status: 500 }

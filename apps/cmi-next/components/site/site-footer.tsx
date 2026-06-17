@@ -29,7 +29,7 @@ export function SiteFooter() {
           {/* Brand col */}
           <div className="space-y-5">
             <img
-              src="https://wp-constructedmatter-com-985548.hostingersite.com/wp-content/uploads/2026/03/CMI_Logo_White.svg"
+              src="/brand/cmi-logo-dark.png"
               alt="Constructed Matter, Inc."
               className="h-9 w-auto"
             />

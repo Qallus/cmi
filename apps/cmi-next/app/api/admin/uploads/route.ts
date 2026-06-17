@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { requireAdmin, AuthError } from "@/lib/auth/require-admin";
 
 const BUCKET = "cmi-media";
+const ALLOWED_MIME_PREFIXES = ["image/", "video/"];
+const ALLOWED_MIME_EXACT = ["application/pdf"];
+const MAX_FILE_SIZE = 1024 * 1024 * 50; // 50 MB
 
 function safeName(name: string) {
   const base = name.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/-+/g, "-");
@@ -10,6 +14,7 @@ function safeName(name: string) {
 
 export async function POST(request: Request) {
   try {
+    await requireAdmin(request);
     const supabase = getSupabaseAdmin();
     const form = await request.formData();
     const file = form.get("file");
@@ -17,6 +22,19 @@ export async function POST(request: Request) {
 
     if (!(file instanceof File)) {
       throw new Error("File is required.");
+    }
+
+    // Server-side MIME type validation
+    const mimeType = file.type || "";
+    const isAllowed =
+      ALLOWED_MIME_PREFIXES.some((prefix) => mimeType.startsWith(prefix)) ||
+      ALLOWED_MIME_EXACT.includes(mimeType);
+    if (!isAllowed) {
+      throw new Error(`File type "${mimeType || "unknown"}" is not allowed. Only images, videos, and PDFs are accepted.`);
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      throw new Error("File exceeds the 50 MB size limit.");
     }
 
     const extension = file.name.includes(".") ? file.name.split(".").pop() : "bin";
@@ -52,11 +70,9 @@ export async function POST(request: Request) {
       size: file.size
     });
   } catch (error) {
+    if (error instanceof AuthError) return NextResponse.json({ message: error.message }, { status: error.status });
     const message = error instanceof Error ? error.message : "Upload failed.";
-    return NextResponse.json({
-      message: message === "Supabase server credentials are not configured."
-        ? "Media uploads need Supabase server credentials. Add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to apps/cmi-next/.env.local, then restart the app. You can paste an image URL instead for now."
-        : message
-    }, { status: message === "Supabase server credentials are not configured." ? 503 : 400 });
+    const status = message === "Supabase server credentials are not configured." ? 503 : 400;
+    return NextResponse.json({ message }, { status });
   }
 }

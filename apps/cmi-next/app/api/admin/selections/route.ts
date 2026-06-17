@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { requireAdmin, AuthError } from "@/lib/auth/require-admin";
 
 function text(value: unknown) {
   const next = String(value || "").trim();
@@ -126,19 +127,22 @@ async function cleanSelection(supabase: ReturnType<typeof getSupabaseAdmin>, inp
   };
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    await requireAdmin(request);
     const supabase = getSupabaseAdmin();
     const { data, error } = await supabase.from("project_selections").select("*").order("updated_at", { ascending: false }).limit(250);
     if (error) throw error;
     return NextResponse.json({ selections: data || [] });
   } catch (error) {
+    if (error instanceof AuthError) return NextResponse.json({ message: error.message }, { status: error.status });
     return NextResponse.json({ message: error instanceof Error ? error.message : "Selections load failed." }, { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
   try {
+    await requireAdmin(request);
     const supabase = getSupabaseAdmin();
     const payload = await cleanSelection(supabase, await request.json());
     const { data, error } = await supabase.from("project_selections").insert(payload).select("*").single();
@@ -151,6 +155,7 @@ export async function POST(request: Request) {
     });
     return NextResponse.json({ selection: data });
   } catch (error) {
+    if (error instanceof AuthError) return NextResponse.json({ message: error.message }, { status: error.status });
     return NextResponse.json({ message: error instanceof Error ? error.message : "Selection create failed." }, { status: 400 });
   }
 }

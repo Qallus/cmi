@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { requireAdmin, AuthError } from "@/lib/auth/require-admin";
 import { normalizeUser } from "@/lib/users/data";
 
-export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    await requireAdmin(request);
     const { id } = await params;
     const supabase = getSupabaseAdmin();
     const timestamp = new Date().toISOString();
@@ -38,6 +40,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
 
     return NextResponse.json({ user: normalizeUser(user) });
   } catch (error) {
+    if (error instanceof AuthError) return NextResponse.json({ message: error.message }, { status: error.status });
     return NextResponse.json({ message: error instanceof Error ? error.message : "Could not resend invite." }, { status: 400 });
   }
 }

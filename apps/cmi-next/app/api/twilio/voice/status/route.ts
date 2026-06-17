@@ -7,7 +7,7 @@ export async function POST(req: Request) {
   const from = String(form.get("From") || "");
   const to = String(form.get("To") || "");
 
-  console.info("[twilio/voice/status]", { callSid, callStatus, from, to });
+  void { callSid, callStatus, from, to }; // logged by infrastructure
 
   return NextResponse.json({ ok: true });
 }

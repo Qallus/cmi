@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { requireAdmin, AuthError } from "@/lib/auth/require-admin";
 import { normalizeUser } from "@/lib/users/data";
 import type { UserInput, UserRole } from "@/lib/users/types";
 
@@ -67,19 +68,22 @@ async function upsertContactForUser(supabase: ReturnType<typeof getSupabaseAdmin
   return data?.id || null;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    await requireAdmin(request);
     const supabase = getSupabaseAdmin();
     const { data, error } = await supabase.from("staff_users").select("*").order("created_at", { ascending: false });
     if (error) throw error;
     return NextResponse.json({ users: (data || []).map(normalizeUser) });
   } catch (error) {
+    if (error instanceof AuthError) return NextResponse.json({ message: error.message }, { status: error.status });
     return NextResponse.json({ message: error instanceof Error ? error.message : "Could not load users." }, { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
   try {
+    await requireAdmin(request);
     const supabase = getSupabaseAdmin();
     const input = cleanInput(await request.json());
     const organizationId = await getOrganizationId(supabase);
@@ -137,6 +141,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ user: normalizeUser(data) });
   } catch (error) {
+    if (error instanceof AuthError) return NextResponse.json({ message: error.message }, { status: error.status });
     return NextResponse.json({ message: error instanceof Error ? error.message : "Could not create user." }, { status: 400 });
   }
 }

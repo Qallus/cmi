@@ -63,6 +63,18 @@
     --ring: oklch(0.72 0.135 55 / 0.55);
   }
 
+  .home-color-test {
+    --accent: #9e6f2e;
+    --ring: rgb(158 111 46 / 0.45);
+  }
+
+  .dark .home-color-test,
+  [data-theme="dark"] .home-color-test {
+    --accent: #c9a46e;
+    --accent-foreground: oklch(0.16 0.02 55);
+    --ring: rgb(201 164 110 / 0.55);
+  }
+
   * {
     box-sizing: border-box;
   }

@@ -3,15 +3,36 @@
 import type { ReactNode } from "react";
 import * as React from "react";
 import { ArrowLeft, Bell, PanelLeftClose, PanelLeftOpen, Search } from "lucide-react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { ThemeToggle } from "@/components/dashboard/theme-toggle";
 import { DashboardNav } from "@/components/dashboard/nav";
 import { cn } from "@/lib/utils";
 
+type SessionUser = {
+  display_name: string;
+  initials: string;
+  title: string;
+  avatar_url: string | null;
+};
+
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [collapsed, setCollapsed] = React.useState(false);
   const [dashboardSearch, setDashboardSearch] = React.useState("");
+  const [sessionUser, setSessionUser] = React.useState<SessionUser | null>(null);
+
+  React.useEffect(() => {
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((data: { user?: SessionUser | null }) => { if (data.user) setSessionUser(data.user); })
+      .catch(() => {});
+  }, []);
+
+  async function handleSignOut() {
+    await fetch("/api/auth/signout", { method: "POST" });
+    router.push("/login");
+  }
 
   React.useEffect(() => {
     setDashboardSearch("");
@@ -34,8 +55,8 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             </>
           ) : (
             <a href="/" className="block">
-              <img src="https://wp-constructedmatter-com-985548.hostingersite.com/wp-content/uploads/2026/03/CMI_Logo.svg" alt="Constructed Matter, Inc." className="h-[3.2rem] w-auto object-contain dark:hidden" />
-              <img src="https://wp-constructedmatter-com-985548.hostingersite.com/wp-content/uploads/2026/03/CMI_Logo_White.svg" alt="Constructed Matter, Inc." className="hidden h-[3.2rem] w-auto object-contain dark:block" />
+              <img src="/brand/cmi-logo-light.png" alt="Constructed Matter, Inc." className="h-[3.2rem] w-auto object-contain dark:hidden" />
+              <img src="/brand/cmi-logo-dark.png" alt="Constructed Matter, Inc." className="hidden h-[3.2rem] w-auto object-contain dark:block" />
             </a>
           )}
         </div>
@@ -43,13 +64,15 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         <div className="border-t border-border p-3">
           <div className={cn("flex items-center rounded-md py-2", collapsed ? "justify-center px-0" : "justify-between gap-2 px-1")}>
             <div className={cn("flex items-center gap-2", collapsed && "hidden")}>
-              <div className="grid h-8 w-8 place-items-center rounded-full bg-accent text-xs font-semibold text-accent-foreground">JW</div>
-              <div>
-                <div className="text-xs font-semibold">Jeremy Waters</div>
-                <div className="text-[11px] text-muted-foreground">Web Master</div>
+              <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent text-xs font-semibold text-accent-foreground">
+                {sessionUser?.initials ?? "…"}
+              </div>
+              <div className="min-w-0">
+                <div className="truncate text-xs font-semibold">{sessionUser?.display_name ?? ""}</div>
+                <div className="truncate text-[11px] text-muted-foreground">{sessionUser?.title ?? ""}</div>
               </div>
             </div>
-            <button className="rounded-md border border-border p-1.5 text-muted-foreground" type="button" title={collapsed ? "Expand sidebar" : "Collapse sidebar"} onClick={() => setCollapsed(value => !value)}>
+            <button className="rounded-md border border-border p-1.5 text-muted-foreground" type="button" title={collapsed ? "Expand sidebar" : "Collapse sidebar"} onClick={() => setCollapsed((v) => !v)}>
               {collapsed ? <PanelLeftOpen className="h-3.5 w-3.5" /> : <PanelLeftClose className="h-3.5 w-3.5" />}
             </button>
           </div>
@@ -73,7 +96,12 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
               <Bell className="h-4 w-4" />
               <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-accent" />
             </button>
-            <button className="rounded-md border border-border p-1.5 text-muted-foreground" type="button" title="Sign out">
+            <button
+              className="rounded-md border border-border p-1.5 text-muted-foreground transition hover:border-red-400 hover:text-red-500"
+              type="button"
+              title="Sign out"
+              onClick={handleSignOut}
+            >
               <ArrowLeft className="h-3.5 w-3.5" />
             </button>
           </div>
