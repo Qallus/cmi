@@ -5,13 +5,14 @@ import * as React from "react";
 import { ArrowLeft, Bell, PanelLeftClose, PanelLeftOpen, Search } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { ThemeToggle } from "@/components/dashboard/theme-toggle";
-import { DashboardNav } from "@/components/dashboard/nav";
+import { DashboardNav, type UserRole } from "@/components/dashboard/nav";
 import { cn } from "@/lib/utils";
 
 type SessionUser = {
   display_name: string;
   initials: string;
   title: string;
+  role: UserRole;
   avatar_url: string | null;
 };
 
@@ -60,7 +61,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             </a>
           )}
         </div>
-        <DashboardNav collapsed={collapsed} />
+        <DashboardNav collapsed={collapsed} role={sessionUser?.role ?? "viewer"} />
         <div className="border-t border-border p-3">
           <div className={cn("flex items-center rounded-md py-2", collapsed ? "justify-center px-0" : "justify-between gap-2 px-1")}>
             <div className={cn("flex items-center gap-2", collapsed && "hidden")}>
