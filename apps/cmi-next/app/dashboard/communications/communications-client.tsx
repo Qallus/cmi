@@ -109,6 +109,7 @@ export function CommunicationsClient({
     sms:          messages.filter((m) => m.channel === "sms").length,
     call:         messages.filter((m) => m.channel === "call").length,
     contact_form: submissions.length,
+    templates:    0,
   };
 
   function openCompose(channel: "email" | "sms" = "email") {
