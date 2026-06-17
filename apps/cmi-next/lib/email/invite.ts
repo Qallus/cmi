@@ -103,8 +103,9 @@ export async function sendInviteEmail(params: {
   inviteLink: string;
 }): Promise<{ ok: boolean; error?: string }> {
   const apiKey = process.env.RESEND_API_KEY;
-  const fromEmail = process.env.RESEND_FROM_EMAIL ?? "jeremy@constructedmatter.com";
+  const fromEmail = process.env.RESEND_FROM_EMAIL ?? "hello@constructedmatter.com";
   const fromAddress = fromEmail.includes("<") ? fromEmail : `Constructed Matter <${fromEmail}>`;
+  const replyTo = process.env.RESEND_REPLY_TO ?? "jeremy@constructedmatter.com";
 
   if (!apiKey) {
     console.error("[sendInviteEmail] RESEND_API_KEY is not set");
@@ -119,6 +120,7 @@ export async function sendInviteEmail(params: {
     },
     body: JSON.stringify({
       from: fromAddress,
+      reply_to: replyTo,
       to: [params.email],
       subject: `You've been invited to the Constructed Matter Dashboard`,
       html: buildInviteHtml(params.firstName, params.roleSlug, params.inviteLink),
