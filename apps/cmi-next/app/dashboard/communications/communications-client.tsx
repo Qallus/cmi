@@ -222,7 +222,7 @@ export function CommunicationsClient({
         setSelectedSubmission((prev) => prev ? { ...prev, status } : prev);
       }
     } catch {
-      // silent fail — optimistic update already applied
+      // silent fail -- optimistic update already applied
     }
   }
 
@@ -434,8 +434,8 @@ export function CommunicationsClient({
                         <div className="mt-0.5 text-sm font-medium truncate">{msg.subject}</div>
                       )}
                       {msg.channel === "call" ? (
-                        <div className=”mt-0.5 text-xs text-muted-foreground”>
-                          {“Call · “}{formatDuration(msg.duration_seconds) ?? “—“}
+                        <div className="mt-0.5 text-xs text-muted-foreground">
+                          {"Call | "}{formatDuration(msg.duration_seconds) ?? "--"}
                         </div>
                       ) : msg.body ? (
                         <div className="mt-0.5 text-xs text-muted-foreground line-clamp-2">{msg.body}</div>
@@ -473,8 +473,8 @@ export function CommunicationsClient({
                   {selected.from_address && <InfoRow label="From" value={selected.from_address} />}
                   {selected.subject && <InfoRow label="Subject" value={selected.subject} />}
                   <InfoRow label="Status" value={selected.status} />
-                  <InfoRow label=”Provider” value={selected.provider ?? “—“} />
-                  {selected.duration_seconds && <InfoRow label=”Duration” value={formatDuration(selected.duration_seconds) ?? “—“} />}
+                  <InfoRow label="Provider" value={selected.provider ?? "--"} />
+                  {selected.duration_seconds && <InfoRow label="Duration" value={formatDuration(selected.duration_seconds) ?? "--"} />}
                   <InfoRow label="Sent" value={new Date(selected.sent_at).toLocaleString()} />
                   {selected.error_message && (
                     <div className="rounded bg-destructive/10 px-3 py-2 text-xs text-destructive">{selected.error_message}</div>
@@ -540,7 +540,7 @@ export function CommunicationsClient({
             <div className="space-y-3 p-5">
               {sendError && <div className="rounded bg-destructive/10 px-3 py-2 text-sm text-destructive">{sendError}</div>}
 
-              {/* To — multi-recipient tag input */}
+              {/* To -- multi-recipient tag input */}
               <CF label={`To${recipientTags.length > 1 ? ` (${recipientTags.length} recipients)` : ""}`}>
                 <div className="min-h-[36px] w-full rounded-md border border-border bg-background px-2.5 py-1.5 focus-within:border-accent">
                   <div className="flex flex-wrap items-center gap-1.5">
@@ -554,7 +554,7 @@ export function CommunicationsClient({
                     ))}
                     <input
                       className="min-w-[140px] flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-                      placeholder={recipientTags.length > 0 ? "Add more…" : draft.channel === "email" ? "name@example.com" : "+1 (602) 555-0100"}
+                      placeholder={recipientTags.length > 0 ? "Add more..." : draft.channel === "email" ? "name@example.com" : "+1 (602) 555-0100"}
                       value={recipientTags.length > 0 ? recipientInput : draft.to}
                       onChange={(e) => recipientTags.length > 0 ? setRecipientInput(e.target.value) : setDraft(d => ({ ...d, to: e.target.value }))}
                       onKeyDown={(e) => {
@@ -602,7 +602,7 @@ export function CommunicationsClient({
                   <div className="flex gap-2">
                     <input
                       className={cn(iCls, "flex-1")}
-                      placeholder="Email subject…"
+                      placeholder="Email subject..."
                       value={draft.subject}
                       onChange={(e) => setDraft((d) => ({ ...d, subject: e.target.value }))}
                     />
@@ -676,13 +676,13 @@ export function CommunicationsClient({
                   <>
                     <textarea
                       className={cn(iCls, "min-h-[120px] resize-y")}
-                      placeholder={draft.channel === "email" ? "Write your email…" : "Write your SMS (160 chars per segment)…"}
+                      placeholder={draft.channel === "email" ? "Write your email..." : "Write your SMS (160 chars per segment)..."}
                       value={draft.body}
                       onChange={(e) => setDraft((d) => ({ ...d, body: e.target.value }))}
                     />
                     {draft.channel === "sms" && draft.body && (
                       <div className="mt-1 text-right text-[11px] text-muted-foreground">
-                        {draft.body.length}{" chars · "}{Math.ceil(draft.body.length / 160)} segment{Math.ceil(draft.body.length / 160) !== 1 ? "s" : ""}
+                        {draft.body.length}{" chars | "}{Math.ceil(draft.body.length / 160)} segment{Math.ceil(draft.body.length / 160) !== 1 ? "s" : ""}
                       </div>
                     )}
                   </>
@@ -697,7 +697,7 @@ export function CommunicationsClient({
                   <Button size="sm" variant="outline" onClick={() => setComposing(false)} disabled={sending}>Cancel</Button>
                   <Button size="sm" variant="accent" onClick={() => void send()} disabled={sending}>
                     <Send className="h-3.5 w-3.5" />
-                    {sending ? "Sending…" : recipientTags.length > 1 ? `Send to ${recipientTags.length}` : "Send"}
+                    {sending ? "Sending..." : recipientTags.length > 1 ? `Send to ${recipientTags.length}` : "Send"}
                   </Button>
                 </div>
               </div>
@@ -738,8 +738,8 @@ export function CommunicationsClient({
                 <ModalField label="First Name" value={selectedSubmission.first_name} />
                 <ModalField label="Last Name" value={selectedSubmission.last_name} />
                 <ContactActionField label="Email" value={selectedSubmission.email} email={selectedSubmission.email} contactId={selectedSubmission.contact_id} />
-                <ContactActionField label="Phone" value={selectedSubmission.phone ?? "—"} phone={selectedSubmission.phone} contactId={selectedSubmission.contact_id} />
-                <ModalField label="How They Heard" value={selectedSubmission.how_heard ?? "—"} />
+                <ContactActionField label="Phone" value={selectedSubmission.phone ?? "--"} phone={selectedSubmission.phone} contactId={selectedSubmission.contact_id} />
+                <ModalField label="How They Heard" value={selectedSubmission.how_heard ?? "--"} />
                 <ModalField label="Subject" value={selectedSubmission.subject} />
               </div>
 
