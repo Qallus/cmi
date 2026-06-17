@@ -50,16 +50,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: staffErr.message }, { status: 500 });
     }
 
-    // Log in user_invites if the table exists
-    await supabase.from("user_invites").insert({
-      email,
-      name: display_name,
-      role_slug,
-      contact_id: id,
-      notify_email: false,
-      notify_sms: false,
-      invited_by_email: null,
-    }).then(() => null).catch(() => null);
+    // Log in user_invites if the table exists (non-critical, ignore errors)
+    try {
+      await supabase.from("user_invites").insert({
+        email,
+        name: display_name,
+        role_slug,
+        contact_id: id,
+        notify_email: false,
+        notify_sms: false,
+        invited_by_email: null,
+      });
+    } catch { /* non-critical */ }
 
     // Update the contact type to Client (moved out of Leads)
     const { data: updatedContact, error: updateErr } = await supabase
