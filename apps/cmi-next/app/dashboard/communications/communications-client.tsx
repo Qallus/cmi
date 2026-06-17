@@ -4,7 +4,7 @@ import * as React from "react";
 import {
   Mail, MessageSquare, Phone, Send, Plus, RefreshCw, Clock,
   CheckCircle2, XCircle, ArrowDownLeft, ArrowUpRight, X,
-  ClipboardList, ChevronDown, UserRound, LayoutTemplate,
+  ClipboardList, ChevronDown, UserRound, LayoutTemplate, Users, Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -95,6 +95,25 @@ export function CommunicationsClient({
   const [selectedSubmission, setSelectedSubmission] = React.useState<ContactSubmission | null>(null);
   const [submissionFilter, setSubmissionFilter] = React.useState<ContactSubmissionStatus | "all">("all");
 
+  // Compose: multi-recipient + template state
+  const [recipientTags, setRecipientTags] = React.useState<string[]>([]);
+  const [recipientInput, setRecipientInput] = React.useState("");
+  const [composeTemplates, setComposeTemplates] = React.useState<{ id: string; name: string; subject: string; html: string }[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = React.useState<{ id: string; name: string; subject: string; html: string } | null>(null);
+  const [showTemplateMenu, setShowTemplateMenu] = React.useState(false);
+  const [showTemplatePreview, setShowTemplatePreview] = React.useState(false);
+  const templateMenuRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (templateMenuRef.current && !templateMenuRef.current.contains(e.target as Node)) {
+        setShowTemplateMenu(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
   const filtered = tab === "all" ? messages : messages.filter((m) => m.channel === tab);
 
   const filteredSubmissions = submissionFilter === "all"
@@ -115,23 +134,56 @@ export function CommunicationsClient({
   function openCompose(channel: "email" | "sms" = "email") {
     setDraft({ ...EMPTY_COMPOSE, channel });
     setSendError(null);
+    setRecipientTags([]);
+    setRecipientInput("");
+    setSelectedTemplate(null);
+    setShowTemplateMenu(false);
+    setShowTemplatePreview(false);
     setComposing(true);
+    if (channel === "email") {
+      fetch("/api/admin/email-templates")
+        .then(r => r.json())
+        .then((data: { templates?: { id: string; name: string; subject: string; html: string; status: string }[] }) => {
+          setComposeTemplates((data.templates ?? []).filter(t => t.status === "active"));
+        })
+        .catch(() => {});
+    }
+  }
+
+  function addRecipientTag(raw = recipientInput) {
+    const emails = raw.split(/[\s,;]+/).map(e => e.trim().toLowerCase()).filter(e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
+    if (!emails.length) { setRecipientInput(""); return; }
+    setRecipientTags(prev => Array.from(new Set([...prev, ...emails])));
+    setRecipientInput("");
   }
 
   async function send() {
-    if (!draft.to) { setSendError("Recipient is required."); return; }
+    const body = selectedTemplate ? selectedTemplate.html : draft.body;
+    // Collect all recipients: tags + single `to` field
+    const pendingInput = recipientInput.trim();
+    const allEmails = Array.from(new Set([
+      ...recipientTags,
+      ...(pendingInput && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(pendingInput) ? [pendingInput] : []),
+      ...(draft.to.trim() && !recipientTags.length && !pendingInput ? [draft.to.trim()] : []),
+    ]));
+    if (allEmails.length === 0 && !draft.to.trim()) { setSendError("Recipient is required."); return; }
+    const recipients = allEmails.length > 0 ? allEmails : [draft.to.trim()];
     if (draft.channel === "email" && !draft.subject) { setSendError("Subject is required for email."); return; }
-    if (!draft.body) { setSendError("Message body is required."); return; }
+    if (!body) { setSendError("Message body is required."); return; }
     setSending(true); setSendError(null);
     try {
-      const res = await fetch("/api/communications/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(draft),
-      });
-      const json = await res.json() as Message & { error?: string };
-      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
-      setMessages((prev) => [json, ...prev]);
+      const results = await Promise.all(
+        recipients.map(to =>
+          fetch("/api/communications/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...draft, to, body }),
+          }).then(r => r.json() as Promise<Message & { error?: string }>)
+        )
+      );
+      const sent = results.filter(r => r.id && !r.error);
+      if (sent.length === 0) throw new Error((results[0] as { error?: string }).error ?? "Send failed.");
+      setMessages((prev) => [...sent, ...prev]);
       setComposing(false);
     } catch (err) {
       setSendError(err instanceof Error ? err.message : "Send failed.");
@@ -170,7 +222,7 @@ export function CommunicationsClient({
         setSelectedSubmission((prev) => prev ? { ...prev, status } : prev);
       }
     } catch {
-      // silent fail â€” optimistic update already applied
+      // silent fail — optimistic update already applied
     }
   }
 
@@ -382,8 +434,8 @@ export function CommunicationsClient({
                         <div className="mt-0.5 text-sm font-medium truncate">{msg.subject}</div>
                       )}
                       {msg.channel === "call" ? (
-                        <div className="mt-0.5 text-xs text-muted-foreground">
-                          Call Â· {formatDuration(msg.duration_seconds) ?? "â€”"}
+                        <div className=”mt-0.5 text-xs text-muted-foreground”>
+                          Call · {formatDuration(msg.duration_seconds) ?? “—“}
                         </div>
                       ) : msg.body ? (
                         <div className="mt-0.5 text-xs text-muted-foreground line-clamp-2">{msg.body}</div>
@@ -421,8 +473,8 @@ export function CommunicationsClient({
                   {selected.from_address && <InfoRow label="From" value={selected.from_address} />}
                   {selected.subject && <InfoRow label="Subject" value={selected.subject} />}
                   <InfoRow label="Status" value={selected.status} />
-                  <InfoRow label="Provider" value={selected.provider ?? "â€”"} />
-                  {selected.duration_seconds && <InfoRow label="Duration" value={formatDuration(selected.duration_seconds) ?? "â€”"} />}
+                  <InfoRow label=”Provider” value={selected.provider ?? “—“} />
+                  {selected.duration_seconds && <InfoRow label=”Duration” value={formatDuration(selected.duration_seconds) ?? “—“} />}
                   <InfoRow label="Sent" value={new Date(selected.sent_at).toLocaleString()} />
                   {selected.error_message && (
                     <div className="rounded bg-destructive/10 px-3 py-2 text-xs text-destructive">{selected.error_message}</div>
@@ -463,14 +515,14 @@ export function CommunicationsClient({
       {composing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={() => setComposing(false)} />
-          <div className="relative z-10 w-full max-w-lg rounded-xl border border-border bg-card shadow-xl">
+          <div className="relative z-10 w-full max-w-xl rounded-xl border border-border bg-card shadow-xl">
+            {/* Header */}
             <div className="flex items-center justify-between border-b border-border px-5 py-4">
-              <h2 className="font-semibold">
-                {draft.channel === "email" ? "Compose Email" : "Send SMS"}
-              </h2>
+              <h2 className="font-semibold">{draft.channel === "email" ? "Compose Email" : "Send SMS"}</h2>
               <div className="flex items-center gap-3">
                 <div className="flex rounded-md border border-border bg-background p-0.5 text-xs">
-                  <button type="button" onClick={() => setDraft((d) => ({ ...d, channel: "email" }))}
+                  <button type="button"
+                    onClick={() => { setDraft((d) => ({ ...d, channel: "email" })); if (!composeTemplates.length) { fetch("/api/admin/email-templates").then(r => r.json()).then((data: { templates?: { id: string; name: string; subject: string; html: string; status: string }[] }) => setComposeTemplates((data.templates ?? []).filter(t => t.status === "active"))).catch(() => {}); } }}
                     className={cn("flex items-center gap-1.5 rounded px-2.5 py-1 transition", draft.channel === "email" ? "bg-accent/15 text-accent" : "text-muted-foreground")}>
                     <Mail className="h-3 w-3" /> Email
                   </button>
@@ -484,42 +536,170 @@ export function CommunicationsClient({
                 </button>
               </div>
             </div>
+
             <div className="space-y-3 p-5">
-              {sendError && (
-                <div className="rounded bg-destructive/10 px-3 py-2 text-sm text-destructive">{sendError}</div>
-              )}
-              <CF label="To">
-                <input
-                  className={iCls}
-                  placeholder={draft.channel === "email" ? "recipient@example.com" : "+1 (602) 555-0100"}
-                  value={draft.to}
-                  onChange={(e) => setDraft((d) => ({ ...d, to: e.target.value }))}
-                />
-              </CF>
-              {draft.channel === "email" && (
-                <CF label="Subject">
-                  <input className={iCls} placeholder="Email subjectâ€¦" value={draft.subject} onChange={(e) => setDraft((d) => ({ ...d, subject: e.target.value }))} />
-                </CF>
-              )}
-              <CF label="Message">
-                <textarea
-                  className={cn(iCls, "min-h-[120px] resize-none")}
-                  placeholder={draft.channel === "email" ? "Write your emailâ€¦" : "Write your SMS (160 chars per segment)â€¦"}
-                  value={draft.body}
-                  onChange={(e) => setDraft((d) => ({ ...d, body: e.target.value }))}
-                />
-                {draft.channel === "sms" && draft.body && (
-                  <div className="mt-1 text-right text-[11px] text-muted-foreground">
-                    {draft.body.length} chars Â· {Math.ceil(draft.body.length / 160)} segment{Math.ceil(draft.body.length / 160) !== 1 ? "s" : ""}
+              {sendError && <div className="rounded bg-destructive/10 px-3 py-2 text-sm text-destructive">{sendError}</div>}
+
+              {/* To — multi-recipient tag input */}
+              <CF label={`To${recipientTags.length > 1 ? ` (${recipientTags.length} recipients)` : ""}`}>
+                <div className="min-h-[36px] w-full rounded-md border border-border bg-background px-2.5 py-1.5 focus-within:border-accent">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {recipientTags.map(tag => (
+                      <span key={tag} className="flex items-center gap-1 rounded-full bg-accent/15 px-2 py-0.5 text-xs text-accent">
+                        {tag}
+                        <button type="button" onClick={() => setRecipientTags(prev => prev.filter(t => t !== tag))}>
+                          <X className="h-2.5 w-2.5" />
+                        </button>
+                      </span>
+                    ))}
+                    <input
+                      className="min-w-[140px] flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                      placeholder={recipientTags.length > 0 ? "Add more…" : draft.channel === "email" ? "name@example.com" : "+1 (602) 555-0100"}
+                      value={recipientTags.length > 0 ? recipientInput : draft.to}
+                      onChange={(e) => recipientTags.length > 0 ? setRecipientInput(e.target.value) : setDraft(d => ({ ...d, to: e.target.value }))}
+                      onKeyDown={(e) => {
+                        if ((e.key === "Enter" || e.key === "," || e.key === " ") && draft.channel === "email") {
+                          e.preventDefault();
+                          const val = recipientTags.length > 0 ? recipientInput : draft.to;
+                          if (val.trim()) { addRecipientTag(val); if (recipientTags.length === 0) setDraft(d => ({ ...d, to: "" })); }
+                        }
+                      }}
+                      onBlur={() => {
+                        const val = recipientTags.length > 0 ? recipientInput : draft.to;
+                        if (val.trim() && draft.channel === "email" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val.trim())) {
+                          addRecipientTag(val);
+                          if (recipientTags.length === 0) setDraft(d => ({ ...d, to: "" }));
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+                {draft.channel === "email" && (
+                  <div className="mt-1.5 flex items-center gap-1.5">
+                    <span className="text-[11px] text-muted-foreground">Add group:</span>
+                    {([
+                      { label: "All Contacts", value: "contacts" },
+                      { label: "All Staff", value: "staff" },
+                    ] as const).map(({ label, value }) => (
+                      <button key={value} type="button"
+                        onClick={() => {
+                          const tag = `group:${value}`;
+                          setRecipientTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
+                        }}
+                        className={cn("flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] transition",
+                          recipientTags.includes(`group:${value}`) ? "border-accent bg-accent/10 text-accent" : "border-border text-muted-foreground hover:border-accent/40"
+                        )}>
+                        <Users className="h-2.5 w-2.5" /> {label}
+                      </button>
+                    ))}
                   </div>
                 )}
               </CF>
-              <div className="flex justify-end gap-2 pt-1">
-                <Button size="sm" variant="outline" onClick={() => setComposing(false)} disabled={sending}>Cancel</Button>
-                <Button size="sm" variant="accent" onClick={() => void send()} disabled={sending}>
-                  <Send className="h-3.5 w-3.5" />
-                  {sending ? "Sendingâ€¦" : "Send"}
-                </Button>
+
+              {/* Subject + Template picker */}
+              {draft.channel === "email" && (
+                <CF label="Subject">
+                  <div className="flex gap-2">
+                    <input
+                      className={cn(iCls, "flex-1")}
+                      placeholder="Email subject…"
+                      value={draft.subject}
+                      onChange={(e) => setDraft((d) => ({ ...d, subject: e.target.value }))}
+                    />
+                    {composeTemplates.length > 0 && (
+                      <div className="relative shrink-0" ref={templateMenuRef}>
+                        <button
+                          type="button"
+                          onClick={() => setShowTemplateMenu(v => !v)}
+                          className={cn("flex items-center gap-1.5 rounded-md border px-3 text-xs font-medium transition h-9",
+                            selectedTemplate ? "border-accent bg-accent/10 text-accent" : "border-border text-muted-foreground hover:border-accent/40 hover:text-foreground"
+                          )}
+                        >
+                          <LayoutTemplate className="h-3 w-3" />
+                          {selectedTemplate ? selectedTemplate.name : "Template"}
+                          <ChevronDown className={cn("h-3 w-3 transition-transform", showTemplateMenu && "rotate-180")} />
+                        </button>
+                        {showTemplateMenu && (
+                          <div className="absolute right-0 top-full z-50 mt-1.5 w-56 overflow-hidden rounded-xl border border-border bg-card shadow-xl">
+                            {selectedTemplate && (
+                              <button type="button" onClick={() => { setSelectedTemplate(null); setShowTemplateMenu(false); setDraft(d => ({ ...d, subject: "", body: "" })); }}
+                                className="flex w-full items-center gap-2 border-b border-border px-3 py-2 text-xs text-muted-foreground hover:bg-muted">
+                                <X className="h-3 w-3" /> Clear template
+                              </button>
+                            )}
+                            <div className="max-h-48 overflow-y-auto py-1">
+                              {composeTemplates.map(t => (
+                                <button key={t.id} type="button"
+                                  onClick={() => {
+                                    setSelectedTemplate(t);
+                                    setDraft(d => ({ ...d, subject: t.subject || d.subject }));
+                                    setShowTemplateMenu(false);
+                                    setShowTemplatePreview(true);
+                                  }}
+                                  className={cn("flex w-full flex-col gap-0.5 px-3 py-2.5 text-left text-xs transition hover:bg-muted",
+                                    selectedTemplate?.id === t.id && "bg-accent/5 text-accent"
+                                  )}>
+                                  <span className="font-semibold">{t.name}</span>
+                                  {t.subject && <span className="text-muted-foreground truncate">{t.subject}</span>}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </CF>
+              )}
+
+              {/* Message / template preview */}
+              <CF label={selectedTemplate ? "Template Preview" : "Message"}>
+                {selectedTemplate ? (
+                  <div className="overflow-hidden rounded-md border border-border">
+                    <div className="flex items-center justify-between border-b border-border bg-muted/40 px-3 py-1.5">
+                      <span className="text-[11px] text-muted-foreground">Using: <strong className="text-foreground">{selectedTemplate.name}</strong></span>
+                      <button type="button" onClick={() => setShowTemplatePreview(v => !v)}
+                        className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground">
+                        <Eye className="h-3 w-3" /> {showTemplatePreview ? "Hide" : "Show"} preview
+                      </button>
+                    </div>
+                    {showTemplatePreview && (
+                      <iframe
+                        srcDoc={selectedTemplate.html}
+                        className="h-48 w-full bg-white"
+                        title="Template preview"
+                        sandbox="allow-same-origin"
+                      />
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    <textarea
+                      className={cn(iCls, "min-h-[120px] resize-y")}
+                      placeholder={draft.channel === "email" ? "Write your email…" : "Write your SMS (160 chars per segment)…"}
+                      value={draft.body}
+                      onChange={(e) => setDraft((d) => ({ ...d, body: e.target.value }))}
+                    />
+                    {draft.channel === "sms" && draft.body && (
+                      <div className="mt-1 text-right text-[11px] text-muted-foreground">
+                        {draft.body.length} chars · {Math.ceil(draft.body.length / 160)} segment{Math.ceil(draft.body.length / 160) !== 1 ? "s" : ""}
+                      </div>
+                    )}
+                  </>
+                )}
+              </CF>
+
+              <div className="flex items-center justify-between pt-1">
+                <span className="text-[11px] text-muted-foreground">
+                  {recipientTags.length > 1 ? `Sending to ${recipientTags.length} recipients` : ""}
+                </span>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => setComposing(false)} disabled={sending}>Cancel</Button>
+                  <Button size="sm" variant="accent" onClick={() => void send()} disabled={sending}>
+                    <Send className="h-3.5 w-3.5" />
+                    {sending ? "Sending…" : recipientTags.length > 1 ? `Send to ${recipientTags.length}` : "Send"}
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
