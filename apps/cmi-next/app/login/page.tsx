@@ -8,6 +8,16 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirectTo") ?? "/dashboard/overview";
 
+  // Forward magic link tokens that land on /login to /register
+  React.useEffect(() => {
+    const hash = window.location.hash.slice(1);
+    if (!hash) return;
+    const params = new URLSearchParams(hash);
+    if (params.get("access_token")) {
+      router.replace(`/register#${hash}`);
+    }
+  }, [router]);
+
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [error, setError] = React.useState("");
