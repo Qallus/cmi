@@ -435,7 +435,7 @@ export function CommunicationsClient({
                       )}
                       {msg.channel === "call" ? (
                         <div className=”mt-0.5 text-xs text-muted-foreground”>
-                          Call · {formatDuration(msg.duration_seconds) ?? “—“}
+                          {“Call · “}{formatDuration(msg.duration_seconds) ?? “—“}
                         </div>
                       ) : msg.body ? (
                         <div className="mt-0.5 text-xs text-muted-foreground line-clamp-2">{msg.body}</div>
@@ -682,7 +682,7 @@ export function CommunicationsClient({
                     />
                     {draft.channel === "sms" && draft.body && (
                       <div className="mt-1 text-right text-[11px] text-muted-foreground">
-                        {draft.body.length} chars · {Math.ceil(draft.body.length / 160)} segment{Math.ceil(draft.body.length / 160) !== 1 ? "s" : ""}
+                        {draft.body.length}{" chars · "}{Math.ceil(draft.body.length / 160)} segment{Math.ceil(draft.body.length / 160) !== 1 ? "s" : ""}
                       </div>
                     )}
                   </>
