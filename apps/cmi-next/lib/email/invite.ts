@@ -103,7 +103,8 @@ export async function sendInviteEmail(params: {
   inviteLink: string;
 }): Promise<{ ok: boolean; error?: string }> {
   const apiKey = process.env.RESEND_API_KEY;
-  const fromAddress = process.env.EMAIL_FROM ?? "Constructed Matter <team@constructedmatter.com>";
+  const fromEmail = process.env.RESEND_FROM_EMAIL ?? "jeremy@constructedmatter.com";
+  const fromAddress = fromEmail.includes("<") ? fromEmail : `Constructed Matter <${fromEmail}>`;
 
   if (!apiKey) {
     console.error("[sendInviteEmail] RESEND_API_KEY is not set");
