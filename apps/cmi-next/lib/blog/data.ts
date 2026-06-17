@@ -21,6 +21,7 @@ export async function loadPublishedBlogPosts(): Promise<BlogPost[]> {
     .from("blog_posts")
     .select("*")
     .eq("status", "published")
+    .order("sort_order", { ascending: true })
     .order("published_at", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false });
   if (error) throw new Error(error.message);

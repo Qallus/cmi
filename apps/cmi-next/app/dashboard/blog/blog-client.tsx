@@ -3,10 +3,11 @@
 import * as React from "react";
 import {
   Bold, Heading2, Heading3, Image, Italic,
-  Link2, List, ListOrdered, MoreHorizontal,
+  Link2, List, ListOrdered,
   Newspaper, Plus, Quote, Search, Underline, X,
   Calendar, Send, Mail, Users, ChevronDown, Code2,
-  AlignLeft, CheckCircle2, Eye,
+  AlignLeft, CheckCircle2, Eye, Pencil, Trash2, EyeOff,
+  GripVertical, Star, StarOff,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -58,6 +59,8 @@ export function BlogClient({ initialPosts }: { initialPosts: BlogPost[] }) {
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = React.useState<string | null>(null);
+  const [dragId, setDragId] = React.useState<string | null>(null);
+  const [dragOverId, setDragOverId] = React.useState<string | null>(null);
   const [tagInput, setTagInput] = React.useState("");
   const [showPreview, setShowPreview] = React.useState(false);
 
@@ -91,6 +94,37 @@ export function BlogClient({ initialPosts }: { initialPosts: BlogPost[] }) {
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
+
+  async function quickPatch(id: string, patch: Partial<BlogDraft> & { sort_order?: number; featured?: boolean }) {
+    const res = await fetch(`/api/blog/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
+    const json = await res.json() as BlogPost & { error?: string };
+    if (res.ok) setPosts((prev) => prev.map((p) => (p.id === json.id ? json : p)));
+  }
+
+  function handleDragStart(e: React.DragEvent, id: string) {
+    setDragId(id);
+    e.dataTransfer.effectAllowed = "move";
+  }
+
+  function handleDragOver(e: React.DragEvent, id: string) {
+    e.preventDefault();
+    if (id !== dragOverId) setDragOverId(id);
+  }
+
+  async function handleDrop(e: React.DragEvent, targetId: string) {
+    e.preventDefault();
+    if (!dragId || dragId === targetId) { setDragId(null); setDragOverId(null); return; }
+    const from = posts.findIndex((p) => p.id === dragId);
+    const to   = posts.findIndex((p) => p.id === targetId);
+    if (from === -1 || to === -1) return;
+    const next = [...posts];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    setPosts(next);
+    setDragId(null); setDragOverId(null);
+    // Persist new sort order
+    await Promise.all(next.map((p, i) => fetch(`/api/blog/${p.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sort_order: i }) })));
+  }
 
   const filtered = React.useMemo(() => {
     const q = search.toLowerCase();
@@ -333,17 +367,35 @@ export function BlogClient({ initialPosts }: { initialPosts: BlogPost[] }) {
           <table className="w-full min-w-[500px] border-collapse text-sm">
             <thead className="sticky top-0 z-10 bg-card">
               <tr className="border-b border-border text-left">
+                <th className="w-6 px-2 py-3" />
                 <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Title</th>
                 <th className="hidden px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground md:table-cell">Category</th>
                 <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Status</th>
                 <th className="hidden px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground sm:table-cell">Date</th>
-                <th className="w-10 px-4 py-3" />
+                <th className="w-28 px-4 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {filtered.length === 0 && <tr><td colSpan={5} className="px-4 py-12 text-center text-sm text-muted-foreground">No posts found.</td></tr>}
+              {filtered.length === 0 && <tr><td colSpan={6} className="px-4 py-12 text-center text-sm text-muted-foreground">No posts found.</td></tr>}
               {filtered.map((p) => (
-                <tr key={p.id} className="cursor-pointer transition hover:bg-muted/30" onClick={() => openEdit(p)}>
+                <tr
+                  key={p.id}
+                  draggable={search === "" && statusFilter === "all"}
+                  onDragStart={(e) => handleDragStart(e, p.id)}
+                  onDragOver={(e) => handleDragOver(e, p.id)}
+                  onDrop={(e) => void handleDrop(e, p.id)}
+                  onDragEnd={() => { setDragId(null); setDragOverId(null); }}
+                  className={cn(
+                    "cursor-pointer transition hover:bg-muted/30",
+                    dragOverId === p.id && dragId !== p.id ? "border-t-2 border-accent" : "",
+                    dragId === p.id ? "opacity-40" : ""
+                  )}
+                  onClick={() => openEdit(p)}
+                >
+                  {/* Drag handle */}
+                  <td className="px-2 py-3" onClick={(e) => e.stopPropagation()}>
+                    <GripVertical className="h-4 w-4 cursor-grab text-muted-foreground/40 hover:text-muted-foreground" />
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2.5">
                       {p.featured_image ? (
@@ -352,7 +404,10 @@ export function BlogClient({ initialPosts }: { initialPosts: BlogPost[] }) {
                         <div className="flex h-9 w-14 shrink-0 items-center justify-center rounded bg-muted"><Newspaper className="h-4 w-4 text-muted-foreground" /></div>
                       )}
                       <div>
-                        <span className="font-medium">{p.title}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-medium">{p.title}</span>
+                          {(p as unknown as { featured?: boolean }).featured && <Star className="h-3 w-3 text-accent" />}
+                        </div>
                         {p.status === "scheduled" && p.published_at && (
                           <div className="mt-0.5 flex items-center gap-1 text-[11px] text-info">
                             <Calendar className="h-3 w-3" />
@@ -365,10 +420,32 @@ export function BlogClient({ initialPosts }: { initialPosts: BlogPost[] }) {
                   <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">{p.category ?? "—"}</td>
                   <td className="px-4 py-3"><Badge tone={STATUS_TONES[p.status]}>{p.status}</Badge></td>
                   <td className="hidden px-4 py-3 text-muted-foreground sm:table-cell">{p.published_at ? formatDate(p.published_at) : formatDate(p.created_at)}</td>
+                  {/* Actions */}
                   <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                    <button type="button" className="rounded p-1 text-muted-foreground hover:text-foreground" onClick={(e) => { e.stopPropagation(); setDeleteConfirm(p.id); }}>
-                      <MoreHorizontal className="h-4 w-4" />
-                    </button>
+                    <div className="flex items-center justify-end gap-0.5 opacity-0 transition group-hover:opacity-100 [tr:hover_&]:opacity-100">
+                      <button type="button" title="Edit" onClick={() => openEdit(p)} className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground">
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        title={(p as unknown as { featured?: boolean }).featured ? "Remove featured" : "Set as featured"}
+                        onClick={() => void quickPatch(p.id, { featured: !(p as unknown as { featured?: boolean }).featured })}
+                        className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-accent"
+                      >
+                        {(p as unknown as { featured?: boolean }).featured ? <StarOff className="h-3.5 w-3.5" /> : <Star className="h-3.5 w-3.5" />}
+                      </button>
+                      <button
+                        type="button"
+                        title={p.status === "archived" ? "Restore" : "Hide post"}
+                        onClick={() => void quickPatch(p.id, { status: p.status === "archived" ? "draft" : "archived" })}
+                        className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      >
+                        {p.status === "archived" ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+                      </button>
+                      <button type="button" title="Delete" onClick={() => setDeleteConfirm(p.id)} className="rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
