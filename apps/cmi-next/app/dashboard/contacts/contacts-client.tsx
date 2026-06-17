@@ -2,10 +2,13 @@
 
 import * as React from "react";
 import {
+  ArrowRightLeft,
   Building2,
   ChevronDown,
   CheckCircle2,
+  Eye,
   FileUp,
+  LayoutTemplate,
   Mail,
   MoreHorizontal,
   Phone,
@@ -14,6 +17,7 @@ import {
   Tag,
   Trash2,
   User,
+  UserPlus,
   X,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +28,9 @@ import { cn } from "@/lib/utils";
 import type { Contact, ContactDraft, ContactStatus, ContactType } from "@/lib/contacts/types";
 
 const CONTACT_TYPES: ContactType[] = ["Lead", "Client", "Vendor", "Sub Contractor"];
+const CONTACT_ONLY_TYPES: ContactType[] = ["Client", "Vendor", "Sub Contractor"];
+const STAFF_ROLES = ["admin", "project_manager", "designer", "estimator", "superintendent", "viewer"] as const;
+type StaffRole = typeof STAFF_ROLES[number];
 const STATUSES: ContactStatus[] = ["active", "inactive", "archived"];
 const STATES = ["AZ", "CA", "NV", "CO", "UT", "NM", "TX", "FL", "NY", "WA", "OR", "ID", "MT"];
 
@@ -83,6 +90,8 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
   const [deleteConfirm, setDeleteConfirm] = React.useState<string | null>(null);
   const [showImport, setShowImport] = React.useState(false);
   const [contactAction, setContactAction] = React.useState<{ type: "call" | "sms" | "email"; contact: Contact } | null>(null);
+  const [viewMode, setViewMode] = React.useState<"contacts" | "leads">("contacts");
+  const [convertLead, setConvertLead] = React.useState<Contact | null>(null);
 
   React.useEffect(() => {
     function handleDashboardSearch(event: Event) {
@@ -95,21 +104,26 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
     return () => window.removeEventListener("cmi-dashboard-search", handleDashboardSearch);
   }, []);
 
+  const leadsCount = React.useMemo(() => contacts.filter((c) => c.type === "Lead").length, [contacts]);
+  const contactsCount = contacts.length - leadsCount;
+
   const filtered = React.useMemo(() => {
     const q = search.toLowerCase();
     return contacts.filter((c) => {
+      if (viewMode === "leads" && c.type !== "Lead") return false;
+      if (viewMode === "contacts" && c.type === "Lead") return false;
       if (q && !fullName(c).toLowerCase().includes(q) && !c.email.toLowerCase().includes(q) && !(c.phone ?? "").includes(q) && !(c.company ?? "").toLowerCase().includes(q)) return false;
       if (typeFilter !== "all" && c.type !== typeFilter) return false;
       if (statusFilter !== "all" && c.status !== statusFilter) return false;
       return true;
     });
-  }, [contacts, search, typeFilter, statusFilter]);
+  }, [contacts, search, typeFilter, statusFilter, viewMode]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
   const pageContacts = filtered.slice((page - 1) * perPage, page * perPage);
 
   function openAdd() {
-    setDraft({ ...EMPTY_DRAFT });
+    setDraft({ ...EMPTY_DRAFT, type: viewMode === "leads" ? "Lead" : "Client" });
     setTagInput("");
     setError(null);
     setModal({ mode: "add" });
@@ -220,8 +234,12 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">CRM</div>
-            <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight">Contacts</h1>
-            <p className="mt-1 text-sm text-muted-foreground">{contacts.length} total contacts</p>
+            <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight">
+              {viewMode === "leads" ? "Leads" : "Contacts"}
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {viewMode === "leads" ? `${leadsCount} total leads` : `${contactsCount} total contacts`}
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <Button size="sm" variant="outline" onClick={exportCSV}>Export CSV</Button>
@@ -229,9 +247,37 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
               <FileUp className="h-3.5 w-3.5" /> Import
             </Button>
             <Button size="sm" variant="accent" onClick={openAdd}>
-              <Plus className="h-3.5 w-3.5" /> Add Contact
+              <Plus className="h-3.5 w-3.5" /> {viewMode === "leads" ? "Add Lead" : "Add Contact"}
             </Button>
           </div>
+        </div>
+
+        {/* Contacts / Leads tabs */}
+        <div className="mt-4 flex gap-0 border-b border-border">
+          <button
+            type="button"
+            onClick={() => { setViewMode("contacts"); setTypeFilter("all"); setPage(1); }}
+            className={cn("border-b-2 px-4 pb-2.5 pt-1 text-sm font-medium transition -mb-px",
+              viewMode === "contacts" ? "border-accent text-accent" : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Contacts
+            <span className={cn("ml-1.5 rounded-full px-1.5 py-0.5 text-[11px]",
+              viewMode === "contacts" ? "bg-accent/15 text-accent" : "bg-muted text-muted-foreground"
+            )}>{contactsCount}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => { setViewMode("leads"); setTypeFilter("all"); setPage(1); }}
+            className={cn("border-b-2 px-4 pb-2.5 pt-1 text-sm font-medium transition -mb-px",
+              viewMode === "leads" ? "border-accent text-accent" : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Leads
+            <span className={cn("ml-1.5 rounded-full px-1.5 py-0.5 text-[11px]",
+              viewMode === "leads" ? "bg-accent/15 text-accent" : "bg-muted text-muted-foreground"
+            )}>{leadsCount}</span>
+          </button>
         </div>
 
         {/* Filters */}
@@ -240,20 +286,22 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
             <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <input
               type="text"
-              placeholder="Search name, email, phone…"
+              placeholder={viewMode === "leads" ? "Search leads..." : "Search name, email, phone..."}
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
               className="h-8 w-full rounded-md border border-border bg-background pl-8 pr-3 text-sm outline-none focus:border-accent"
             />
           </div>
-          <Select
-            value={typeFilter}
-            onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }}
-            className="w-44 [&>button]:h-8"
-          >
-            <option value="all">All Types</option>
-            {CONTACT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-          </Select>
+          {viewMode === "contacts" && (
+            <Select
+              value={typeFilter}
+              onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }}
+              className="w-44 [&>button]:h-8"
+            >
+              <option value="all">All Types</option>
+              {CONTACT_ONLY_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+            </Select>
+          )}
           <Select
             value={statusFilter}
             onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
@@ -300,10 +348,10 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
                   </div>
                 </td>
                 <td className="px-4 py-3 text-muted-foreground">{c.email}</td>
-                <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">{c.phone ?? "—"}</td>
-                <td className="hidden px-4 py-3 text-muted-foreground lg:table-cell">{c.company ?? "—"}</td>
+                <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">{c.phone ?? "--"}</td>
+                <td className="hidden px-4 py-3 text-muted-foreground lg:table-cell">{c.company ?? "--"}</td>
                 <td className="px-4 py-3">
-                  {c.type ? <Badge tone={TYPE_TONES[c.type] ?? "default"}>{c.type}</Badge> : <span className="text-muted-foreground">—</span>}
+                  {c.type ? <Badge tone={TYPE_TONES[c.type] ?? "default"}>{c.type}</Badge> : <span className="text-muted-foreground">--</span>}
                 </td>
                 <td className="hidden px-4 py-3 sm:table-cell">
                   <Badge tone={statusTone(c.status)}>{c.status}</Badge>
@@ -334,7 +382,7 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between border-t border-border px-4 py-3 text-sm text-muted-foreground">
-          <span>{filtered.length} contacts</span>
+          <span>{filtered.length} {viewMode === "leads" ? "leads" : "contacts"}</span>
           <div className="flex items-center gap-2">
             <button type="button" className="rounded border border-border px-2 py-1 text-xs disabled:opacity-40" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Prev</button>
             <span className="text-xs">{page} / {totalPages}</span>
@@ -360,9 +408,9 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
             </div>
             <div className="grid gap-3 rounded-lg border border-border p-4 text-sm sm:grid-cols-2">
               <InfoRow icon={Mail} label="Email" value={viewContact.email} />
-              <InfoRow icon={Phone} label="Phone" value={viewContact.phone ?? "—"} />
-              <InfoRow icon={Building2} label="Company" value={viewContact.company ?? "—"} />
-              <InfoRow icon={User} label="Source" value={viewContact.source ?? "—"} />
+              <InfoRow icon={Phone} label="Phone" value={viewContact.phone ?? "--"} />
+              <InfoRow icon={Building2} label="Company" value={viewContact.company ?? "--"} />
+              <InfoRow icon={User} label="Source" value={viewContact.source ?? "--"} />
               {(viewContact.city || viewContact.state) && (
                 <InfoRow icon={Building2} label="Location" value={[viewContact.city, viewContact.state, viewContact.zip].filter(Boolean).join(", ")} />
               )}
@@ -378,9 +426,17 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
               <div className="rounded-lg bg-muted/40 px-4 py-3 text-sm text-muted-foreground whitespace-pre-wrap">{viewContact.notes}</div>
             )}
             <ContactQuickActions contact={viewContact} onAction={(type) => setContactAction({ type, contact: viewContact })} />
-            <div className="flex justify-end gap-2 pt-2">
-              <Button size="sm" variant="outline" onClick={() => { closeModal(); setTimeout(() => openEdit(viewContact), 50); }}>Edit</Button>
-              <Button size="sm" variant="outline" className="text-destructive hover:border-destructive" onClick={() => setDeleteConfirm(viewContact.id)}>Delete</Button>
+            <div className="flex items-center justify-between gap-2 pt-2">
+              {viewMode === "leads" && (
+                <Button size="sm" variant="outline" className="gap-1.5 text-accent border-accent/40 hover:bg-accent/5"
+                  onClick={() => { closeModal(); setConvertLead(viewContact); }}>
+                  <ArrowRightLeft className="h-3.5 w-3.5" /> Convert Lead
+                </Button>
+              )}
+              <div className="flex gap-2 ml-auto">
+                <Button size="sm" variant="outline" onClick={() => { closeModal(); setTimeout(() => openEdit(viewContact), 50); }}>Edit</Button>
+                <Button size="sm" variant="outline" className="text-destructive hover:border-destructive" onClick={() => setDeleteConfirm(viewContact.id)}>Delete</Button>
+              </div>
             </div>
           </div>
         </Modal>
@@ -447,7 +503,7 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
                 ))}
                 <input
                   className="min-w-[80px] flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-                  placeholder="Add tag…"
+                  placeholder="Add tag..."
                   value={tagInput}
                   onChange={(e) => setTagInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addTag(); } }}
@@ -460,7 +516,7 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
             <div className="flex justify-end gap-2 pt-2">
               <Button size="sm" variant="outline" onClick={closeModal} disabled={saving}>Cancel</Button>
               <Button size="sm" variant="accent" onClick={() => void saveContact()} disabled={saving}>
-                {saving ? "Saving…" : modal.mode === "add" ? "Add Contact" : "Save Changes"}
+                {saving ? "Saving..." : modal.mode === "add" ? "Add Contact" : "Save Changes"}
               </Button>
             </div>
           </div>
@@ -490,7 +546,7 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
           <div className="mt-4 flex justify-end gap-2">
             <Button size="sm" variant="outline" onClick={() => setDeleteConfirm(null)} disabled={saving}>Cancel</Button>
             <Button size="sm" variant="outline" className="border-destructive text-destructive hover:bg-destructive/10" onClick={() => void confirmDelete(deleteConfirm)} disabled={saving}>
-              {saving ? "Deleting…" : "Delete"}
+              {saving ? "Deleting..." : "Delete"}
             </Button>
           </div>
         </Modal>
@@ -503,11 +559,22 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
           onClose={() => setContactAction(null)}
         />
       )}
+
+      {convertLead && (
+        <ConvertLeadModal
+          contact={convertLead}
+          onClose={() => setConvertLead(null)}
+          onConverted={(updated) => {
+            setContacts((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+            setConvertLead(null);
+          }}
+        />
+      )}
     </div>
   );
 }
 
-// ─── Shared sub-components ───────────────────────────────────
+// --- Shared sub-components -----------------------------------
 
 const inputCls = "h-9 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-accent";
 
@@ -568,10 +635,39 @@ function ContactActionModal({
   const [notice, setNotice] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
 
+  // Template state (email only)
+  const [templates, setTemplates] = React.useState<{ id: string; name: string; subject: string }[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = React.useState<{ id: string; name: string; subject: string; html: string } | null>(null);
+  const [loadingTemplate, setLoadingTemplate] = React.useState(false);
+  const [showTemplateMenu, setShowTemplateMenu] = React.useState(false);
+  const [showTemplatePreview, setShowTemplatePreview] = React.useState(false);
+  const templateMenuRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (action !== "email") return;
+    fetch("/api/admin/email-templates")
+      .then((r) => r.json())
+      .then((data: { templates?: { id: string; name: string; subject: string; status: string }[] }) => {
+        setTemplates((data.templates ?? []).filter((t) => t.status === "active"));
+      })
+      .catch(() => {});
+  }, [action]);
+
+  React.useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (templateMenuRef.current && !templateMenuRef.current.contains(e.target as Node)) {
+        setShowTemplateMenu(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
   const contactName = fullName(contact);
   const title = action === "call" ? `Call ${contactName}` : action === "sms" ? `Text ${contactName}` : `Email ${contactName}`;
 
   async function submit() {
+    const body = selectedTemplate ? selectedTemplate.html : message;
     setBusy(true); setError(null); setNotice(null);
     try {
       const payload =
@@ -579,10 +675,11 @@ function ContactActionModal({
           ? { channel: "call", to: contact.phone, contact_id: contact.id }
           : action === "sms"
             ? { channel: "sms", to: contact.phone, body: message, contact_id: contact.id }
-            : { channel: "email", to: contact.email, subject, body: message, contact_id: contact.id };
+            : { channel: "email", to: contact.email, subject, body, contact_id: contact.id };
 
-      if ((action === "sms" || action === "email") && !message) throw new Error("Message is required.");
+      if (action === "sms" && !message) throw new Error("Message is required.");
       if (action === "email" && !subject) throw new Error("Subject is required.");
+      if (action === "email" && !body) throw new Error("Message or template body is required.");
 
       const res = await fetch("/api/communications/send", {
         method: "POST",
@@ -622,12 +719,119 @@ function ContactActionModal({
             </Field>
             {action === "email" ? (
               <Field label="Subject" required>
-                <input className={inputCls} value={subject} onChange={(e) => setSubject(e.target.value)} />
+                <div className="flex gap-2">
+                  <input
+                    className={cn(inputCls, "flex-1")}
+                    value={subject}
+                    onChange={(e) => setSubject(e.target.value)}
+                    placeholder="Email subject..."
+                  />
+                  {templates.length > 0 && (
+                    <div className="relative shrink-0" ref={templateMenuRef}>
+                      <button
+                        type="button"
+                        onClick={() => setShowTemplateMenu((v) => !v)}
+                        className={cn(
+                          "flex h-9 items-center gap-1.5 rounded-md border px-3 text-xs font-medium transition",
+                          selectedTemplate
+                            ? "border-accent bg-accent/10 text-accent"
+                            : "border-border text-muted-foreground hover:border-accent/40 hover:text-foreground"
+                        )}
+                      >
+                        <LayoutTemplate className="h-3 w-3" />
+                        {selectedTemplate ? selectedTemplate.name : "Template"}
+                        <ChevronDown className={cn("h-3 w-3 transition-transform", showTemplateMenu && "rotate-180")} />
+                      </button>
+                      {showTemplateMenu && (
+                        <div className="absolute right-0 top-full z-50 mt-1.5 w-56 overflow-hidden rounded-xl border border-border bg-card shadow-xl">
+                          {selectedTemplate && (
+                            <button
+                              type="button"
+                              onClick={() => { setSelectedTemplate(null); setShowTemplateMenu(false); }}
+                              className="flex w-full items-center gap-2 border-b border-border px-3 py-2 text-xs text-muted-foreground hover:bg-muted"
+                            >
+                              <X className="h-3 w-3" /> Clear template
+                            </button>
+                          )}
+                          <div className="max-h-48 overflow-y-auto py-1">
+                            {templates.map((t) => (
+                              <button
+                                key={t.id}
+                                type="button"
+                                onClick={() => {
+                                  setShowTemplateMenu(false);
+                                  setLoadingTemplate(true);
+                                  fetch(`/api/admin/email-templates/${t.id}`)
+                                    .then((r) => r.json() as Promise<{ template: { id: string; name: string; subject: string; html: string } }>)
+                                    .then((data) => {
+                                      setSelectedTemplate({ id: data.template.id, name: data.template.name, subject: data.template.subject, html: data.template.html ?? "" });
+                                      if (data.template.subject) setSubject(data.template.subject);
+                                      setShowTemplatePreview(true);
+                                    })
+                                    .catch(() => setError("Failed to load template."))
+                                    .finally(() => setLoadingTemplate(false));
+                                }}
+                                className={cn(
+                                  "flex w-full flex-col gap-0.5 px-3 py-2.5 text-left text-xs transition hover:bg-muted",
+                                  selectedTemplate?.id === t.id && "bg-accent/5 text-accent"
+                                )}
+                              >
+                                <span className="font-semibold">{t.name}</span>
+                                {t.subject && <span className="truncate text-muted-foreground">{t.subject}</span>}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </Field>
             ) : null}
-            <Field label="Message" required>
-              <textarea className={cn(inputCls, "min-h-[120px] resize-none py-2")} value={message} onChange={(e) => setMessage(e.target.value)} />
-            </Field>
+
+            {/* Template preview or message textarea */}
+            {action === "email" ? (
+              loadingTemplate ? (
+                <Field label="Loading template...">
+                  <div className="flex h-16 items-center justify-center rounded-md border border-border text-xs text-muted-foreground">
+                    Loading...
+                  </div>
+                </Field>
+              ) : selectedTemplate ? (
+                <Field label="Template">
+                  <div className="overflow-hidden rounded-md border border-border">
+                    <div className="flex items-center justify-between border-b border-border bg-muted/40 px-3 py-1.5">
+                      <span className="text-[11px] text-muted-foreground">
+                        Using: <strong className="text-foreground">{selectedTemplate.name}</strong>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setShowTemplatePreview((v) => !v)}
+                        className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
+                      >
+                        <Eye className="h-3 w-3" /> {showTemplatePreview ? "Hide" : "Show"} preview
+                      </button>
+                    </div>
+                    {showTemplatePreview && (
+                      <iframe
+                        srcDoc={selectedTemplate.html || "<p style='padding:16px;color:#888;font-family:sans-serif;font-size:13px'>No HTML content.</p>"}
+                        className="h-48 w-full bg-white"
+                        title="Template preview"
+                        sandbox="allow-same-origin"
+                      />
+                    )}
+                  </div>
+                </Field>
+              ) : (
+                <Field label="Message" required>
+                  <textarea className={cn(inputCls, "min-h-[120px] resize-none py-2")} value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Write your message..." />
+                </Field>
+              )
+            ) : (
+              <Field label="Message" required>
+                <textarea className={cn(inputCls, "min-h-[120px] resize-none py-2")} value={message} onChange={(e) => setMessage(e.target.value)} />
+              </Field>
+            )}
           </>
         )}
 
@@ -643,7 +847,7 @@ function ContactActionModal({
   );
 }
 
-// ─── Import Modal ────────────────────────────────────────────
+// --- Import Modal --------------------------------------------
 
 const REQUIRED_FIELDS = [
   { name: "first_name", desc: "Contact's first name" },
@@ -815,7 +1019,7 @@ function ImportModal({ onClose, onImported }: { onClose: () => void; onImported:
                 <div className="rounded-lg border border-success/30 bg-success/5 p-4">
                   <div className="flex items-center gap-2 font-medium text-success"><CheckCircle2 className="h-4 w-4" /> Import complete</div>
                   <div className="mt-2 text-sm text-muted-foreground">
-                    {result.imported} imported · {result.skipped} skipped
+                    {result.imported} imported | {result.skipped} skipped
                     {result.errors.length > 0 && <div className="mt-1 text-destructive">{result.errors.slice(0, 3).join(", ")}</div>}
                   </div>
                 </div>
@@ -823,7 +1027,7 @@ function ImportModal({ onClose, onImported }: { onClose: () => void; onImported:
                 <>
                   <label className="flex min-h-[100px] cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-muted/20 text-sm text-muted-foreground transition hover:border-accent hover:bg-accent/5">
                     <FileUp className="h-6 w-6" />
-                    <span>{rows.length > 0 ? `${rows.length} rows loaded — select a different file` : "Click to select a CSV file"}</span>
+                    <span>{rows.length > 0 ? `${rows.length} rows loaded -- select a different file` : "Click to select a CSV file"}</span>
                     <input type="file" accept=".csv,text/csv" className="sr-only" onChange={handleFile} />
                   </label>
 
@@ -839,7 +1043,7 @@ function ImportModal({ onClose, onImported }: { onClose: () => void; onImported:
                           <tbody className="divide-y divide-border">
                             {rows.slice(0, 5).map((r, i) => (
                               <tr key={i} className="hover:bg-muted/30">
-                                {previewCols.map((c) => <td key={c} className="max-w-[140px] truncate px-3 py-2 text-muted-foreground">{r[c] || "—"}</td>)}
+                                {previewCols.map((c) => <td key={c} className="max-w-[140px] truncate px-3 py-2 text-muted-foreground">{r[c] || "--"}</td>)}
                               </tr>
                             ))}
                           </tbody>
@@ -873,12 +1077,129 @@ function ImportModal({ onClose, onImported }: { onClose: () => void; onImported:
           {tab === "guide"
             ? <Button size="sm" variant="accent" onClick={() => setTab("upload")}><FileUp className="h-3.5 w-3.5" /> Upload CSV</Button>
             : <Button size="sm" variant="accent" onClick={() => void doImport()} disabled={rows.length === 0 || importing || !!result}>
-                {importing ? "Importing…" : `Import ${rows.length} Contact${rows.length !== 1 ? "s" : ""}`}
+                {importing ? "Importing..." : `Import ${rows.length} Contact${rows.length !== 1 ? "s" : ""}`}
               </Button>
           }
         </div>
       </div>
     </div>
+  );
+}
+
+// --- Convert Lead Modal --------------------------------------
+
+function ConvertLeadModal({
+  contact,
+  onClose,
+  onConverted,
+}: {
+  contact: Contact;
+  onClose: () => void;
+  onConverted: (updated: Contact) => void;
+}) {
+  const [contactType, setContactType] = React.useState<ContactType>("Client");
+  const [staffRole, setStaffRole] = React.useState<StaffRole>("viewer");
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  async function convertToContact() {
+    setBusy(true); setError(null);
+    try {
+      const res = await fetch(`/api/contacts/${contact.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: contactType }),
+      });
+      const json = await res.json() as Contact & { error?: string };
+      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+      onConverted(json);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Conversion failed.");
+    } finally { setBusy(false); }
+  }
+
+  async function convertToStaff() {
+    setBusy(true); setError(null);
+    try {
+      const res = await fetch(`/api/contacts/${contact.id}/convert-to-staff`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role_slug: staffRole }),
+      });
+      const json = await res.json() as Contact & { error?: string };
+      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+      onConverted(json);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Conversion failed.");
+    } finally { setBusy(false); }
+  }
+
+  const name = fullName(contact);
+
+  return (
+    <Modal title={`Convert Lead -- ${name}`} onClose={onClose} wide>
+      <div className="space-y-4">
+        {error && <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
+
+        <p className="text-sm text-muted-foreground">Choose how to convert <strong className="text-foreground">{name}</strong>. This will update their type in the system.</p>
+
+        {/* Convert to Contact */}
+        <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-success/10 text-success">
+              <ArrowRightLeft className="h-4 w-4" />
+            </div>
+            <div>
+              <div className="text-sm font-semibold">Convert to Contact</div>
+              <div className="text-xs text-muted-foreground">Change their type and keep all existing information.</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <Field label="New Type" className="flex-1">
+              <Select value={contactType} onChange={(e) => setContactType(e.target.value as ContactType)}>
+                {CONTACT_ONLY_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+              </Select>
+            </Field>
+            <div className="mt-5">
+              <Button size="sm" variant="accent" onClick={() => void convertToContact()} disabled={busy}>
+                Convert
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Convert to Staff User */}
+        <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent/10 text-accent">
+              <UserPlus className="h-4 w-4" />
+            </div>
+            <div>
+              <div className="text-sm font-semibold">Convert to Staff User</div>
+              <div className="text-xs text-muted-foreground">Creates a staff account with status "invited". They can log in once their auth account is set up in Supabase.</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <Field label="Staff Role" className="flex-1">
+              <Select value={staffRole} onChange={(e) => setStaffRole(e.target.value as StaffRole)}>
+                {STAFF_ROLES.map((r) => (
+                  <option key={r} value={r}>{r.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}</option>
+                ))}
+              </Select>
+            </Field>
+            <div className="mt-5">
+              <Button size="sm" variant="accent" onClick={() => void convertToStaff()} disabled={busy}>
+                Create Staff
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-end pt-1">
+          <Button size="sm" variant="outline" onClick={onClose} disabled={busy}>Cancel</Button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
