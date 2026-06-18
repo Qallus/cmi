@@ -1,6 +1,31 @@
 export type BlockType =
   | "header" | "heading" | "text" | "button"
-  | "image" | "divider" | "spacer" | "footer";
+  | "image" | "divider" | "spacer" | "footer"
+  | "columns";
+
+export interface ColumnItem {
+  id: string;
+  type: "image" | "text" | "button" | "heading";
+  // image
+  src?: string;
+  alt?: string;
+  link?: string;
+  // text
+  content?: string;
+  // heading
+  text?: string;
+  level?: "h1" | "h2" | "h3";
+  // button
+  label?: string;
+  url?: string;
+  btn_bg?: string;
+  btn_color?: string;
+  btn_radius?: number;
+  // shared
+  font_size?: number;
+  color?: string;
+  align?: "left" | "center" | "right";
+}
 
 export interface EmailBlock {
   id: string;
@@ -37,6 +62,14 @@ export interface EmailBlock {
   company?: string;
   address?: string;
   disclaimer?: string;
+  // Columns
+  col_count?: 2 | 3;
+  columns?: ColumnItem[];
+  // Section / spacing overrides (all blocks)
+  section_bg?: string;
+  pad_top?: number;
+  pad_bottom?: number;
+  pad_x?: number;
 }
 
 export interface EmailTemplate {

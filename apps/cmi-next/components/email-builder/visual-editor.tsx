@@ -1,14 +1,21 @@
 "use client";
 
 import * as React from "react";
-import { GripVertical, Trash2, Plus, Type, AlignLeft, MousePointerClick, ImageIcon, Minus, SeparatorHorizontal, PanelBottom, LayoutTemplate } from "lucide-react";
+import {
+  GripVertical, Trash2, Plus, Type, AlignLeft, MousePointerClick,
+  ImageIcon, Minus, SeparatorHorizontal, PanelBottom, LayoutTemplate,
+  Columns2,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { EmailBlock, BlockType } from "./types";
+import type { EmailBlock, BlockType, ColumnItem } from "./types";
 import { blocksToHtml } from "./renderer";
 import { DynamicFieldsBar } from "@/components/ui/dynamic-fields-bar";
 
+// -- Palette -------------------------------------------------------------------
+
 const PALETTE: { type: BlockType; label: string; icon: React.ElementType; desc: string }[] = [
   { type: "header",  label: "Header",   icon: LayoutTemplate,      desc: "Logo / brand bar" },
+  { type: "columns", label: "Columns",  icon: Columns2,            desc: "2 or 3 column layout" },
   { type: "heading", label: "Heading",  icon: Type,                desc: "H1, H2 or H3 title" },
   { type: "text",    label: "Text",     icon: AlignLeft,           desc: "Body paragraph" },
   { type: "button",  label: "Button",   icon: MousePointerClick,   desc: "CTA button with link" },
@@ -17,6 +24,19 @@ const PALETTE: { type: BlockType; label: string; icon: React.ElementType; desc: 
   { type: "spacer",  label: "Spacer",   icon: SeparatorHorizontal, desc: "Empty vertical gap" },
   { type: "footer",  label: "Footer",   icon: PanelBottom,         desc: "Company info footer" },
 ];
+
+// -- Defaults ------------------------------------------------------------------
+
+function uid() { return Math.random().toString(36).slice(2, 10); }
+
+function defaultColumnItem(type: ColumnItem["type"]): Omit<ColumnItem, "id"> {
+  switch (type) {
+    case "image":   return { type, src: "", alt: "", link: "", align: "center" };
+    case "text":    return { type, content: "Column text here.", color: "#4b5563", font_size: 14, align: "left" };
+    case "button":  return { type, label: "Click Here", url: "#", btn_bg: "#C87A3A", btn_color: "#ffffff", btn_radius: 6, align: "center" };
+    case "heading": return { type, text: "Heading", level: "h2", color: "#111111", font_size: 18, align: "left" };
+  }
+}
 
 function defaultBlock(type: BlockType): Omit<EmailBlock, "id"> {
   const APP_URL = typeof window !== "undefined" ? window.location.origin : "https://my.constructedmatter.com";
@@ -28,18 +48,51 @@ function defaultBlock(type: BlockType): Omit<EmailBlock, "id"> {
     case "image":   return { type, src: "", alt: "", img_width: 480, align: "center", link: "" };
     case "divider": return { type, border_color: "#eeeeee", thickness: 1 };
     case "spacer":  return { type, height: 24 };
-    case "footer":  return { type, company: "Constructed Matter, Inc.", address: "7314 E Osborn Dr Suite A | Scottsdale, AZ 85251", disclaimer: "If you weren't expecting this email, you can safely ignore it." };
+    case "footer":  return { type, company: "Constructed Matter, Inc.", address: "7314 E Osborn Dr Suite A - Scottsdale, AZ 85251", disclaimer: "If you weren't expecting this email, you can safely ignore it." };
+    case "columns": return {
+      type, col_count: 2,
+      columns: [
+        { id: uid(), ...defaultColumnItem("image") },
+        { id: uid(), ...defaultColumnItem("image") },
+      ],
+    };
   }
 }
 
-function uid() {
-  return Math.random().toString(36).slice(2, 10);
+// -- Block Previews ------------------------------------------------------------
+
+function ColPreview({ col }: { col: ColumnItem }) {
+  switch (col.type) {
+    case "image":
+      return col.src
+        ? <img src={col.src} alt={col.alt ?? ""} style={{ width: "100%", height: "auto", display: "block" }} />
+        : <div style={{ background: "#f3f4f6", height: 72, display: "flex", alignItems: "center", justifyContent: "center", color: "#9ca3af", fontSize: 11 }}>Image</div>;
+    case "text":
+      return (
+        <div style={{ padding: 8, fontSize: col.font_size ?? 13, color: col.color ?? "#4b5563", textAlign: col.align ?? "left", lineHeight: 1.5 }}>
+          {col.content || "Column text..."}
+        </div>
+      );
+    case "button":
+      return (
+        <div style={{ padding: 8, textAlign: col.align ?? "center" }}>
+          <span style={{ display: "inline-block", background: col.btn_bg ?? "#C87A3A", color: col.btn_color ?? "#fff", borderRadius: col.btn_radius ?? 6, padding: "7px 14px", fontSize: 12, fontWeight: 700 }}>
+            {col.label || "Button"}
+          </span>
+        </div>
+      );
+    case "heading":
+      return (
+        <div style={{ padding: 8, fontSize: col.font_size ?? 16, fontWeight: 700, color: col.color ?? "#111111", textAlign: col.align ?? "left" }}>
+          {col.text || "Heading"}
+        </div>
+      );
+    default:
+      return null;
+  }
 }
 
-// -- Block Preview (canvas rendering) -----------------------------------------
-
 function BlockPreview({ block }: { block: EmailBlock }) {
-  const APP_URL = typeof window !== "undefined" ? window.location.origin : "";
   switch (block.type) {
     case "header":
       return (
@@ -93,16 +146,31 @@ function BlockPreview({ block }: { block: EmailBlock }) {
       return (
         <div style={{ padding: "16px 32px", textAlign: "center", borderTop: "1px solid #eeeeee" }}>
           <div style={{ fontSize: 12, color: "#9ca3af", fontWeight: 600 }}>{block.company ?? "Constructed Matter, Inc."}</div>
-          <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 2 }}>{block.address ?? "7314 E Osborn Dr Suite A | Scottsdale, AZ 85251"}</div>
+          <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 2 }}>{block.address ?? "7314 E Osborn Dr Suite A - Scottsdale, AZ 85251"}</div>
           <div style={{ fontSize: 11, color: "#c4c4c4", marginTop: 8 }}>{block.disclaimer ?? ""}</div>
         </div>
       );
+    case "columns": {
+      const count = block.col_count ?? 2;
+      const cols  = block.columns ?? [];
+      return (
+        <div style={{ padding: `${block.pad_top ?? 12}px ${block.pad_x ?? 16}px ${block.pad_bottom ?? 12}px`, display: "flex", gap: 6 }}>
+          {Array.from({ length: count }).map((_, i) => (
+            <div key={i} style={{ flex: 1, border: "1.5px dashed #d1d5db", borderRadius: 4, overflow: "hidden", minHeight: 60 }}>
+              {cols[i]
+                ? <ColPreview col={cols[i]} />
+                : <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 60, color: "#9ca3af", fontSize: 11 }}>Col {i + 1}</div>}
+            </div>
+          ))}
+        </div>
+      );
+    }
     default:
       return null;
   }
 }
 
-// -- Settings Panel ------------------------------------------------------------
+// -- Settings Panel helpers ----------------------------------------------------
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -114,6 +182,28 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 const inputCls = "w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm outline-none focus:border-accent";
+
+function ColorField({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
+  const safeHex = /^#[0-9a-fA-F]{6}$/.test(value) ? value : "#000000";
+  return (
+    <Field label={label}>
+      <div className="flex gap-1.5">
+        <input
+          type="color"
+          value={safeHex}
+          onChange={e => onChange(e.target.value)}
+          className="h-8 w-8 shrink-0 cursor-pointer rounded border border-border p-0.5 bg-background"
+        />
+        <input
+          className={inputCls}
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          placeholder={placeholder ?? "#000000"}
+        />
+      </div>
+    </Field>
+  );
+}
 
 function AlignButtons({ value, onChange }: { value?: string; onChange: (v: string) => void }) {
   return (
@@ -128,27 +218,86 @@ function AlignButtons({ value, onChange }: { value?: string; onChange: (v: strin
   );
 }
 
+function NumberRow({ children }: { children: React.ReactNode }) {
+  return <div className="grid grid-cols-2 gap-2">{children}</div>;
+}
+
+// Common section/spacing settings shared by all block types
+function SectionSettings({ block, onChange }: { block: EmailBlock; onChange: (p: Partial<EmailBlock>) => void }) {
+  return (
+    <div className="space-y-3 border-t border-border pt-3">
+      <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Section</div>
+      <ColorField
+        label="Background Color"
+        value={block.section_bg ?? ""}
+        onChange={v => onChange({ section_bg: v || undefined })}
+        placeholder="transparent"
+      />
+      <NumberRow>
+        <Field label="Pad Top (px)">
+          <input className={inputCls} type="number" min={0} max={120}
+            value={block.pad_top ?? ""}
+            placeholder="default"
+            onChange={e => onChange({ pad_top: e.target.value ? Number(e.target.value) : undefined })}
+          />
+        </Field>
+        <Field label="Pad Bottom (px)">
+          <input className={inputCls} type="number" min={0} max={120}
+            value={block.pad_bottom ?? ""}
+            placeholder="default"
+            onChange={e => onChange({ pad_bottom: e.target.value ? Number(e.target.value) : undefined })}
+          />
+        </Field>
+      </NumberRow>
+      <Field label="Pad Left / Right (px)">
+        <input className={inputCls} type="number" min={0} max={120}
+          value={block.pad_x ?? ""}
+          placeholder="default"
+          onChange={e => onChange({ pad_x: e.target.value ? Number(e.target.value) : undefined })}
+        />
+      </Field>
+    </div>
+  );
+}
+
+// -- Block Settings Panel ------------------------------------------------------
+
 function BlockSettings({ block, onChange, onDelete }: {
   block: EmailBlock;
   onChange: (patch: Partial<EmailBlock>) => void;
   onDelete: () => void;
 }) {
   const s = block;
+
+  function updateCol(idx: number, patch: Partial<ColumnItem>) {
+    const next = [...(s.columns ?? [])];
+    next[idx] = { ...next[idx], ...patch };
+    onChange({ columns: next });
+  }
+
+  function swapColType(idx: number, type: ColumnItem["type"]) {
+    const next = [...(s.columns ?? [])];
+    next[idx] = { id: next[idx]?.id ?? uid(), ...defaultColumnItem(type) };
+    onChange({ columns: next });
+  }
+
   return (
     <div className="space-y-3 p-4">
       <div className="flex items-center justify-between">
-        <span className="text-sm font-semibold capitalize">{s.type} Settings</span>
+        <span className="text-sm font-semibold capitalize">{s.type === "columns" ? "Columns" : s.type} Settings</span>
         <button type="button" onClick={onDelete} className="rounded p-1 text-muted-foreground hover:text-destructive" title="Delete block">
           <Trash2 className="h-4 w-4" />
         </button>
       </div>
 
+      {/* Header */}
       {s.type === "header" && <>
         <Field label="Logo URL"><input className={inputCls} value={s.logo_url ?? ""} onChange={e => onChange({ logo_url: e.target.value })} placeholder="https://.../logo.svg" /></Field>
         <Field label="Logo Width (px)"><input className={inputCls} type="number" min={60} max={400} value={s.logo_width ?? 180} onChange={e => onChange({ logo_width: Number(e.target.value) })} /></Field>
-        <Field label="Background Color"><input className={inputCls} value={s.bg_color ?? "#111111"} onChange={e => onChange({ bg_color: e.target.value })} placeholder="#111111" /></Field>
+        <ColorField label="Bar Background" value={s.bg_color ?? "#111111"} onChange={v => onChange({ bg_color: v })} />
       </>}
 
+      {/* Heading */}
       {s.type === "heading" && <>
         <Field label="Text"><input className={inputCls} value={s.text ?? ""} onChange={e => onChange({ text: e.target.value })} /></Field>
         <Field label="Level">
@@ -159,26 +308,29 @@ function BlockSettings({ block, onChange, onDelete }: {
           </select>
         </Field>
         <Field label="Font Size (px)"><input className={inputCls} type="number" min={12} max={60} value={s.font_size ?? 28} onChange={e => onChange({ font_size: Number(e.target.value) })} /></Field>
-        <Field label="Color"><input className={inputCls} value={s.color ?? "#111111"} onChange={e => onChange({ color: e.target.value })} placeholder="#111111" /></Field>
+        <ColorField label="Color" value={s.color ?? "#111111"} onChange={v => onChange({ color: v })} />
         <Field label="Align"><AlignButtons value={s.align} onChange={v => onChange({ align: v as "left"|"center"|"right" })} /></Field>
       </>}
 
+      {/* Text */}
       {s.type === "text" && <>
         <Field label="Content"><textarea className={cn(inputCls, "min-h-[100px] resize-y")} value={s.content ?? ""} onChange={e => onChange({ content: e.target.value })} /></Field>
         <Field label="Font Size (px)"><input className={inputCls} type="number" min={11} max={24} value={s.font_size ?? 15} onChange={e => onChange({ font_size: Number(e.target.value) })} /></Field>
-        <Field label="Color"><input className={inputCls} value={s.color ?? "#4b5563"} onChange={e => onChange({ color: e.target.value })} placeholder="#4b5563" /></Field>
+        <ColorField label="Color" value={s.color ?? "#4b5563"} onChange={v => onChange({ color: v })} />
         <Field label="Align"><AlignButtons value={s.align} onChange={v => onChange({ align: v as "left"|"center"|"right" })} /></Field>
       </>}
 
+      {/* Button */}
       {s.type === "button" && <>
         <Field label="Label"><input className={inputCls} value={s.label ?? ""} onChange={e => onChange({ label: e.target.value })} /></Field>
         <Field label="URL"><input className={inputCls} value={s.url ?? ""} onChange={e => onChange({ url: e.target.value })} placeholder="https://..." /></Field>
-        <Field label="Background Color"><input className={inputCls} value={s.btn_bg ?? "#C87A3A"} onChange={e => onChange({ btn_bg: e.target.value })} /></Field>
-        <Field label="Text Color"><input className={inputCls} value={s.btn_color ?? "#ffffff"} onChange={e => onChange({ btn_color: e.target.value })} /></Field>
+        <ColorField label="Button Background" value={s.btn_bg ?? "#C87A3A"} onChange={v => onChange({ btn_bg: v })} />
+        <ColorField label="Button Text Color" value={s.btn_color ?? "#ffffff"} onChange={v => onChange({ btn_color: v })} />
         <Field label="Border Radius (px)"><input className={inputCls} type="number" min={0} max={30} value={s.btn_radius ?? 6} onChange={e => onChange({ btn_radius: Number(e.target.value) })} /></Field>
         <Field label="Align"><AlignButtons value={s.align} onChange={v => onChange({ align: v as "left"|"center"|"right" })} /></Field>
       </>}
 
+      {/* Image */}
       {s.type === "image" && <>
         <Field label="Image URL"><input className={inputCls} value={s.src ?? ""} onChange={e => onChange({ src: e.target.value })} placeholder="https://.../image.jpg" /></Field>
         <Field label="Alt Text"><input className={inputCls} value={s.alt ?? ""} onChange={e => onChange({ alt: e.target.value })} /></Field>
@@ -187,20 +339,102 @@ function BlockSettings({ block, onChange, onDelete }: {
         <Field label="Align"><AlignButtons value={s.align} onChange={v => onChange({ align: v as "left"|"center"|"right" })} /></Field>
       </>}
 
+      {/* Divider */}
       {s.type === "divider" && <>
-        <Field label="Color"><input className={inputCls} value={s.border_color ?? "#eeeeee"} onChange={e => onChange({ border_color: e.target.value })} /></Field>
+        <ColorField label="Color" value={s.border_color ?? "#eeeeee"} onChange={v => onChange({ border_color: v })} />
         <Field label="Thickness (px)"><input className={inputCls} type="number" min={1} max={8} value={s.thickness ?? 1} onChange={e => onChange({ thickness: Number(e.target.value) })} /></Field>
       </>}
 
+      {/* Spacer */}
       {s.type === "spacer" && <>
         <Field label="Height (px)"><input className={inputCls} type="number" min={8} max={120} value={s.height ?? 24} onChange={e => onChange({ height: Number(e.target.value) })} /></Field>
       </>}
 
+      {/* Footer */}
       {s.type === "footer" && <>
         <Field label="Company Name"><input className={inputCls} value={s.company ?? ""} onChange={e => onChange({ company: e.target.value })} /></Field>
         <Field label="Address"><input className={inputCls} value={s.address ?? ""} onChange={e => onChange({ address: e.target.value })} /></Field>
         <Field label="Disclaimer"><textarea className={cn(inputCls, "min-h-[60px] resize-y")} value={s.disclaimer ?? ""} onChange={e => onChange({ disclaimer: e.target.value })} /></Field>
       </>}
+
+      {/* Columns */}
+      {s.type === "columns" && <>
+        <Field label="Layout">
+          <div className="flex gap-1">
+            {([2, 3] as const).map(n => (
+              <button key={n} type="button"
+                onClick={() => {
+                  const existing = s.columns ?? [];
+                  const next = Array.from({ length: n }).map((_, i) =>
+                    existing[i] ?? { id: uid(), ...defaultColumnItem("image") }
+                  );
+                  onChange({ col_count: n, columns: next });
+                }}
+                className={cn(
+                  "flex-1 rounded border py-1.5 text-xs font-semibold transition",
+                  (s.col_count ?? 2) === n
+                    ? "border-accent bg-accent/10 text-accent"
+                    : "border-border text-muted-foreground hover:border-accent/40"
+                )}>
+                {n} Columns
+              </button>
+            ))}
+          </div>
+        </Field>
+
+        {(s.columns ?? []).map((col, idx) => (
+          <div key={col.id} className="rounded-lg border border-border p-2.5 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-accent">Column {idx + 1}</span>
+            </div>
+
+            <Field label="Content Type">
+              <select className={inputCls} value={col.type} onChange={e => swapColType(idx, e.target.value as ColumnItem["type"])}>
+                <option value="image">Image</option>
+                <option value="text">Text</option>
+                <option value="button">Button</option>
+                <option value="heading">Heading</option>
+              </select>
+            </Field>
+
+            {col.type === "image" && <>
+              <Field label="Image URL"><input className={inputCls} value={col.src ?? ""} onChange={e => updateCol(idx, { src: e.target.value })} placeholder="https://..." /></Field>
+              <Field label="Alt Text"><input className={inputCls} value={col.alt ?? ""} onChange={e => updateCol(idx, { alt: e.target.value })} /></Field>
+              <Field label="Link URL"><input className={inputCls} value={col.link ?? ""} onChange={e => updateCol(idx, { link: e.target.value })} placeholder="https://..." /></Field>
+            </>}
+
+            {col.type === "text" && <>
+              <Field label="Content"><textarea className={cn(inputCls, "min-h-[72px] resize-y")} value={col.content ?? ""} onChange={e => updateCol(idx, { content: e.target.value })} /></Field>
+              <NumberRow>
+                <Field label="Font Size (px)"><input className={inputCls} type="number" min={11} max={22} value={col.font_size ?? 14} onChange={e => updateCol(idx, { font_size: Number(e.target.value) })} /></Field>
+                <Field label="Color"><input className={inputCls} value={col.color ?? "#4b5563"} onChange={e => updateCol(idx, { color: e.target.value })} placeholder="#4b5563" /></Field>
+              </NumberRow>
+            </>}
+
+            {col.type === "button" && <>
+              <Field label="Label"><input className={inputCls} value={col.label ?? ""} onChange={e => updateCol(idx, { label: e.target.value })} /></Field>
+              <Field label="URL"><input className={inputCls} value={col.url ?? ""} onChange={e => updateCol(idx, { url: e.target.value })} placeholder="https://..." /></Field>
+              <NumberRow>
+                <Field label="Bg Color"><input className={inputCls} value={col.btn_bg ?? "#C87A3A"} onChange={e => updateCol(idx, { btn_bg: e.target.value })} /></Field>
+                <Field label="Text Color"><input className={inputCls} value={col.btn_color ?? "#ffffff"} onChange={e => updateCol(idx, { btn_color: e.target.value })} /></Field>
+              </NumberRow>
+            </>}
+
+            {col.type === "heading" && <>
+              <Field label="Text"><input className={inputCls} value={col.text ?? ""} onChange={e => updateCol(idx, { text: e.target.value })} /></Field>
+              <NumberRow>
+                <Field label="Font Size (px)"><input className={inputCls} type="number" min={12} max={36} value={col.font_size ?? 18} onChange={e => updateCol(idx, { font_size: Number(e.target.value) })} /></Field>
+                <Field label="Color"><input className={inputCls} value={col.color ?? "#111111"} onChange={e => updateCol(idx, { color: e.target.value })} /></Field>
+              </NumberRow>
+            </>}
+
+            <Field label="Align"><AlignButtons value={col.align} onChange={v => updateCol(idx, { align: v as "left"|"center"|"right" })} /></Field>
+          </div>
+        ))}
+      </>}
+
+      {/* Common section / spacing -- all block types */}
+      <SectionSettings block={s} onChange={onChange} />
     </div>
   );
 }
@@ -221,8 +455,7 @@ export function VisualEditor({ blocks, onChange }: {
 
   function addBlock(type: BlockType) {
     const block = { id: uid(), ...defaultBlock(type) } as EmailBlock;
-    const next = [...blocks, block];
-    onChange(next);
+    onChange([...blocks, block]);
     setSelectedId(block.id);
   }
 
@@ -313,13 +546,13 @@ export function VisualEditor({ blocks, onChange }: {
                   onDrop={e => handleDrop(e, block.id)}
                   onDragEnd={() => { setDragId(null); setDragOverId(null); }}
                   onClick={() => setSelectedId(block.id === selectedId ? null : block.id)}
+                  style={{ background: block.section_bg ?? undefined }}
                   className={cn(
                     "group relative cursor-pointer border-2 transition",
                     selectedId === block.id ? "border-accent" : "border-transparent hover:border-accent/30",
                     dragOverId === block.id && dragId !== block.id ? "border-dashed border-accent bg-accent/5" : ""
                   )}
                 >
-                  {/* Drag handle */}
                   <div className="absolute left-1 top-1/2 -translate-y-1/2 z-10 cursor-grab opacity-0 group-hover:opacity-100 transition">
                     <GripVertical className="h-4 w-4 text-muted-foreground" />
                   </div>
@@ -332,7 +565,7 @@ export function VisualEditor({ blocks, onChange }: {
       </div>
 
       {/* Settings Panel */}
-      <div className="w-60 shrink-0 overflow-y-auto border-l border-border bg-card">
+      <div className="w-64 shrink-0 overflow-y-auto border-l border-border bg-card">
         {selected ? (
           <BlockSettings
             block={selected}
