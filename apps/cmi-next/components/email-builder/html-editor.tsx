@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import { DynamicFieldsBar } from "@/components/ui/dynamic-fields-bar";
 
 export function HtmlEditor({ html, onChange }: {
   html: string;
@@ -10,11 +11,25 @@ export function HtmlEditor({ html, onChange }: {
   const [preview, setPreview] = React.useState(true);
   const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const [previewSrc, setPreviewSrc] = React.useState(html);
+  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
 
   function handleChange(value: string) {
     onChange(value);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => setPreviewSrc(value), 400);
+  }
+
+  function insertToken(token: string) {
+    const el = textareaRef.current;
+    if (!el) return;
+    const start = el.selectionStart ?? 0;
+    const end   = el.selectionEnd   ?? 0;
+    const next  = el.value.slice(0, start) + token + el.value.slice(end);
+    handleChange(next);
+    requestAnimationFrame(() => {
+      el.selectionStart = el.selectionEnd = start + token.length;
+      el.focus();
+    });
   }
 
   React.useEffect(() => {
@@ -38,6 +53,9 @@ export function HtmlEditor({ html, onChange }: {
         </button>
       </div>
 
+      {/* Dynamic fields bar -- inserts at cursor */}
+      <DynamicFieldsBar onInsert={insertToken} />
+
       {/* Split pane */}
       <div className={cn("flex flex-1 overflow-hidden", preview ? "divide-x divide-border" : "")}>
         {/* Code editor */}
@@ -46,6 +64,7 @@ export function HtmlEditor({ html, onChange }: {
             HTML Source
           </div>
           <textarea
+            ref={textareaRef}
             className="flex-1 resize-none bg-[#1e1e2e] p-4 font-mono text-[13px] leading-relaxed text-[#cdd6f4] outline-none"
             value={html}
             onChange={e => handleChange(e.target.value)}

@@ -5,6 +5,7 @@ import { GripVertical, Trash2, Plus, Type, AlignLeft, MousePointerClick, ImageIc
 import { cn } from "@/lib/utils";
 import type { EmailBlock, BlockType } from "./types";
 import { blocksToHtml } from "./renderer";
+import { DynamicFieldsBar } from "@/components/ui/dynamic-fields-bar";
 
 const PALETTE: { type: BlockType; label: string; icon: React.ElementType; desc: string }[] = [
   { type: "header",  label: "Header",   icon: LayoutTemplate,      desc: "Logo / brand bar" },
@@ -27,7 +28,7 @@ function defaultBlock(type: BlockType): Omit<EmailBlock, "id"> {
     case "image":   return { type, src: "", alt: "", img_width: 480, align: "center", link: "" };
     case "divider": return { type, border_color: "#eeeeee", thickness: 1 };
     case "spacer":  return { type, height: 24 };
-    case "footer":  return { type, company: "Constructed Matter, Inc.", address: "7314 E Osborn Dr Suite A · Scottsdale, AZ 85251", disclaimer: "If you weren't expecting this email, you can safely ignore it." };
+    case "footer":  return { type, company: "Constructed Matter, Inc.", address: "7314 E Osborn Dr Suite A | Scottsdale, AZ 85251", disclaimer: "If you weren't expecting this email, you can safely ignore it." };
   }
 }
 
@@ -35,7 +36,7 @@ function uid() {
   return Math.random().toString(36).slice(2, 10);
 }
 
-// ── Block Preview (canvas rendering) ─────────────────────────────────────────
+// -- Block Preview (canvas rendering) -----------------------------------------
 
 function BlockPreview({ block }: { block: EmailBlock }) {
   const APP_URL = typeof window !== "undefined" ? window.location.origin : "";
@@ -68,7 +69,7 @@ function BlockPreview({ block }: { block: EmailBlock }) {
       return (
         <div style={{ padding: "12px 32px", textAlign: block.align ?? "center" }}>
           <span style={{ display: "inline-block", background: block.btn_bg ?? "#C87A3A", color: block.btn_color ?? "#ffffff", borderRadius: block.btn_radius ?? 6, padding: "12px 28px", fontSize: 14, fontWeight: 700 }}>
-            {block.label || "Click Here"} →
+            {block.label || "Click Here"} {"->"}
           </span>
         </div>
       );
@@ -92,7 +93,7 @@ function BlockPreview({ block }: { block: EmailBlock }) {
       return (
         <div style={{ padding: "16px 32px", textAlign: "center", borderTop: "1px solid #eeeeee" }}>
           <div style={{ fontSize: 12, color: "#9ca3af", fontWeight: 600 }}>{block.company ?? "Constructed Matter, Inc."}</div>
-          <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 2 }}>{block.address ?? "7314 E Osborn Dr Suite A · Scottsdale, AZ 85251"}</div>
+          <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 2 }}>{block.address ?? "7314 E Osborn Dr Suite A | Scottsdale, AZ 85251"}</div>
           <div style={{ fontSize: 11, color: "#c4c4c4", marginTop: 8 }}>{block.disclaimer ?? ""}</div>
         </div>
       );
@@ -101,7 +102,7 @@ function BlockPreview({ block }: { block: EmailBlock }) {
   }
 }
 
-// ── Settings Panel ────────────────────────────────────────────────────────────
+// -- Settings Panel ------------------------------------------------------------
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -143,7 +144,7 @@ function BlockSettings({ block, onChange, onDelete }: {
       </div>
 
       {s.type === "header" && <>
-        <Field label="Logo URL"><input className={inputCls} value={s.logo_url ?? ""} onChange={e => onChange({ logo_url: e.target.value })} placeholder="https://…/logo.svg" /></Field>
+        <Field label="Logo URL"><input className={inputCls} value={s.logo_url ?? ""} onChange={e => onChange({ logo_url: e.target.value })} placeholder="https://.../logo.svg" /></Field>
         <Field label="Logo Width (px)"><input className={inputCls} type="number" min={60} max={400} value={s.logo_width ?? 180} onChange={e => onChange({ logo_width: Number(e.target.value) })} /></Field>
         <Field label="Background Color"><input className={inputCls} value={s.bg_color ?? "#111111"} onChange={e => onChange({ bg_color: e.target.value })} placeholder="#111111" /></Field>
       </>}
@@ -152,9 +153,9 @@ function BlockSettings({ block, onChange, onDelete }: {
         <Field label="Text"><input className={inputCls} value={s.text ?? ""} onChange={e => onChange({ text: e.target.value })} /></Field>
         <Field label="Level">
           <select className={inputCls} value={s.level ?? "h1"} onChange={e => onChange({ level: e.target.value as "h1"|"h2"|"h3" })}>
-            <option value="h1">H1 — Large</option>
-            <option value="h2">H2 — Medium</option>
-            <option value="h3">H3 — Small</option>
+            <option value="h1">H1 -- Large</option>
+            <option value="h2">H2 -- Medium</option>
+            <option value="h3">H3 -- Small</option>
           </select>
         </Field>
         <Field label="Font Size (px)"><input className={inputCls} type="number" min={12} max={60} value={s.font_size ?? 28} onChange={e => onChange({ font_size: Number(e.target.value) })} /></Field>
@@ -171,7 +172,7 @@ function BlockSettings({ block, onChange, onDelete }: {
 
       {s.type === "button" && <>
         <Field label="Label"><input className={inputCls} value={s.label ?? ""} onChange={e => onChange({ label: e.target.value })} /></Field>
-        <Field label="URL"><input className={inputCls} value={s.url ?? ""} onChange={e => onChange({ url: e.target.value })} placeholder="https://…" /></Field>
+        <Field label="URL"><input className={inputCls} value={s.url ?? ""} onChange={e => onChange({ url: e.target.value })} placeholder="https://..." /></Field>
         <Field label="Background Color"><input className={inputCls} value={s.btn_bg ?? "#C87A3A"} onChange={e => onChange({ btn_bg: e.target.value })} /></Field>
         <Field label="Text Color"><input className={inputCls} value={s.btn_color ?? "#ffffff"} onChange={e => onChange({ btn_color: e.target.value })} /></Field>
         <Field label="Border Radius (px)"><input className={inputCls} type="number" min={0} max={30} value={s.btn_radius ?? 6} onChange={e => onChange({ btn_radius: Number(e.target.value) })} /></Field>
@@ -179,9 +180,9 @@ function BlockSettings({ block, onChange, onDelete }: {
       </>}
 
       {s.type === "image" && <>
-        <Field label="Image URL"><input className={inputCls} value={s.src ?? ""} onChange={e => onChange({ src: e.target.value })} placeholder="https://…/image.jpg" /></Field>
+        <Field label="Image URL"><input className={inputCls} value={s.src ?? ""} onChange={e => onChange({ src: e.target.value })} placeholder="https://.../image.jpg" /></Field>
         <Field label="Alt Text"><input className={inputCls} value={s.alt ?? ""} onChange={e => onChange({ alt: e.target.value })} /></Field>
-        <Field label="Link URL"><input className={inputCls} value={s.link ?? ""} onChange={e => onChange({ link: e.target.value })} placeholder="https://…" /></Field>
+        <Field label="Link URL"><input className={inputCls} value={s.link ?? ""} onChange={e => onChange({ link: e.target.value })} placeholder="https://..." /></Field>
         <Field label="Width (px)"><input className={inputCls} type="number" min={100} max={560} value={s.img_width ?? 480} onChange={e => onChange({ img_width: Number(e.target.value) })} /></Field>
         <Field label="Align"><AlignButtons value={s.align} onChange={v => onChange({ align: v as "left"|"center"|"right" })} /></Field>
       </>}
@@ -204,7 +205,7 @@ function BlockSettings({ block, onChange, onDelete }: {
   );
 }
 
-// ── Main Visual Editor ────────────────────────────────────────────────────────
+// -- Main Visual Editor --------------------------------------------------------
 
 export function VisualEditor({ blocks, onChange }: {
   blocks: EmailBlock[];
@@ -291,6 +292,9 @@ export function VisualEditor({ blocks, onChange }: {
             {showPreview ? "Hide Preview" : "Full Preview"}
           </button>
         </div>
+
+        {/* Dynamic fields bar -- clipboard copy, paste into any block text field */}
+        <DynamicFieldsBar onInsert={() => {}} clipboard />
 
         <div className="flex-1 overflow-y-auto bg-[#f4f4f4] p-6">
           <div className="mx-auto max-w-[560px] overflow-hidden rounded-lg bg-white shadow-sm">

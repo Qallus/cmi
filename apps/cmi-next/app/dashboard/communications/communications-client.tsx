@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import type { Message, MessageChannel } from "@/lib/communications/types";
 import type { ContactSubmission, ContactSubmissionStatus } from "@/lib/contact-submissions/types";
 import { TemplateManager } from "@/components/email-builder/template-manager";
+import { DynamicFieldsBar } from "@/components/ui/dynamic-fields-bar";
 
 type Tab = "all" | MessageChannel | "contact_form" | "templates";
 
@@ -104,6 +105,20 @@ export function CommunicationsClient({
   const [showTemplateMenu, setShowTemplateMenu] = React.useState(false);
   const [showTemplatePreview, setShowTemplatePreview] = React.useState(false);
   const templateMenuRef = React.useRef<HTMLDivElement>(null);
+  const bodyTextareaRef = React.useRef<HTMLTextAreaElement>(null);
+
+  function insertIntoBody(token: string) {
+    const el = bodyTextareaRef.current;
+    if (!el) return;
+    const start = el.selectionStart ?? 0;
+    const end   = el.selectionEnd   ?? 0;
+    const next  = el.value.slice(0, start) + token + el.value.slice(end);
+    setDraft(d => ({ ...d, body: next }));
+    requestAnimationFrame(() => {
+      el.selectionStart = el.selectionEnd = start + token.length;
+      el.focus();
+    });
+  }
 
   React.useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -686,7 +701,9 @@ export function CommunicationsClient({
                   </div>
                 ) : (
                   <>
+                    <DynamicFieldsBar onInsert={insertIntoBody} />
                     <textarea
+                      ref={bodyTextareaRef}
                       className={cn(iCls, "min-h-[120px] resize-y")}
                       placeholder={draft.channel === "email" ? "Write your email..." : "Write your SMS (160 chars per segment)..."}
                       value={draft.body}
