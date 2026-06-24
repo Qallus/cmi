@@ -4,7 +4,7 @@
 // No network calls; the parent supplies handlers for clicks/actions.
 
 import { ExternalLink, Mail, MessageSquare, Phone, QrCode } from "lucide-react";
-import type { BusinessCard, BusinessCardLink, BusinessCardSection } from "@/lib/business-cards/types";
+import type { BusinessCard, BusinessCardLink, BusinessCardSection, SlideshowSlide } from "@/lib/business-cards/types";
 
 export type PreviewCard = Pick<
   BusinessCard,
@@ -148,6 +148,26 @@ export function CardPreview({
             </div>
           </div>,
         );
+      case "slideshow": {
+        const slides = (Array.isArray(s.content?.slides) ? s.content.slides : []) as SlideshowSlide[];
+        if (!slides.length) {
+          return wrap(<div className="rounded-xl px-4 py-3 text-xs" style={{ background: surface, border: `1px solid ${border}`, color: hexAlpha(text, 0.6) }}>
+            <div className="font-semibold" style={{ color: text }}>Slideshow</div>
+            Add images in the Slideshow panel to show a gallery here.
+          </div>);
+        }
+        return wrap(
+          <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
+            {slides.map((sl) => (
+              <div key={sl.id} className="relative w-full shrink-0 snap-center overflow-hidden rounded-xl" style={{ border: `1px solid ${border}` }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={sl.image_url} alt={sl.caption || ""} className="h-44 w-full object-cover" />
+                {sl.caption && <div className="absolute inset-x-0 bottom-0 px-3 py-1.5 text-xs font-medium" style={{ background: hexAlpha(bg, 0.7), color: text }}>{sl.caption}</div>}
+              </div>
+            ))}
+          </div>,
+        );
+      }
       case "nfc":
         return wrap(<div className="rounded-xl px-4 py-3 text-xs" style={{ background: surface, border: `1px solid ${border}`, color: hexAlpha(text, 0.6) }}>
           <div className="flex items-center gap-1.5 font-semibold" style={{ color: text }}><QrCode className="h-3.5 w-3.5" />NFC tap to share</div>

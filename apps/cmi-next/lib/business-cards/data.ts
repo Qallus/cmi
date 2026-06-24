@@ -12,7 +12,7 @@ const CARD_COLUMNS = [
   "profile_photo_url", "logo_url", "background_image_url",
   "background_color", "accent_color", "text_color", "card_mode", "theme_mode", "layout_template",
   "primary_phone", "sms_phone", "primary_email", "website_url", "maps_url", "intro_video_url",
-  "qr_settings", "lead_form_settings", "media_settings", "slider_pages",
+  "qr_settings", "lead_form_settings", "media_settings", "slider_pages", "automations",
   "nfc_status", "published_at", "archived_at",
 ] as const;
 
@@ -353,13 +353,34 @@ export async function loadLeads(opts: { all: boolean; staffId: string | null }):
   const sb = getSupabaseAdmin();
   let q = sb
     .from("business_card_leads")
-    .select("*")
+    .select("*, card:business_cards(card_name, slug, display_name), owner:staff_users(display_name)")
     .order("created_at", { ascending: false })
     .limit(500);
   if (!opts.all) q = q.eq("owner_staff_id", opts.staffId ?? "__none__");
   const { data, error } = await q;
   if (error) throw new Error(error.message);
-  return (data ?? []) as BusinessCardLead[];
+  return (data ?? []) as unknown as BusinessCardLead[];
+}
+
+export async function getLeadOwner(id: string): Promise<{ owner_staff_id: string | null } | null> {
+  const sb = getSupabaseAdmin();
+  const { data } = await sb.from("business_card_leads").select("owner_staff_id").eq("id", id).maybeSingle();
+  return data ?? null;
+}
+
+export async function updateLeadStatus(id: string, status: BusinessCardLead["status"]): Promise<void> {
+  const sb = getSupabaseAdmin();
+  const { error } = await sb
+    .from("business_card_leads")
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+export async function deleteLead(id: string): Promise<void> {
+  const sb = getSupabaseAdmin();
+  const { error } = await sb.from("business_card_leads").delete().eq("id", id);
+  if (error) throw new Error(error.message);
 }
 
 export type StaffOption = { id: string; display_name: string; email: string | null; role_slug: string | null };

@@ -10,7 +10,23 @@ export type LinkType =
 
 export type SectionType =
   | "opener" | "profile_header" | "quick_actions" | "links" | "lead_capture"
-  | "video" | "qr_code" | "nfc";
+  | "video" | "qr_code" | "nfc" | "slideshow";
+
+export type AutomationAction = "notify_owner_email" | "notify_owner_sms" | "autoreply_email";
+
+export type Automation = {
+  id: string;
+  trigger: "lead_submit";
+  action: AutomationAction;
+  enabled: boolean;
+  message?: string;
+};
+
+export type SlideshowSlide = {
+  id: string;
+  image_url: string;
+  caption?: string;
+};
 
 export type EventType =
   | "view" | "share" | "like" | "qr_scan" | "nfc_tap"
@@ -115,6 +131,7 @@ export type BusinessCard = {
   lead_form_settings: LeadFormSettings;
   media_settings: Record<string, unknown>;
   slider_pages: unknown[];
+  automations: Automation[];
 
   nfc_status: string;
   view_count: number;
@@ -146,6 +163,8 @@ export type BusinessCardLead = {
   source: string | null;
   status: LeadStatus;
   created_at: string;
+  card?: { card_name: string; slug: string; display_name: string | null } | null;
+  owner?: { display_name: string | null } | null;
 };
 
 export type CardStats = {

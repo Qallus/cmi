@@ -12,7 +12,8 @@ import { cn } from "@/lib/utils";
 import { CardPreview } from "@/components/business-card/card-preview";
 import { COLOR_PRESETS, makeDefaultSections, makeNewCard } from "@/lib/business-cards/defaults";
 import type {
-  BusinessCard, BusinessCardLink, BusinessCardSection, LinkType, SaveCardPayload, ThemeMode,
+  Automation, AutomationAction, BusinessCard, BusinessCardLink, BusinessCardSection,
+  LinkType, SaveCardPayload, SlideshowSlide, ThemeMode,
 } from "@/lib/business-cards/types";
 import type { StaffOption } from "@/lib/business-cards/data";
 
@@ -31,10 +32,10 @@ const PANELS: { key: PanelKey; label: string; icon: React.ElementType; soon?: bo
   { key: "qr", label: "QR code", icon: QrCode },
   { key: "forms", label: "Forms", icon: ClipboardList },
   { key: "nfc", label: "NFC", icon: Smartphone },
+  { key: "slideshow", label: "Slideshow", icon: GalleryHorizontal },
+  { key: "automate", label: "Automations", icon: Zap },
   { key: "media", label: "Media", icon: ImageIcon, soon: true },
-  { key: "slideshow", label: "Slideshow", icon: GalleryHorizontal, soon: true },
   { key: "steps", label: "Steps", icon: ListChecks, soon: true },
-  { key: "automate", label: "Automations", icon: Zap, soon: true },
   { key: "settings", label: "Settings", icon: Settings },
   { key: "wizard", label: "Setup wizard", icon: Wand2 },
 ];
@@ -455,19 +456,17 @@ function PanelBody(props: {
 
   // ── NFC ──
   if (panel === "nfc") {
-    return (
-      <Section title="NFC tap-to-share">
-        <F label="NFC status">
-          <select className={iCls} value={draft.nfc_status} onChange={(e) => set("nfc_status", e.target.value)}>
-            <option value="not_ordered">Not ordered</option>
-            <option value="ordered">Ordered</option>
-            <option value="assigned">Assigned to a tag</option>
-            <option value="active">Active</option>
-          </select>
-        </F>
-        <p className="text-xs text-muted-foreground">Program a physical NFC tag to open <span className="font-mono">{publicUrl}?source=nfc</span>. Tap analytics are recorded automatically. Toggle the “NFC tap to share” section under Sections to show a note on the card.</p>
-      </Section>
-    );
+    return <NfcPanel draft={draft} set={set} sections={sections} setSections={setSections} nfcUrl={`${publicUrl}?source=nfc`} />;
+  }
+
+  // ── Slideshow ──
+  if (panel === "slideshow") {
+    return <SlideshowPanel sections={sections} setSections={setSections} />;
+  }
+
+  // ── Automations ──
+  if (panel === "automate") {
+    return <AutomationsPanel draft={draft} set={set} />;
   }
 
   // ── Settings ──
@@ -532,5 +531,211 @@ function PanelBody(props: {
         This panel is coming in a later phase. The card already works great without it.
       </p>
     </div>
+  );
+}
+
+// ── NFC panel ──────────────────────────────────────────────────────────────────
+
+function NfcPanel({
+  draft, set, sections, setSections, nfcUrl,
+}: {
+  draft: BusinessCard;
+  set: <K extends keyof BusinessCard>(k: K, v: BusinessCard[K]) => void;
+  sections: BusinessCardSection[];
+  setSections: React.Dispatch<React.SetStateAction<BusinessCardSection[]>>;
+  nfcUrl: string;
+}) {
+  const [writeState, setWriteState] = React.useState<"idle" | "writing" | "done" | "error" | "unsupported">("idle");
+  const [writeMsg, setWriteMsg] = React.useState("");
+  const nfcSection = sections.find((s) => s.section_type === "nfc");
+
+  async function writeTag() {
+    if (typeof window === "undefined" || !("NDEFReader" in window)) {
+      setWriteState("unsupported");
+      setWriteMsg("Web NFC works on Chrome for Android. Open this builder on an Android phone to write tags from the browser.");
+      return;
+    }
+    try {
+      setWriteState("writing");
+      setWriteMsg("Hold an NFC tag to the back of your phone…");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const ndef = new (window as any).NDEFReader();
+      await ndef.write({ records: [{ recordType: "url", data: nfcUrl }] });
+      setWriteState("done");
+      setWriteMsg("Tag written! Tapping it now opens this card.");
+    } catch (err) {
+      setWriteState("error");
+      setWriteMsg(err instanceof Error ? err.message : "Could not write the tag.");
+    }
+  }
+
+  return (
+    <Section title="NFC tap-to-share">
+      <F label="NFC status">
+        <select className={iCls} value={draft.nfc_status} onChange={(e) => set("nfc_status", e.target.value)}>
+          <option value="not_ordered">Not ordered</option>
+          <option value="ordered">Ordered</option>
+          <option value="assigned">Assigned to a tag</option>
+          <option value="active">Active</option>
+        </select>
+      </F>
+
+      <F label="Tag destination URL" hint="Program your NFC tag/card to open this URL. Taps are tracked as NFC scans.">
+        <div className="flex items-center gap-2">
+          <input readOnly value={nfcUrl} className={cn(iCls, "font-mono text-xs")} />
+          <Button size="sm" variant="outline" onClick={() => navigator.clipboard?.writeText(nfcUrl)}><Copy className="h-3.5 w-3.5" /></Button>
+        </div>
+      </F>
+
+      <Button size="sm" variant="accent" className="w-full" onClick={writeTag} disabled={writeState === "writing"}>
+        <Smartphone className="h-3.5 w-3.5" /> {writeState === "writing" ? "Waiting for tag…" : "Write to NFC tag"}
+      </Button>
+      {writeMsg && (
+        <p className={cn("mt-2 text-xs", writeState === "error" ? "text-destructive" : writeState === "done" ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground")}>{writeMsg}</p>
+      )}
+
+      <div className="mt-4">
+        <button
+          onClick={() => setSections(sections.map((s) => s.section_type === "nfc" ? { ...s, is_visible: !s.is_visible } : s))}
+          className={cn("flex items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm", nfcSection?.is_visible ? "text-accent" : "text-muted-foreground")}
+        >
+          {nfcSection?.is_visible ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+          {nfcSection?.is_visible ? "Showing NFC note on card" : "Show NFC note on card"}
+        </button>
+      </div>
+    </Section>
+  );
+}
+
+// ── Slideshow panel ─────────────────────────────────────────────────────────────
+
+function SlideshowPanel({
+  sections, setSections,
+}: {
+  sections: BusinessCardSection[];
+  setSections: React.Dispatch<React.SetStateAction<BusinessCardSection[]>>;
+}) {
+  const [busy, setBusy] = React.useState(false);
+  const section = sections.find((s) => s.section_type === "slideshow");
+  const slides = (Array.isArray(section?.content?.slides) ? section!.content.slides : []) as SlideshowSlide[];
+
+  function ensureSection(): BusinessCardSection {
+    if (section) return section;
+    const created: BusinessCardSection = {
+      id: uid(), section_type: "slideshow", label: "Slideshow", content: { slides: [] },
+      display_order: sections.length + 1, is_visible: true, margin_top: 0, margin_bottom: 16, padding_top: 0, padding_bottom: 0,
+    };
+    setSections([...sections, created]);
+    return created;
+  }
+
+  function setSlides(next: SlideshowSlide[]) {
+    setSections((prev) => prev.map((s) => s.section_type === "slideshow" ? { ...s, content: { ...s.content, slides: next } } : s));
+  }
+
+  async function addImage(file: File) {
+    ensureSection();
+    setBusy(true);
+    const url = await uploadFile(file);
+    setBusy(false);
+    if (!url) return;
+    const current = (Array.isArray(section?.content?.slides) ? section!.content.slides : []) as SlideshowSlide[];
+    setSlides([...current, { id: uid(), image_url: url, caption: "" }]);
+  }
+
+  if (!section) {
+    return (
+      <Section title="Slideshow">
+        <p className="mb-3 text-xs text-muted-foreground">Show a swipeable image gallery on your card — projects, products, or photos.</p>
+        <label className="flex cursor-pointer items-center gap-1 rounded-md border border-border px-3 py-2 text-sm hover:bg-muted">
+          <Plus className="h-4 w-4" /> {busy ? "Uploading…" : "Add first image"}
+          <input type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) addImage(f); }} />
+        </label>
+      </Section>
+    );
+  }
+
+  return (
+    <Section title="Slideshow">
+      <div className="mb-3 flex items-center justify-between">
+        <button onClick={() => setSections(sections.map((s) => s.section_type === "slideshow" ? { ...s, is_visible: !s.is_visible } : s))} className={cn("flex items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm", section.is_visible ? "text-accent" : "text-muted-foreground")}>
+          {section.is_visible ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}{section.is_visible ? "Visible" : "Hidden"}
+        </button>
+        <label className="flex cursor-pointer items-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs hover:bg-muted">
+          <Plus className="h-3.5 w-3.5" /> {busy ? "Uploading…" : "Add image"}
+          <input type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) addImage(f); }} />
+        </label>
+      </div>
+      {slides.length === 0 && <p className="text-xs text-muted-foreground">No images yet. Add one above.</p>}
+      {slides.map((sl, i) => (
+        <div key={sl.id} className="mb-2 flex items-center gap-2 rounded-lg border border-border bg-card p-2">
+          <img src={sl.image_url} alt="" className="h-12 w-12 rounded object-cover" />
+          <input
+            className={cn(iCls, "h-8")}
+            placeholder="Caption (optional)"
+            value={sl.caption || ""}
+            onChange={(e) => setSlides(slides.map((x, j) => j === i ? { ...x, caption: e.target.value } : x))}
+          />
+          <button onClick={() => setSlides(slides.filter((_, j) => j !== i))} className="text-destructive"><Trash2 className="h-4 w-4" /></button>
+        </div>
+      ))}
+    </Section>
+  );
+}
+
+// ── Automations panel ───────────────────────────────────────────────────────────
+
+const AUTOMATION_ACTIONS: { action: AutomationAction; label: string; desc: string; hasMessage?: boolean }[] = [
+  { action: "notify_owner_email", label: "Email me on new lead", desc: "Send the card owner an email when someone submits the lead form." },
+  { action: "notify_owner_sms", label: "Text me on new lead", desc: "Send an SMS to the card owner's phone when a new lead comes in." },
+  { action: "autoreply_email", label: "Auto-reply to the lead", desc: "Send an automatic thank-you email to the lead (when they leave an email).", hasMessage: true },
+];
+
+function AutomationsPanel({
+  draft, set,
+}: {
+  draft: BusinessCard;
+  set: <K extends keyof BusinessCard>(k: K, v: BusinessCard[K]) => void;
+}) {
+  const list = draft.automations ?? [];
+  function ruleFor(action: AutomationAction): Automation | undefined { return list.find((a) => a.action === action); }
+  function setRule(action: AutomationAction, patch: Partial<Automation>) {
+    const existing = ruleFor(action);
+    const next: Automation[] = existing
+      ? list.map((a) => a.action === action ? { ...a, ...patch } : a)
+      : [...list, { id: uid(), trigger: "lead_submit", action, enabled: false, ...patch }];
+    set("automations", next);
+  }
+
+  return (
+    <Section title="Automations">
+      <p className="mb-3 text-xs text-muted-foreground">Run actions automatically when someone submits your lead form.</p>
+      {AUTOMATION_ACTIONS.map((a) => {
+        const rule = ruleFor(a.action);
+        const on = rule?.enabled ?? false;
+        return (
+          <div key={a.action} className="mb-2 rounded-lg border border-border bg-card p-3">
+            <div className="flex items-start gap-2">
+              <div className="flex-1">
+                <div className="text-sm font-medium">{a.label}</div>
+                <div className="mt-0.5 text-[11px] text-muted-foreground">{a.desc}</div>
+              </div>
+              <button onClick={() => setRule(a.action, { enabled: !on })} className={cn("relative h-5 w-9 shrink-0 rounded-full transition", on ? "bg-accent" : "bg-muted")}>
+                <span className={cn("absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all", on ? "left-[18px]" : "left-0.5")} />
+              </button>
+            </div>
+            {a.hasMessage && on && (
+              <textarea
+                className={cn(iCls, "mt-2 h-16 resize-none py-2")}
+                placeholder="Thanks for reaching out! I'll be in touch shortly."
+                value={rule?.message || ""}
+                onChange={(e) => setRule(a.action, { message: e.target.value })}
+              />
+            )}
+          </div>
+        );
+      })}
+      <p className="mt-2 text-[10px] text-muted-foreground">Email uses Resend; SMS uses Twilio. The owner&apos;s email/phone come from their staff profile.</p>
+    </Section>
   );
 }

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import {
-  Archive, Copy, ExternalLink, Eye, IdCard, Pencil, Plus, QrCode,
+  Archive, Copy, ExternalLink, Eye, IdCard, Mail, Pencil, Plus, QrCode,
   RefreshCw, Trash2, Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import type { BusinessCard, CardStats } from "@/lib/business-cards/types";
 import type { StaffOption } from "@/lib/business-cards/data";
 import { CardBuilder } from "./card-builder";
+import { LeadsInbox } from "./leads-inbox";
 
 type ApiResponse = {
   cards: BusinessCard[];
@@ -38,6 +39,7 @@ export function BusinessCardsClient() {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [scope, setScope] = React.useState<"mine" | "all">("mine");
+  const [view, setView] = React.useState<"cards" | "leads">("cards");
   const [statusFilter, setStatusFilter] = React.useState<"all" | "published" | "draft">("all");
   const [editing, setEditing] = React.useState<BusinessCard | "new" | null>(null);
   const [copied, setCopied] = React.useState<string | null>(null);
@@ -126,15 +128,39 @@ export function BusinessCardsClient() {
               <button onClick={() => setScope("all")} className={cn("flex items-center gap-1 rounded-md px-3 py-1.5 font-medium", scope === "all" ? "bg-accent/15 text-accent" : "text-muted-foreground")}><Users className="h-3.5 w-3.5" />All staff</button>
             </div>
           )}
-          <Button size="sm" variant="outline" onClick={() => load(scope)} disabled={loading}>
-            <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} /> Refresh
-          </Button>
-          <Button size="sm" variant="accent" onClick={() => setEditing("new")}>
-            <Plus className="h-3.5 w-3.5" /> Create card
-          </Button>
+          {view === "cards" && (
+            <Button size="sm" variant="outline" onClick={() => load(scope)} disabled={loading}>
+              <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} /> Refresh
+            </Button>
+          )}
+          {view === "cards" && (
+            <Button size="sm" variant="accent" onClick={() => setEditing("new")}>
+              <Plus className="h-3.5 w-3.5" /> Create card
+            </Button>
+          )}
         </div>
       </div>
 
+      {/* View tabs */}
+      <div className="flex gap-1 border-b border-border bg-card px-4">
+        {(["cards", "leads"] as const).map((v) => (
+          <button
+            key={v}
+            onClick={() => setView(v)}
+            className={cn(
+              "-mb-px flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium capitalize transition",
+              view === v ? "border-accent text-accent" : "border-transparent text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {v === "cards" ? <IdCard className="h-3.5 w-3.5" /> : <Mail className="h-3.5 w-3.5" />}
+            {v === "cards" ? "Cards" : "Leads"}
+          </button>
+        ))}
+      </div>
+
+      {view === "leads" ? (
+        <LeadsInbox isAdmin={isAdmin} scope={scope} />
+      ) : (
       <div className="p-5">
         {/* Stats */}
         <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-8">
@@ -185,6 +211,7 @@ export function BusinessCardsClient() {
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }
