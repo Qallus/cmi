@@ -84,8 +84,9 @@ function EmailFrame({ html }: { html: string }) {
   );
 }
 
-function timeAgo(iso: string) {
-  const diff = Date.now() - new Date(iso).getTime();
+function timeAgo(iso: string, nowMs: number = Date.now()) {
+  const diff = nowMs - new Date(iso).getTime();
+  if (diff < 0) return "just now";
   const m = Math.floor(diff / 60000);
   if (m < 1) return "just now";
   if (m < 60) return `${m}m ago`;
@@ -109,13 +110,29 @@ interface ComposePayload {
 
 const EMPTY_COMPOSE: ComposePayload = { channel: "email", to: "", subject: "", body: "" };
 
+// "Now" anchored to the server clock (passed from the server-rendered page),
+// so relative times stay correct even if the viewer's computer clock is off.
+// Only the elapsed time since mount is taken from the local clock.
+function useServerNow(serverNow?: number) {
+  const offsetRef = React.useRef<number>(serverNow ? serverNow - Date.now() : 0);
+  const [, tick] = React.useState(0);
+  React.useEffect(() => {
+    const t = setInterval(() => tick((x) => x + 1), 30000);
+    return () => clearInterval(t);
+  }, []);
+  return Date.now() + offsetRef.current;
+}
+
 export function CommunicationsClient({
   initialMessages,
   initialSubmissions,
+  serverNow,
 }: {
   initialMessages: Message[];
   initialSubmissions: ContactSubmission[];
+  serverNow?: number;
 }) {
+  const nowMs = useServerNow(serverNow);
   const [messages, setMessages] = React.useState<Message[]>(initialMessages);
   const [submissions, setSubmissions] = React.useState<ContactSubmission[]>(initialSubmissions);
   const [tab, setTab] = React.useState<Tab>("all");
@@ -392,7 +409,7 @@ export function CommunicationsClient({
                         <span className="line-clamp-1 text-muted-foreground">{sub.message}</span>
                       </td>
                       <td className="px-5 py-3.5 whitespace-nowrap text-xs text-muted-foreground">
-                        {timeAgo(sub.submitted_at)}
+                        {timeAgo(sub.submitted_at, nowMs)}
                       </td>
                       <td className="px-5 py-3.5">
                         <ChevronDown className="h-3.5 w-3.5 -rotate-90 text-muted-foreground" />
@@ -453,7 +470,7 @@ export function CommunicationsClient({
                         </div>
                         <div className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
                           {statusIcon(msg.status)}
-                          {timeAgo(msg.sent_at)}
+                          {timeAgo(msg.sent_at, nowMs)}
                         </div>
                       </div>
                       {msg.subject && (

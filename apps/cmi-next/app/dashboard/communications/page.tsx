@@ -85,5 +85,5 @@ export default async function CommunicationsPage() {
     submissions = getDemoSubmissions();
   }
 
-  return <CommunicationsClient initialMessages={messages} initialSubmissions={submissions} />;
+  return <CommunicationsClient initialMessages={messages} initialSubmissions={submissions} serverNow={Date.now()} />;
 }
