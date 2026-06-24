@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   ArrowLeft, BookOpen, BriefcaseBusiness, CalendarRange,
   CreditCard, FileText, FolderKanban, Home, IdCard, LayoutGrid,
-  MessageCircle, Newspaper, Package, Settings, Sparkles,
+  MessageCircle, Mic, Newspaper, Package, Settings, Sparkles,
   User, UserRoundCog, Users,
 } from "lucide-react";
 
@@ -29,6 +29,7 @@ const nav: NavItem[] = [
   { href: "/dashboard/bookings",       label: "Bookings",       icon: CalendarRange,  roles: ["super_admin", "admin", "project_manager", "estimator", "client"] },
   { href: "/dashboard/billing",        label: "Billing",        icon: CreditCard,     roles: ["super_admin", "admin", "estimator", "client"] },
   { href: "/dashboard/communications", label: "Communications", icon: MessageCircle,  roles: ["super_admin", "admin", "project_manager", "estimator"] },
+  { href: "/dashboard/recording-studio", label: "Recording Studio", icon: Mic,        roles: ["super_admin", "admin", "project_manager", "designer", "estimator", "superintendent", "staff"] },
   { href: "/dashboard/quotes-leads",   label: "Quotes & Leads", icon: BriefcaseBusiness, roles: ["super_admin", "admin", "estimator"] },
   { href: "/dashboard/portfolio",      label: "Portfolio",      icon: LayoutGrid,     roles: ["super_admin", "admin", "designer"] },
   { href: "/dashboard/blog",           label: "Blog",           icon: Newspaper,      roles: ["super_admin", "admin", "designer"] },
