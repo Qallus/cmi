@@ -119,7 +119,7 @@ export async function loadPublicCardBySlug(slug: string): Promise<BusinessCard |
 export async function computeStats(cards: BusinessCard[]): Promise<CardStats> {
   const sb = getSupabaseAdmin();
   const ids = cards.map((c) => c.id);
-  let shares = 0, saves = 0, leads = 0;
+  let shares = 0, saves = 0, leads = 0, newLeads = 0;
 
   if (ids.length) {
     const { data: events } = await sb
@@ -131,11 +131,12 @@ export async function computeStats(cards: BusinessCard[]): Promise<CardStats> {
       if (e.event_type === "share") shares += 1;
       else if (e.event_type === "save_contact") saves += 1;
     }
-    const { count } = await sb
-      .from("business_card_leads")
-      .select("id", { count: "exact", head: true })
-      .in("card_id", ids);
-    leads = count ?? 0;
+    const [{ count: totalLeads }, { count: unactionedLeads }] = await Promise.all([
+      sb.from("business_card_leads").select("id", { count: "exact", head: true }).in("card_id", ids),
+      sb.from("business_card_leads").select("id", { count: "exact", head: true }).in("card_id", ids).eq("status", "new"),
+    ]);
+    leads = totalLeads ?? 0;
+    newLeads = unactionedLeads ?? 0;
   }
 
   return {
@@ -147,6 +148,7 @@ export async function computeStats(cards: BusinessCard[]): Promise<CardStats> {
     shares,
     saves,
     leads,
+    newLeads,
   };
 }
 

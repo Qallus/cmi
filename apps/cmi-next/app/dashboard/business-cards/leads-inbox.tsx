@@ -27,7 +27,7 @@ function timeAgo(iso: string): string {
   return new Date(iso).toLocaleDateString();
 }
 
-export function LeadsInbox({ isAdmin, scope }: { isAdmin: boolean; scope: "mine" | "all" }) {
+export function LeadsInbox({ isAdmin, scope, onChanged }: { isAdmin: boolean; scope: "mine" | "all"; onChanged?: () => void }) {
   const [leads, setLeads] = React.useState<BusinessCardLead[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -57,12 +57,14 @@ export function LeadsInbox({ isAdmin, scope }: { isAdmin: boolean; scope: "mine"
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ status }),
     }).catch(() => load());
+    onChanged?.();
   }
 
   async function remove(lead: BusinessCardLead) {
     if (!window.confirm("Delete this lead?")) return;
     setLeads((prev) => prev.filter((l) => l.id !== lead.id));
     await fetch(`/api/business-cards/leads/${lead.id}`, { method: "DELETE" }).catch(() => load());
+    onChanged?.();
   }
 
   const filtered = filter === "all" ? leads : leads.filter((l) => l.status === filter);

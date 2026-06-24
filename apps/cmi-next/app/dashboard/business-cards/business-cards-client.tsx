@@ -160,12 +160,17 @@ export function BusinessCardsClient() {
           >
             {v === "cards" ? <IdCard className="h-3.5 w-3.5" /> : <Mail className="h-3.5 w-3.5" />}
             {v === "cards" ? "Cards" : "Leads"}
+            {v === "leads" && (data?.stats.newLeads ?? 0) > 0 && (
+              <span className="ml-0.5 inline-flex min-w-[18px] items-center justify-center rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-semibold leading-none text-accent-foreground">
+                {(data?.stats.newLeads ?? 0) > 99 ? "99+" : data?.stats.newLeads}
+              </span>
+            )}
           </button>
         ))}
       </div>
 
       {view === "leads" ? (
-        <LeadsInbox isAdmin={isAdmin} scope={scope} />
+        <LeadsInbox isAdmin={isAdmin} scope={scope} onChanged={() => load(scope)} />
       ) : (
       <div className="p-5">
         {/* Stats */}

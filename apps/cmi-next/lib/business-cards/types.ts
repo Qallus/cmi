@@ -185,6 +185,7 @@ export type CardStats = {
   shares: number;
   saves: number;
   leads: number;
+  newLeads: number;
 };
 
 // The shape the dashboard sends to POST /api/business-cards
