@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   ArrowLeft, BookOpen, BriefcaseBusiness, CalendarRange,
-  CreditCard, FileText, FolderKanban, Home, LayoutGrid,
+  CreditCard, FileText, FolderKanban, Home, IdCard, LayoutGrid,
   MessageCircle, Newspaper, Package, Settings, Sparkles,
   User, UserRoundCog, Users,
 } from "lucide-react";
@@ -33,6 +33,7 @@ const nav: NavItem[] = [
   { href: "/dashboard/portfolio",      label: "Portfolio",      icon: LayoutGrid,     roles: ["super_admin", "admin", "designer"] },
   { href: "/dashboard/blog",           label: "Blog",           icon: Newspaper,      roles: ["super_admin", "admin", "designer"] },
   { href: "/dashboard/team",           label: "Team",           icon: Users,          roles: ["super_admin", "admin"] },
+  { href: "/dashboard/business-cards", label: "Business Cards", icon: IdCard,         roles: ["super_admin", "admin", "project_manager", "designer", "estimator", "superintendent", "staff"] },
   { href: "/dashboard/site-content",   label: "Site Content",   icon: BookOpen,       roles: ["super_admin", "admin", "designer"] },
   { href: "/dashboard/documents",      label: "Documents",      icon: FileText },
   { href: "/dashboard/agent",          label: "Agent",          icon: Sparkles,       roles: ["super_admin", "admin", "project_manager", "designer", "estimator", "superintendent"] },
