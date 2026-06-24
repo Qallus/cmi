@@ -13,7 +13,7 @@ import { CardPreview } from "@/components/business-card/card-preview";
 import { COLOR_PRESETS, makeDefaultSections, makeNewCard } from "@/lib/business-cards/defaults";
 import type {
   Automation, AutomationAction, BusinessCard, BusinessCardLink, BusinessCardSection,
-  LinkType, SaveCardPayload, SlideshowSlide, ThemeMode,
+  LinkType, MediaSettings, SaveCardPayload, SlideshowSlide, StepItem, ThemeMode,
 } from "@/lib/business-cards/types";
 import type { StaffOption } from "@/lib/business-cards/data";
 
@@ -33,9 +33,9 @@ const PANELS: { key: PanelKey; label: string; icon: React.ElementType; soon?: bo
   { key: "forms", label: "Forms", icon: ClipboardList },
   { key: "nfc", label: "NFC", icon: Smartphone },
   { key: "slideshow", label: "Slideshow", icon: GalleryHorizontal },
+  { key: "media", label: "Media", icon: ImageIcon },
+  { key: "steps", label: "Steps", icon: ListChecks },
   { key: "automate", label: "Automations", icon: Zap },
-  { key: "media", label: "Media", icon: ImageIcon, soon: true },
-  { key: "steps", label: "Steps", icon: ListChecks, soon: true },
   { key: "settings", label: "Settings", icon: Settings },
   { key: "wizard", label: "Setup wizard", icon: Wand2 },
 ];
@@ -469,6 +469,16 @@ function PanelBody(props: {
     return <AutomationsPanel draft={draft} set={set} />;
   }
 
+  // ── Media ──
+  if (panel === "media") {
+    return <MediaPanel draft={draft} set={set} setDraft={setDraft} />;
+  }
+
+  // ── Steps ──
+  if (panel === "steps") {
+    return <StepsPanel sections={sections} setSections={setSections} />;
+  }
+
   // ── Settings ──
   if (panel === "settings") {
     return (
@@ -736,6 +746,111 @@ function AutomationsPanel({
         );
       })}
       <p className="mt-2 text-[10px] text-muted-foreground">Email uses Resend; SMS uses Twilio. The owner&apos;s email/phone come from their staff profile.</p>
+    </Section>
+  );
+}
+
+// ── Media panel ─────────────────────────────────────────────────────────────────
+
+function MediaPanel({
+  draft, set, setDraft,
+}: {
+  draft: BusinessCard;
+  set: <K extends keyof BusinessCard>(k: K, v: BusinessCard[K]) => void;
+  setDraft: React.Dispatch<React.SetStateAction<BusinessCard>>;
+}) {
+  const media = (draft.media_settings || {}) as MediaSettings;
+  function setMedia(patch: Partial<MediaSettings>) {
+    setDraft((d) => ({ ...d, media_settings: { ...(d.media_settings as MediaSettings), ...patch } }));
+  }
+  return (
+    <>
+      <Section title="Background">
+        <ImageField label="Background image" value={draft.background_image_url} onChange={(v) => set("background_image_url", v)} />
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={Boolean(media.use_background_image)} onChange={(e) => setMedia({ use_background_image: e.target.checked })} />
+          Use background image (with a dark overlay)
+        </label>
+      </Section>
+      <Section title="Profile image">
+        <F label="Shape">
+          <select className={iCls} value={media.profile_shape || "circle"} onChange={(e) => setMedia({ profile_shape: e.target.value as MediaSettings["profile_shape"] })}>
+            <option value="circle">Circle</option>
+            <option value="rounded">Rounded</option>
+            <option value="square">Square</option>
+          </select>
+        </F>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={Boolean(media.profile_outline)} onChange={(e) => setMedia({ profile_outline: e.target.checked })} />
+          Accent outline around photo
+        </label>
+      </Section>
+      <Section title="Layout">
+        <F label="Content alignment">
+          <select className={iCls} value={media.content_align || "center"} onChange={(e) => setMedia({ content_align: e.target.value as MediaSettings["content_align"] })}>
+            <option value="center">Centered</option>
+            <option value="left">Left aligned</option>
+          </select>
+        </F>
+      </Section>
+    </>
+  );
+}
+
+// ── Steps panel ─────────────────────────────────────────────────────────────────
+
+function StepsPanel({
+  sections, setSections,
+}: {
+  sections: BusinessCardSection[];
+  setSections: React.Dispatch<React.SetStateAction<BusinessCardSection[]>>;
+}) {
+  const section = sections.find((s) => s.section_type === "steps");
+  const steps = (Array.isArray(section?.content?.steps) ? section!.content.steps : []) as StepItem[];
+
+  function ensureSection() {
+    if (section) return;
+    setSections([...sections, {
+      id: uid(), section_type: "steps", label: "Steps / how it works", content: { steps: [] },
+      display_order: sections.length + 1, is_visible: true, margin_top: 0, margin_bottom: 16, padding_top: 0, padding_bottom: 0,
+    }]);
+  }
+  function setSteps(next: StepItem[]) {
+    setSections((prev) => prev.map((s) => s.section_type === "steps" ? { ...s, content: { ...s.content, steps: next } } : s));
+  }
+  function addStep() {
+    ensureSection();
+    const current = (Array.isArray(section?.content?.steps) ? section!.content.steps : []) as StepItem[];
+    setSteps([...current, { id: uid(), title: "New step", description: "" }]);
+  }
+
+  if (!section) {
+    return (
+      <Section title="Steps / how it works">
+        <p className="mb-3 text-xs text-muted-foreground">Add an ordered list — e.g. your process, “how to work with me”, or next steps.</p>
+        <Button size="sm" variant="outline" onClick={addStep}><Plus className="h-3.5 w-3.5" /> Add first step</Button>
+      </Section>
+    );
+  }
+
+  return (
+    <Section title="Steps / how it works">
+      <div className="mb-3 flex items-center justify-between">
+        <button onClick={() => setSections(sections.map((s) => s.section_type === "steps" ? { ...s, is_visible: !s.is_visible } : s))} className={cn("flex items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm", section.is_visible ? "text-accent" : "text-muted-foreground")}>
+          {section.is_visible ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}{section.is_visible ? "Visible" : "Hidden"}
+        </button>
+        <Button size="sm" variant="outline" onClick={addStep}><Plus className="h-3.5 w-3.5" /> Add step</Button>
+      </div>
+      {steps.map((st, i) => (
+        <div key={st.id} className="mb-2 rounded-lg border border-border bg-card p-2.5">
+          <div className="mb-1.5 flex items-center gap-2">
+            <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-accent/15 text-[11px] font-bold text-accent">{i + 1}</span>
+            <input className={cn(iCls, "h-8")} placeholder="Step title" value={st.title} onChange={(e) => setSteps(steps.map((x, j) => j === i ? { ...x, title: e.target.value } : x))} />
+            <button onClick={() => setSteps(steps.filter((_, j) => j !== i))} className="text-destructive"><Trash2 className="h-4 w-4" /></button>
+          </div>
+          <textarea className={cn(iCls, "h-14 resize-none py-2")} placeholder="Description (optional)" value={st.description || ""} onChange={(e) => setSteps(steps.map((x, j) => j === i ? { ...x, description: e.target.value } : x))} />
+        </div>
+      ))}
     </Section>
   );
 }

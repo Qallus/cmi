@@ -27,6 +27,7 @@ export function makeDefaultSections(): BusinessCardSection[] {
     { type: "quick_actions", label: "Quick actions", visible: true },
     { type: "slideshow", label: "Slideshow", visible: false },
     { type: "links", label: "Links & socials", visible: true },
+    { type: "steps", label: "Steps / how it works", visible: false },
     { type: "lead_capture", label: "Lead capture", visible: true },
     { type: "video", label: "Intro video", visible: false },
     { type: "qr_code", label: "QR code", visible: true },

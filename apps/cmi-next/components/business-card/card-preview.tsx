@@ -4,14 +4,15 @@
 // No network calls; the parent supplies handlers for clicks/actions.
 
 import { ExternalLink, Mail, MessageSquare, Phone, QrCode } from "lucide-react";
-import type { BusinessCard, BusinessCardLink, BusinessCardSection, SlideshowSlide } from "@/lib/business-cards/types";
+import { cn } from "@/lib/utils";
+import type { BusinessCard, BusinessCardLink, BusinessCardSection, MediaSettings, SlideshowSlide, StepItem } from "@/lib/business-cards/types";
 
 export type PreviewCard = Pick<
   BusinessCard,
   | "display_name" | "first_name" | "last_name" | "job_title" | "company_name" | "bio"
-  | "profile_photo_url" | "logo_url" | "background_color" | "accent_color" | "text_color"
+  | "profile_photo_url" | "logo_url" | "background_image_url" | "background_color" | "accent_color" | "text_color"
   | "primary_phone" | "sms_phone" | "primary_email" | "website_url" | "maps_url" | "intro_video_url"
-  | "lead_form_settings" | "slug"
+  | "lead_form_settings" | "media_settings" | "slug"
 >;
 
 function hexAlpha(hex: string, alpha: number): string {
@@ -41,6 +42,11 @@ export function CardPreview({
   const text = card.text_color || "#f5f3ee";
   const surface = hexAlpha(text, 0.06);
   const border = hexAlpha(text, 0.12);
+
+  const media = (card.media_settings || {}) as MediaSettings;
+  const shapeClass = media.profile_shape === "square" ? "rounded-md" : media.profile_shape === "rounded" ? "rounded-2xl" : "rounded-full";
+  const alignClass = media.content_align === "left" ? "items-start text-left" : "items-center text-center";
+  const useBgImage = Boolean(media.use_background_image && card.background_image_url);
 
   const name = card.display_name || [card.first_name, card.last_name].filter(Boolean).join(" ") || "Your Name";
   const subtitle = [card.job_title, card.company_name].filter(Boolean).join(" · ");
@@ -84,13 +90,13 @@ export function CardPreview({
     switch (s.section_type) {
       case "profile_header":
         return wrap(
-          <div className="flex flex-col items-center text-center">
+          <div className={cn("flex flex-col", alignClass)}>
             {card.logo_url
               ? <img src={card.logo_url} alt="" className="mb-3 h-6 object-contain" />
               : <div className="mb-3 text-[10px] font-semibold uppercase tracking-[0.2em]" style={{ color: hexAlpha(text, 0.5) }}>{card.company_name || "Digital Card"}</div>}
             {card.profile_photo_url
-              ? <img src={card.profile_photo_url} alt={name} className="h-24 w-24 rounded-full object-cover" style={{ border: `2px solid ${border}` }} />
-              : <div className="grid h-24 w-24 place-items-center rounded-full text-2xl font-semibold" style={{ background: surface, color: accent, border: `2px solid ${border}` }}>{name.slice(0, 1)}</div>}
+              ? <img src={card.profile_photo_url} alt={name} className={cn("h-24 w-24 object-cover", shapeClass)} style={{ border: media.profile_outline ? `2px solid ${accent}` : `2px solid ${border}` }} />
+              : <div className={cn("grid h-24 w-24 place-items-center text-2xl font-semibold", shapeClass)} style={{ background: surface, color: accent, border: `2px solid ${border}` }}>{name.slice(0, 1)}</div>}
             <div className="mt-3 text-lg font-semibold" style={{ color: text }}>{name}</div>
             {subtitle && <div className="mt-0.5 text-xs font-medium" style={{ color: hexAlpha(text, 0.7) }}>{subtitle}</div>}
             {card.bio && <p className="mt-2 text-xs leading-5" style={{ color: hexAlpha(text, 0.7) }}>{card.bio}</p>}
@@ -168,6 +174,28 @@ export function CardPreview({
           </div>,
         );
       }
+      case "steps": {
+        const steps = (Array.isArray(s.content?.steps) ? s.content.steps : []) as StepItem[];
+        if (!steps.length) {
+          return wrap(<div className="rounded-xl px-4 py-3 text-xs" style={{ background: surface, border: `1px solid ${border}`, color: hexAlpha(text, 0.6) }}>
+            <div className="font-semibold" style={{ color: text }}>Steps</div>
+            Add steps in the Steps panel to show a “how it works” list.
+          </div>);
+        }
+        return wrap(
+          <div className="flex flex-col gap-2">
+            {steps.map((st, i) => (
+              <div key={st.id} className="flex gap-3 rounded-xl px-3 py-2.5" style={{ background: surface, border: `1px solid ${border}` }}>
+                <div className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-bold" style={{ background: accent, color: bg }}>{i + 1}</div>
+                <div>
+                  <div className="text-sm font-semibold" style={{ color: text }}>{st.title}</div>
+                  {st.description && <div className="text-xs" style={{ color: hexAlpha(text, 0.7) }}>{st.description}</div>}
+                </div>
+              </div>
+            ))}
+          </div>,
+        );
+      }
       case "nfc":
         return wrap(<div className="rounded-xl px-4 py-3 text-xs" style={{ background: surface, border: `1px solid ${border}`, color: hexAlpha(text, 0.6) }}>
           <div className="flex items-center gap-1.5 font-semibold" style={{ color: text }}><QrCode className="h-3.5 w-3.5" />NFC tap to share</div>
@@ -179,7 +207,15 @@ export function CardPreview({
   }
 
   return (
-    <div className="mx-auto w-full max-w-sm rounded-[26px] p-5" style={{ background: bg, color: text, border: `1px solid ${border}` }}>
+    <div
+      className="relative mx-auto w-full max-w-sm overflow-hidden rounded-[26px] p-5"
+      style={{
+        background: bg,
+        color: text,
+        border: `1px solid ${border}`,
+        ...(useBgImage ? { backgroundImage: `linear-gradient(${hexAlpha(bg, 0.82)}, ${hexAlpha(bg, 0.92)}), url(${card.background_image_url})`, backgroundSize: "cover", backgroundPosition: "center" } : {}),
+      }}
+    >
       {ordered.map(renderSection)}
       <div className="mt-4 text-center text-[10px]" style={{ color: hexAlpha(text, 0.4) }}>Powered by Constructed Matter</div>
     </div>

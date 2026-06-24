@@ -383,6 +383,74 @@ export async function deleteLead(id: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+export type CardAnalytics = {
+  rangeDays: number;
+  totals: Record<string, number>;
+  views: number;
+  clicks: number;
+  shares: number;
+  saves: number;
+  leads: number;
+  daily: { date: string; views: number; clicks: number }[];
+  topLinks: { label: string; count: number }[];
+};
+
+export async function loadCardAnalytics(cardId: string, rangeDays = 30): Promise<CardAnalytics> {
+  const sb = getSupabaseAdmin();
+  const since = new Date(Date.now() - rangeDays * 86400000);
+  const sinceIso = since.toISOString();
+
+  const [{ data: events }, { data: links }, { count: leadCount }] = await Promise.all([
+    sb.from("business_card_events").select("event_type, link_id, created_at").eq("card_id", cardId).gte("created_at", sinceIso).limit(5000),
+    sb.from("business_card_links").select("id, label").eq("card_id", cardId),
+    sb.from("business_card_leads").select("id", { count: "exact", head: true }).eq("card_id", cardId),
+  ]);
+
+  const totals: Record<string, number> = {};
+  const linkClicks: Record<string, number> = {};
+  const dayMap: Record<string, { views: number; clicks: number }> = {};
+
+  // Seed the last `min(rangeDays,14)` days so the chart has continuous bars.
+  const chartDays = Math.min(rangeDays, 14);
+  for (let i = chartDays - 1; i >= 0; i--) {
+    const d = new Date(Date.now() - i * 86400000);
+    dayMap[d.toISOString().slice(0, 10)] = { views: 0, clicks: 0 };
+  }
+
+  const VIEW = new Set(["view", "qr_scan", "nfc_tap"]);
+  const CLICK = new Set(["link_click", "copy_link"]);
+
+  for (const e of events ?? []) {
+    totals[e.event_type] = (totals[e.event_type] ?? 0) + 1;
+    if (e.link_id) linkClicks[e.link_id] = (linkClicks[e.link_id] ?? 0) + 1;
+    const day = String(e.created_at).slice(0, 10);
+    if (dayMap[day]) {
+      if (VIEW.has(e.event_type)) dayMap[day].views += 1;
+      else if (CLICK.has(e.event_type)) dayMap[day].clicks += 1;
+    }
+  }
+
+  const labelById = new Map((links ?? []).map((l) => [l.id, l.label]));
+  const topLinks = Object.entries(linkClicks)
+    .map(([id, count]) => ({ label: labelById.get(id) || "Link", count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 8);
+
+  const sum = (keys: string[]) => keys.reduce((n, k) => n + (totals[k] ?? 0), 0);
+
+  return {
+    rangeDays,
+    totals,
+    views: sum(["view", "qr_scan", "nfc_tap"]),
+    clicks: sum(["link_click", "copy_link"]),
+    shares: totals["share"] ?? 0,
+    saves: totals["save_contact"] ?? 0,
+    leads: leadCount ?? 0,
+    daily: Object.entries(dayMap).map(([date, v]) => ({ date: date.slice(5), ...v })),
+    topLinks,
+  };
+}
+
 export type StaffOption = { id: string; display_name: string; email: string | null; role_slug: string | null };
 
 export async function loadStaffOptions(): Promise<StaffOption[]> {

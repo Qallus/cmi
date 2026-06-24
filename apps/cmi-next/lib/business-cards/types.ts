@@ -10,7 +10,16 @@ export type LinkType =
 
 export type SectionType =
   | "opener" | "profile_header" | "quick_actions" | "links" | "lead_capture"
-  | "video" | "qr_code" | "nfc" | "slideshow";
+  | "video" | "qr_code" | "nfc" | "slideshow" | "steps";
+
+export type StepItem = { id: string; title: string; description?: string };
+
+export type MediaSettings = {
+  profile_shape?: "circle" | "rounded" | "square";
+  profile_outline?: boolean;
+  content_align?: "center" | "left";
+  use_background_image?: boolean;
+};
 
 export type AutomationAction = "notify_owner_email" | "notify_owner_sms" | "autoreply_email";
 

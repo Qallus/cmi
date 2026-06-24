@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import {
-  Archive, Copy, ExternalLink, Eye, IdCard, Mail, Pencil, Plus, QrCode,
+  Archive, BarChart3, Copy, ExternalLink, Eye, IdCard, Mail, Pencil, Plus, QrCode,
   RefreshCw, Trash2, Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import type { BusinessCard, CardStats } from "@/lib/business-cards/types";
 import type { StaffOption } from "@/lib/business-cards/data";
 import { CardBuilder } from "./card-builder";
 import { LeadsInbox } from "./leads-inbox";
+import { CardAnalyticsView } from "./card-analytics";
 
 type ApiResponse = {
   cards: BusinessCard[];
@@ -42,6 +43,7 @@ export function BusinessCardsClient() {
   const [view, setView] = React.useState<"cards" | "leads">("cards");
   const [statusFilter, setStatusFilter] = React.useState<"all" | "published" | "draft">("all");
   const [editing, setEditing] = React.useState<BusinessCard | "new" | null>(null);
+  const [analyticsCard, setAnalyticsCard] = React.useState<BusinessCard | null>(null);
   const [copied, setCopied] = React.useState<string | null>(null);
 
   const load = React.useCallback(async (which: "mine" | "all") => {
@@ -96,6 +98,10 @@ export function BusinessCardsClient() {
     if (!window.confirm(`Delete "${card.card_name}"? This cannot be undone.`)) return;
     await fetch(`/api/business-cards/${card.id}`, { method: "DELETE" });
     load(scope);
+  }
+
+  if (analyticsCard) {
+    return <CardAnalyticsView card={analyticsCard} onClose={() => setAnalyticsCard(null)} />;
   }
 
   if (editing) {
@@ -202,6 +208,7 @@ export function BusinessCardsClient() {
                 showOwner={scope === "all"}
                 copied={copied === card.id}
                 onEdit={() => openEdit(card)}
+                onAnalytics={() => setAnalyticsCard(card)}
                 onCopy={() => copyLink(card)}
                 onDelete={() => remove(card)}
                 onPublishToggle={() => setStatus(card, card.status === "published" ? "unpublished" : "published")}
@@ -217,10 +224,10 @@ export function BusinessCardsClient() {
 }
 
 function CardRow({
-  card, showOwner, copied, onEdit, onCopy, onDelete, onPublishToggle, onArchive,
+  card, showOwner, copied, onEdit, onAnalytics, onCopy, onDelete, onPublishToggle, onArchive,
 }: {
   card: BusinessCard; showOwner: boolean; copied: boolean;
-  onEdit: () => void; onCopy: () => void; onDelete: () => void; onPublishToggle: () => void; onArchive: () => void;
+  onEdit: () => void; onAnalytics: () => void; onCopy: () => void; onDelete: () => void; onPublishToggle: () => void; onArchive: () => void;
 }) {
   const url = `${PUBLIC_BASE}/c/${card.slug}`;
   const name = card.display_name || [card.first_name, card.last_name].filter(Boolean).join(" ") || card.card_name;
@@ -250,6 +257,7 @@ function CardRow({
 
       <div className="mt-3 flex flex-wrap gap-1.5">
         <Button size="sm" variant="accent" onClick={onEdit}><Pencil className="h-3.5 w-3.5" /> Edit</Button>
+        <Button size="sm" variant="outline" onClick={onAnalytics}><BarChart3 className="h-3.5 w-3.5" /> Analytics</Button>
         <Button size="sm" variant="outline" onClick={onCopy}><Copy className="h-3.5 w-3.5" /> {copied ? "Copied!" : "Copy link"}</Button>
         {published && <a href={url} target="_blank" rel="noreferrer"><Button size="sm" variant="outline"><Eye className="h-3.5 w-3.5" /> Public page</Button></a>}
         <a href={`/api/cards/qr?url=${encodeURIComponent(url)}&size=1024`} download={`${card.slug}-qr.png`}><Button size="sm" variant="outline"><QrCode className="h-3.5 w-3.5" /> QR PNG</Button></a>
