@@ -45,6 +45,45 @@ function formatDuration(secs: number | null) {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
+function looksLikeHtml(s: string) {
+  return /<\/?[a-z][\s\S]*>/i.test(s);
+}
+
+// Strip HTML to a readable plain-text snippet for list previews.
+function htmlToText(s: string) {
+  return s
+    .replace(/<(style|head|script)[\s\S]*?<\/\1>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&rarr;/gi, "→")
+    .replace(/&[a-z]+;/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// Render a stored email body as the actual email, sandboxed (no scripts),
+// with auto-fit height.
+function EmailFrame({ html }: { html: string }) {
+  const ref = React.useRef<HTMLIFrameElement>(null);
+  const [height, setHeight] = React.useState(360);
+  function fit() {
+    const doc = ref.current?.contentWindow?.document;
+    if (doc?.body) setHeight(Math.min(Math.max(doc.body.scrollHeight + 24, 200), 2400));
+  }
+  return (
+    <iframe
+      ref={ref}
+      title="Email preview"
+      srcDoc={html}
+      onLoad={fit}
+      sandbox="allow-same-origin"
+      className="w-full rounded-lg border border-border bg-white"
+      style={{ height }}
+    />
+  );
+}
+
 function timeAgo(iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
   const m = Math.floor(diff / 60000);
@@ -425,7 +464,7 @@ export function CommunicationsClient({
                           {"Call | "}{formatDuration(msg.duration_seconds) ?? "--"}
                         </div>
                       ) : msg.body ? (
-                        <div className="mt-0.5 text-xs text-muted-foreground line-clamp-2">{msg.body}</div>
+                        <div className="mt-0.5 text-xs text-muted-foreground line-clamp-2">{looksLikeHtml(msg.body) ? htmlToText(msg.body) : msg.body}</div>
                       ) : null}
                     </div>
                   </div>
@@ -470,7 +509,11 @@ export function CommunicationsClient({
                 {selected.body && (
                   <div>
                     <div className="mb-2 text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">Message</div>
-                    <div className="rounded-lg border border-border bg-background p-4 text-sm whitespace-pre-wrap leading-relaxed">{selected.body}</div>
+                    {looksLikeHtml(selected.body) ? (
+                      <EmailFrame html={selected.body} />
+                    ) : (
+                      <div className="rounded-lg border border-border bg-background p-4 text-sm whitespace-pre-wrap leading-relaxed">{selected.body}</div>
+                    )}
                   </div>
                 )}
                 {selected.channel !== "call" && (
