@@ -115,25 +115,135 @@ function FabBtn({ icon, label, onClick, accent }: { icon: React.ReactNode; label
   );
 }
 
+function youtubeId(url: string): string | null {
+  const m = /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([\w-]{11})/.exec(url);
+  return m ? m[1] : null;
+}
+function vimeoId(url: string): string | null {
+  const m = /vimeo\.com\/(?:video\/)?(\d+)/.exec(url);
+  return m ? m[1] : null;
+}
+
+function SplashVideo({ content, muted }: { content: Record<string, unknown>; muted: boolean }) {
+  const url = (content.video_url as string) || "";
+  const start = Number(content.video_start || 0);
+  const end = Number(content.video_end || 0);
+  const ref = React.useRef<HTMLVideoElement>(null);
+  const yt = youtubeId(url);
+  const vm = vimeoId(url);
+
+  if (yt) {
+    const params = new URLSearchParams({ autoplay: "1", controls: "1", playsinline: "1", rel: "0", mute: muted ? "1" : "0" });
+    if (start) params.set("start", String(start));
+    if (end) params.set("end", String(end));
+    return <iframe className="aspect-video w-full max-w-2xl rounded-xl border-0" src={`https://www.youtube.com/embed/${yt}?${params.toString()}`} allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen />;
+  }
+  if (vm) {
+    return <iframe className="aspect-video w-full max-w-2xl rounded-xl border-0" src={`https://player.vimeo.com/video/${vm}?autoplay=1&muted=${muted ? 1 : 0}${start ? `#t=${start}s` : ""}`} allow="autoplay; fullscreen; picture-in-picture" allowFullScreen />;
+  }
+  if (!url) return null;
+  return (
+    <video
+      ref={ref}
+      src={url}
+      className="w-full max-w-2xl rounded-xl"
+      autoPlay
+      playsInline
+      muted={muted}
+      controls
+      onLoadedMetadata={() => { if (ref.current && start) ref.current.currentTime = start; }}
+      onTimeUpdate={() => { if (ref.current && end && ref.current.currentTime >= end) ref.current.currentTime = start; }}
+    />
+  );
+}
+
+function SplashSlideshow({ slides }: { slides: { id: string; image_url: string; caption?: string }[] }) {
+  const [i, setI] = React.useState(0);
+  React.useEffect(() => {
+    if (slides.length < 2) return;
+    const t = setInterval(() => setI((p) => (p + 1) % slides.length), 3500);
+    return () => clearInterval(t);
+  }, [slides.length]);
+  if (!slides.length) return null;
+  return (
+    <div className="relative w-full max-w-2xl overflow-hidden rounded-xl">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={slides[i].image_url} alt={slides[i].caption || ""} className="h-72 w-full object-cover transition-opacity duration-500" />
+      {slides[i].caption && <div className="absolute inset-x-0 bottom-0 bg-black/50 px-4 py-2 text-sm text-white">{slides[i].caption}</div>}
+      {slides.length > 1 && (
+        <div className="absolute inset-x-0 bottom-2 flex justify-center gap-1.5">
+          {slides.map((s, idx) => <span key={s.id} className={`h-1.5 rounded-full transition-all ${idx === i ? "w-4 bg-white" : "w-1.5 bg-white/50"}`} />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Splash({ content, card, onView }: { content: Record<string, unknown>; card: BusinessCard; onView: () => void }) {
   const accent = card.accent_color;
+  const mode = (content.mode as string) || "standard";
+  const transition = (content.transition as string) || "fade";
+  const duration = Number(content.duration_seconds || 0);
+  const muted = (content.video_muted as boolean) ?? true;
+  const slides = (Array.isArray(content.slides) ? content.slides : []) as { id: string; image_url: string; caption?: string }[];
+
+  const [shown, setShown] = React.useState(false);
+  const [leaving, setLeaving] = React.useState(false);
+
+  const close = React.useCallback(() => { setLeaving(true); window.setTimeout(onView, 450); }, [onView]);
+
+  React.useEffect(() => {
+    const raf = requestAnimationFrame(() => setShown(true));
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    if (duration > 0) timer = setTimeout(close, duration * 1000);
+    return () => { cancelAnimationFrame(raf); if (timer) clearTimeout(timer); };
+  }, [duration, close]);
+
+  // Transition styles.
+  const active = shown && !leaving;
+  let transformStyle: React.CSSProperties = {};
+  if (transition === "fade") transformStyle = { opacity: active ? 1 : 0 };
+  else if (transition === "zoom") transformStyle = { opacity: active ? 1 : 0, transform: active ? "scale(1)" : leaving ? "scale(1.05)" : "scale(0.95)" };
+  else if (transition === "slide-up") transformStyle = { transform: active ? "translateY(0)" : leaving ? "translateY(-100%)" : "translateY(100%)" };
+  else if (transition === "slide-down") transformStyle = { transform: active ? "translateY(0)" : leaving ? "translateY(100%)" : "translateY(-100%)" };
+
   const eyebrow = (content.eyebrow as string) || "Digital Card";
   const title = (content.title as string) || "Welcome";
   const subtitle = (content.subtitle as string) || "Tap to view my digital business card.";
   const primary = (content.primary_label as string) || "View card";
   const secondary = (content.secondary_label as string) || (card.primary_phone ? "Call me" : "");
+  const logo = (content.logo_url as string) || "";
+
   return (
-    <div className="fixed inset-0 z-40 flex flex-col items-center justify-center px-6 text-center" style={{ background: card.background_color, color: card.text_color }}>
-      <div className="text-[11px] font-semibold uppercase tracking-[0.25em]" style={{ opacity: 0.6 }}>{eyebrow}</div>
-      <h1 className="mt-3 text-5xl font-bold">{title}</h1>
-      <p className="mt-2 text-sm" style={{ opacity: 0.7 }}>{subtitle}</p>
-      <div className="mt-6 flex gap-3">
-        <button onClick={onView} className="rounded-full px-6 py-2.5 text-sm font-semibold" style={{ background: "rgba(127,127,127,0.18)", color: accent }}>{primary}</button>
-        {secondary && card.primary_phone && (
-          <a href={`tel:${card.primary_phone}`} className="rounded-full px-6 py-2.5 text-sm font-semibold" style={{ background: "rgba(127,127,127,0.18)", color: accent }}>{secondary}</a>
-        )}
-      </div>
-      <div className="mt-6 text-[11px]" style={{ opacity: 0.5 }}>{card.slug}</div>
+    <div
+      className="fixed inset-0 z-40 flex flex-col items-center justify-center px-6 text-center transition-all duration-[450ms] ease-out"
+      style={{ background: card.background_color, color: card.text_color, ...transformStyle }}
+    >
+      {mode === "video" ? (
+        <>
+          <SplashVideo content={content} muted={muted} />
+          <button onClick={close} className="mt-6 rounded-full px-6 py-2.5 text-sm font-semibold" style={{ background: "rgba(127,127,127,0.18)", color: accent }}>{primary}</button>
+        </>
+      ) : mode === "slideshow" ? (
+        <>
+          <SplashSlideshow slides={slides} />
+          <button onClick={close} className="mt-6 rounded-full px-6 py-2.5 text-sm font-semibold" style={{ background: "rgba(127,127,127,0.18)", color: accent }}>{primary}</button>
+        </>
+      ) : (
+        <>
+          {logo && <img src={logo} alt="" className="mb-5 h-20 w-20 rounded-full object-cover" style={{ border: `2px solid ${accent}` }} />}
+          <div className="text-[11px] font-semibold uppercase tracking-[0.25em]" style={{ opacity: 0.6 }}>{eyebrow}</div>
+          <h1 className="mt-3 text-5xl font-bold">{title}</h1>
+          <p className="mt-2 text-sm" style={{ opacity: 0.7 }}>{subtitle}</p>
+          <div className="mt-6 flex gap-3">
+            <button onClick={close} className="rounded-full px-6 py-2.5 text-sm font-semibold" style={{ background: "rgba(127,127,127,0.18)", color: accent }}>{primary}</button>
+            {secondary && card.primary_phone && (
+              <a href={`tel:${card.primary_phone}`} className="rounded-full px-6 py-2.5 text-sm font-semibold" style={{ background: "rgba(127,127,127,0.18)", color: accent }}>{secondary}</a>
+            )}
+          </div>
+          <div className="mt-6 text-[11px]" style={{ opacity: 0.5 }}>{card.slug}</div>
+        </>
+      )}
     </div>
   );
 }

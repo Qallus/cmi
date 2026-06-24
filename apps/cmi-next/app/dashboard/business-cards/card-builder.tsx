@@ -388,25 +388,7 @@ function PanelBody(props: {
 
   // ── Splash / opener ──
   if (panel === "splash") {
-    const opener = sections.find((s) => s.section_type === "opener");
-    const content = (opener?.content || {}) as Record<string, string>;
-    function setContent(patch: Record<string, string>) {
-      setSections(sections.map((s) => s.section_type === "opener" ? { ...s, content: { ...content, ...patch } } : s));
-    }
-    return (
-      <Section title="Splash / opener page">
-        <F label="Show splash before card">
-          <button onClick={() => setSections(sections.map((s) => s.section_type === "opener" ? { ...s, is_visible: !s.is_visible } : s))} className={cn("flex items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm", opener?.is_visible ? "text-accent" : "text-muted-foreground")}>
-            {opener?.is_visible ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}{opener?.is_visible ? "Enabled" : "Disabled"}
-          </button>
-        </F>
-        <F label="Eyebrow"><input className={iCls} value={content.eyebrow ?? ""} onChange={(e) => setContent({ eyebrow: e.target.value })} placeholder="Digital Card" /></F>
-        <F label="Title"><input className={iCls} value={content.title ?? ""} onChange={(e) => setContent({ title: e.target.value })} placeholder="Welcome" /></F>
-        <F label="Subtitle"><input className={iCls} value={content.subtitle ?? ""} onChange={(e) => setContent({ subtitle: e.target.value })} placeholder="Tap to view my digital business card." /></F>
-        <F label="Primary button"><input className={iCls} value={content.primary_label ?? ""} onChange={(e) => setContent({ primary_label: e.target.value })} placeholder="View card" /></F>
-        <F label="Secondary button"><input className={iCls} value={content.secondary_label ?? ""} onChange={(e) => setContent({ secondary_label: e.target.value })} placeholder="Call me" /></F>
-      </Section>
-    );
+    return <SplashPanel sections={sections} setSections={setSections} />;
   }
 
   // ── QR ──
@@ -619,77 +601,222 @@ function NfcPanel({
 
 // ── Slideshow panel ─────────────────────────────────────────────────────────────
 
+// Reusable multi-image editor: multi-file upload + paste-URL(s) + caption/reorder.
+function SlideEditor({ slides, onChange }: { slides: SlideshowSlide[]; onChange: (next: SlideshowSlide[]) => void }) {
+  const [busy, setBusy] = React.useState(false);
+  const [urlText, setUrlText] = React.useState("");
+
+  async function addFiles(files: FileList) {
+    setBusy(true);
+    const added: SlideshowSlide[] = [];
+    for (const f of Array.from(files)) {
+      const url = await uploadFile(f);
+      if (url) added.push({ id: uid(), image_url: url, caption: "" });
+    }
+    setBusy(false);
+    if (added.length) onChange([...slides, ...added]);
+  }
+  function addUrls() {
+    const urls = urlText.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
+    if (!urls.length) return;
+    onChange([...slides, ...urls.map((u) => ({ id: uid(), image_url: u, caption: "" }))]);
+    setUrlText("");
+  }
+  function move(i: number, dir: -1 | 1) {
+    const j = i + dir;
+    if (j < 0 || j >= slides.length) return;
+    const next = slides.slice();
+    [next[i], next[j]] = [next[j], next[i]];
+    onChange(next);
+  }
+
+  return (
+    <div>
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <label className="flex cursor-pointer items-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs hover:bg-muted">
+          <Upload className="h-3.5 w-3.5" /> {busy ? "Uploading…" : "Upload images"}
+          <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => { if (e.target.files?.length) addFiles(e.target.files); e.target.value = ""; }} />
+        </label>
+        <span className="text-[11px] text-muted-foreground">{slides.length} image{slides.length === 1 ? "" : "s"}</span>
+      </div>
+      <div className="mb-3 flex gap-2">
+        <input className={cn(iCls, "h-8")} placeholder="Paste image URL(s) — comma/space separated" value={urlText}
+          onChange={(e) => setUrlText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addUrls(); } }} />
+        <Button size="sm" variant="outline" onClick={addUrls} disabled={!urlText.trim()}><Plus className="h-3.5 w-3.5" /> Add</Button>
+      </div>
+      {slides.length === 0 && <p className="text-xs text-muted-foreground">No images yet — upload files or paste URLs.</p>}
+      {slides.map((sl, i) => (
+        <div key={sl.id} className="mb-2 flex items-center gap-2 rounded-lg border border-border bg-card p-2">
+          <img src={sl.image_url} alt="" className="h-12 w-12 rounded object-cover" />
+          <input className={cn(iCls, "h-8")} placeholder="Caption (optional)" value={sl.caption || ""}
+            onChange={(e) => onChange(slides.map((x, j) => j === i ? { ...x, caption: e.target.value } : x))} />
+          <div className="flex flex-col">
+            <button onClick={() => move(i, -1)} disabled={i === 0} className="text-muted-foreground disabled:opacity-30"><ChevronUp className="h-3.5 w-3.5" /></button>
+            <button onClick={() => move(i, 1)} disabled={i === slides.length - 1} className="text-muted-foreground disabled:opacity-30"><ChevronDown className="h-3.5 w-3.5" /></button>
+          </div>
+          <button onClick={() => onChange(slides.filter((_, j) => j !== i))} className="text-destructive"><Trash2 className="h-4 w-4" /></button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function SlideshowPanel({
   sections, setSections,
 }: {
   sections: BusinessCardSection[];
   setSections: React.Dispatch<React.SetStateAction<BusinessCardSection[]>>;
 }) {
-  const [busy, setBusy] = React.useState(false);
   const section = sections.find((s) => s.section_type === "slideshow");
   const slides = (Array.isArray(section?.content?.slides) ? section!.content.slides : []) as SlideshowSlide[];
 
-  function ensureSection(): BusinessCardSection {
-    if (section) return section;
-    const created: BusinessCardSection = {
-      id: uid(), section_type: "slideshow", label: "Slideshow", content: { slides: [] },
-      display_order: sections.length + 1, is_visible: true, margin_top: 0, margin_bottom: 16, padding_top: 0, padding_bottom: 0,
-    };
-    setSections([...sections, created]);
-    return created;
-  }
-
   function setSlides(next: SlideshowSlide[]) {
-    setSections((prev) => prev.map((s) => s.section_type === "slideshow" ? { ...s, content: { ...s.content, slides: next } } : s));
-  }
-
-  async function addImage(file: File) {
-    ensureSection();
-    setBusy(true);
-    const url = await uploadFile(file);
-    setBusy(false);
-    if (!url) return;
-    const current = (Array.isArray(section?.content?.slides) ? section!.content.slides : []) as SlideshowSlide[];
-    setSlides([...current, { id: uid(), image_url: url, caption: "" }]);
-  }
-
-  if (!section) {
-    return (
-      <Section title="Slideshow">
-        <p className="mb-3 text-xs text-muted-foreground">Show a swipeable image gallery on your card — projects, products, or photos.</p>
-        <label className="flex cursor-pointer items-center gap-1 rounded-md border border-border px-3 py-2 text-sm hover:bg-muted">
-          <Plus className="h-4 w-4" /> {busy ? "Uploading…" : "Add first image"}
-          <input type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) addImage(f); }} />
-        </label>
-      </Section>
-    );
+    setSections((prev) => {
+      if (!prev.some((s) => s.section_type === "slideshow")) {
+        return [...prev, {
+          id: uid(), section_type: "slideshow", label: "Slideshow", content: { slides: next },
+          display_order: prev.length + 1, is_visible: true, margin_top: 0, margin_bottom: 16, padding_top: 0, padding_bottom: 0,
+        }];
+      }
+      return prev.map((s) => s.section_type === "slideshow" ? { ...s, content: { ...s.content, slides: next } } : s);
+    });
   }
 
   return (
     <Section title="Slideshow">
-      <div className="mb-3 flex items-center justify-between">
-        <button onClick={() => setSections(sections.map((s) => s.section_type === "slideshow" ? { ...s, is_visible: !s.is_visible } : s))} className={cn("flex items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm", section.is_visible ? "text-accent" : "text-muted-foreground")}>
-          {section.is_visible ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}{section.is_visible ? "Visible" : "Hidden"}
-        </button>
-        <label className="flex cursor-pointer items-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs hover:bg-muted">
-          <Plus className="h-3.5 w-3.5" /> {busy ? "Uploading…" : "Add image"}
-          <input type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) addImage(f); }} />
-        </label>
-      </div>
-      {slides.length === 0 && <p className="text-xs text-muted-foreground">No images yet. Add one above.</p>}
-      {slides.map((sl, i) => (
-        <div key={sl.id} className="mb-2 flex items-center gap-2 rounded-lg border border-border bg-card p-2">
-          <img src={sl.image_url} alt="" className="h-12 w-12 rounded object-cover" />
-          <input
-            className={cn(iCls, "h-8")}
-            placeholder="Caption (optional)"
-            value={sl.caption || ""}
-            onChange={(e) => setSlides(slides.map((x, j) => j === i ? { ...x, caption: e.target.value } : x))}
-          />
-          <button onClick={() => setSlides(slides.filter((_, j) => j !== i))} className="text-destructive"><Trash2 className="h-4 w-4" /></button>
+      <p className="mb-3 text-xs text-muted-foreground">A swipeable image gallery on your card — upload files or paste image URLs.</p>
+      {section && (
+        <div className="mb-3">
+          <button onClick={() => setSections(sections.map((s) => s.section_type === "slideshow" ? { ...s, is_visible: !s.is_visible } : s))} className={cn("flex items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm", section.is_visible ? "text-accent" : "text-muted-foreground")}>
+            {section.is_visible ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}{section.is_visible ? "Visible on card" : "Hidden"}
+          </button>
         </div>
-      ))}
+      )}
+      <SlideEditor slides={slides} onChange={setSlides} />
     </Section>
+  );
+}
+
+function SplashPanel({
+  sections, setSections,
+}: {
+  sections: BusinessCardSection[];
+  setSections: React.Dispatch<React.SetStateAction<BusinessCardSection[]>>;
+}) {
+  const opener = sections.find((s) => s.section_type === "opener");
+  const content = (opener?.content || {}) as Record<string, unknown>;
+  const mode = (content.mode as string) || "standard";
+  const str = (k: string) => (content[k] as string) ?? "";
+  const slides = (Array.isArray(content.slides) ? content.slides : []) as SlideshowSlide[];
+  const enabled = opener?.is_visible ?? false;
+
+  function withOpener(list: BusinessCardSection[]): BusinessCardSection[] {
+    if (list.some((s) => s.section_type === "opener")) return list;
+    return [{ id: uid(), section_type: "opener", label: "Opener / splash", content: { mode: "standard" }, display_order: 1, is_visible: true, margin_top: 0, margin_bottom: 16, padding_top: 0, padding_bottom: 0 }, ...list];
+  }
+  function setContent(patch: Record<string, unknown>) {
+    setSections((prev) => withOpener(prev).map((s) => s.section_type === "opener" ? { ...s, content: { ...(s.content as Record<string, unknown>), ...patch } } : s));
+  }
+  function toggle() {
+    setSections((prev) => withOpener(prev).map((s) => s.section_type === "opener" ? { ...s, is_visible: !s.is_visible } : s));
+  }
+
+  const tabs: [string, string, React.ElementType][] = [
+    ["standard", "Standard", User], ["video", "Video", PlayCircle], ["slideshow", "Slideshow", GalleryHorizontal],
+  ];
+
+  return (
+    <Section title="Splash / opener page">
+      <F label="Show splash before card">
+        <button onClick={toggle} className={cn("flex items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm", enabled ? "text-accent" : "text-muted-foreground")}>
+          {enabled ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}{enabled ? "Enabled" : "Disabled"}
+        </button>
+      </F>
+
+      <div className="grid grid-cols-2 gap-2">
+        <F label="Auto-dismiss after (sec)" hint="0 = stay until tapped">
+          <input type="number" min={0} className={iCls} value={(content.duration_seconds as number) ?? 0} onChange={(e) => setContent({ duration_seconds: Number(e.target.value) })} />
+        </F>
+        <F label="Transition">
+          <select className={iCls} value={(content.transition as string) || "fade"} onChange={(e) => setContent({ transition: e.target.value })}>
+            <option value="none">None</option>
+            <option value="fade">Fade</option>
+            <option value="slide-up">Slide up</option>
+            <option value="slide-down">Slide down</option>
+            <option value="zoom">Zoom</option>
+          </select>
+        </F>
+      </div>
+
+      {/* Mode tabs */}
+      <div className="mb-3 mt-1 flex gap-1 rounded-lg border border-border bg-muted/40 p-1">
+        {tabs.map(([key, label, Icon]) => (
+          <button key={key} onClick={() => setContent({ mode: key })} className={cn("flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition", mode === key ? "bg-card text-accent shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+            <Icon className="h-3.5 w-3.5" />{label}
+          </button>
+        ))}
+      </div>
+
+      {mode === "standard" && (
+        <>
+          <ImageField label="Logo / photo" value={str("logo_url") || null} onChange={(v) => setContent({ logo_url: v || "" })} />
+          <F label="…or paste a logo/photo URL"><input className={iCls} value={str("logo_url")} onChange={(e) => setContent({ logo_url: e.target.value })} placeholder="https://…" /></F>
+          <F label="Eyebrow"><input className={iCls} value={str("eyebrow")} onChange={(e) => setContent({ eyebrow: e.target.value })} placeholder="Digital Card" /></F>
+          <F label="Title"><input className={iCls} value={str("title")} onChange={(e) => setContent({ title: e.target.value })} placeholder="Welcome" /></F>
+          <F label="Subtitle"><input className={iCls} value={str("subtitle")} onChange={(e) => setContent({ subtitle: e.target.value })} placeholder="Tap to view my digital business card." /></F>
+          <F label="Primary button"><input className={iCls} value={str("primary_label")} onChange={(e) => setContent({ primary_label: e.target.value })} placeholder="View card" /></F>
+          <F label="Secondary button"><input className={iCls} value={str("secondary_label")} onChange={(e) => setContent({ secondary_label: e.target.value })} placeholder="Call me" /></F>
+        </>
+      )}
+
+      {mode === "video" && <VideoSplashFields content={content} setContent={setContent} />}
+
+      {mode === "slideshow" && (
+        <>
+          <p className="mb-2 text-xs text-muted-foreground">Full-screen image slideshow as the opener.</p>
+          <SlideEditor slides={slides} onChange={(n) => setContent({ slides: n })} />
+        </>
+      )}
+    </Section>
+  );
+}
+
+function VideoSplashFields({
+  content, setContent,
+}: {
+  content: Record<string, unknown>;
+  setContent: (patch: Record<string, unknown>) => void;
+}) {
+  const url = (content.video_url as string) || "";
+  const start = (content.video_start as number) ?? 0;
+  const end = (content.video_end as number) ?? 0;
+  const muted = (content.video_muted as boolean) ?? true;
+  const isFile = /\.(mp4|webm|ogg|mov)(\?|$)/i.test(url);
+  const ref = React.useRef<HTMLVideoElement>(null);
+
+  return (
+    <>
+      <F label="Video URL" hint="YouTube, Vimeo, or a direct .mp4/.webm link">
+        <input className={iCls} value={url} onChange={(e) => setContent({ video_url: e.target.value })} placeholder="https://…" />
+      </F>
+      {isFile && url && (
+        <div className="mb-3">
+          <video ref={ref} src={url} controls className="w-full rounded-lg border border-border" />
+          <div className="mt-1.5 flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => setContent({ video_start: Math.floor(ref.current?.currentTime || 0) })}>Set start to ⏱</Button>
+            <Button size="sm" variant="outline" onClick={() => setContent({ video_end: Math.floor(ref.current?.currentTime || 0) })}>Set end to ⏱</Button>
+          </div>
+        </div>
+      )}
+      <div className="grid grid-cols-2 gap-2">
+        <F label="Start (seconds)"><input type="number" min={0} className={iCls} value={start} onChange={(e) => setContent({ video_start: Number(e.target.value) })} /></F>
+        <F label="End (seconds)" hint="0 = play to end"><input type="number" min={0} className={iCls} value={end} onChange={(e) => setContent({ video_end: Number(e.target.value) })} /></F>
+      </div>
+      <label className="flex items-center gap-2 text-sm">
+        <input type="checkbox" checked={!muted} onChange={(e) => setContent({ video_muted: !e.target.checked })} /> Play with audio
+      </label>
+      <p className="mt-1 text-[10px] text-muted-foreground">Browsers require muted autoplay; with audio on, the visitor may need to tap to start sound.</p>
+    </>
   );
 }
 
