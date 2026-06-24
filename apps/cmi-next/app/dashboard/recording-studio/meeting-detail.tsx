@@ -165,7 +165,6 @@ export function MeetingDetail({ id, options, onBack, onDeleted }: { id: string; 
   if (!meeting) return <div className="p-8 text-sm text-destructive">{error || "Meeting not found."}</div>;
 
   const attendeesText = (f.attendees ?? []).map((a) => a.name).join("\n");
-  const isVideo = (meeting.recording_mime || "").startsWith("video");
 
   return (
     <div className="flex h-[calc(100vh-56px)] flex-col overflow-y-auto">
@@ -225,21 +224,19 @@ export function MeetingDetail({ id, options, onBack, onDeleted }: { id: string; 
             <div className="text-sm font-semibold">Recording</div>
             {meeting.recording_path && playbackUrl ? (
               <div className="space-y-2">
-                {isVideo
-                  ? <video src={playbackUrl} controls className="w-full rounded-lg border border-border" />
-                  : <audio src={playbackUrl} controls className="w-full" />}
+                <audio src={playbackUrl} controls className="w-full" />
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <span className="truncate">{meeting.recording_filename}</span>
                   <a href={playbackUrl} download={meeting.recording_filename ?? "recording"} className="ml-auto inline-flex items-center gap-1 hover:text-foreground"><Download className="h-3.5 w-3.5" />Download</a>
                 </div>
               </div>
             ) : (
-              <p className="text-xs text-muted-foreground">No recording yet — upload a file or record audio in the browser.</p>
+              <p className="text-xs text-muted-foreground">No recording yet — upload an audio file or record audio in the browser.</p>
             )}
             <div className="flex flex-wrap gap-2">
               <label className="flex cursor-pointer items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs hover:bg-muted">
-                <Upload className="h-3.5 w-3.5" /> {uploading ? "Uploading…" : meeting.recording_path ? "Replace file" : "Upload file"}
-                <input type="file" accept="audio/*,video/*" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) uploadBlob(file, file.name); e.target.value = ""; }} />
+                <Upload className="h-3.5 w-3.5" /> {uploading ? "Uploading…" : meeting.recording_path ? "Replace audio" : "Upload audio"}
+                <input type="file" accept="audio/*" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) uploadBlob(file, file.name); e.target.value = ""; }} />
               </label>
               {recording ? (
                 <Button size="sm" variant="destructive" onClick={stopRec}><Square className="h-3.5 w-3.5" /> Stop &amp; save</Button>
