@@ -19,7 +19,7 @@ export const ENTITIES: AgentEntity[] = [
       { name: "email", type: "string", desc: "Email address", required: true },
       { name: "phone", type: "string", desc: "Phone number" },
       { name: "company", type: "string", desc: "Company name" },
-      { name: "type", type: "enum", desc: "Contact type", enumValues: ["Client", "Lead", "Vendor", "Sub Contractor"] },
+      { name: "type", type: "enum", desc: "Contact type", enumValues: ["Client", "Lead", "Prospect", "Customer", "Vendor", "Sub Contractor", "Designer", "Other"] },
       { name: "status", type: "enum", desc: "Lifecycle status", enumValues: ["active", "inactive", "archived"] },
       { name: "address", type: "string", desc: "Street address" },
       { name: "city", type: "string", desc: "City" },
