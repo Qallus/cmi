@@ -3,6 +3,8 @@ import { loadPortfolioItems } from "@/lib/portfolio/data";
 import { demoPortfolioItems } from "@/lib/portfolio/demo-data";
 import { PortfolioClient } from "./portfolio-client";
 
+export const dynamic = "force-dynamic";
+
 export default async function PortfolioDashboardPage() {
   try {
     const items = await loadPortfolioItems();

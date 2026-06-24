@@ -2,6 +2,8 @@ import { loadBookingData } from "@/lib/booking/data";
 import { getDemoBookingData } from "@/lib/booking/demo-data";
 import { BookingsClient } from "./bookings-client";
 
+export const dynamic = "force-dynamic";
+
 export default async function BookingsPage() {
   try {
     const data = await loadBookingData();

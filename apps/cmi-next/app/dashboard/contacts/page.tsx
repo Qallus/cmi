@@ -3,6 +3,8 @@ import { ContactsClient } from "./contacts-client";
 
 export const metadata = { title: "Contacts — CMI Dashboard" };
 
+export const dynamic = "force-dynamic";
+
 export default async function ContactsPage() {
   try {
     const contacts = await loadContacts();

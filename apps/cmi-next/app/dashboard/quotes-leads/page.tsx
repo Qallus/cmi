@@ -3,6 +3,8 @@ import { QuotesClient } from "./quotes-client";
 
 export const metadata = { title: "Quotes & Leads — CMI Dashboard" };
 
+export const dynamic = "force-dynamic";
+
 export default async function QuotesLeadsPage() {
   try {
     const quotes = await loadQuotes();

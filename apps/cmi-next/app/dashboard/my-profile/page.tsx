@@ -23,6 +23,8 @@ async function loadProfile() {
   return data ?? null;
 }
 
+export const dynamic = "force-dynamic";
+
 export default async function MyProfilePage() {
   try {
     const profile = await loadProfile();

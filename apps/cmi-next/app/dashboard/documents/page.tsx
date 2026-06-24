@@ -44,6 +44,8 @@ async function loadDocuments(): Promise<Document[]> {
   return (data ?? []) as Document[];
 }
 
+export const dynamic = "force-dynamic";
+
 export default async function DocumentsPage() {
   try {
     const docs = await loadDocuments();

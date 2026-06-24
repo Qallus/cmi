@@ -3,6 +3,8 @@ import { TeamClient } from "./team-client";
 
 export const metadata = { title: "Team — CMI Dashboard" };
 
+export const dynamic = "force-dynamic";
+
 export default async function TeamPage() {
   try {
     const members = await loadTeamMembers();

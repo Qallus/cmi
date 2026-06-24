@@ -26,6 +26,8 @@ async function loadBlocks(): Promise<ContentBlock[]> {
   return (data ?? []) as ContentBlock[];
 }
 
+export const dynamic = "force-dynamic";
+
 export default async function SiteContentPage() {
   try {
     const blocks = await loadBlocks();

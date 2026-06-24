@@ -3,6 +3,8 @@ import { loadProjectManagerData } from "@/lib/project-manager/data";
 import { getDemoProjectManagerData } from "@/lib/project-manager/demo-data";
 import { ProjectManagerClient } from "./project-manager-client";
 
+export const dynamic = "force-dynamic";
+
 export default async function ProjectManagerPage() {
   try {
     const data = await loadProjectManagerData("default");

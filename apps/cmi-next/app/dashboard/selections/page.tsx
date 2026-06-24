@@ -2,6 +2,8 @@ import { loadSelectionsData } from "@/lib/selections/data";
 import { getDemoSelectionsData } from "@/lib/selections/demo-data";
 import { SelectionsClient } from "./selections-client";
 
+export const dynamic = "force-dynamic";
+
 export default async function SelectionsPage() {
   try {
     const data = await loadSelectionsData();
