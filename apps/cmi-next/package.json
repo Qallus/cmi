@@ -12,13 +12,15 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",
+    "@twilio/voice-sdk": "^2.18.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.468.0",
     "next": "^16.2.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "tailwind-merge": "^2.5.5"
+    "tailwind-merge": "^2.5.5",
+    "twilio": "^6.0.2"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

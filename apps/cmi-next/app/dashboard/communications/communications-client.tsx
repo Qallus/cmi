@@ -12,6 +12,7 @@ import type { Message, MessageChannel } from "@/lib/communications/types";
 import type { ContactSubmission, ContactSubmissionStatus } from "@/lib/contact-submissions/types";
 import { TemplateManager } from "@/components/email-builder/template-manager";
 import { DynamicFieldsBar } from "@/components/ui/dynamic-fields-bar";
+import { CallsWorkspace } from "./calls-workspace";
 
 type Tab = "all" | MessageChannel | "contact_form" | "templates";
 
@@ -67,12 +68,7 @@ interface ComposePayload {
   body: string;
 }
 
-interface CallPayload {
-  to: string;
-}
-
 const EMPTY_COMPOSE: ComposePayload = { channel: "email", to: "", subject: "", body: "" };
-const EMPTY_CALL: CallPayload = { to: "" };
 
 export function CommunicationsClient({
   initialMessages,
@@ -88,10 +84,6 @@ export function CommunicationsClient({
   const [draft, setDraft] = React.useState<ComposePayload>(EMPTY_COMPOSE);
   const [sending, setSending] = React.useState(false);
   const [sendError, setSendError] = React.useState<string | null>(null);
-  const [callDraft, setCallDraft] = React.useState<CallPayload>(EMPTY_CALL);
-  const [calling, setCalling] = React.useState(false);
-  const [callError, setCallError] = React.useState<string | null>(null);
-  const [callNotice, setCallNotice] = React.useState<string | null>(null);
   const [selected, setSelected] = React.useState<Message | null>(null);
   const [selectedSubmission, setSelectedSubmission] = React.useState<ContactSubmission | null>(null);
   const [submissionFilter, setSubmissionFilter] = React.useState<ContactSubmissionStatus | "all">("all");
@@ -206,24 +198,6 @@ export function CommunicationsClient({
     } finally { setSending(false); }
   }
 
-  async function startCall() {
-    if (!callDraft.to) { setCallError("Recipient phone number is required."); return; }
-    setCalling(true); setCallError(null); setCallNotice(null);
-    try {
-      const res = await fetch("/api/communications/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ channel: "call", ...callDraft }),
-      });
-      const json = await res.json() as Message & { error?: string };
-      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
-      setMessages((prev) => [json, ...prev]);
-      setCallNotice("Call queued from the Constructed Matter Twilio number.");
-    } catch (err) {
-      setCallError(err instanceof Error ? err.message : "Call failed.");
-    } finally { setCalling(false); }
-  }
-
   async function updateSubmissionStatus(id: string, status: ContactSubmissionStatus) {
     try {
       await fetch("/api/contact-submissions", {
@@ -240,6 +214,11 @@ export function CommunicationsClient({
     } catch {
       // silent fail -- optimistic update already applied
     }
+  }
+
+  function composeSmsTo(phone: string) {
+    openCompose("sms");
+    setDraft((d) => ({ ...d, channel: "sms", to: phone }));
   }
 
   function openSubmission(sub: ContactSubmission) {
@@ -305,6 +284,8 @@ export function CommunicationsClient({
         <div className="flex-1 overflow-hidden">
           <TemplateManager />
         </div>
+      ) : tab === "call" ? (
+        <CallsWorkspace onSmsTo={composeSmsTo} />
       ) : tab === "contact_form" ? (
         <div className="flex flex-1 overflow-hidden">
           <div className="flex-1 overflow-y-auto">
@@ -388,16 +369,6 @@ export function CommunicationsClient({
         /* Original message list + detail pane */
         <div className="flex flex-1 overflow-hidden">
           <div className={cn("flex-1 overflow-y-auto divide-y divide-border", selected && "hidden md:block md:w-[360px] md:flex-none")}>
-            {tab === "call" && (
-              <CallDialer
-                draft={callDraft}
-                setDraft={setCallDraft}
-                calling={calling}
-                error={callError}
-                notice={callNotice}
-                onCall={() => void startCall()}
-              />
-            )}
             {filtered.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-24 text-center">
                 <div className="flex h-14 w-14 items-center justify-center rounded-full border border-border bg-card mb-4">
@@ -821,100 +792,6 @@ export function CommunicationsClient({
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-function CallDialer({
-  draft,
-  setDraft,
-  calling,
-  error,
-  notice,
-  onCall,
-}: {
-  draft: CallPayload;
-  setDraft: React.Dispatch<React.SetStateAction<CallPayload>>;
-  calling: boolean;
-  error: string | null;
-  notice: string | null;
-  onCall: () => void;
-}) {
-  const keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "+", "0", "#"];
-
-  function append(value: string) {
-    setDraft((prev) => ({ ...prev, to: `${prev.to}${value}` }));
-  }
-
-  function backspace() {
-    setDraft((prev) => ({ ...prev, to: prev.to.slice(0, -1) }));
-  }
-
-  return (
-    <div className="border-b border-border bg-card/70 p-5">
-      <div className="grid gap-5 lg:grid-cols-[360px_1fr]">
-        <div className="rounded-xl border border-border bg-background p-4 shadow-sm">
-          <div className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent/10 text-accent">
-              <Phone className="h-4 w-4" />
-            </div>
-            <div>
-              <div className="text-sm font-semibold">Twilio Dialer</div>
-              <div className="text-xs text-muted-foreground">Click-to-call bridge for outbound calls.</div>
-            </div>
-          </div>
-
-          {error ? <div className="mt-4 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div> : null}
-          {notice ? <div className="mt-4 rounded-lg bg-success/10 px-3 py-2 text-sm text-success">{notice}</div> : null}
-
-          <div className="mt-4 space-y-3">
-            <CF label="Recipient phone">
-              <div className="flex gap-2">
-                <input
-                  className={iCls}
-                  placeholder="+1 602 555 0100"
-                  value={draft.to}
-                  onChange={(e) => setDraft((prev) => ({ ...prev, to: e.target.value }))}
-                />
-                <Button type="button" size="sm" variant="outline" onClick={backspace} disabled={!draft.to || calling}>
-                  Delete
-                </Button>
-              </div>
-            </CF>
-          </div>
-
-          <div className="mt-4 grid grid-cols-3 gap-2">
-            {keys.map((key) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => append(key)}
-                disabled={calling}
-                className="flex h-11 items-center justify-center rounded-lg border border-border bg-card text-base font-semibold transition hover:border-accent hover:text-accent disabled:opacity-50"
-              >
-                {key}
-              </button>
-            ))}
-          </div>
-
-          <Button type="button" variant="accent" className="mt-4 w-full" onClick={onCall} disabled={calling}>
-            <Phone className="h-4 w-4" />
-            {calling ? "Queueing call..." : "Start Outbound Call"}
-          </Button>
-        </div>
-
-        <div className="rounded-xl border border-border bg-background p-4">
-          <div className="text-sm font-semibold">How this call works</div>
-          <div className="mt-3 space-y-3 text-sm leading-6 text-muted-foreground">
-            <p>1. Calls are placed from the Constructed Matter Twilio number: +1 480 906 4400.</p>
-            <p>2. Enter the recipient number and start the outbound call.</p>
-            <p>3. The queued call is saved into Communications when the messages table is installed.</p>
-          </div>
-          <div className="mt-4 rounded-lg border border-border bg-muted/40 p-3 text-xs leading-5 text-muted-foreground">
-            For live two-way browser calling with microphone controls, the next phase is adding a TwiML App, Twilio Voice SDK access tokens, and a browser softphone.
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
