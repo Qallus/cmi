@@ -35,8 +35,9 @@ function pickAllowed(entity: AgentEntity, data: Record<string, unknown>): Record
   return out;
 }
 
-const selectColumns = (entity: AgentEntity) =>
-  [entity.idColumn, ...entity.fields.map((f) => f.name)].filter((v, i, a) => a.indexOf(v) === i).join(", ");
+// Select all columns — resilient to any drift between the registry field list
+// and the actual table columns (reads never fail on a missing column).
+const selectColumns = (_entity: AgentEntity) => "*";
 
 async function ensureUniqueSlug(table: string, base: string): Promise<string> {
   const sb = getSupabaseAdmin();
@@ -65,8 +66,12 @@ export async function listRecords(entityKey: string, opts: { search?: string; fi
     }
   }
   if (opts.search && entity.searchColumns?.length) {
-    const clean = opts.search.replace(/[,%()]/g, " ").trim();
-    q = q.or(entity.searchColumns.map((c) => `${c}.ilike.%${clean}%`).join(","));
+    // Tokenize: each word must match at least one search column (AND across
+    // words, OR across columns) so "Jeremy Waters" matches first+last name.
+    const tokens = opts.search.replace(/[,%()]/g, " ").split(/\s+/).map((t) => t.trim()).filter(Boolean);
+    for (const token of tokens) {
+      q = q.or(entity.searchColumns.map((c) => `${c}.ilike.%${token}%`).join(","));
+    }
   }
 
   const { data, error } = await q;

@@ -166,8 +166,6 @@ export const ENTITIES: AgentEntity[] = [
       { name: "status", type: "enum", desc: "Status", enumValues: ["draft", "published", "hidden", "archived"] },
       { name: "is_featured", type: "boolean", desc: "Featured on site" },
       { name: "client_visible", type: "boolean", desc: "Visible to clients" },
-      { name: "seo_title", type: "string", desc: "SEO title" },
-      { name: "seo_description", type: "text", desc: "SEO description" },
     ],
   },
   {
