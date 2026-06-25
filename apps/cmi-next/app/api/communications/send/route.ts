@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { logMessage } from "@/lib/communications/data";
+import { isSuppressed } from "@/lib/messaging/consent";
 import type { Message } from "@/lib/communications/types";
 import type { SendCallPayload, SendEmailPayload, SendSmsPayload } from "@/lib/communications/types";
 
@@ -30,6 +31,9 @@ export async function POST(req: Request) {
 }
 
 async function sendEmail(payload: SendEmailPayload & { channel: "email" }) {
+  if (await isSuppressed("email", payload.to)) {
+    return NextResponse.json({ error: `${payload.to} has opted out of email and was not contacted.` }, { status: 409 });
+  }
   const resendKey = process.env.RESEND_API_KEY || process.env.RESEND_KEY;
   const fromEmail = process.env.RESEND_FROM_EMAIL ?? "noreply@constructedmatter.com";
 
@@ -72,6 +76,9 @@ async function sendEmail(payload: SendEmailPayload & { channel: "email" }) {
 }
 
 async function sendSms(payload: SendSmsPayload & { channel: "sms" }) {
+  if (await isSuppressed("sms", payload.to)) {
+    return NextResponse.json({ error: `${payload.to} has opted out of SMS and was not contacted.` }, { status: 409 });
+  }
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
   const authToken = process.env.TWILIO_AUTH_TOKEN;
   const fromNumber = process.env.TWILIO_PHONE_NUMBER;

@@ -1,6 +1,7 @@
 // Executes a card's lead-submit automations: owner email/SMS notifications and
 // auto-reply email to the lead. Uses Resend (email) and Twilio (SMS).
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { isSuppressed } from "@/lib/messaging/consent";
 import type { Automation } from "./types";
 
 type LeadInput = {
@@ -68,16 +69,16 @@ export async function runLeadAutomations(card: CardInfo, lead: LeadInput): Promi
 
   for (const rule of rules) {
     try {
-      if (rule.action === "notify_owner_email" && ownerEmail) {
+      if (rule.action === "notify_owner_email" && ownerEmail && !(await isSuppressed("email", ownerEmail))) {
         await sendEmail(
           ownerEmail,
           `New lead from ${cardLabel}`,
           `You received a new lead from your digital business card (${cardLabel}):\n\n${leadSummary(lead)}`,
           lead.email || undefined,
         );
-      } else if (rule.action === "notify_owner_sms" && ownerPhone) {
+      } else if (rule.action === "notify_owner_sms" && ownerPhone && !(await isSuppressed("sms", ownerPhone))) {
         await sendSms(ownerPhone, `New lead on ${cardLabel}: ${lead.name || lead.email || lead.phone || "someone"} — ${lead.message?.slice(0, 100) || "no message"}`);
-      } else if (rule.action === "autoreply_email" && lead.email) {
+      } else if (rule.action === "autoreply_email" && lead.email && !(await isSuppressed("email", lead.email))) {
         const body = rule.message?.trim() || `Thanks for reaching out! I received your details and will follow up shortly.\n\n— ${cardLabel}`;
         await sendEmail(lead.email, `Thanks for connecting with ${cardLabel}`, body, ownerEmail || undefined);
       }

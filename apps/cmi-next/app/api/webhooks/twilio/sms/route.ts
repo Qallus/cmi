@@ -2,6 +2,10 @@
 import twilio from "twilio";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { normalizePhone, publicAppUrl, shouldValidateWebhook } from "@/lib/twilio";
+import { applyConsent } from "@/lib/messaging/consent";
+
+const STOP_WORDS = ["STOP", "STOPALL", "UNSUBSCRIBE", "CANCEL", "END", "QUIT", "REVOKE"];
+const START_WORDS = ["START", "YES", "UNSTOP"];
 
 function xml(status = 200): Response {
   return new Response("<Response></Response>", {
@@ -32,6 +36,14 @@ export async function POST(request: Request) {
   const to = normalizePhone(params.To);
   const body = String(params.Body || "").trim() || "(empty message)";
   const providerId = String(params.MessageSid || "").trim() || null;
+
+  // Honor STOP/START keywords (A2P 10DLC compliance).
+  const keyword = body.trim().toUpperCase();
+  if (from && STOP_WORDS.includes(keyword)) {
+    await applyConsent({ channel: "sms", action: "opt_out", address: from, source: "sms_keyword" }).catch(() => {});
+  } else if (from && START_WORDS.includes(keyword)) {
+    await applyConsent({ channel: "sms", action: "opt_in", address: from, source: "sms_keyword" }).catch(() => {});
+  }
 
   try {
     const sb = getSupabaseAdmin();

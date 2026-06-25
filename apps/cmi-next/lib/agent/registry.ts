@@ -2,6 +2,7 @@
 // service-role client; role gating is enforced here per entity.
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { logMessage } from "@/lib/communications/data";
+import { isSuppressed } from "@/lib/messaging/consent";
 import { getEntity } from "./entities";
 import type { AgentEntity, StaffContext, ToolResult } from "./types";
 
@@ -140,6 +141,10 @@ export async function sendMessage(input: {
 }, ctx: StaffContext): Promise<ToolResult> {
   const commsRoles = ["super_admin", "admin", "project_manager", "estimator"];
   if (!commsRoles.includes(ctx.role)) return { error: `Your role (${ctx.role}) can't send messages.` };
+
+  if (await isSuppressed(input.channel, input.to)) {
+    return { error: `${input.to} has opted out of ${input.channel.toUpperCase()} and was not contacted.` };
+  }
 
   if (input.channel === "email") {
     const key = process.env.RESEND_API_KEY || process.env.RESEND_KEY;
