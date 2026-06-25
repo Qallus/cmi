@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { PhotoField } from "@/components/ui/photo-field";
 import { cn } from "@/lib/utils";
 import type { TeamMember, TeamMemberDraft } from "@/lib/team/types";
 
@@ -484,15 +485,9 @@ export function TeamClient({ initialMembers }: { initialMembers: TeamMember[] })
               <F label="Bio"><textarea className={cn(iCls, "min-h-[80px] resize-none")} value={draft.bio ?? ""} onChange={(e) => setDraft((d) => ({ ...d, bio: e.target.value }))} /></F>
               <F label="Availability"><input className={iCls} placeholder="e.g. Mon–Fri, 8am–5pm" value={draft.availability ?? ""} onChange={(e) => setDraft((d) => ({ ...d, availability: e.target.value }))} /></F>
               <div className="grid gap-3 sm:grid-cols-2">
-                <F label="Profile Photo URL"><input className={iCls} placeholder="https://…" value={draft.profile_photo ?? ""} onChange={(e) => setDraft((d) => ({ ...d, profile_photo: e.target.value }))} /></F>
-                <F label="Secondary / Hover Photo URL"><input className={iCls} placeholder="https://…" value={draft.secondary_photo ?? ""} onChange={(e) => setDraft((d) => ({ ...d, secondary_photo: e.target.value }))} /></F>
+                <PhotoField label="Profile photo (headshot)" value={draft.profile_photo ?? ""} onChange={(v) => setDraft((d) => ({ ...d, profile_photo: v }))} />
+                <PhotoField label="Secondary / hover photo" value={draft.secondary_photo ?? ""} onChange={(v) => setDraft((d) => ({ ...d, secondary_photo: v }))} hint="Shown on hover on the team card." />
               </div>
-              {(draft.profile_photo || draft.secondary_photo) && (
-                <div className="flex gap-3">
-                  {draft.profile_photo && <img src={draft.profile_photo} alt="Profile" className="h-20 w-20 rounded-lg object-cover object-top" />}
-                  {draft.secondary_photo && <img src={draft.secondary_photo} alt="Secondary" className="h-20 w-20 rounded-lg object-cover object-top opacity-80" />}
-                </div>
-              )}
               <F label="Key Attributes">
                 <div className="flex flex-wrap gap-1.5 rounded-md border border-border bg-background p-2">
                   {(draft.attributes ?? []).map((a) => (

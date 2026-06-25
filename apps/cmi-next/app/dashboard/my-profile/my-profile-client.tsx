@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input, Textarea } from "@/components/ui/input";
+import { PhotoField } from "@/components/ui/photo-field";
 import { cn } from "@/lib/utils";
 import { slugForTeamMember } from "@/lib/team/fallback";
 import type { TeamMember, TeamMemberDraft } from "@/lib/team/types";
@@ -61,7 +62,7 @@ export function MyProfileClient({ profile }: { profile: TeamMember | null }) {
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch(`/api/team/${member.id}`, {
+      const res = await fetch("/api/me/team-profile", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(draft)
@@ -181,12 +182,12 @@ export function MyProfileClient({ profile }: { profile: TeamMember | null }) {
                   <Field label="Department"><Input value={draft.department ?? ""} onChange={event => setDraft(current => ({ ...current, department: event.target.value }))} /></Field>
                   <Field label="Phone"><Input type="tel" value={draft.phone ?? ""} onChange={event => setDraft(current => ({ ...current, phone: event.target.value }))} /></Field>
                 </div>
-                <Field label="Email"><Input type="email" value={draft.email ?? ""} onChange={event => setDraft(current => ({ ...current, email: event.target.value }))} /></Field>
+                <Field label="Email (managed by your account)"><Input type="email" value={draft.email ?? ""} disabled readOnly /></Field>
                 <Field label="Tagline"><Input value={draft.tagline ?? ""} onChange={event => setDraft(current => ({ ...current, tagline: event.target.value }))} /></Field>
                 <Field label="Bio"><Textarea rows={6} value={draft.bio ?? ""} onChange={event => setDraft(current => ({ ...current, bio: event.target.value }))} /></Field>
                 <div className="grid gap-4 md:grid-cols-2">
-                  <Field label="Profile Photo URL"><Input value={draft.profile_photo ?? ""} onChange={event => setDraft(current => ({ ...current, profile_photo: event.target.value }))} /></Field>
-                  <Field label="Hover Photo URL"><Input value={draft.secondary_photo ?? ""} onChange={event => setDraft(current => ({ ...current, secondary_photo: event.target.value }))} /></Field>
+                  <PhotoField label="Profile photo (headshot)" value={draft.profile_photo ?? ""} onChange={v => setDraft(current => ({ ...current, profile_photo: v }))} />
+                  <PhotoField label="Secondary / hover photo" value={draft.secondary_photo ?? ""} onChange={v => setDraft(current => ({ ...current, secondary_photo: v }))} hint="Shown on hover on your team card." />
                 </div>
                 <Field label="Availability"><Textarea rows={3} value={draft.availability ?? ""} onChange={event => setDraft(current => ({ ...current, availability: event.target.value }))} /></Field>
                 <Field label="Key Attributes">
