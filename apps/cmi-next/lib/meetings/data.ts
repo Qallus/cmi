@@ -7,14 +7,14 @@ const WRITABLE = [
   "title", "meeting_type", "status", "meeting_date", "duration_seconds", "location",
   "contact_id", "project_item_id", "quote_id", "document_id", "staff_user_id",
   "related_records", "attendees", "recording_bucket", "recording_path",
-  "recording_filename", "recording_mime", "image_url", "attachments", "transcript", "summary",
+  "recording_filename", "recording_mime", "recordings", "image_url", "attachments", "transcript", "summary",
   "action_items", "ai_suggestions", "follow_up_notes", "internal_notes",
   "client_notes", "client_visible",
 ] as const;
 
 const JOINS = "contact:contacts(first_name,last_name,email), project:project_schedule_items(title), creator:staff_users!meetings_created_by_fkey(display_name)";
 const LIST_COLUMNS =
-  "id,title,meeting_type,status,meeting_date,duration_seconds,location,contact_id,project_item_id,quote_id,document_id,staff_user_id,related_records,attendees,recording_path,image_url,summary,action_items,client_visible,created_by,created_at,updated_at";
+  "id,title,meeting_type,status,meeting_date,duration_seconds,location,contact_id,project_item_id,quote_id,document_id,staff_user_id,related_records,attendees,recording_path,recordings,image_url,summary,action_items,client_visible,created_by,created_at,updated_at";
 
 export async function loadMeetings(opts: {
   all: boolean; staffId: string | null;
@@ -79,6 +79,48 @@ export async function updateMeetingFields(id: string, patch: Record<string, unkn
   const sb = getSupabaseAdmin();
   const { error } = await sb.from("meetings").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", id);
   if (error) throw new Error(error.message);
+}
+
+type RecEntry = { id: string; path: string; filename: string; mime?: string; created_at?: string; transcript?: string };
+
+// Append a recording to the meeting's recordings array; mirror to the legacy
+// primary recording_path if none is set yet.
+export async function addRecordingEntry(id: string, entry: { path: string; filename: string; mime?: string }): Promise<void> {
+  const sb = getSupabaseAdmin();
+  const { data } = await sb.from("meetings").select("recordings, recording_path").eq("id", id).maybeSingle();
+  const list: RecEntry[] = Array.isArray(data?.recordings) ? data!.recordings : [];
+  const rec: RecEntry = { id: `rec-${Date.now()}-${Math.round(Math.random() * 1e6)}`, path: entry.path, filename: entry.filename, mime: entry.mime, created_at: new Date().toISOString() };
+  const next = [...list, rec];
+  const patch: Record<string, unknown> = { recordings: next, updated_at: new Date().toISOString() };
+  if (!data?.recording_path) {
+    patch.recording_bucket = MEETING_BUCKET; patch.recording_path = entry.path;
+    patch.recording_filename = entry.filename; patch.recording_mime = entry.mime ?? null;
+  }
+  const { error } = await sb.from("meetings").update(patch).eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+export async function removeRecordingEntry(id: string, recordingId: string): Promise<void> {
+  const sb = getSupabaseAdmin();
+  const { data } = await sb.from("meetings").select("recordings, recording_path, recording_filename, recording_mime").eq("id", id).maybeSingle();
+  const list: RecEntry[] = Array.isArray(data?.recordings) ? data!.recordings : [];
+  const target = list.find((r) => r.id === recordingId);
+  const next = list.filter((r) => r.id !== recordingId);
+  if (target?.path) await sb.storage.from(MEETING_BUCKET).remove([target.path]).catch(() => {});
+  const patch: Record<string, unknown> = { recordings: next, updated_at: new Date().toISOString() };
+  // If we removed the legacy primary, repoint it to the first remaining (or clear).
+  if (target?.path && target.path === data?.recording_path) {
+    if (next[0]) { patch.recording_path = next[0].path; patch.recording_filename = next[0].filename; patch.recording_mime = next[0].mime ?? null; }
+    else { patch.recording_path = null; patch.recording_filename = null; patch.recording_mime = null; patch.recording_bucket = null; }
+  }
+  const { error } = await sb.from("meetings").update(patch).eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+export async function downloadByPath(path: string): Promise<Blob | null> {
+  const sb = getSupabaseAdmin();
+  const { data } = await sb.storage.from(MEETING_BUCKET).download(path);
+  return data ?? null;
 }
 
 // Remove just the audio recording (keeps the meeting, transcript, notes).

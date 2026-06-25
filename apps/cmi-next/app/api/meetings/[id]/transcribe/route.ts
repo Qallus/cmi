@@ -12,13 +12,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   try { ({ staff } = await requireAdmin(request)); }
   catch (err) { const e = err as AuthError; return NextResponse.json({ error: e.message }, { status: e.status ?? 401 }); }
 
+  const body = await request.json().catch(() => null) as { path?: string; filename?: string } | null;
+
   const meeting = await loadMeeting(id);
   if (!meeting) return NextResponse.json({ error: "Meeting not found." }, { status: 404 });
   const isOwner = meeting.created_by === staff.id || meeting.staff_user_id === staff.id;
   if (!ADMIN.includes(staff.role_slug) && !isOwner) {
     return NextResponse.json({ error: "You can't transcribe this meeting." }, { status: 403 });
   }
-  if (!meeting.recording_path) return NextResponse.json({ error: "No recording to transcribe." }, { status: 400 });
+  const targetPath = body?.path || meeting.recording_path;
+  const targetName = body?.filename || meeting.recording_filename || "recording.webm";
+  if (!targetPath) return NextResponse.json({ error: "No recording to transcribe." }, { status: 400 });
 
   const openaiKey = process.env.OPENAI_API_KEY;
   if (!openaiKey) return NextResponse.json({ error: "OPENAI_API_KEY not configured." }, { status: 501 });
@@ -26,7 +30,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   await updateMeetingFields(id, { status: "processing" });
 
   try {
-    const blob = await downloadRecording(meeting.recording_bucket || "meeting-recordings", meeting.recording_path);
+    const blob = await downloadRecording(meeting.recording_bucket || "meeting-recordings", targetPath);
     if (!blob) throw new Error("Could not download the recording from storage.");
     if (blob.size > WHISPER_LIMIT) {
       await updateMeetingFields(id, { status: "draft" });
@@ -36,7 +40,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
 
     const form = new FormData();
-    form.append("file", blob, meeting.recording_filename || "recording.webm");
+    form.append("file", blob, targetName);
     form.append("model", "whisper-1");
     form.append("response_format", "text");
 

@@ -3,24 +3,50 @@ export type MeetingStatus =
   | "action_items_created" | "shared_with_client" | "archived";
 
 export const MEETING_TYPES = [
+  "client_meeting", "staff_notes", "project_notes", "brainstorming",
+  "designer", "vendor", "client", "sub_contractor", "city_planner",
+  "internal_staff", "vendor_subcontractor", "design_planning", "project_kickoff",
+  "site_walkthrough", "change_order", "final_review",
   "in_person", "phone_call", "zoom", "microsoft_teams", "google_meet",
-  "internal_staff", "client_meeting", "vendor_subcontractor", "design_planning",
-  "project_kickoff", "site_walkthrough", "change_order", "final_review",
 ] as const;
 export type MeetingType = (typeof MEETING_TYPES)[number];
 
 export const MEETING_TYPE_LABELS: Record<string, string> = {
+  client_meeting: "Client meeting", staff_notes: "Staff notes", project_notes: "Project notes",
+  brainstorming: "Brainstorming", designer: "Designer", vendor: "Vendor", client: "Client",
+  sub_contractor: "Sub-contractor", city_planner: "City planner",
+  internal_staff: "Internal staff", vendor_subcontractor: "Vendor / subcontractor",
+  design_planning: "Design / planning", project_kickoff: "Project kickoff",
+  site_walkthrough: "Site walkthrough", change_order: "Change order", final_review: "Final review",
   in_person: "In-person", phone_call: "Phone call", zoom: "Zoom",
   microsoft_teams: "Microsoft Teams", google_meet: "Google Meet",
-  internal_staff: "Internal staff", client_meeting: "Client meeting",
-  vendor_subcontractor: "Vendor / subcontractor", design_planning: "Design / planning",
-  project_kickoff: "Project kickoff", site_walkthrough: "Site walkthrough",
-  change_order: "Change order", final_review: "Final review",
 };
+
+// Tailwind classes for the meeting-type highlight badge.
+export const MEETING_TYPE_COLOR: Record<string, string> = {
+  client_meeting: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
+  client: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
+  staff_notes: "bg-purple-500/15 text-purple-600 dark:text-purple-400",
+  internal_staff: "bg-purple-500/15 text-purple-600 dark:text-purple-400",
+  project_notes: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
+  project_kickoff: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
+  brainstorming: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+  designer: "bg-pink-500/15 text-pink-600 dark:text-pink-400",
+  design_planning: "bg-pink-500/15 text-pink-600 dark:text-pink-400",
+  vendor: "bg-orange-500/15 text-orange-600 dark:text-orange-400",
+  vendor_subcontractor: "bg-orange-500/15 text-orange-600 dark:text-orange-400",
+  sub_contractor: "bg-orange-500/15 text-orange-600 dark:text-orange-400",
+  city_planner: "bg-cyan-500/15 text-cyan-600 dark:text-cyan-400",
+  site_walkthrough: "bg-teal-500/15 text-teal-600 dark:text-teal-400",
+  change_order: "bg-red-500/15 text-red-600 dark:text-red-400",
+  final_review: "bg-indigo-500/15 text-indigo-600 dark:text-indigo-400",
+};
+export const typeColor = (t: string) => MEETING_TYPE_COLOR[t] || "bg-muted text-muted-foreground";
 
 export type MeetingAttendee = { name: string; email?: string; role?: string };
 export type MeetingActionItem = { id: string; text: string; done?: boolean };
 export type RelatedRecord = { type: string; id: string; label?: string };
+export type MeetingRecording = { id: string; path: string; filename: string; mime?: string; created_at?: string; transcript?: string };
 
 export type Meeting = {
   id: string;
@@ -43,6 +69,7 @@ export type Meeting = {
   recording_path: string | null;
   recording_filename: string | null;
   recording_mime: string | null;
+  recordings: MeetingRecording[];
   image_url: string | null;
   attachments: { name: string; path: string; mime?: string }[];
 
