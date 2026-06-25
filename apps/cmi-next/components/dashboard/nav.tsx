@@ -1,7 +1,9 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Tooltip } from "@/components/ui/tooltip";
 import {
   ArrowLeft, BookOpen, BriefcaseBusiness, CalendarRange,
   CreditCard, FileText, FolderKanban, Home, IdCard, LayoutGrid,
@@ -63,12 +65,15 @@ export function DashboardNav({ collapsed = false, role = "viewer" }: { collapsed
         const className = `flex w-full items-center rounded-md py-2 text-left text-[13px] font-medium transition ${collapsed ? "justify-center px-2" : "gap-3 px-3"} ${
           active ? "bg-accent/12 text-accent" : "text-muted-foreground hover:bg-muted hover:text-foreground"
         }`;
-        return (
-          <Link key={item.href} href={item.href} className={className} title={collapsed ? item.label : undefined}>
+        const link = (
+          <Link href={item.href} className={className}>
             <item.icon className="h-3.5 w-3.5" />
             {!collapsed ? item.label : null}
           </Link>
         );
+        return collapsed
+          ? <Tooltip key={item.href} label={item.label} side="right">{link}</Tooltip>
+          : <React.Fragment key={item.href}>{link}</React.Fragment>;
       })}
     </nav>
   );
