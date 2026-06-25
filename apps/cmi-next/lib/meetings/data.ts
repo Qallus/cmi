@@ -7,26 +7,28 @@ const WRITABLE = [
   "title", "meeting_type", "status", "meeting_date", "duration_seconds", "location",
   "contact_id", "project_item_id", "quote_id", "document_id", "staff_user_id",
   "related_records", "attendees", "recording_bucket", "recording_path",
-  "recording_filename", "recording_mime", "attachments", "transcript", "summary",
+  "recording_filename", "recording_mime", "image_url", "attachments", "transcript", "summary",
   "action_items", "ai_suggestions", "follow_up_notes", "internal_notes",
   "client_notes", "client_visible",
 ] as const;
 
 const JOINS = "contact:contacts(first_name,last_name,email), project:project_schedule_items(title), creator:staff_users!meetings_created_by_fkey(display_name)";
 const LIST_COLUMNS =
-  "id,title,meeting_type,status,meeting_date,duration_seconds,location,contact_id,project_item_id,quote_id,document_id,staff_user_id,related_records,attendees,recording_path,summary,action_items,client_visible,created_by,created_at,updated_at";
+  "id,title,meeting_type,status,meeting_date,duration_seconds,location,contact_id,project_item_id,quote_id,document_id,staff_user_id,related_records,attendees,recording_path,image_url,summary,action_items,client_visible,created_by,created_at,updated_at";
 
 export async function loadMeetings(opts: {
   all: boolean; staffId: string | null;
   filters?: { status?: string; meeting_type?: string; contact_id?: string; project_item_id?: string; search?: string; from?: string; to?: string };
 }): Promise<MeetingListItem[]> {
   const sb = getSupabaseAdmin();
-  let q = sb.from("meetings").select(`${LIST_COLUMNS}, ${JOINS}`).neq("status", "archived").order("meeting_date", { ascending: false, nullsFirst: false }).order("created_at", { ascending: false }).limit(500);
+  let q = sb.from("meetings").select(`${LIST_COLUMNS}, ${JOINS}`).order("meeting_date", { ascending: false, nullsFirst: false }).order("created_at", { ascending: false }).limit(500);
 
   if (!opts.all) q = q.or(`created_by.eq.${opts.staffId},staff_user_id.eq.${opts.staffId}`);
 
   const f = opts.filters ?? {};
+  // Hide archived by default; show them only when explicitly filtered to "archived".
   if (f.status) q = q.eq("status", f.status);
+  else q = q.neq("status", "archived");
   if (f.meeting_type) q = q.eq("meeting_type", f.meeting_type);
   if (f.contact_id) q = q.eq("contact_id", f.contact_id);
   if (f.project_item_id) q = q.eq("project_item_id", f.project_item_id);
@@ -76,6 +78,20 @@ export async function saveMeeting(payload: SaveMeetingPayload, staffId: string |
 export async function updateMeetingFields(id: string, patch: Record<string, unknown>): Promise<void> {
   const sb = getSupabaseAdmin();
   const { error } = await sb.from("meetings").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+// Remove just the audio recording (keeps the meeting, transcript, notes).
+export async function removeRecording(id: string): Promise<void> {
+  const sb = getSupabaseAdmin();
+  const { data } = await sb.from("meetings").select("recording_bucket, recording_path").eq("id", id).maybeSingle();
+  if (data?.recording_path) {
+    await sb.storage.from(data.recording_bucket || MEETING_BUCKET).remove([data.recording_path]).catch(() => {});
+  }
+  const { error } = await sb.from("meetings").update({
+    recording_bucket: null, recording_path: null, recording_filename: null, recording_mime: null,
+    updated_at: new Date().toISOString(),
+  }).eq("id", id);
   if (error) throw new Error(error.message);
 }
 

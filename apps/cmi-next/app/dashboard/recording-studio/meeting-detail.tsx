@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import {
-  ArrowLeft, Check, Download, FileText, Loader2, Mic, Save, Sparkles, Square, Trash2, Upload, Wand2,
+  Archive, ArrowLeft, Check, Download, FileText, Image as ImageIcon, Loader2, Mic, RotateCcw,
+  Save, Sparkles, Square, Trash2, Upload, Wand2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -40,6 +41,7 @@ export function MeetingDetail({ id, options, onBack, onDeleted }: { id: string; 
   const [transcribing, setTranscribing] = React.useState(false);
   const [summarizing, setSummarizing] = React.useState(false);
   const [recording, setRecording] = React.useState(false);
+  const [imgBusy, setImgBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [notice, setNotice] = React.useState<string | null>(null);
 
@@ -102,6 +104,48 @@ export function MeetingDetail({ id, options, onBack, onDeleted }: { id: string; 
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed.");
     } finally { setUploading(false); }
+  }
+
+  async function removeRecordingFile() {
+    if (!window.confirm("Delete this audio recording? The transcript and notes are kept.")) return;
+    setError(null);
+    try {
+      const res = await fetch(`/api/meetings/${id}/recording`, { method: "DELETE" });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Could not remove recording.");
+      setNotice("Recording removed.");
+      await reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not remove recording.");
+    }
+  }
+
+  async function uploadImage(file: File) {
+    setImgBusy(true); setError(null);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("folder", "meetings");
+      const res = await fetch("/api/admin/uploads", { method: "POST", body: form });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.url) throw new Error(json.error || "Image upload failed.");
+      set("image_url", json.url);
+      await fetch(`/api/meetings/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ image_url: json.url }) });
+      setMeeting((m) => m ? { ...m, image_url: json.url } : m);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Image upload failed.");
+    } finally { setImgBusy(false); }
+  }
+
+  async function removeImage() {
+    set("image_url", null);
+    await fetch(`/api/meetings/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ image_url: null }) });
+    setMeeting((m) => m ? { ...m, image_url: null } : m);
+  }
+
+  async function setArchived(archived: boolean) {
+    await fetch(`/api/meetings/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ status: archived ? "archived" : "reviewed" }) });
+    if (archived) onBack();
+    else { set("status", "reviewed"); await reload(); }
   }
 
   async function startRec() {
@@ -177,6 +221,11 @@ export function MeetingDetail({ id, options, onBack, onDeleted }: { id: string; 
           <select value={f.status} onChange={(e) => set("status", e.target.value as MeetingStatus)} className="h-8 rounded-md border border-border bg-background px-2 text-xs">
             {STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
           </select>
+          {meeting.status === "archived" ? (
+            <Button size="sm" variant="outline" onClick={() => setArchived(false)}><RotateCcw className="h-3.5 w-3.5" /> Restore</Button>
+          ) : (
+            <Button size="sm" variant="outline" onClick={() => setArchived(true)}><Archive className="h-3.5 w-3.5" /> Archive</Button>
+          )}
           <Button size="sm" variant="outline" onClick={remove} className="text-destructive"><Trash2 className="h-3.5 w-3.5" /> Delete</Button>
           <Button size="sm" variant="accent" onClick={save} disabled={saving}><Save className="h-3.5 w-3.5" /> {saving ? "Saving…" : "Save"}</Button>
         </div>
@@ -243,8 +292,33 @@ export function MeetingDetail({ id, options, onBack, onDeleted }: { id: string; 
               ) : (
                 <Button size="sm" variant="outline" onClick={startRec} disabled={uploading}><Mic className="h-3.5 w-3.5" /> Record audio</Button>
               )}
+              {meeting.recording_path && (
+                <Button size="sm" variant="outline" onClick={removeRecordingFile} className="text-destructive"><Trash2 className="h-3.5 w-3.5" /> Remove recording</Button>
+              )}
             </div>
             <p className="text-[10px] text-muted-foreground">Whisper transcribes files up to 25MB — audio-only keeps long meetings under the limit.</p>
+
+            {/* Image / photo */}
+            <div className="border-t border-border pt-3">
+              <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground"><ImageIcon className="h-3.5 w-3.5" /> Photo / image (optional)</div>
+              {f.image_url ? (
+                <div className="space-y-2">
+                  <img src={f.image_url} alt="Meeting" className="max-h-52 w-full rounded-lg border border-border object-contain" />
+                  <div className="flex gap-2">
+                    <label className="flex cursor-pointer items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs hover:bg-muted">
+                      <Upload className="h-3.5 w-3.5" /> {imgBusy ? "Uploading…" : "Replace"}
+                      <input type="file" accept="image/*" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) uploadImage(file); e.target.value = ""; }} />
+                    </label>
+                    <Button size="sm" variant="outline" onClick={removeImage} className="text-destructive"><Trash2 className="h-3.5 w-3.5" /> Remove</Button>
+                  </div>
+                </div>
+              ) : (
+                <label className="flex w-fit cursor-pointer items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs hover:bg-muted">
+                  <ImageIcon className="h-3.5 w-3.5" /> {imgBusy ? "Uploading…" : "Upload image"}
+                  <input type="file" accept="image/*" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) uploadImage(file); e.target.value = ""; }} />
+                </label>
+              )}
+            </div>
           </div>
 
           {/* Notes */}

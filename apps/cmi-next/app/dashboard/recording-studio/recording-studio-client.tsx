@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Mic, Plus, RefreshCw, Search, Eye, FileAudio, Sparkles } from "lucide-react";
+import { Mic, Plus, RefreshCw, Search, Eye, FileAudio, Image as ImageIcon, Sparkles, Archive, RotateCcw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { MEETING_TYPES, MEETING_TYPE_LABELS, type MeetingListItem, type MeetingStatus } from "@/lib/meetings/types";
@@ -97,6 +97,16 @@ export function RecordingStudioClient() {
     }
   }
 
+  async function setStatus(meetingId: string, status: string) {
+    await fetch(`/api/meetings/${meetingId}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ status }) }).catch(() => {});
+    load();
+  }
+  async function remove(meetingId: string) {
+    if (!window.confirm("Delete this meeting and its recording? This cannot be undone.")) return;
+    await fetch(`/api/meetings/${meetingId}`, { method: "DELETE" }).catch(() => {});
+    load();
+  }
+
   if (selectedId) {
     return (
       <MeetingDetail
@@ -136,7 +146,7 @@ export function RecordingStudioClient() {
           </select>
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-9 rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-accent">
             <option value="">All statuses</option>
-            {Object.keys(STATUS_LABEL).filter((s) => s !== "archived").map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
+            {Object.keys(STATUS_LABEL).map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
           </select>
         </div>
 
@@ -159,9 +169,9 @@ export function RecordingStudioClient() {
                   <th className="px-4 py-3">Meeting</th>
                   <th className="px-4 py-3">Type</th>
                   <th className="px-4 py-3">When</th>
-                  <th className="px-4 py-3">Recording</th>
+                  <th className="px-4 py-3">Media</th>
                   <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3"></th>
+                  <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -173,13 +183,29 @@ export function RecordingStudioClient() {
                     </td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">{MEETING_TYPE_LABELS[m.meeting_type] || m.meeting_type}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">{fmtDate(m.meeting_date)}</td>
-                    <td className="px-4 py-3">{m.recording_path ? <FileAudio className="h-4 w-4 text-accent" /> : <span className="text-xs text-muted-foreground">—</span>}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1.5">
+                        {m.recording_path && <FileAudio className="h-4 w-4 text-accent" />}
+                        {m.image_url && <ImageIcon className="h-4 w-4 text-blue-500" />}
+                        {!m.recording_path && !m.image_url && <span className="text-xs text-muted-foreground">—</span>}
+                      </div>
+                    </td>
                     <td className="px-4 py-3">
                       <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium", STATUS_STYLE[m.status as MeetingStatus] || STATUS_STYLE.draft)}>
                         {STATUS_LABEL[m.status] || m.status}
                       </span>
                     </td>
-                    <td className="px-4 py-3"><Eye className="h-4 w-4 text-muted-foreground" /></td>
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-end gap-1">
+                        <button onClick={() => setSelectedId(m.id)} title="Open" className="grid h-7 w-7 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"><Eye className="h-4 w-4" /></button>
+                        {m.status === "archived" ? (
+                          <button onClick={() => setStatus(m.id, "reviewed")} title="Restore" className="grid h-7 w-7 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"><RotateCcw className="h-4 w-4" /></button>
+                        ) : (
+                          <button onClick={() => setStatus(m.id, "archived")} title="Archive" className="grid h-7 w-7 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"><Archive className="h-4 w-4" /></button>
+                        )}
+                        <button onClick={() => remove(m.id)} title="Delete" className="grid h-7 w-7 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-destructive"><Trash2 className="h-4 w-4" /></button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>

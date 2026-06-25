@@ -43,6 +43,7 @@ export type Meeting = {
   recording_path: string | null;
   recording_filename: string | null;
   recording_mime: string | null;
+  image_url: string | null;
   attachments: { name: string; path: string; mime?: string }[];
 
   transcript: string | null;
