@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Mic, Plus, RefreshCw, Search, Eye, FileAudio, Image as ImageIcon, Sparkles, Archive, RotateCcw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input, Select } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { MEETING_TYPES, MEETING_TYPE_LABELS, type MeetingListItem, type MeetingStatus } from "@/lib/meetings/types";
 import { MeetingDetail, type LinkOption } from "./meeting-detail";
@@ -136,18 +137,22 @@ export function RecordingStudioClient() {
       <div className="p-5">
         {/* Filters */}
         <div className="mb-4 flex flex-wrap items-center gap-2">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search title…" className="h-9 w-56 rounded-md border border-border bg-background pl-8 pr-3 text-sm outline-none focus:border-accent" />
+          <div className="relative w-56">
+            <Search className="pointer-events-none absolute left-2.5 top-2.5 z-10 h-4 w-4 text-muted-foreground" />
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search title…" className="pl-8" />
           </div>
-          <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="h-9 rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-accent">
-            <option value="">All types</option>
-            {MEETING_TYPES.map((t) => <option key={t} value={t}>{MEETING_TYPE_LABELS[t]}</option>)}
-          </select>
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-9 rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-accent">
-            <option value="">All statuses</option>
-            {Object.keys(STATUS_LABEL).map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
-          </select>
+          <div className="w-40">
+            <Select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
+              <option value="">All types</option>
+              {MEETING_TYPES.map((t) => <option key={t} value={t}>{MEETING_TYPE_LABELS[t]}</option>)}
+            </Select>
+          </div>
+          <div className="w-40">
+            <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+              <option value="">All statuses</option>
+              {Object.keys(STATUS_LABEL).map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
+            </Select>
+          </div>
         </div>
 
         {error && <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}

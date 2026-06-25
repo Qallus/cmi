@@ -2,10 +2,14 @@
 
 import * as React from "react";
 import {
-  Archive, ArrowLeft, Check, Download, FileText, Image as ImageIcon, Loader2, Mic, RotateCcw,
-  Save, Sparkles, Square, Trash2, Upload, Wand2,
+  Archive, ArrowLeft, Check, FileText, Image as ImageIcon, Loader2, Mic, RotateCcw,
+  Save, Sparkles, Trash2, Upload, Wand2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input, Select, Textarea } from "@/components/ui/input";
+import { Drawer } from "@/components/ui/drawer";
+import { AudioRecorder } from "@/components/audio/audio-recorder";
+import { AudioPlayer } from "@/components/audio/audio-player";
 import { cn } from "@/lib/utils";
 import { MEETING_TYPES, MEETING_TYPE_LABELS, type Meeting, type MeetingActionItem, type MeetingStatus } from "@/lib/meetings/types";
 
@@ -17,9 +21,6 @@ const STATUS_LABEL: Record<string, string> = {
   draft: "Draft", processing: "Processing", transcribed: "Transcribed", reviewed: "Reviewed",
   action_items_created: "Action items created", shared_with_client: "Shared with client", archived: "Archived",
 };
-
-const iCls = "h-9 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-accent";
-const taCls = "w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent resize-none";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return <div><label className="mb-1 block text-xs font-medium text-muted-foreground">{label}</label>{children}</div>;
@@ -40,15 +41,14 @@ export function MeetingDetail({ id, options, onBack, onDeleted }: { id: string; 
   const [uploading, setUploading] = React.useState(false);
   const [transcribing, setTranscribing] = React.useState(false);
   const [summarizing, setSummarizing] = React.useState(false);
-  const [recording, setRecording] = React.useState(false);
+  const [recorderOpen, setRecorderOpen] = React.useState(false);
+  const [savedDrawerOpen, setSavedDrawerOpen] = React.useState(false);
   const [imgBusy, setImgBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [notice, setNotice] = React.useState<string | null>(null);
 
   // Editable form
   const [f, setF] = React.useState<Partial<Meeting>>({});
-  const mediaRef = React.useRef<MediaRecorder | null>(null);
-  const chunksRef = React.useRef<Blob[]>([]);
 
   const reload = React.useCallback(async () => {
     const res = await fetch(`/api/meetings/${id}`);
@@ -148,26 +148,11 @@ export function MeetingDetail({ id, options, onBack, onDeleted }: { id: string; 
     else { set("status", "reviewed"); await reload(); }
   }
 
-  async function startRec() {
-    setError(null);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mr = new MediaRecorder(stream);
-      chunksRef.current = [];
-      mr.ondataavailable = (e) => { if (e.data.size) chunksRef.current.push(e.data); };
-      mr.onstop = async () => {
-        stream.getTracks().forEach((t) => t.stop());
-        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
-        await uploadBlob(blob, `recording-${Date.now()}.webm`);
-      };
-      mr.start();
-      mediaRef.current = mr;
-      setRecording(true);
-    } catch {
-      setError("Microphone access was blocked. Allow mic permission to record.");
-    }
+  async function onRecorded(blob: Blob) {
+    setRecorderOpen(false);
+    await uploadBlob(blob, `recording-${Date.now()}.webm`);
+    setSavedDrawerOpen(true);
   }
-  function stopRec() { mediaRef.current?.stop(); setRecording(false); }
 
   async function transcribe() {
     setTranscribing(true); setError(null);
@@ -236,35 +221,35 @@ export function MeetingDetail({ id, options, onBack, onDeleted }: { id: string; 
         <div className="space-y-5">
           <div className="rounded-xl border border-border bg-card p-4 space-y-3">
             <div className="text-sm font-semibold">Overview</div>
-            <Field label="Title"><input className={iCls} value={f.title ?? ""} onChange={(e) => set("title", e.target.value)} /></Field>
+            <Field label="Title"><Input value={f.title ?? ""} onChange={(e) => set("title", e.target.value)} /></Field>
             <div className="grid grid-cols-2 gap-2">
               <Field label="Type">
-                <select className={iCls} value={f.meeting_type} onChange={(e) => set("meeting_type", e.target.value)}>
+                <Select value={f.meeting_type} onChange={(e) => set("meeting_type", e.target.value)}>
                   {MEETING_TYPES.map((t) => <option key={t} value={t}>{MEETING_TYPE_LABELS[t]}</option>)}
-                </select>
+                </Select>
               </Field>
-              <Field label="Date & time"><input type="datetime-local" className={iCls} value={toLocalInput(f.meeting_date ?? null)} onChange={(e) => set("meeting_date", e.target.value ? new Date(e.target.value).toISOString() : null)} /></Field>
+              <Field label="Date & time"><Input type="datetime-local" value={toLocalInput(f.meeting_date ?? null)} onChange={(e) => set("meeting_date", e.target.value ? new Date(e.target.value).toISOString() : null)} /></Field>
             </div>
-            <Field label="Location / platform"><input className={iCls} value={f.location ?? ""} onChange={(e) => set("location", e.target.value)} placeholder="Office, job site, Zoom link…" /></Field>
+            <Field label="Location / platform"><Input value={f.location ?? ""} onChange={(e) => set("location", e.target.value)} placeholder="Office, job site, Zoom link…" /></Field>
             <div className="grid grid-cols-2 gap-2">
               <Field label="Contact / client">
-                <select className={iCls} value={f.contact_id ?? ""} onChange={(e) => set("contact_id", e.target.value || null)}>
+                <Select value={f.contact_id ?? ""} onChange={(e) => set("contact_id", e.target.value || null)}>
                   <option value="">—</option>{options.contacts.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
-                </select>
+                </Select>
               </Field>
               <Field label="Project">
-                <select className={iCls} value={f.project_item_id ?? ""} onChange={(e) => set("project_item_id", e.target.value || null)}>
+                <Select value={f.project_item_id ?? ""} onChange={(e) => set("project_item_id", e.target.value || null)}>
                   <option value="">—</option>{options.projects.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
-                </select>
+                </Select>
               </Field>
             </div>
             <Field label="Quote / lead">
-              <select className={iCls} value={f.quote_id ?? ""} onChange={(e) => set("quote_id", e.target.value || null)}>
+              <Select value={f.quote_id ?? ""} onChange={(e) => set("quote_id", e.target.value || null)}>
                 <option value="">—</option>{options.quotes.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
-              </select>
+              </Select>
             </Field>
             <Field label="Attendees (one per line)">
-              <textarea rows={3} className={taCls} value={attendeesText} onChange={(e) => set("attendees", e.target.value.split("\n").map((s) => s.trim()).filter(Boolean).map((name) => ({ name })))} />
+              <Textarea rows={3} value={attendeesText} onChange={(e) => set("attendees", e.target.value.split("\n").map((s) => s.trim()).filter(Boolean).map((name) => ({ name })))} />
             </Field>
           </div>
 
@@ -273,25 +258,18 @@ export function MeetingDetail({ id, options, onBack, onDeleted }: { id: string; 
             <div className="text-sm font-semibold">Recording</div>
             {meeting.recording_path && playbackUrl ? (
               <div className="space-y-2">
-                <audio src={playbackUrl} controls className="w-full" />
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <span className="truncate">{meeting.recording_filename}</span>
-                  <a href={playbackUrl} download={meeting.recording_filename ?? "recording"} className="ml-auto inline-flex items-center gap-1 hover:text-foreground"><Download className="h-3.5 w-3.5" />Download</a>
-                </div>
+                <AudioPlayer src={playbackUrl} filename={meeting.recording_filename ?? "recording"} />
+                <div className="truncate text-[11px] text-muted-foreground">{meeting.recording_filename}</div>
               </div>
             ) : (
-              <p className="text-xs text-muted-foreground">No recording yet — upload an audio file or record audio in the browser.</p>
+              <p className="text-xs text-muted-foreground">No recording yet — upload an audio file or record one in the browser.</p>
             )}
             <div className="flex flex-wrap gap-2">
               <label className="flex cursor-pointer items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs hover:bg-muted">
                 <Upload className="h-3.5 w-3.5" /> {uploading ? "Uploading…" : meeting.recording_path ? "Replace audio" : "Upload audio"}
                 <input type="file" accept="audio/*" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) uploadBlob(file, file.name); e.target.value = ""; }} />
               </label>
-              {recording ? (
-                <Button size="sm" variant="destructive" onClick={stopRec}><Square className="h-3.5 w-3.5" /> Stop &amp; save</Button>
-              ) : (
-                <Button size="sm" variant="outline" onClick={startRec} disabled={uploading}><Mic className="h-3.5 w-3.5" /> Record audio</Button>
-              )}
+              <Button size="sm" variant="outline" onClick={() => setRecorderOpen(true)} disabled={uploading}><Mic className="h-3.5 w-3.5" /> Record audio</Button>
               {meeting.recording_path && (
                 <Button size="sm" variant="outline" onClick={removeRecordingFile} className="text-destructive"><Trash2 className="h-3.5 w-3.5" /> Remove recording</Button>
               )}
@@ -324,9 +302,9 @@ export function MeetingDetail({ id, options, onBack, onDeleted }: { id: string; 
           {/* Notes */}
           <div className="rounded-xl border border-border bg-card p-4 space-y-3">
             <div className="text-sm font-semibold">Notes</div>
-            <Field label="Internal notes (staff only)"><textarea rows={3} className={taCls} value={f.internal_notes ?? ""} onChange={(e) => set("internal_notes", e.target.value)} /></Field>
-            <Field label="Follow-up notes"><textarea rows={2} className={taCls} value={f.follow_up_notes ?? ""} onChange={(e) => set("follow_up_notes", e.target.value)} /></Field>
-            <Field label="Client-facing notes"><textarea rows={2} className={taCls} value={f.client_notes ?? ""} onChange={(e) => set("client_notes", e.target.value)} /></Field>
+            <Field label="Internal notes (staff only)"><Textarea rows={3} value={f.internal_notes ?? ""} onChange={(e) => set("internal_notes", e.target.value)} /></Field>
+            <Field label="Follow-up notes"><Textarea rows={2} value={f.follow_up_notes ?? ""} onChange={(e) => set("follow_up_notes", e.target.value)} /></Field>
+            <Field label="Client-facing notes"><Textarea rows={2} value={f.client_notes ?? ""} onChange={(e) => set("client_notes", e.target.value)} /></Field>
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={Boolean(f.client_visible)} onChange={(e) => set("client_visible", e.target.checked)} /> Client-facing summary approved for sharing</label>
           </div>
         </div>
@@ -389,6 +367,20 @@ export function MeetingDetail({ id, options, onBack, onDeleted }: { id: string; 
           </div>
         </div>
       </div>
+
+      {/* Voice recorder modal */}
+      <AudioRecorder open={recorderOpen} onClose={() => setRecorderOpen(false)} onComplete={onRecorded} />
+
+      {/* Recording-saved drawer with player */}
+      <Drawer open={savedDrawerOpen} onClose={() => setSavedDrawerOpen(false)} title="Recording saved" description="Your audio is uploaded and ready to transcribe.">
+        {playbackUrl && <AudioPlayer src={playbackUrl} filename={meeting.recording_filename ?? "recording"} />}
+        <div className="mt-4 flex justify-end gap-2">
+          <Button size="sm" variant="outline" onClick={() => setSavedDrawerOpen(false)}>Close</Button>
+          <Button size="sm" variant="accent" onClick={() => { setSavedDrawerOpen(false); transcribe(); }} disabled={transcribing}>
+            {transcribing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5" />} Transcribe now
+          </Button>
+        </div>
+      </Drawer>
     </div>
   );
 }
