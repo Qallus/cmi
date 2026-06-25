@@ -5,6 +5,11 @@ systems. Each doc covers the full scope: features, Supabase data model
 (tables/fields/enums), API routes, data layer, UI/components, integrations/env,
 and a replication checklist.
 
+**Start here:** [Shared Foundations](./shared-foundations.md) — the auth pattern,
+Supabase server client, branded UI components, middleware/public-route
+convention, uploads, notifications, messaging/consent, env vars, and deps that
+all four features assume. Port this first.
+
 - [Project Management (Gantt)](./project-management.md) — Gantt + Kanban/List/
   Table/Calendar/Templates/My-Tasks views, the per-bar FAB action dock,
   dependencies, construction templates, and asset associations.
