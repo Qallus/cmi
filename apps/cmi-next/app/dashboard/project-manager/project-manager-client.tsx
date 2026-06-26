@@ -366,6 +366,8 @@ export function ProjectManagerClient({ initialData, demoMode = false }: { initia
   const [templates] = React.useState(initialData.templates);
   const [templateTasks] = React.useState(initialData.templateTasks);
   const [collapsed, setCollapsed] = React.useState<Set<string>>(new Set());
+  const [renamingGroup, setRenamingGroup] = React.useState<string | null>(null);
+  const [renameValue, setRenameValue] = React.useState("");
   const [selected, setSelected] = React.useState<ItemDraft | null>(null);
   const [assetModal, setAssetModal] = React.useState<AssetModalState | null>(null);
   const [templateId, setTemplateId] = React.useState(templates[0]?.id || "");
@@ -787,6 +789,25 @@ export function ProjectManagerClient({ initialData, demoMode = false }: { initia
       metadata: (item.metadata && typeof item.metadata === "object" ? item.metadata : {}) as Record<string, unknown>
     };
     await saveItem(draft);
+  }
+
+  // Rename a whole project group: every task shares the project name via
+  // project_title / schedule_group_key, so update all of them at once.
+  async function renameProject(currentName: string, nextNameRaw: string) {
+    const nextName = nextNameRaw.trim();
+    setRenamingGroup(null);
+    if (!nextName || nextName === currentName) return;
+    const affected = items.filter(item => (item.schedule_group_key || item.project_title || "Ungrouped Project") === currentName);
+    if (!affected.length) return;
+    setCollapsed(current => {
+      if (!current.has(currentName)) return current;
+      const next = new Set(current);
+      next.delete(currentName);
+      next.add(nextName);
+      return next;
+    });
+    const results = await Promise.all(affected.map(item => patchItem(item, { project_title: nextName, schedule_group_key: nextName })));
+    setNotice(results.every(Boolean) ? `Renamed project to "${nextName}".` : "Some tasks could not be renamed. Refresh and try again.");
   }
 
   async function deleteItem(item: ProjectScheduleItem) {
@@ -1223,22 +1244,46 @@ export function ProjectManagerClient({ initialData, demoMode = false }: { initia
         <CardContent className="space-y-3">
           {groups.length ? groups.map(group => (
             <div key={group.name} className="overflow-hidden rounded-lg border border-border">
-              <button
-                type="button"
-                className="flex w-full items-center justify-between bg-muted px-4 py-3 text-left"
-                onClick={() => setCollapsed(current => {
-                  const next = new Set(current);
-                  if (next.has(group.name)) next.delete(group.name);
-                  else next.add(group.name);
-                  return next;
-                })}
-              >
-                <span className="flex items-center gap-2 font-medium">
-                  {collapsed.has(group.name) ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                  {group.name}
-                </span>
-                <Badge>{group.rows.length} items</Badge>
-              </button>
+              <div className="flex w-full items-center justify-between gap-2 bg-muted px-4 py-3">
+                {renamingGroup === group.name ? (
+                  <div className="flex flex-1 flex-wrap items-center gap-2">
+                    <Input
+                      autoFocus
+                      className="h-8 max-w-sm flex-1"
+                      value={renameValue}
+                      onChange={event => setRenameValue(event.target.value)}
+                      onKeyDown={event => {
+                        if (event.key === "Enter") { event.preventDefault(); renameProject(group.name, renameValue); }
+                        if (event.key === "Escape") setRenamingGroup(null);
+                      }}
+                    />
+                    <Button size="sm" variant="accent" onClick={() => renameProject(group.name, renameValue)}>Save</Button>
+                    <Button size="sm" variant="ghost" onClick={() => setRenamingGroup(null)}>Cancel</Button>
+                  </div>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      className="flex flex-1 items-center gap-2 text-left font-medium"
+                      onClick={() => setCollapsed(current => {
+                        const next = new Set(current);
+                        if (next.has(group.name)) next.delete(group.name);
+                        else next.add(group.name);
+                        return next;
+                      })}
+                    >
+                      {collapsed.has(group.name) ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      {group.name}
+                    </button>
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" variant="ghost" onClick={() => { setRenamingGroup(group.name); setRenameValue(group.name); }}>
+                        <Pencil className="h-3.5 w-3.5" /> Rename
+                      </Button>
+                      <Badge>{group.rows.length} items</Badge>
+                    </div>
+                  </>
+                )}
+              </div>
               {!collapsed.has(group.name) ? (
                 <div className="divide-y divide-border">
                   {group.rows.map(item => (
