@@ -18,6 +18,7 @@ import {
   FileText,
   FolderKanban,
   GripHorizontal,
+  Image as ImageIcon,
   LayoutTemplate,
   Link2,
   List,
@@ -31,8 +32,10 @@ import {
   StickyNote,
   Table2,
   Trash2,
+  Upload,
   UserPlus,
   Video,
+  X,
   XCircle
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -41,6 +44,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input, Select, Textarea } from "@/components/ui/input";
 import { addDays, cn, dateOnly, daysBetween, initials } from "@/lib/utils";
 import type { DependencyType, ProjectManagerData, ProjectScheduleDependency, ProjectScheduleItem, ProjectTemplate, ProjectTemplateTask, SchedulePriority, ScheduleStatus } from "@/lib/project-manager/types";
+
+type WebsiteEditStatus = "requested" | "in_progress" | "done";
+
+// One requested change on a page, captured in the CMI Edits Template.
+type WebsiteEdit = {
+  id: string;
+  eyebrow: string;
+  title: string;
+  subtitle: string;
+  content: string;
+  images: string[];
+  status: WebsiteEditStatus;
+};
 
 type ItemDraft = {
   id?: string;
@@ -66,7 +82,32 @@ type ItemDraft = {
   internal_notes: string;
   is_blocked: boolean;
   blocker_reason: string;
+  template_slug: string;
+  metadata: Record<string, unknown>;
 };
+
+const CMI_EDITS_TEMPLATE_SLUG = "cmi-website-edits";
+
+function emptyWebsiteEdit(): WebsiteEdit {
+  return { id: crypto.randomUUID(), eyebrow: "", title: "", subtitle: "", content: "", images: [], status: "requested" };
+}
+
+function readWebsiteEdits(metadata: Record<string, unknown> | null | undefined): WebsiteEdit[] {
+  const raw = (metadata || {}).website_edits;
+  if (!Array.isArray(raw)) return [];
+  return raw.map(entry => {
+    const value = (entry || {}) as Partial<WebsiteEdit> & { images?: unknown };
+    return {
+      id: typeof value.id === "string" ? value.id : crypto.randomUUID(),
+      eyebrow: String(value.eyebrow || ""),
+      title: String(value.title || ""),
+      subtitle: String(value.subtitle || ""),
+      content: String(value.content || ""),
+      images: Array.isArray(value.images) ? value.images.filter((url): url is string => typeof url === "string") : [],
+      status: value.status === "in_progress" || value.status === "done" ? value.status : "requested"
+    };
+  });
+}
 
 type AssetModalState = {
   item: ProjectScheduleItem;
@@ -313,7 +354,9 @@ function emptyDraft(): ItemDraft {
     punch: "",
     internal_notes: "",
     is_blocked: false,
-    blocker_reason: ""
+    blocker_reason: "",
+    template_slug: "",
+    metadata: {}
   };
 }
 
@@ -739,7 +782,9 @@ export function ProjectManagerClient({ initialData, demoMode = false }: { initia
       punch: item.punch || "",
       internal_notes: item.internal_notes || "",
       is_blocked: false,
-      blocker_reason: ""
+      blocker_reason: "",
+      template_slug: item.template_slug || "",
+      metadata: (item.metadata && typeof item.metadata === "object" ? item.metadata : {}) as Record<string, unknown>
     };
     await saveItem(draft);
   }
@@ -2669,6 +2714,76 @@ function ScheduledRow({
   );
 }
 
+// Multi-image upload + paste-URL for a single edit request. Reuses the shared
+// /api/admin/uploads endpoint (Supabase Storage) used by team and recording uploads.
+function WebsiteEditImages({ images, onChange }: { images: string[]; onChange: (next: string[]) => void }) {
+  const [busy, setBusy] = React.useState(false);
+  const [err, setErr] = React.useState("");
+  const [url, setUrl] = React.useState("");
+
+  async function upload(file: File) {
+    setBusy(true);
+    setErr("");
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("folder", "website-edits");
+      const res = await fetch("/api/admin/uploads", { method: "POST", body: form });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.url) throw new Error(json.message || json.error || "Upload failed.");
+      onChange([...images, json.url]);
+    } catch (error) {
+      setErr(error instanceof Error ? error.message : "Upload failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const addUrl = () => {
+    const trimmed = url.trim();
+    if (!trimmed) return;
+    onChange([...images, trimmed]);
+    setUrl("");
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="text-xs font-medium text-muted-foreground">Images</div>
+      {images.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {images.map((image, index) => (
+            <div key={`${image}-${index}`} className="relative">
+              <img src={image} alt="" className="h-16 w-16 rounded-lg border border-border object-cover" />
+              <button
+                type="button"
+                aria-label="Remove image"
+                onClick={() => onChange(images.filter((_, i) => i !== index))}
+                className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full border border-border bg-card text-destructive shadow-sm"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="grid h-16 w-16 place-items-center rounded-lg border border-dashed border-border bg-muted text-muted-foreground">
+          <ImageIcon className="h-5 w-5" />
+        </div>
+      )}
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="flex cursor-pointer items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs hover:bg-muted">
+          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+          {busy ? "Uploading…" : "Upload image"}
+          <input type="file" accept="image/*" className="hidden" onChange={event => { const file = event.target.files?.[0]; if (file) upload(file); event.target.value = ""; }} />
+        </label>
+        <Input className="h-8 max-w-xs flex-1" placeholder="…or paste an image URL" value={url} onChange={event => setUrl(event.target.value)} onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); addUrl(); } }} />
+        <Button variant="outline" size="sm" onClick={addUrl} disabled={!url.trim()}>Add</Button>
+      </div>
+      {err ? <p className="text-xs text-destructive">{err}</p> : null}
+    </div>
+  );
+}
+
 function ItemEditor({
   draft,
   items,
@@ -2693,6 +2808,12 @@ function ItemEditor({
   onDeleteDependency: (dependency: ProjectScheduleDependency) => Promise<boolean>;
 }) {
   const update = <K extends keyof ItemDraft>(key: K, value: ItemDraft[K]) => onChange({ ...draft, [key]: value });
+  const isWebsiteEdits = draft.template_slug === CMI_EDITS_TEMPLATE_SLUG;
+  const websiteEdits = readWebsiteEdits(draft.metadata);
+  const setWebsiteEdits = (next: WebsiteEdit[]) => update("metadata", { ...(draft.metadata || {}), website_edits: next });
+  const updateEdit = (id: string, patch: Partial<WebsiteEdit>) => setWebsiteEdits(websiteEdits.map(edit => (edit.id === id ? { ...edit, ...patch } : edit)));
+  const addEdit = () => setWebsiteEdits([...websiteEdits, emptyWebsiteEdit()]);
+  const removeEdit = (id: string) => setWebsiteEdits(websiteEdits.filter(edit => edit.id !== id));
   const selectedParticipants = draft.participants
     ? draft.participants.split(",").map(part => part.trim()).filter(Boolean)
     : [];
@@ -2751,6 +2872,74 @@ function ItemEditor({
             Title
             <Input className="mt-1" value={draft.title} onChange={event => update("title", event.target.value)} />
           </label>
+
+          {isWebsiteEdits ? (
+            <section className="space-y-4 rounded-lg border border-accent/30 bg-accent/5 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-accent">Edit Requests — {draft.title || "this page"}</div>
+                  <p className="mt-1 text-sm text-muted-foreground">List each change you'd like on this page. Add as many edits as you need; mark each one as it gets completed.</p>
+                </div>
+                <Button variant="outline" size="sm" onClick={addEdit}>
+                  <Plus className="h-4 w-4" /> Add edit
+                </Button>
+              </div>
+
+              {websiteEdits.length === 0 ? (
+                <div className="rounded-md border border-dashed border-border bg-card p-6 text-center text-sm text-muted-foreground">
+                  No edits yet. Click <span className="font-medium text-foreground">Add edit</span> to log the first change for this page.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {websiteEdits.map((edit, index) => (
+                    <div key={edit.id} className="space-y-3 rounded-md border border-border bg-card p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="text-sm font-semibold">Edit {index + 1}</div>
+                        <div className="flex items-center gap-2">
+                          <Select
+                            className="h-8 w-36"
+                            value={edit.status}
+                            onChange={event => updateEdit(edit.id, { status: event.target.value as WebsiteEditStatus })}
+                          >
+                            <option value="requested">Requested</option>
+                            <option value="in_progress">In progress</option>
+                            <option value="done">Done</option>
+                          </Select>
+                          <Button variant="ghost" size="sm" className="text-destructive" onClick={() => removeEdit(edit.id)}>
+                            <Trash2 className="h-4 w-4" /> Remove
+                          </Button>
+                        </div>
+                      </div>
+                      <label className="block text-xs font-medium text-muted-foreground">
+                        Eyebrow
+                        <Input className="mt-1" value={edit.eyebrow} onChange={event => updateEdit(edit.id, { eyebrow: event.target.value })} placeholder="Small label above the title (optional)" />
+                      </label>
+                      <label className="block text-xs font-medium text-muted-foreground">
+                        Title
+                        <Input className="mt-1" value={edit.title} onChange={event => updateEdit(edit.id, { title: event.target.value })} placeholder="Headline / section title to change" />
+                      </label>
+                      <label className="block text-xs font-medium text-muted-foreground">
+                        Sub-title
+                        <Input className="mt-1" value={edit.subtitle} onChange={event => updateEdit(edit.id, { subtitle: event.target.value })} placeholder="Sub-heading to change (optional)" />
+                      </label>
+                      <label className="block text-xs font-medium text-muted-foreground">
+                        Content
+                        <Textarea className="mt-1" value={edit.content} onChange={event => updateEdit(edit.id, { content: event.target.value })} placeholder="Describe the change, paste new copy, or note what to add/remove." />
+                      </label>
+                      <WebsiteEditImages images={edit.images} onChange={next => updateEdit(edit.id, { images: next })} />
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {websiteEdits.length > 0 ? (
+                <Button variant="outline" size="sm" onClick={addEdit}>
+                  <Plus className="h-4 w-4" /> Add more edits
+                </Button>
+              ) : null}
+            </section>
+          ) : null}
+
           <div className="grid gap-3 md:grid-cols-2">
             <label className="block text-sm font-medium">
               Project
@@ -2936,7 +3125,9 @@ function itemToDraft(item: ProjectScheduleItem): ItemDraft {
     punch: item.punch || "",
     internal_notes: item.internal_notes || "",
     is_blocked: Boolean(item.is_blocked),
-    blocker_reason: item.blocker_reason || ""
+    blocker_reason: item.blocker_reason || "",
+    template_slug: item.template_slug || "",
+    metadata: (item.metadata && typeof item.metadata === "object" ? item.metadata : {}) as Record<string, unknown>
   };
 }
 
@@ -2970,9 +3161,9 @@ function draftToDemoItem(draft: ItemDraft): ProjectScheduleItem {
     sort_order: 0,
     visible_on_gantt: draft.visible_on_gantt,
     schedule_group_key: draft.project_title,
-    template_slug: null,
+    template_slug: draft.template_slug || null,
     template_name: null,
     duration_minutes: draft.duration_minutes,
-    metadata: {}
+    metadata: draft.metadata || {}
   };
 }
