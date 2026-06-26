@@ -44,7 +44,7 @@ export default async function BlogPostPage({ params }: PageProps) {
   return (
     <>
       <SiteHeader />
-      <main>
+      <main id="main-content" tabIndex={-1}>
         <article>
           <section className="bg-card/35 py-12 lg:py-16">
             <div className="mx-auto max-w-4xl px-5 lg:px-8">

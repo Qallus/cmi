@@ -50,16 +50,19 @@ export function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-transparent bg-background/98 shadow-sm backdrop-blur-xl supports-[backdrop-filter]:bg-background/95">
+      <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-accent focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white">
+        Skip to main content
+      </a>
       <div className="mx-auto flex h-[72px] max-w-7xl items-center justify-between px-5 lg:px-8">
-        <Link href="/" className="shrink-0">
+        <Link href="/" className="shrink-0" aria-label="Constructed Matter, Inc. — home">
           <img src="/brand/CMI_Line_Logo_Black.svg" alt="Constructed Matter, Inc." className="h-9 w-auto dark:hidden" />
-          <img src="/brand/CMI_Line_Logo_White.svg" alt="Constructed Matter, Inc." className="hidden h-9 w-auto dark:block" />
+          <img src="/brand/CMI_Line_Logo_White.svg" alt="" aria-hidden="true" className="hidden h-9 w-auto dark:block" />
         </Link>
 
-        <nav className="hidden items-center gap-4 lg:flex">
+        <nav className="hidden items-center gap-4 lg:flex" aria-label="Primary">
           <div className="relative" onMouseEnter={() => setOpenDropdown("discover")} onMouseLeave={() => setOpenDropdown(null)}>
-            <button type="button" className={cn("flex items-center gap-1 border-b border-transparent px-3 py-6 text-sm font-semibold uppercase tracking-wide transition hover:text-accent", openDropdown === "discover" ? "border-accent text-accent" : "text-foreground/75")}>
-              Discover <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", openDropdown === "discover" && "rotate-180")} />
+            <button type="button" aria-expanded={openDropdown === "discover"} aria-haspopup="true" className={cn("flex items-center gap-1 border-b border-transparent px-3 py-6 text-sm font-semibold uppercase tracking-wide transition hover:text-accent", openDropdown === "discover" ? "border-accent text-accent" : "text-foreground/75")}>
+              Discover <ChevronDown aria-hidden="true" className={cn("h-3.5 w-3.5 transition-transform", openDropdown === "discover" && "rotate-180")} />
             </button>
             {openDropdown === "discover" && (
               <div className="absolute left-0 top-full mt-0 w-80 rounded-xl border border-border bg-card p-3 shadow-2xl">
@@ -77,8 +80,8 @@ export function SiteHeader() {
           </div>
 
           <div className="relative" onMouseEnter={() => setOpenDropdown("services")} onMouseLeave={() => setOpenDropdown(null)}>
-            <button type="button" className={cn("flex items-center gap-1 border-b border-transparent px-3 py-6 text-sm font-semibold uppercase tracking-wide transition hover:text-accent", openDropdown === "services" || isActive("/services") ? "border-accent text-accent" : "text-foreground/75")}>
-              Services <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", openDropdown === "services" && "rotate-180")} />
+            <button type="button" aria-expanded={openDropdown === "services"} aria-haspopup="true" className={cn("flex items-center gap-1 border-b border-transparent px-3 py-6 text-sm font-semibold uppercase tracking-wide transition hover:text-accent", openDropdown === "services" || isActive("/services") ? "border-accent text-accent" : "text-foreground/75")}>
+              Services <ChevronDown aria-hidden="true" className={cn("h-3.5 w-3.5 transition-transform", openDropdown === "services" && "rotate-180")} />
             </button>
             {openDropdown === "services" && (
               <div className="absolute left-1/2 top-full mt-0 w-[720px] -translate-x-1/2 rounded-xl border border-border bg-card p-7 shadow-2xl">
@@ -115,8 +118,8 @@ export function SiteHeader() {
             Let's Build Together
           </Link>
           <ThemeToggle />
-          <button type="button" className="flex h-9 w-9 items-center justify-center rounded-md border border-border text-muted-foreground lg:hidden" onClick={() => setMobileOpen((o) => !o)}>
-            {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          <button type="button" aria-label={mobileOpen ? "Close menu" : "Open menu"} aria-expanded={mobileOpen} className="flex h-9 w-9 items-center justify-center rounded-md border border-border text-muted-foreground lg:hidden" onClick={() => setMobileOpen((o) => !o)}>
+            {mobileOpen ? <X aria-hidden="true" className="h-5 w-5" /> : <Menu aria-hidden="true" className="h-5 w-5" />}
           </button>
         </div>
       </div>

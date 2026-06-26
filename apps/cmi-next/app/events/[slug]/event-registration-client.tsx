@@ -51,7 +51,7 @@ export function EventRegistrationClient({ eventPage }: { eventPage: EventRecord 
   }
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
+    <main id="main-content" tabIndex={-1} className="min-h-screen bg-background text-foreground">
       <div className="mx-auto grid max-w-6xl gap-6 px-4 py-8 lg:grid-cols-[1fr_420px]">
         <section>
           <img src="/brand/cmi-logo-light.png" alt="Constructed Matter, Inc." className="h-9 w-auto object-contain dark:hidden" />

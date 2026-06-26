@@ -92,7 +92,7 @@ export default function AboutPage() {
   return (
     <>
       <SiteHeader />
-      <main>
+      <main id="main-content" tabIndex={-1}>
         {/* ── Hero ── */}
         <section className="relative overflow-hidden bg-black pt-0">
           <div className="relative z-10 mx-auto max-w-7xl px-5 py-28 lg:px-8 lg:py-40">

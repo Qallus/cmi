@@ -35,7 +35,7 @@ export default async function BlogArchivePage() {
   return (
     <>
       <SiteHeader />
-      <main>
+      <main id="main-content" tabIndex={-1}>
         <section className="bg-card/35 py-16 lg:py-20">
           <div className="mx-auto max-w-7xl px-5 lg:px-8">
             <div className="max-w-2xl">

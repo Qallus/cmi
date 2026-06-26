@@ -26,9 +26,9 @@ export default async function PortfolioDetailPage({ params }: { params: Promise<
   return (
     <>
       <SiteHeader />
-      <main className="min-h-screen bg-background text-foreground">
+      <main id="main-content" tabIndex={-1} className="min-h-screen bg-background text-foreground">
       <section className="relative min-h-[72vh] overflow-hidden bg-black text-white">
-        {hero ? <img src={hero} alt="" className="absolute inset-0 h-full w-full object-cover opacity-70" /> : null}
+        {hero ? <img src={hero} alt={item.title} className="absolute inset-0 h-full w-full object-cover opacity-70" /> : null}
         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/25 to-black/10" />
         <div className="relative mx-auto flex min-h-[72vh] max-w-7xl items-end px-6 pb-16">
           <div>

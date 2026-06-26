@@ -42,7 +42,7 @@ export default async function ResourceDetailPage({ params }: { params: Promise<{
   return (
     <>
       <SiteHeader />
-      <main>
+      <main id="main-content" tabIndex={-1}>
         {/* Hero */}
         <div className="relative min-h-[52vh] overflow-hidden bg-black">
           {post.featured_image && (

@@ -71,6 +71,7 @@ export function ConsentPageView({ channel, mode }: { channel: Channel; mode: Mod
               <input
                 type={inputType}
                 required
+                aria-label={isSms ? "Phone number" : "Email address"}
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
                 placeholder={placeholder}

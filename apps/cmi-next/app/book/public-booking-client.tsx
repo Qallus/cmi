@@ -96,7 +96,7 @@ export function PublicBookingClient({ appointmentTypes, demoMode, setupMessage }
   }
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
+    <main id="main-content" tabIndex={-1} className="min-h-screen bg-background text-foreground">
       <div className="mx-auto flex max-w-7xl flex-col gap-6 px-5 py-8 md:py-12 lg:px-8">
         <header className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>

@@ -68,7 +68,7 @@ export default async function TeamMemberPage({ params }: Props) {
   return (
     <>
       <SiteHeader />
-      <main>
+      <main id="main-content" tabIndex={-1}>
         <section className="border-b border-border bg-card/40 py-4">
           <div className="mx-auto max-w-7xl px-5 lg:px-8">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">

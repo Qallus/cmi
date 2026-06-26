@@ -89,7 +89,7 @@ export default async function TeamPage() {
   return (
     <>
       <SiteHeader />
-      <main>
+      <main id="main-content" tabIndex={-1}>
         <section className="border-b border-border bg-card/40 py-16 lg:py-20">
           <div className="mx-auto max-w-7xl px-5 lg:px-8">
             <div className="max-w-xl">

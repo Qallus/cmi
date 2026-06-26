@@ -37,17 +37,17 @@ export function SiteFooter() {
               Arizona's premier construction firm. Building spaces that endure, inspire, and reflect the people who live and work in them.
             </p>
             <div className="flex items-center gap-3">
-              <a href="https://www.facebook.com/ConstructedMatter/" target="_blank" rel="noreferrer"
+              <a href="https://www.facebook.com/ConstructedMatter/" target="_blank" rel="noreferrer" aria-label="Constructed Matter on Facebook"
                 className="flex h-9 w-9 items-center justify-center rounded-full border border-white/20 text-white/60 transition hover:border-accent hover:text-accent">
-                <Facebook className="h-4 w-4" />
+                <Facebook aria-hidden="true" className="h-4 w-4" />
               </a>
-              <a href="https://www.instagram.com/constructedmatter/" target="_blank" rel="noreferrer"
+              <a href="https://www.instagram.com/constructedmatter/" target="_blank" rel="noreferrer" aria-label="Constructed Matter on Instagram"
                 className="flex h-9 w-9 items-center justify-center rounded-full border border-white/20 text-white/60 transition hover:border-accent hover:text-accent">
-                <Instagram className="h-4 w-4" />
+                <Instagram aria-hidden="true" className="h-4 w-4" />
               </a>
-              <a href="https://www.linkedin.com/company/constructed-matter-inc/posts/?feedView=all" target="_blank" rel="noreferrer"
+              <a href="https://www.linkedin.com/company/constructed-matter-inc/posts/?feedView=all" target="_blank" rel="noreferrer" aria-label="Constructed Matter on LinkedIn"
                 className="flex h-9 w-9 items-center justify-center rounded-full border border-white/20 text-white/60 transition hover:border-accent hover:text-accent">
-                <Linkedin className="h-4 w-4" />
+                <Linkedin aria-hidden="true" className="h-4 w-4" />
               </a>
             </div>
           </div>

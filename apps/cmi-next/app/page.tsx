@@ -227,7 +227,7 @@ export default function HomePage() {
   return (
     <div className="home-color-test">
       <SiteHeader />
-      <main>
+      <main id="main-content" tabIndex={-1}>
         {/* ── Hero ────────────────────────────────────────────── */}
         <section className="relative flex min-h-[calc(100vh-72px)] items-end overflow-hidden bg-black">
           <HeroCarousel images={HERO_IMAGES} />
