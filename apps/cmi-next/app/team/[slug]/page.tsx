@@ -8,6 +8,9 @@ import { loadTeamMemberBySlug } from "@/lib/team/data";
 import { getTeamAttributeDetails, mergeTeamMemberWithFallback, normalizeTeamMember, type TeamAttributeDetail } from "@/lib/team/normalize";
 import type { TeamMember } from "@/lib/team/types";
 
+// Always render the latest profile data.
+export const dynamic = "force-dynamic";
+
 type Props = {
   params: Promise<{ slug: string }>;
 };

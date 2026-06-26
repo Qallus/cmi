@@ -9,6 +9,10 @@ import type { TeamMember } from "@/lib/team/types";
 
 export const metadata = { title: "Our Team - Constructed Matter" };
 
+// Render live so team edits (photos, bios, order) appear immediately instead of
+// serving a build-time snapshot.
+export const dynamic = "force-dynamic";
+
 async function getTeamMembers() {
   try {
     const members = await loadActiveTeamMembers();
