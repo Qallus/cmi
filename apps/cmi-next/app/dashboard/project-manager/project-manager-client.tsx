@@ -56,6 +56,7 @@ type WebsiteEdit = {
   content: string;
   images: string[];
   status: WebsiteEditStatus;
+  notified_at?: string;
 };
 
 type ItemDraft = {
@@ -104,7 +105,8 @@ function readWebsiteEdits(metadata: Record<string, unknown> | null | undefined):
       subtitle: String(value.subtitle || ""),
       content: String(value.content || ""),
       images: Array.isArray(value.images) ? value.images.filter((url): url is string => typeof url === "string") : [],
-      status: value.status === "in_progress" || value.status === "done" ? value.status : "requested"
+      status: value.status === "in_progress" || value.status === "done" ? value.status : "requested",
+      ...(typeof value.notified_at === "string" ? { notified_at: value.notified_at } : {})
     };
   });
 }
@@ -368,6 +370,7 @@ export function ProjectManagerClient({ initialData, demoMode = false }: { initia
   const [collapsed, setCollapsed] = React.useState<Set<string>>(new Set());
   const [renamingGroup, setRenamingGroup] = React.useState<string | null>(null);
   const [renameValue, setRenameValue] = React.useState("");
+  const [participantsGroup, setParticipantsGroup] = React.useState<string | null>(null);
   const [selected, setSelected] = React.useState<ItemDraft | null>(null);
   const [assetModal, setAssetModal] = React.useState<AssetModalState | null>(null);
   const [templateId, setTemplateId] = React.useState(templates[0]?.id || "");
@@ -808,6 +811,42 @@ export function ProjectManagerClient({ initialData, demoMode = false }: { initia
     });
     const results = await Promise.all(affected.map(item => patchItem(item, { project_title: nextName, schedule_group_key: nextName })));
     setNotice(results.every(Boolean) ? `Renamed project to "${nextName}".` : "Some tasks could not be renamed. Refresh and try again.");
+  }
+
+  function itemsInGroup(groupName: string) {
+    return items.filter(item => (item.schedule_group_key || item.project_title || "Ungrouped Project") === groupName);
+  }
+
+  // Add participants to every task in a project at once. Existing per-task
+  // participants are preserved (merged), so single-task removals still stick.
+  async function addParticipantsToGroup(groupName: string, names: string[]) {
+    const additions = names.map(name => name.trim()).filter(Boolean);
+    if (!additions.length) return;
+    const targets = itemsInGroup(groupName);
+    await Promise.all(targets.map(item => {
+      const existing = String(item.participants || "").split(",").map(value => value.trim()).filter(Boolean);
+      const merged = Array.from(new Set([...existing, ...additions]));
+      if (merged.length === existing.length) return Promise.resolve(true);
+      return patchItem(item, { participants: merged.join(", ") });
+    }));
+    setNotice(`Added participants to all ${targets.length} tasks in "${groupName}".`);
+  }
+
+  async function removeParticipantFromGroup(groupName: string, name: string) {
+    const targets = itemsInGroup(groupName);
+    await Promise.all(targets.map(item => {
+      const existing = String(item.participants || "").split(",").map(value => value.trim()).filter(Boolean);
+      const next = existing.filter(value => value !== name);
+      if (next.length === existing.length) return Promise.resolve(true);
+      return patchItem(item, { participants: next.join(", ") });
+    }));
+    setNotice(`Removed ${name} from all tasks in "${groupName}".`);
+  }
+
+  async function setNotifyForGroup(groupName: string, value: boolean) {
+    const targets = itemsInGroup(groupName);
+    await Promise.all(targets.map(item => (item.notify === value ? Promise.resolve(true) : patchItem(item, { notify: value }))));
+    setNotice(value ? `Notifications turned on for all tasks in "${groupName}".` : `Notifications turned off for all tasks in "${groupName}".`);
   }
 
   async function deleteItem(item: ProjectScheduleItem) {
@@ -1276,6 +1315,9 @@ export function ProjectManagerClient({ initialData, demoMode = false }: { initia
                       {group.name}
                     </button>
                     <div className="flex items-center gap-2">
+                      <Button size="sm" variant="ghost" onClick={() => setParticipantsGroup(group.name)}>
+                        <UserPlus className="h-3.5 w-3.5" /> Participants
+                      </Button>
                       <Button size="sm" variant="ghost" onClick={() => { setRenamingGroup(group.name); setRenameValue(group.name); }}>
                         <Pencil className="h-3.5 w-3.5" /> Rename
                       </Button>
@@ -1328,6 +1370,109 @@ export function ProjectManagerClient({ initialData, demoMode = false }: { initia
           onSave={payload => saveAsset(assetModal.type, assetModal.item, payload)}
         />
       ) : null}
+      {participantsGroup ? (
+        <ProjectParticipantsModal
+          groupName={participantsGroup}
+          groupItems={itemsInGroup(participantsGroup)}
+          participantOptions={participantOptions}
+          onClose={() => setParticipantsGroup(null)}
+          onAdd={names => addParticipantsToGroup(participantsGroup, names)}
+          onRemove={name => removeParticipantFromGroup(participantsGroup, name)}
+          onSetNotify={value => setNotifyForGroup(participantsGroup, value)}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function ProjectParticipantsModal({
+  groupName,
+  groupItems,
+  participantOptions,
+  onClose,
+  onAdd,
+  onRemove,
+  onSetNotify
+}: {
+  groupName: string;
+  groupItems: ProjectScheduleItem[];
+  participantOptions: string[];
+  onClose: () => void;
+  onAdd: (names: string[]) => void;
+  onRemove: (name: string) => void;
+  onSetNotify: (value: boolean) => void;
+}) {
+  const taskCount = groupItems.length;
+  const notifyingCount = groupItems.filter(item => item.notify).length;
+
+  // Count how many tasks each participant currently appears on.
+  const coverage = new Map<string, number>();
+  groupItems.forEach(item => {
+    String(item.participants || "")
+      .split(",")
+      .map(value => value.trim())
+      .filter(Boolean)
+      .forEach(name => coverage.set(name, (coverage.get(name) || 0) + 1));
+  });
+  const currentParticipants = Array.from(coverage.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  const available = participantOptions.filter(option => !coverage.has(option) || (coverage.get(option) || 0) < taskCount);
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/35 p-4 backdrop-blur-sm">
+      <div className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-lg border border-border bg-card shadow-lg">
+        <div className="border-b border-border p-5">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">Project Participants</div>
+          <h2 className="mt-2 font-display text-xl font-semibold">{groupName}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Manage participants and notifications across all {taskCount} tasks at once. You can still override any single task in its editor.</p>
+        </div>
+
+        <div className="flex-1 space-y-5 overflow-auto p-5">
+          <section className="space-y-2">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Add to all tasks</div>
+            <Select value="" onChange={event => { if (event.target.value) onAdd([event.target.value]); }}>
+              <option value="">Select staff, client, vendor, or subcontractor</option>
+              {available.map(option => <option key={option} value={option}>{option}</option>)}
+            </Select>
+            <p className="text-xs text-muted-foreground">Adds the person to every task in this project. Existing task participants are kept.</p>
+          </section>
+
+          <section className="space-y-2">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Current participants</div>
+            {currentParticipants.length ? (
+              <div className="space-y-2">
+                {currentParticipants.map(([name, count]) => (
+                  <div key={name} className="flex items-center justify-between gap-2 rounded-md border border-border bg-muted px-3 py-2 text-sm">
+                    <span>
+                      {name}
+                      <span className="ml-2 text-xs text-muted-foreground">{count === taskCount ? "all tasks" : `${count} of ${taskCount} tasks`}</span>
+                    </span>
+                    <Button variant="ghost" size="sm" className="text-destructive" onClick={() => onRemove(name)}>
+                      <X className="h-3.5 w-3.5" /> Remove from all
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="rounded-md border border-dashed border-border px-3 py-4 text-center text-sm text-muted-foreground">No participants yet. Add someone above.</p>
+            )}
+          </section>
+
+          <section className="space-y-2 rounded-lg border border-accent/30 bg-accent/5 p-4">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-accent">Notifications</div>
+            <p className="text-sm text-muted-foreground">
+              When a task has notifications on, its participants are emailed as edit requests are completed. Currently <span className="font-medium text-foreground">{notifyingCount} of {taskCount}</span> tasks are notifying.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="accent" size="sm" onClick={() => onSetNotify(true)}>Notify on all tasks</Button>
+              <Button variant="outline" size="sm" onClick={() => onSetNotify(false)}>Turn off on all tasks</Button>
+            </div>
+          </section>
+        </div>
+
+        <div className="flex justify-end gap-2 border-t border-border p-4">
+          <Button variant="accent" onClick={onClose}>Done</Button>
+        </div>
+      </div>
     </div>
   );
 }
