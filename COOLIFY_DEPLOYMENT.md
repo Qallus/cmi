@@ -16,9 +16,35 @@ Target:
 5. Enable HTTPS / Let's Encrypt.
 6. Set environment variables from `.env.example`.
 
+## Build-time vs Runtime variables — READ THIS (security critical)
+
+A deploy leaked secrets because Coolify was injecting **every** environment
+variable into the image as a Docker `--build-arg`. Build args are baked into
+image layers/metadata (`docker history`) — so any secret marked "build variable"
+is effectively published inside the image.
+
+**Rule: exactly one variable may be a build variable — `NEXT_PUBLIC_APP_URL`.
+Everything else is runtime-only.** The `Dockerfile` enforces this on its side
+(it only declares `ARG NEXT_PUBLIC_APP_URL`); you must enforce the matching
+setting in Coolify.
+
+In the Coolify app → **Environment Variables**, for each variable:
+
+- `NEXT_PUBLIC_APP_URL` → **Build Variable = ON** (needs to be inlined at build).
+- **Every other variable** (all `SUPABASE_*`, `SESSION_SECRET`,
+  `STAFF_USERS_JSON`, `TWILIO_*`, `SMTP_*`, `IMAP_*`, `RESEND_*`, `HERMES_*`,
+  `OPENAI_API_KEY`, `RECAPTCHA_*`, `WP_*`, `NOTIFY_*`, `PUBLIC_SITE_URL`, …) →
+  **Build Variable = OFF** (runtime only).
+
+The server reads these from `process.env` at run time, so runtime-only is all it
+ever needs. If you ever see a secret listed as an `ARG …=value` line in the
+deploy log's "Final Dockerfile", a secret is still marked as a build variable —
+turn it off.
+
 ## Required Environment Variables
 
-Set these in Coolify, not in the repo:
+Set these in Coolify, not in the repo. Unless noted, keep **Build Variable =
+OFF** (runtime only):
 
 ```text
 NODE_ENV=production
@@ -99,6 +125,24 @@ Rotate these before deployment:
 - Any staff passwords/access codes that were previously embedded in `dashboard.html`.
 - The WordPress application password previously embedded in `staff-dashboard.html`.
 - The FluentCRM webhook hash previously embedded in public pages, if possible.
+
+### Rotate now — leaked via a build log (2026-07-01)
+
+These appeared as build-arg values in a deployment log and must be treated as
+compromised. Rotate each, then update the (runtime-only) value in Coolify:
+
+- `SUPABASE_SERVICE_ROLE_KEY` and `SUPABASE_ANON_KEY` (Supabase → API settings).
+- `SESSION_SECRET` (generate a new long random string; invalidates sessions).
+- `STAFF_USERS_JSON` staff passwords (set new passwords for all listed admins).
+- `TWILIO_AUTH_TOKEN`, `TWILIO_API_KEY_SID` / `TWILIO_API_KEY_SECRET`
+  (Twilio console → API keys; roll the auth token).
+- `SMTP_PASS` / `IMAP_PASS` (Hostinger mailbox password).
+- `RESEND_API_KEY` and `OPENAI_API_KEY` / `HERMES_AGENT_API_KEY`.
+- `RECAPTCHA_SECRET_KEY`.
+- `WP_BASIC_APP_PASSWORD` (WordPress application password).
+
+After rotating, confirm the next deploy's "Final Dockerfile" shows **no**
+`ARG <secret>=…` lines — only `ARG NEXT_PUBLIC_APP_URL`.
 
 ## Git Push
 
