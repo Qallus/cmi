@@ -1,6 +1,6 @@
 // Dashboard Review Notes — data access (service-role; caller enforces role).
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import type { CreateNoteInput, DashboardNote } from "./types";
+import type { CreateNoteInput, DashboardNote, DashboardNoteComment } from "./types";
 
 export async function createNote(input: CreateNoteInput, author: { email: string; name: string }): Promise<DashboardNote> {
   const sb = getSupabaseAdmin();
@@ -67,6 +67,31 @@ export async function updateNote(id: string, patch: Partial<Pick<DashboardNote, 
     .from("dashboard_notes").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", id).select("*").single();
   if (error) throw new Error(error.message);
   return data as DashboardNote;
+}
+
+export async function getNote(id: string): Promise<DashboardNote | null> {
+  const sb = getSupabaseAdmin();
+  const { data } = await sb.from("dashboard_notes").select("*").eq("id", id).maybeSingle();
+  return (data as DashboardNote) ?? null;
+}
+
+export async function listComments(noteId: string): Promise<DashboardNoteComment[]> {
+  const sb = getSupabaseAdmin();
+  const { data, error } = await sb
+    .from("dashboard_note_comments").select("*").eq("note_id", noteId).order("created_at", { ascending: true });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as DashboardNoteComment[];
+}
+
+export async function addComment(noteId: string, author: { email: string; name: string }, body: string): Promise<DashboardNoteComment> {
+  const sb = getSupabaseAdmin();
+  const { data, error } = await sb
+    .from("dashboard_note_comments")
+    .insert({ note_id: noteId, author_email: author.email.toLowerCase(), author_name: author.name, body })
+    .select("*").single();
+  if (error) throw new Error(error.message);
+  await sb.from("dashboard_notes").update({ updated_at: new Date().toISOString() }).eq("id", noteId);
+  return data as DashboardNoteComment;
 }
 
 /** Add `email` to read_by so it stops counting as unread on the bell. */

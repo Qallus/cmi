@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireSuperAdmin, AuthError } from "@/lib/auth/require-admin";
-import { createNote, listSharedWith, listInbox, listAll, updateNote, markRead } from "@/lib/dashboard-notes/data";
+import { createNote, listSharedWith, listInbox, listAll, updateNote, markRead, getNote, listComments, addComment } from "@/lib/dashboard-notes/data";
 import { sendSharedNoteEmails } from "@/lib/dashboard-notes/notify";
 import type { CreateNoteInput } from "@/lib/dashboard-notes/types";
 
@@ -62,6 +62,21 @@ export async function POST(req: NextRequest) {
         if (!id) return NextResponse.json({ error: "id is required." }, { status: 400 });
         await markRead(id, email);
         return NextResponse.json({ ok: true });
+      }
+      case "get_note": {
+        const { id } = body as { id?: string };
+        if (!id) return NextResponse.json({ error: "id is required." }, { status: 400 });
+        const note = await getNote(id);
+        if (!note) return NextResponse.json({ error: "Note not found." }, { status: 404 });
+        await markRead(id, email);
+        const comments = await listComments(id);
+        return NextResponse.json({ note, comments });
+      }
+      case "add_comment": {
+        const { id, comment } = body as { id?: string; comment?: string };
+        if (!id || !comment?.trim()) return NextResponse.json({ error: "id and comment are required." }, { status: 400 });
+        const created = await addComment(id, { email, name }, comment.trim());
+        return NextResponse.json({ comment: created }, { status: 201 });
       }
       default:
         return NextResponse.json({ error: `Unknown action "${body.action}".` }, { status: 400 });

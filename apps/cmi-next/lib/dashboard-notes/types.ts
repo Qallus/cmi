@@ -33,6 +33,15 @@ export type DashboardNote = {
   updated_at: string;
 };
 
+export type DashboardNoteComment = {
+  id: string;
+  note_id: string;
+  author_email: string | null;
+  author_name: string | null;
+  body: string;
+  created_at: string;
+};
+
 export type CreateNoteInput = {
   route: string;
   page_title: string;

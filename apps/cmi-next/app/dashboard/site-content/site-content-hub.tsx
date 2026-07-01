@@ -9,6 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { SiteContentClient } from "./site-content-client";
+import { NoteDetailModal } from "@/components/dashboard/note-detail-modal";
 import type { ContentBlock } from "./page";
 import { SESSION_STATUSES, SESSION_STATUS_LABELS, type SessionStatus, type SessionSummary } from "@/lib/live-editor/types";
 import { NOTE_STATUSES, NOTE_STATUS_LABELS, NOTE_TYPE_LABELS, type DashboardNote, type DashboardNoteStatus } from "@/lib/dashboard-notes/types";
@@ -57,6 +58,7 @@ export function SiteContentHub({ initialBlocks }: { initialBlocks: ContentBlock[
   const [surface, setSurface] = React.useState<Surface>("frontend");
   const [view, setView] = React.useState<View>("cards");
   const [blocksOpen, setBlocksOpen] = React.useState(false);
+  const [detailId, setDetailId] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     fetch("/api/auth/me").then((r) => r.json())
@@ -181,11 +183,11 @@ export function SiteContentHub({ initialBlocks }: { initialBlocks: ContentBlock[
                   : <>No dashboard requests yet. Use the review button (bottom-right of any page) to capture one.</>}
               </div>
             ) : view === "cards" ? (
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{shown.map((r) => <ReqCard key={r.id} r={r} onStatus={setStatus} />)}</div>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{shown.map((r) => <ReqCard key={r.id} r={r} onStatus={setStatus} onOpen={setDetailId} />)}</div>
             ) : view === "list" ? (
-              <div className="space-y-2">{shown.map((r) => <ReqRow key={r.id} r={r} onStatus={setStatus} />)}</div>
+              <div className="space-y-2">{shown.map((r) => <ReqRow key={r.id} r={r} onStatus={setStatus} onOpen={setDetailId} />)}</div>
             ) : (
-              <ReqTable reqs={shown} onStatus={setStatus} />
+              <ReqTable reqs={shown} onStatus={setStatus} onOpen={setDetailId} />
             )}
           </div>
         </div>
@@ -199,8 +201,18 @@ export function SiteContentHub({ initialBlocks }: { initialBlocks: ContentBlock[
           <SiteContentClient initialBlocks={initialBlocks} />
         </div>
       )}
+
+      {detailId && <NoteDetailModal noteId={detailId} onClose={() => setDetailId(null)} onChanged={() => void loadRequests()} />}
     </div>
   );
+}
+
+// Open control: backend requests open the detail modal; frontend navigate to the editor.
+function OpenBtn({ r, onOpen }: { r: Req; onOpen: (id: string) => void }) {
+  if (r.surface === "backend") {
+    return <button type="button" onClick={() => onOpen(r.id)} className="inline-flex h-7 items-center rounded-md bg-accent px-2.5 text-[11px] font-medium text-accent-foreground hover:opacity-90">Open</button>;
+  }
+  return <a href={r.openHref} className="inline-flex h-7 items-center rounded-md bg-accent px-2.5 text-[11px] font-medium text-accent-foreground hover:opacity-90">Open</a>;
 }
 
 function statusOptions(surface: Surface) {
@@ -217,7 +229,7 @@ function StatusPicker({ r, onStatus }: { r: Req; onStatus: (r: Req, s: string) =
   );
 }
 
-function ReqCard({ r, onStatus }: { r: Req; onStatus: (r: Req, s: string) => void }) {
+function ReqCard({ r, onStatus, onOpen }: { r: Req; onStatus: (r: Req, s: string) => void; onOpen: (id: string) => void }) {
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-border bg-background p-3">
       <div className="flex items-start justify-between gap-2">
@@ -226,26 +238,26 @@ function ReqCard({ r, onStatus }: { r: Req; onStatus: (r: Req, s: string) => voi
       </div>
       <div className="flex items-center gap-2 text-[11px] text-muted-foreground"><span>{r.meta}</span><span>· {fmt(r.updated)}</span></div>
       <div className="flex items-center gap-2">
-        <a href={r.openHref} className="inline-flex h-7 items-center rounded-md bg-accent px-2.5 text-[11px] font-medium text-accent-foreground hover:opacity-90">Open</a>
+        <OpenBtn r={r} onOpen={onOpen} />
         <StatusPicker r={r} onStatus={onStatus} />
       </div>
     </div>
   );
 }
 
-function ReqRow({ r, onStatus }: { r: Req; onStatus: (r: Req, s: string) => void }) {
+function ReqRow({ r, onStatus, onOpen }: { r: Req; onStatus: (r: Req, s: string) => void; onOpen: (id: string) => void }) {
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-background px-3 py-2.5">
       <div className="min-w-[160px] flex-1"><div className="text-sm font-medium">{r.title}</div><div className="truncate text-[11px] text-muted-foreground">{r.subtitle}</div></div>
       {r.priority && <span className={cn("rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase", PRIORITY_TONE[r.priority])}>{r.priority}</span>}
       <span className="text-[11px] text-muted-foreground">{r.meta}</span>
-      <a href={r.openHref} className="inline-flex h-7 items-center rounded-md bg-accent px-2.5 text-[11px] font-medium text-accent-foreground hover:opacity-90">Open</a>
+      <OpenBtn r={r} onOpen={onOpen} />
       <StatusPicker r={r} onStatus={onStatus} />
     </div>
   );
 }
 
-function ReqTable({ reqs, onStatus }: { reqs: Req[]; onStatus: (r: Req, s: string) => void }) {
+function ReqTable({ reqs, onStatus, onOpen }: { reqs: Req[]; onStatus: (r: Req, s: string) => void; onOpen: (id: string) => void }) {
   return (
     <div className="overflow-x-auto rounded-lg border border-border">
       <table className="w-full min-w-[640px] border-collapse text-sm">
@@ -258,7 +270,9 @@ function ReqTable({ reqs, onStatus }: { reqs: Req[]; onStatus: (r: Req, s: strin
               <td className="px-4 py-2.5">{r.priority && <span className={cn("rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase", PRIORITY_TONE[r.priority])}>{r.priority}</span>}</td>
               <td className="px-4 py-2.5"><StatusPicker r={r} onStatus={onStatus} /></td>
               <td className="px-4 py-2.5 text-xs text-muted-foreground">{fmt(r.updated)}</td>
-              <td className="px-4 py-2.5"><a href={r.openHref} className="text-[11px] font-medium text-accent">Open →</a></td>
+              <td className="px-4 py-2.5">{r.surface === "backend"
+                ? <button type="button" onClick={() => onOpen(r.id)} className="text-[11px] font-medium text-accent">Open →</button>
+                : <a href={r.openHref} className="text-[11px] font-medium text-accent">Open →</a>}</td>
             </tr>
           ))}
         </tbody>

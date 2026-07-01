@@ -8,6 +8,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { BoltModal } from "./bolt-modal";
+import { NoteDetailModal } from "./note-detail-modal";
 import {
   NOTE_PRIORITIES, NOTE_STATUS_LABELS, NOTE_STATUSES, NOTE_TYPES, NOTE_TYPE_LABELS,
   type DashboardNote, type DashboardNoteStatus, type NotePriority, type NoteType,
@@ -36,6 +37,7 @@ export function ReviewFab() {
   const [open, setOpen] = React.useState(false);
   const [tab, setTab] = React.useState<Tab>("note");
   const [boltOpen, setBoltOpen] = React.useState(false);
+  const [detailId, setDetailId] = React.useState<string | null>(null);
   const [unread, setUnread] = React.useState(0);
 
   const pageTitle = prettyRoute(pathname);
@@ -89,10 +91,19 @@ export function ReviewFab() {
   async function captureScreenshot() {
     setCapturing(true); setError(null);
     try {
-      const { default: html2canvas } = await import("html2canvas");
-      // Hide the FAB panel while capturing so it isn't in the shot.
-      const canvas = await html2canvas(document.body, { logging: false, useCORS: true, scale: Math.min(window.devicePixelRatio, 1.5), ignoreElements: (el) => el.hasAttribute?.("data-fab-ignore") });
-      setShot(canvas.toDataURL("image/jpeg", 0.85));
+      // html-to-image renders via the browser (SVG foreignObject), so modern CSS
+      // colors (oklch/color-mix) that html2canvas can't parse work fine here.
+      const { toJpeg } = await import("html-to-image");
+      const bg = getComputedStyle(document.body).backgroundColor || "#ffffff";
+      const dataUrl = await toJpeg(document.body, {
+        quality: 0.85,
+        backgroundColor: bg,
+        pixelRatio: Math.min(window.devicePixelRatio || 1, 1.5),
+        // Keep everything except the FAB itself out of the shot.
+        filter: (node) => !(node instanceof HTMLElement && node.hasAttribute?.("data-fab-ignore")),
+        cacheBust: true,
+      });
+      setShot(dataUrl);
     } catch { setError("Couldn't capture the screen on this page."); }
     finally { setCapturing(false); }
   }
@@ -199,17 +210,17 @@ export function ReviewFab() {
                 ) : shared.length === 0 ? (
                   <div className="py-8 text-center text-xs text-muted-foreground">No requests yet. Save a note to see it here.</div>
                 ) : shared.map((n) => (
-                  <div key={n.id} className="rounded-lg border border-border bg-background p-2.5">
+                  <div key={n.id} onClick={() => setDetailId(n.id)} className="cursor-pointer rounded-lg border border-border bg-background p-2.5 transition hover:border-accent/40">
                     <div className="flex items-center gap-1.5">
                       <span className={cn("rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase", PRIORITY_TONE[n.priority])}>{n.priority}</span>
                       <span className="text-[10px] text-muted-foreground">{NOTE_TYPE_LABELS[n.type]} · {n.page_title}</span>
                       <span className="ml-auto text-[10px] text-muted-foreground">{n.created_by_name}</span>
                     </div>
-                    <div className="mt-1 text-xs">{n.note}</div>
-                    {n.screenshot_url && <a href={n.screenshot_url} target="_blank" rel="noreferrer"><img src={n.screenshot_url} alt="" className="mt-1.5 max-h-28 rounded border border-border object-cover" /></a>}
+                    <div className="mt-1 line-clamp-2 text-xs">{n.note}</div>
+                    {n.screenshot_url && <img src={n.screenshot_url} alt="" className="mt-1.5 max-h-24 rounded border border-border object-cover" />}
                     <div className="mt-1.5 flex items-center gap-2">
-                      {n.route && <a href={n.route} className="text-[10px] font-medium text-accent">Open page →</a>}
-                      <select value={n.status} onChange={(e) => void setStatus(n, e.target.value as DashboardNoteStatus)} className={cn("ml-auto h-6 rounded border border-border bg-background px-1 text-[10px]", STATUS_TONE[n.status])}>
+                      <span className="text-[10px] font-medium text-accent">Open details →</span>
+                      <select value={n.status} onClick={(e) => e.stopPropagation()} onChange={(e) => void setStatus(n, e.target.value as DashboardNoteStatus)} className={cn("ml-auto h-6 rounded border border-border bg-background px-1 text-[10px]", STATUS_TONE[n.status])}>
                         {NOTE_STATUSES.map((s) => <option key={s} value={s}>{NOTE_STATUS_LABELS[s]}</option>)}
                       </select>
                     </div>
@@ -236,6 +247,7 @@ export function ReviewFab() {
       </div>
 
       {boltOpen && <BoltModal context={pageTitle} onClose={() => setBoltOpen(false)} />}
+      {detailId && <NoteDetailModal noteId={detailId} onClose={() => setDetailId(null)} onChanged={() => { void loadShared(); loadUnread(); }} />}
     </>
   );
 }
