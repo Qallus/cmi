@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { BookOpen, Check, Plus, X } from "lucide-react";
+import Link from "next/link";
+import { BookOpen, Check, MonitorSmartphone, Plus, Sparkles, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -39,6 +40,15 @@ export function SiteContentClient({ initialBlocks }: { initialBlocks: ContentBlo
   const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const [role, setRole] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((data: { user?: { role?: string } | null }) => setRole(data.user?.role ?? null))
+      .catch(() => {});
+  }, []);
+  const isSuperAdmin = role === "super_admin";
 
   const grouped = React.useMemo(() => {
     const map = new Map<string, ContentBlock[]>();
@@ -100,7 +110,25 @@ export function SiteContentClient({ initialBlocks }: { initialBlocks: ContentBlo
           <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight">Site Content</h1>
           <p className="mt-1 text-sm text-muted-foreground">Manage content blocks displayed on the public site.</p>
         </div>
-        <Button size="sm" variant="accent" onClick={openNew}><Plus className="h-3.5 w-3.5" /> New Block</Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* CMS actions: Bolt AI · Live Page Editor (Super Admin) · New Block */}
+          <Link
+            href="/dashboard/agent"
+            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-transparent px-2.5 text-xs font-medium text-foreground transition hover:bg-muted"
+          >
+            <Sparkles className="h-3.5 w-3.5 text-accent" /> Bolt AI
+          </Link>
+          {isSuperAdmin && (
+            <Link
+              href="/dashboard/site-content/live-editor"
+              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-transparent px-2.5 text-xs font-medium text-foreground transition hover:bg-muted"
+              title="Visual page review — Super Admin only"
+            >
+              <MonitorSmartphone className="h-3.5 w-3.5 text-accent" /> Live Page Editor
+            </Link>
+          )}
+          <Button size="sm" variant="accent" onClick={openNew}><Plus className="h-3.5 w-3.5" /> New Block</Button>
+        </div>
       </div>
 
       {blocks.length === 0 && !editingId && (

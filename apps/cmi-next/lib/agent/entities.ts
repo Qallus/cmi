@@ -348,6 +348,32 @@ export const ENTITIES: AgentEntity[] = [
       { name: "notes", type: "text", desc: "Notes" },
     ],
   },
+  {
+    key: "page_review_note", label: "Page Review Note", plural: "page review notes", table: "page_review_notes",
+    description: "Super Admin Live Page Editor review notes attached to page elements. READ these to understand requested changes. Any change you propose must be a DRAFT (set status='draft', ai_generated=true) — never publish.",
+    idColumn: "id", hasUpdatedAt: true, searchColumns: ["note", "change_type"],
+    orderBy: { column: "created_at", ascending: false }, writeRoles: ["super_admin"], deleteRoles: ["super_admin"],
+    fields: [
+      { name: "review_session_id", type: "string", desc: "Parent review session id", required: true },
+      { name: "element_id", type: "string", desc: "Reviewed element id" },
+      { name: "note", type: "text", desc: "Requested change / note", required: true },
+      { name: "priority", type: "enum", desc: "Priority", enumValues: ["low", "medium", "high", "urgent"] },
+      { name: "status", type: "enum", desc: "Status (AI proposals must be 'draft')", enumValues: ["draft", "open", "in_progress", "resolved", "archived"] },
+      { name: "change_type", type: "string", desc: "Change type (copy_update, styling_update, ai_rewrite_request, etc.)" },
+      { name: "ai_generated", type: "boolean", desc: "True when Bolt drafted this note" },
+    ],
+  },
+  {
+    key: "page_review_export", label: "Page Review Export", plural: "page review exports", table: "page_review_exports",
+    description: "AI-readable export briefs from the Live Page Editor. Read export_payload for the structured page-review brief. Read-only for Bolt.",
+    idColumn: "id", searchColumns: ["file_type"],
+    orderBy: { column: "created_at", ascending: false }, writeRoles: ["super_admin"], deleteRoles: ["super_admin"],
+    fields: [
+      { name: "review_session_id", type: "string", desc: "Parent review session id" },
+      { name: "file_type", type: "string", desc: "Export type (markdown, ai_brief)" },
+      { name: "ai_visible", type: "boolean", desc: "Flagged for AI consumption" },
+    ],
+  },
 ];
 
 export function getEntity(key: string): AgentEntity | undefined {

@@ -21,7 +21,7 @@ export type ContentBlock = {
 
 async function loadBlocks(): Promise<ContentBlock[]> {
   const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase.from("site_content").select("*").order("type").order("key");
+  const { data, error } = await supabase.from("site_content_blocks").select("*").order("type").order("key");
   if (error) throw new Error(error.message);
   return (data ?? []) as ContentBlock[];
 }

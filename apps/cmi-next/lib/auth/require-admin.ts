@@ -41,6 +41,16 @@ export async function requireAdmin(request: Request | NextRequest) {
   return { user, staff };
 }
 
+// Stricter guard for Super Admin-only surfaces (e.g. the Live Page Editor).
+// Reuses requireAdmin, then enforces the top role.
+export async function requireSuperAdmin(request: Request | NextRequest) {
+  const ctx = await requireAdmin(request);
+  if (ctx.staff.role_slug !== "super_admin") {
+    throw new AuthError("Forbidden — Super Admin only.", 403);
+  }
+  return ctx;
+}
+
 function parseCookie(header: string, name: string): string | null {
   const match = header.split(";").find((c) => c.trim().startsWith(`${name}=`));
   if (!match) return null;
