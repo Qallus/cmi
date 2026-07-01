@@ -1,0 +1,254 @@
+"use client";
+
+import * as React from "react";
+import { usePathname } from "next/navigation";
+import {
+  Camera, Check, Inbox, Loader2, MessageSquarePlus, PenLine, Sparkles, X,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { BoltModal } from "./bolt-modal";
+import {
+  NOTE_PRIORITIES, NOTE_STATUS_LABELS, NOTE_STATUSES, NOTE_TYPES, NOTE_TYPE_LABELS,
+  type DashboardNote, type DashboardNoteStatus, type NotePriority, type NoteType,
+} from "@/lib/dashboard-notes/types";
+
+type StaffOption = { id: string; label: string; email: string; role: string };
+type Tab = "note" | "shared";
+
+const PRIORITY_TONE: Record<NotePriority, string> = {
+  low: "bg-muted text-muted-foreground", medium: "bg-info/15 text-info",
+  high: "bg-warning/15 text-warning", urgent: "bg-destructive/15 text-destructive",
+};
+const STATUS_TONE: Record<string, string> = {
+  open: "bg-info/15 text-info", in_progress: "bg-warning/15 text-warning",
+  done: "bg-success/15 text-success", archived: "bg-muted text-muted-foreground",
+};
+
+function prettyRoute(path: string): string {
+  const seg = path.split("/").filter(Boolean);
+  const last = seg[seg.length - 1] ?? "overview";
+  return last.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+export function ReviewFab() {
+  const pathname = usePathname();
+  const [open, setOpen] = React.useState(false);
+  const [tab, setTab] = React.useState<Tab>("note");
+  const [boltOpen, setBoltOpen] = React.useState(false);
+  const [unread, setUnread] = React.useState(0);
+
+  const pageTitle = prettyRoute(pathname);
+
+  // Composer state
+  const [note, setNote] = React.useState("");
+  const [type, setType] = React.useState<NoteType>("edit");
+  const [priority, setPriority] = React.useState<NotePriority>("medium");
+  const [recipients, setRecipients] = React.useState<string[]>([]);
+  const [staff, setStaff] = React.useState<StaffOption[]>([]);
+  const [shot, setShot] = React.useState<string | null>(null); // dataURL preview
+  const [capturing, setCapturing] = React.useState(false);
+  const [saving, setSaving] = React.useState(false);
+  const [saved, setSaved] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  // Shared inbox
+  const [shared, setShared] = React.useState<DashboardNote[]>([]);
+  const [loadingShared, setLoadingShared] = React.useState(false);
+
+  const loadUnread = React.useCallback(() => {
+    fetch("/api/dashboard-notes?scope=shared")
+      .then((r) => r.json()).then((d: { unread?: number }) => setUnread(d.unread ?? 0)).catch(() => {});
+  }, []);
+
+  React.useEffect(() => {
+    loadUnread();
+    fetch("/api/staff-options").then((r) => r.json())
+      .then((d: { staff?: StaffOption[] }) => setStaff((d.staff ?? []).filter((s) => ["super_admin", "admin"].includes(s.role) && s.email)))
+      .catch(() => {});
+  }, [loadUnread]);
+
+  const loadShared = React.useCallback(async () => {
+    setLoadingShared(true);
+    try {
+      const res = await fetch("/api/dashboard-notes?scope=shared");
+      const json = await res.json() as { notes?: DashboardNote[]; me?: string };
+      const notes = json.notes ?? [];
+      setShared(notes);
+      // Mark unread ones as read now that they're on screen.
+      const me = json.me ?? "";
+      const unreadIds = notes.filter((n) => !n.read_by.map((e) => e.toLowerCase()).includes(me)).map((n) => n.id);
+      await Promise.allSettled(unreadIds.map((id) =>
+        fetch("/api/dashboard-notes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "mark_read", id }) })));
+      if (unreadIds.length) setUnread(0);
+    } finally { setLoadingShared(false); }
+  }, []);
+
+  function openPanel(t: Tab) { setOpen(true); setTab(t); if (t === "shared") void loadShared(); }
+
+  async function captureScreenshot() {
+    setCapturing(true); setError(null);
+    try {
+      const { default: html2canvas } = await import("html2canvas");
+      // Hide the FAB panel while capturing so it isn't in the shot.
+      const canvas = await html2canvas(document.body, { logging: false, useCORS: true, scale: Math.min(window.devicePixelRatio, 1.5), ignoreElements: (el) => el.hasAttribute?.("data-fab-ignore") });
+      setShot(canvas.toDataURL("image/jpeg", 0.85));
+    } catch { setError("Couldn't capture the screen on this page."); }
+    finally { setCapturing(false); }
+  }
+
+  async function uploadShot(dataUrl: string): Promise<string | null> {
+    const blob = await (await fetch(dataUrl)).blob();
+    const form = new FormData();
+    form.append("file", new File([blob], `dashboard-${Date.now()}.jpg`, { type: "image/jpeg" }));
+    form.append("folder", "dashboard-notes");
+    const res = await fetch("/api/admin/uploads", { method: "POST", body: form });
+    if (!res.ok) return null;
+    const json = await res.json() as { url?: string };
+    return json.url ?? null;
+  }
+
+  async function submit() {
+    if (!note.trim()) { setError("Add a note first."); return; }
+    setSaving(true); setError(null);
+    try {
+      let screenshot_url: string | null = null;
+      if (shot) screenshot_url = await uploadShot(shot);
+      const res = await fetch("/api/dashboard-notes", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "create", payload: {
+          route: pathname, page_title: pageTitle, note: note.trim(), type, priority,
+          recipient_emails: recipients, screenshot_url,
+        } }),
+      });
+      const json = await res.json() as { error?: string };
+      if (!res.ok) throw new Error(json.error ?? "Save failed.");
+      setSaved(true);
+      setNote(""); setShot(null); setRecipients([]); setType("edit"); setPriority("medium");
+      setTimeout(() => { setSaved(false); setOpen(false); }, 1100);
+    } catch (err) { setError(err instanceof Error ? err.message : "Save failed."); }
+    finally { setSaving(false); }
+  }
+
+  async function setStatus(n: DashboardNote, status: DashboardNoteStatus) {
+    setShared((prev) => prev.map((x) => (x.id === n.id ? { ...x, status } : x)));
+    await fetch("/api/dashboard-notes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "update_status", id: n.id, status }) }).catch(() => {});
+  }
+
+  function toggleRecipient(email: string) {
+    setRecipients((prev) => prev.includes(email) ? prev.filter((e) => e !== email) : [...prev, email]);
+  }
+
+  return (
+    <>
+      {/* FAB */}
+      <div data-fab-ignore className="fixed bottom-5 right-5 z-50 print:hidden">
+        {open && (
+          <div className="mb-3 w-[340px] overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
+            <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
+              <div className="flex items-center gap-1">
+                <TabBtn active={tab === "note"} onClick={() => setTab("note")} icon={<PenLine className="h-3.5 w-3.5" />} label="Note" />
+                <TabBtn active={tab === "shared"} onClick={() => openPanel("shared")} icon={<Inbox className="h-3.5 w-3.5" />} label="Shared" badge={unread} />
+              </div>
+              <button type="button" onClick={() => setOpen(false)} className="rounded p-1 text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+            </div>
+
+            {tab === "note" ? (
+              <div className="max-h-[70vh] space-y-3 overflow-y-auto p-4">
+                <div className="text-[11px] text-muted-foreground">On <span className="font-medium text-foreground">{pageTitle}</span> — captured automatically.</div>
+                {error && <div className="rounded bg-destructive/10 px-2 py-1 text-[11px] text-destructive">{error}</div>}
+                <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="What needs changing, fixing, adding, or removing here?"
+                  className="min-h-[80px] w-full resize-none rounded-md border border-border bg-background px-2.5 py-2 text-sm outline-none focus:border-accent" />
+                <div className="grid grid-cols-2 gap-2">
+                  <L label="Type"><select value={type} onChange={(e) => setType(e.target.value as NoteType)} className={ic}>{NOTE_TYPES.map((t) => <option key={t} value={t}>{NOTE_TYPE_LABELS[t]}</option>)}</select></L>
+                  <L label="Priority"><select value={priority} onChange={(e) => setPriority(e.target.value as NotePriority)} className={ic}>{NOTE_PRIORITIES.map((p) => <option key={p} value={p}>{p[0].toUpperCase() + p.slice(1)}</option>)}</select></L>
+                </div>
+
+                <div>
+                  <div className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Share with (email + bell)</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {staff.length === 0 && <span className="text-[11px] text-muted-foreground">No teammates found.</span>}
+                    {staff.map((s) => (
+                      <button key={s.id} type="button" onClick={() => toggleRecipient(s.email)}
+                        className={cn("rounded-full border px-2 py-0.5 text-[11px]", recipients.includes(s.email) ? "border-accent bg-accent/10 text-accent" : "border-border text-muted-foreground hover:text-foreground")}>
+                        {s.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="outline" onClick={() => void captureScreenshot()} disabled={capturing}>
+                    {capturing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />} {shot ? "Recapture" : "Screenshot"}
+                  </Button>
+                  {shot && <div className="flex items-center gap-1.5"><img src={shot} alt="preview" className="h-8 w-12 rounded border border-border object-cover" /><button type="button" onClick={() => setShot(null)} className="text-muted-foreground hover:text-destructive"><X className="h-3.5 w-3.5" /></button></div>}
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
+                  <button type="button" onClick={() => { setBoltOpen(true); }} className="inline-flex items-center gap-1.5 text-xs font-medium text-accent hover:opacity-80"><Sparkles className="h-3.5 w-3.5" /> Ask Bolt instead</button>
+                  <Button size="sm" variant="accent" onClick={() => void submit()} disabled={saving || saved}>
+                    {saved ? <Check className="h-3.5 w-3.5" /> : saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                    {saved ? "Saved" : recipients.length ? "Save & share" : "Save note"}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="max-h-[70vh] space-y-2 overflow-y-auto p-3">
+                {loadingShared ? (
+                  <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-accent" /></div>
+                ) : shared.length === 0 ? (
+                  <div className="py-8 text-center text-xs text-muted-foreground">Nothing shared with you yet.</div>
+                ) : shared.map((n) => (
+                  <div key={n.id} className="rounded-lg border border-border bg-background p-2.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className={cn("rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase", PRIORITY_TONE[n.priority])}>{n.priority}</span>
+                      <span className="text-[10px] text-muted-foreground">{NOTE_TYPE_LABELS[n.type]} · {n.page_title}</span>
+                      <span className="ml-auto text-[10px] text-muted-foreground">{n.created_by_name}</span>
+                    </div>
+                    <div className="mt-1 text-xs">{n.note}</div>
+                    {n.screenshot_url && <a href={n.screenshot_url} target="_blank" rel="noreferrer"><img src={n.screenshot_url} alt="" className="mt-1.5 max-h-28 rounded border border-border object-cover" /></a>}
+                    <div className="mt-1.5 flex items-center gap-2">
+                      {n.route && <a href={n.route} className="text-[10px] font-medium text-accent">Open page →</a>}
+                      <select value={n.status} onChange={(e) => void setStatus(n, e.target.value as DashboardNoteStatus)} className={cn("ml-auto h-6 rounded border border-border bg-background px-1 text-[10px]", STATUS_TONE[n.status])}>
+                        {NOTE_STATUSES.map((s) => <option key={s} value={s}>{NOTE_STATUS_LABELS[s]}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="flex items-center justify-end gap-2">
+          {open && (
+            <button type="button" onClick={() => setBoltOpen(true)} title="Ask Bolt"
+              className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-card text-accent shadow-lg transition hover:bg-muted">
+              <Sparkles className="h-5 w-5" />
+            </button>
+          )}
+          <button type="button" onClick={() => (open ? setOpen(false) : openPanel("note"))} title="Leadership review"
+            className="relative flex h-14 w-14 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-xl transition hover:opacity-90">
+            {open ? <X className="h-6 w-6" /> : <MessageSquarePlus className="h-6 w-6" />}
+            {!open && unread > 0 && <span className="absolute -right-0.5 -top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-white">{unread > 9 ? "9+" : unread}</span>}
+          </button>
+        </div>
+      </div>
+
+      {boltOpen && <BoltModal context={pageTitle} onClose={() => setBoltOpen(false)} />}
+    </>
+  );
+}
+
+const ic = "h-8 w-full rounded-md border border-border bg-background px-2 text-xs outline-none focus:border-accent";
+function L({ label, children }: { label: string; children: React.ReactNode }) {
+  return <div className="flex flex-col gap-1"><label className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{label}</label>{children}</div>;
+}
+function TabBtn({ active, onClick, icon, label, badge }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string; badge?: number }) {
+  return (
+    <button type="button" onClick={onClick} className={cn("inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium", active ? "bg-accent/10 text-accent" : "text-muted-foreground hover:text-foreground")}>
+      {icon} {label}
+      {badge ? <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-white">{badge > 9 ? "9+" : badge}</span> : null}
+    </button>
+  );
+}

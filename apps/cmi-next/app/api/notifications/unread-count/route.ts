@@ -4,7 +4,7 @@ import { requireAdmin, AuthError } from "@/lib/auth/require-admin";
 
 export async function GET(request: Request) {
   try {
-    const { staff } = await requireAdmin(request);
+    const { user, staff } = await requireAdmin(request);
     const supabase = getSupabaseAdmin();
     const isAdmin = ["super_admin", "admin"].includes(staff.role_slug);
 
@@ -16,8 +16,16 @@ export async function GET(request: Request) {
       .eq("status", "new");
     if (!isAdmin) leadsQuery = leadsQuery.eq("owner_staff_id", staff.id);
 
+    // Dashboard notes shared with this user that they haven't read yet.
+    const email = user.email ?? "";
+    const sharedNotesReq = email
+      ? supabase.from("dashboard_notes").select("read_by")
+          .contains("recipient_emails", [email.toLowerCase()])
+          .neq("status", "archived")
+      : Promise.resolve({ data: [] as { read_by: string[] }[] });
+
     // Count new contact form submissions + unread messages + new card leads.
-    const [submissionsRes, messagesRes, leadsRes] = await Promise.all([
+    const [submissionsRes, messagesRes, leadsRes, sharedNotesRes] = await Promise.all([
       supabase
         .from("contact_submissions")
         .select("id", { count: "exact", head: true })
@@ -28,9 +36,13 @@ export async function GET(request: Request) {
         .eq("direction", "inbound")
         .eq("status", "received"),
       leadsQuery,
+      sharedNotesReq,
     ]);
 
-    const count = (submissionsRes.count ?? 0) + (messagesRes.count ?? 0) + (leadsRes.count ?? 0);
+    const unreadShared = ((sharedNotesRes.data as { read_by: string[] }[] | null) ?? [])
+      .filter((r) => !(r.read_by ?? []).map((e) => e.toLowerCase()).includes(email.toLowerCase())).length;
+
+    const count = (submissionsRes.count ?? 0) + (messagesRes.count ?? 0) + (leadsRes.count ?? 0) + unreadShared;
     return NextResponse.json({ count });
   } catch (error) {
     if (error instanceof AuthError) return NextResponse.json({ count: 0 }, { status: error.status });

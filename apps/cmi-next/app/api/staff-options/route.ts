@@ -14,6 +14,6 @@ export async function GET(request: Request) {
     .order("display_name");
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  const staff = (data ?? []).map((s) => ({ id: s.id, label: s.display_name || s.email || "Staff", role: s.role_slug }));
+  const staff = (data ?? []).map((s) => ({ id: s.id, label: s.display_name || s.email || "Staff", email: s.email ?? "", role: s.role_slug }));
   return NextResponse.json({ staff });
 }

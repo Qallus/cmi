@@ -6,6 +6,7 @@ import { ArrowLeft, Bell, PanelLeftClose, PanelLeftOpen, Search } from "lucide-r
 import { usePathname, useRouter } from "next/navigation";
 import { ThemeToggle } from "@/components/dashboard/theme-toggle";
 import { DashboardNav, type UserRole } from "@/components/dashboard/nav";
+import { ReviewFab } from "@/components/dashboard/review-fab";
 import { cn } from "@/lib/utils";
 
 type SessionUser = {
@@ -125,6 +126,8 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         </header>
         <div className="min-h-[calc(100vh-56px)]">{children}</div>
       </main>
+      {/* Leadership review FAB — Super Admin only, on every dashboard page. */}
+      {sessionUser?.role === "super_admin" && <ReviewFab />}
     </div>
   );
 }
