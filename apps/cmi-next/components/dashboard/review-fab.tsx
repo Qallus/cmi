@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { BoltModal } from "./bolt-modal";
 import { NoteDetailModal } from "./note-detail-modal";
+import { ScreenshotEditor } from "./screenshot-editor";
 import {
   NOTE_PRIORITIES, NOTE_STATUS_LABELS, NOTE_STATUSES, NOTE_TYPES, NOTE_TYPE_LABELS,
   type DashboardNote, type DashboardNoteStatus, type NotePriority, type NoteType,
@@ -49,6 +50,7 @@ export function ReviewFab() {
   const [recipients, setRecipients] = React.useState<string[]>([]);
   const [staff, setStaff] = React.useState<StaffOption[]>([]);
   const [shot, setShot] = React.useState<string | null>(null); // dataURL preview
+  const [editing, setEditing] = React.useState<string | null>(null); // dataURL open in the editor
   const [capturing, setCapturing] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
@@ -103,7 +105,7 @@ export function ReviewFab() {
         filter: (node) => !(node instanceof HTMLElement && node.hasAttribute?.("data-fab-ignore")),
         cacheBust: true,
       });
-      setShot(dataUrl);
+      setEditing(dataUrl); // open the crop/annotate editor
     } catch { setError("Couldn't capture the screen on this page."); }
     finally { setCapturing(false); }
   }
@@ -192,7 +194,13 @@ export function ReviewFab() {
                   <Button size="sm" variant="outline" onClick={() => void captureScreenshot()} disabled={capturing}>
                     {capturing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />} {shot ? "Recapture" : "Screenshot"}
                   </Button>
-                  {shot && <div className="flex items-center gap-1.5"><img src={shot} alt="preview" className="h-8 w-12 rounded border border-border object-cover" /><button type="button" onClick={() => setShot(null)} className="text-muted-foreground hover:text-destructive"><X className="h-3.5 w-3.5" /></button></div>}
+                  {shot && (
+                    <div className="flex items-center gap-1.5">
+                      <button type="button" onClick={() => setEditing(shot)} title="Crop & annotate"><img src={shot} alt="preview" className="h-8 w-12 rounded border border-border object-cover transition hover:ring-2 hover:ring-accent" /></button>
+                      <button type="button" onClick={() => setEditing(shot)} className="text-[11px] font-medium text-accent">Annotate</button>
+                      <button type="button" onClick={() => setShot(null)} className="text-muted-foreground hover:text-destructive"><X className="h-3.5 w-3.5" /></button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center justify-between pt-1">
@@ -246,6 +254,7 @@ export function ReviewFab() {
         </div>
       </div>
 
+      {editing && <ScreenshotEditor src={editing} onSave={(url) => { setShot(url); setEditing(null); }} onCancel={() => setEditing(null)} />}
       {boltOpen && <BoltModal context={pageTitle} onClose={() => setBoltOpen(false)} />}
       {detailId && <NoteDetailModal noteId={detailId} onClose={() => setDetailId(null)} onChanged={() => { void loadShared(); loadUnread(); }} />}
     </>
