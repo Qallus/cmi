@@ -71,7 +71,7 @@ export function ReviewFab() {
   const loadShared = React.useCallback(async () => {
     setLoadingShared(true);
     try {
-      const res = await fetch("/api/dashboard-notes?scope=shared");
+      const res = await fetch("/api/dashboard-notes?scope=inbox");
       const json = await res.json() as { notes?: DashboardNote[]; me?: string };
       const notes = json.notes ?? [];
       setShared(notes);
@@ -148,7 +148,7 @@ export function ReviewFab() {
             <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
               <div className="flex items-center gap-1">
                 <TabBtn active={tab === "note"} onClick={() => setTab("note")} icon={<PenLine className="h-3.5 w-3.5" />} label="Note" />
-                <TabBtn active={tab === "shared"} onClick={() => openPanel("shared")} icon={<Inbox className="h-3.5 w-3.5" />} label="Shared" badge={unread} />
+                <TabBtn active={tab === "shared"} onClick={() => openPanel("shared")} icon={<Inbox className="h-3.5 w-3.5" />} label="Requests" badge={unread} />
               </div>
               <button type="button" onClick={() => setOpen(false)} className="rounded p-1 text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
             </div>
@@ -197,7 +197,7 @@ export function ReviewFab() {
                 {loadingShared ? (
                   <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-accent" /></div>
                 ) : shared.length === 0 ? (
-                  <div className="py-8 text-center text-xs text-muted-foreground">Nothing shared with you yet.</div>
+                  <div className="py-8 text-center text-xs text-muted-foreground">No requests yet. Save a note to see it here.</div>
                 ) : shared.map((n) => (
                   <div key={n.id} className="rounded-lg border border-border bg-background p-2.5">
                     <div className="flex items-center gap-1.5">

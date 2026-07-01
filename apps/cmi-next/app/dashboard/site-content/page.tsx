@@ -1,5 +1,5 @@
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { SiteContentClient } from "./site-content-client";
+import { SiteContentHub } from "./site-content-hub";
 
 export const metadata = { title: "Site Content — CMI Dashboard" };
 
@@ -31,8 +31,8 @@ export const dynamic = "force-dynamic";
 export default async function SiteContentPage() {
   try {
     const blocks = await loadBlocks();
-    return <SiteContentClient initialBlocks={blocks} />;
+    return <SiteContentHub initialBlocks={blocks} />;
   } catch {
-    return <SiteContentClient initialBlocks={[]} />;
+    return <SiteContentHub initialBlocks={[]} />;
   }
 }

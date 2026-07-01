@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireSuperAdmin, AuthError } from "@/lib/auth/require-admin";
-import { createNote, listSharedWith, listAll, updateNote, markRead } from "@/lib/dashboard-notes/data";
+import { createNote, listSharedWith, listInbox, listAll, updateNote, markRead } from "@/lib/dashboard-notes/data";
 import { sendSharedNoteEmails } from "@/lib/dashboard-notes/notify";
 import type { CreateNoteInput } from "@/lib/dashboard-notes/types";
 
@@ -15,8 +15,10 @@ export async function GET(req: NextRequest) {
   try { const { user } = await requireSuperAdmin(req); email = user.email ?? ""; }
   catch (err) { return authFail(err) ?? NextResponse.json({ error: "Unauthorized." }, { status: 401 }); }
   try {
-    const scope = req.nextUrl.searchParams.get("scope") ?? "shared";
-    const notes = scope === "all" ? await listAll() : await listSharedWith(email);
+    const scope = req.nextUrl.searchParams.get("scope") ?? "inbox";
+    const notes = scope === "all" ? await listAll()
+      : scope === "shared" ? await listSharedWith(email)
+      : await listInbox(email);
     const lower = email.toLowerCase();
     const unread = notes.filter((n) => n.recipient_emails.map((e) => e.toLowerCase()).includes(lower)
       && !n.read_by.map((e) => e.toLowerCase()).includes(lower)).length;

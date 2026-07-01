@@ -13,7 +13,7 @@ export async function createNote(input: CreateNoteInput, author: { email: string
       note: input.note,
       type: input.type,
       priority: input.priority,
-      created_by: author.email,
+      created_by: author.email.toLowerCase(),
       created_by_name: author.name,
       recipient_emails: recipients,
       screenshot_url: input.screenshot_url,
@@ -37,6 +37,19 @@ export async function listSharedWith(email: string): Promise<DashboardNote[]> {
     .limit(50);
   if (error) throw new Error(error.message);
   return (data ?? []) as DashboardNote[];
+}
+
+/** Notes relevant to this user: ones they created OR ones shared with them. */
+export async function listInbox(email: string): Promise<DashboardNote[]> {
+  const sb = getSupabaseAdmin();
+  const lower = email.toLowerCase();
+  const [mine, shared] = await Promise.all([
+    sb.from("dashboard_notes").select("*").eq("created_by", lower).neq("status", "archived").order("created_at", { ascending: false }).limit(100),
+    sb.from("dashboard_notes").select("*").contains("recipient_emails", [lower]).neq("status", "archived").order("created_at", { ascending: false }).limit(100),
+  ]);
+  const byId = new Map<string, DashboardNote>();
+  for (const n of [...(mine.data ?? []), ...(shared.data ?? [])] as DashboardNote[]) byId.set(n.id, n);
+  return Array.from(byId.values()).sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
 }
 
 /** Full backlog (all notes) for the inbox view. */
