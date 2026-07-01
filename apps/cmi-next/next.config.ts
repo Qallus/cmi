@@ -13,6 +13,15 @@ const SECURITY_HEADERS = [
 const nextConfig: NextConfig = {
   output: "standalone",
 
+  // The deploy build runs on a memory-constrained VPS (Coolify host also runs
+  // Postgres/realtime/redis). Next's separate type-check pass was being
+  // OOM-killed after "Compiled successfully" (exit 255, no type-error output).
+  // Types are already enforced before deploy via `npm run typecheck`, so we
+  // skip the redundant in-build pass to keep the production build within
+  // memory. Re-enable if the host gets more RAM.
+  // (Next 16 no longer runs ESLint during `next build`, so no eslint key here.)
+  typescript: { ignoreBuildErrors: true },
+
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "wp-constructedmatter-com-985548.hostingersite.com" },
