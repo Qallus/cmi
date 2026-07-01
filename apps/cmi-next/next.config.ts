@@ -1,7 +1,11 @@
 import type { NextConfig } from "next";
 
 const SECURITY_HEADERS = [
-  { key: "X-Frame-Options", value: "DENY" },
+  // SAMEORIGIN (not DENY) so the Super Admin Live Page Editor can preview our
+  // own pages in a same-origin iframe. External sites still can't frame us,
+  // so clickjacking protection is preserved.
+  { key: "X-Frame-Options", value: "SAMEORIGIN" },
+  { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-XSS-Protection", value: "1; mode=block" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
