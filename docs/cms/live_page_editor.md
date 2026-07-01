@@ -176,6 +176,24 @@ later behind the same `export.ts` abstraction and download in the client.
 
 ---
 
+## v1.1 additions
+
+- **Page selector** labels mirror the public nav (About Us, Our Team, Contact),
+  with a grouped **Services** submenu. Editor accepts `?page=<slug>` to deep-link.
+- **Saved Reviews gallery** at `/dashboard/site-content/live-editor/reviews`
+  (cards / list / table views). Each review = one page's edit requests, with
+  status (Open / In Progress / Complete / Archived), counts, requester, and
+  **Open** (reopens the page + notes) / **Notify** actions.
+- **Requester notifications** — `page_review_sessions.requester_name/email` +
+  `page_review_notifications` log. "Notify" emails the requester (via Resend) the
+  page, its notes, and the current status. Sessions gain `last_notified_at`.
+- **Addition requests** — an **Insert Section** toggle shows `+ Add content here`
+  markers between top-level sections. Clicking one creates a `section_insert`
+  note where the reviewer picks **what** to add — section / row / column / card /
+  component — and, for components, a **ShadCN** component name
+  (`page_review_notes.insert_kind`, `component_name`). Future version: a visual
+  ShadCN component-library picker.
+
 ## Not in v1 / backlog
 
 - Server-side screenshots per element (`screenshot_url` reserved).

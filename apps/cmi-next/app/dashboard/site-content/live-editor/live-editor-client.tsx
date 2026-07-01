@@ -3,16 +3,16 @@
 import * as React from "react";
 import Link from "next/link";
 import {
-  ArrowLeft, Check, Copy, Download, Loader2, MousePointerClick, Monitor,
-  Printer, RefreshCw, Send, Smartphone, Sparkles, Tablet, Trash2, X,
+  ArrowLeft, Check, ClipboardList, Copy, Download, Loader2, MousePointerClick, Monitor,
+  PlusSquare, Printer, RefreshCw, Send, Smartphone, Sparkles, Tablet, Trash2, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { PreviewPage } from "@/lib/live-editor/pages";
 import {
-  CHANGE_TYPES, CHANGE_TYPE_LABELS, NOTE_STATUSES, PRIORITIES,
-  SELECTION_MODES, SELECTION_MODE_LABELS,
-  type ChangeType, type DeviceMode, type ElementDescriptor, type NoteStatus,
+  CHANGE_TYPES, CHANGE_TYPE_LABELS, INSERT_KINDS, INSERT_KIND_LABELS, NOTE_STATUSES,
+  PRIORITIES, SELECTION_MODES, SELECTION_MODE_LABELS, SHADCN_COMPONENTS,
+  type ChangeType, type DeviceMode, type ElementDescriptor, type InsertKind, type NoteStatus,
   type Priority, type ReviewElement, type ReviewNote, type ReviewSession, type SelectionMode,
 } from "@/lib/live-editor/types";
 import { installOverlay, type OverlayController, type OutlineItem } from "./overlay";
@@ -25,13 +25,22 @@ const DEVICE_WIDTHS: Record<DeviceMode, string> = {
 
 type ReviewState = { session: ReviewSession | null; elements: ReviewElement[]; notes: ReviewNote[] };
 
-export function LiveEditorClient({ pages, reviewer }: { pages: PreviewPage[]; reviewer: string }) {
-  const [pageSlug, setPageSlug] = React.useState(pages[0]?.slug ?? "home");
+export function LiveEditorClient({ pages, reviewer, initialSlug }: { pages: PreviewPage[]; reviewer: string; initialSlug?: string }) {
+  const [pageSlug, setPageSlug] = React.useState(initialSlug ?? pages[0]?.slug ?? "home");
   const page = pages.find((p) => p.slug === pageSlug) ?? pages[0];
+
+  // Group pages for the selector (ungrouped first, then named groups like "Services").
+  const pageGroups = React.useMemo(() => {
+    const ungrouped = pages.filter((p) => !p.group);
+    const groups = new Map<string, PreviewPage[]>();
+    for (const p of pages) if (p.group) { const l = groups.get(p.group) ?? []; l.push(p); groups.set(p.group, l); }
+    return { ungrouped, groups: Array.from(groups.entries()) };
+  }, [pages]);
 
   const [device, setDevice] = React.useState<DeviceMode>("desktop");
   const [mode, setMode] = React.useState<SelectionMode>("auto");
   const [selectActive, setSelectActive] = React.useState(true);
+  const [insertMode, setInsertMode] = React.useState(false);
   const [iframeLoading, setIframeLoading] = React.useState(true);
   const [refreshNonce, setRefreshNonce] = React.useState(0);
 
@@ -47,6 +56,12 @@ export function LiveEditorClient({ pages, reviewer }: { pages: PreviewPage[]; re
   const [priority, setPriority] = React.useState<Priority>("medium");
   const [status, setStatus] = React.useState<NoteStatus>("open");
   const [changeType, setChangeType] = React.useState<ChangeType>("copy_update");
+  const [insertKind, setInsertKind] = React.useState<InsertKind>("section");
+  const [componentName, setComponentName] = React.useState<string>(SHADCN_COMPONENTS[0]);
+
+  const isInsert = selected?.element_type === "section_insert";
+  // When an insertion point is selected, default the change type to a new-section request.
+  React.useEffect(() => { if (isInsert) setChangeType("new_section"); }, [isInsert]);
   const [saving, setSaving] = React.useState(false);
   const [saveError, setSaveError] = React.useState<string | null>(null);
 
@@ -102,11 +117,13 @@ export function LiveEditorClient({ pages, reviewer }: { pages: PreviewPage[]; re
       onOutline: (items) => setOutline(items),
     });
     overlayRef.current.scanOutline();
-  }, [pageSlug, mode, selectActive, teardownOverlay]);
+    if (insertMode) overlayRef.current.setInsertMode(true);
+  }, [pageSlug, mode, selectActive, insertMode, teardownOverlay]);
 
   React.useEffect(() => () => teardownOverlay(), [teardownOverlay]);
   React.useEffect(() => { overlayRef.current?.setMode(mode); }, [mode]);
   React.useEffect(() => { overlayRef.current?.setActive(selectActive); }, [selectActive]);
+  React.useEffect(() => { overlayRef.current?.setInsertMode(insertMode); }, [insertMode]);
 
   function refresh() {
     setSelected(null);
@@ -157,6 +174,8 @@ export function LiveEditorClient({ pages, reviewer }: { pages: PreviewPage[]; re
           payload: {
             page_slug: pageSlug, page_title: page.title, page_url: fullUrl,
             element: selected, note: noteText.trim(), priority, status, change_type: changeType,
+            insert_kind: isInsert ? insertKind : null,
+            component_name: isInsert && insertKind === "component" ? componentName : null,
           },
         }),
       });
@@ -227,7 +246,12 @@ export function LiveEditorClient({ pages, reviewer }: { pages: PreviewPage[]; re
           onChange={(e) => changePage(e.target.value)}
           className="h-8 rounded-md border border-border bg-background px-2 text-xs outline-none focus:border-accent"
         >
-          {pages.map((p) => <option key={p.slug} value={p.slug}>{p.title}</option>)}
+          {pageGroups.ungrouped.map((p) => <option key={p.slug} value={p.slug}>{p.title}</option>)}
+          {pageGroups.groups.map(([group, gpages]) => (
+            <optgroup key={group} label={group}>
+              {gpages.map((p) => <option key={p.slug} value={p.slug}>{p.title}</option>)}
+            </optgroup>
+          ))}
         </select>
         <code className="hidden max-w-[220px] truncate rounded bg-muted px-2 py-1 text-[11px] text-muted-foreground md:inline">{fullUrl}</code>
 
@@ -267,7 +291,19 @@ export function LiveEditorClient({ pages, reviewer }: { pages: PreviewPage[]; re
           <MousePointerClick className="h-3.5 w-3.5" /> {selectActive ? "Selecting" : "Select off"}
         </button>
 
+        <button
+          type="button"
+          onClick={() => setInsertMode((v) => !v)}
+          className={cn("inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium", insertMode ? "border-accent bg-accent/10 text-accent" : "border-border text-muted-foreground hover:text-foreground")}
+          title="Show + markers between sections to request new content"
+        >
+          <PlusSquare className="h-3.5 w-3.5" /> Insert Section
+        </button>
+
         <div className="ml-auto flex items-center gap-2">
+          <Link href="/dashboard/site-content/live-editor/reviews" className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs font-medium text-muted-foreground hover:text-foreground" title="Saved reviews / edit requests">
+            <ClipboardList className="h-3.5 w-3.5" /> Saved Reviews
+          </Link>
           <Button size="sm" variant="outline" onClick={refresh}><RefreshCw className="h-3.5 w-3.5" /> Refresh</Button>
           <Button size="sm" variant="outline" disabled={!hasNotes || exporting !== null} onClick={() => runExport("export")}>
             {exporting === "export" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />} Export
@@ -355,12 +391,35 @@ export function LiveEditorClient({ pages, reviewer }: { pages: PreviewPage[]; re
 
           {/* Note form */}
           <div className="space-y-3 border-b border-border px-4 py-3">
-            <div className="text-xs font-semibold">Add note</div>
+            <div className="text-xs font-semibold">{isInsert ? "Request new content" : "Add note"}</div>
             {saveError && <div className="rounded bg-destructive/10 px-2 py-1 text-[11px] text-destructive">{saveError}</div>}
+
+            {isInsert && (
+              <div className="space-y-2 rounded-md border border-accent/40 bg-accent/5 p-2.5">
+                <div className="text-[11px] font-medium text-accent">Insert point selected</div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Field label="Add">
+                    <select value={insertKind} onChange={(e) => setInsertKind(e.target.value as InsertKind)} className={selCls}>
+                      {INSERT_KINDS.map((k) => <option key={k} value={k}>{INSERT_KIND_LABELS[k]}</option>)}
+                    </select>
+                  </Field>
+                  {insertKind === "component" && (
+                    <Field label="ShadCN component">
+                      <select value={componentName} onChange={(e) => setComponentName(e.target.value)} className={selCls}>
+                        {SHADCN_COMPONENTS.map((c) => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </Field>
+                  )}
+                </div>
+              </div>
+            )}
+
             <textarea
               value={noteText}
               onChange={(e) => setNoteText(e.target.value)}
-              placeholder="Describe the change you want for this element…"
+              placeholder={isInsert
+                ? "Describe the new content: title, subtitle, eyebrow, body copy, icons, images, links, buttons…"
+                : "Describe the change you want for this element…"}
               disabled={!selected}
               className="min-h-[72px] w-full resize-none rounded-md border border-border bg-background px-2.5 py-2 text-sm outline-none focus:border-accent disabled:opacity-50"
             />
@@ -411,6 +470,11 @@ export function LiveEditorClient({ pages, reviewer }: { pages: PreviewPage[]; re
                         <button type="button" onClick={() => void removeNote(n)} className="ml-auto text-muted-foreground hover:text-destructive" title="Delete note"><Trash2 className="h-3 w-3" /></button>
                       </div>
                       {el?.heading_text && <div className="mt-1 truncate text-[11px] font-medium">{el.heading_text}</div>}
+                      {n.insert_kind && (
+                        <div className="mt-1 inline-flex items-center gap-1 rounded bg-accent/10 px-1.5 py-0.5 text-[10px] font-medium text-accent">
+                          <PlusSquare className="h-2.5 w-2.5" /> Add {n.insert_kind}{n.component_name ? ` · ${n.component_name}` : ""}
+                        </div>
+                      )}
                       <div className="mt-1 text-xs">{n.note}</div>
                       <div className="mt-1.5 flex items-center gap-1.5">
                         {n.change_type && <span className="text-[10px] text-muted-foreground">{CHANGE_TYPE_LABELS[n.change_type] ?? n.change_type}</span>}

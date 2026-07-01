@@ -21,6 +21,7 @@ export type OverlayHandlers = {
 export type OverlayController = {
   setMode: (mode: SelectionMode) => void;
   setActive: (active: boolean) => void;
+  setInsertMode: (on: boolean) => void;
   selectByRef: (ref: string) => ElementDescriptor | null;
   clearSelection: () => void;
   scanOutline: () => void;
@@ -154,6 +155,76 @@ export function installOverlay(doc: Document, win: Window, handlers: OverlayHand
 
   let selectedEl: HTMLElement | null = null;
 
+  // --- Insert-section markers (the "+" between top-level sections) ---
+  let insertMode = false;
+  type Marker = { el: HTMLElement; after: Element | null; before: Element | null; anchor: Element; edge: "top" | "bottom" };
+  let markers: Marker[] = [];
+
+  function clearMarkers() { for (const m of markers) m.el.remove(); markers = []; }
+
+  function topLevelSections(): HTMLElement[] {
+    let els = Array.from(doc.querySelectorAll<HTMLElement>("section"));
+    if (els.length === 0) els = Array.from(doc.querySelectorAll<HTMLElement>("main > div")).slice(0, 24);
+    const outer = els.filter((e) => !els.some((o) => o !== e && o.contains(e)));
+    outer.sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top);
+    return outer.filter((e) => e.getBoundingClientRect().height > 40);
+  }
+
+  function makeMarker(after: Element | null, before: Element | null, anchor: Element, edge: "top" | "bottom"): Marker {
+    const el = doc.createElement("button");
+    el.setAttribute("data-lpe-insert", "1");
+    el.type = "button";
+    el.textContent = "+ Add content here";
+    el.style.cssText = "position:absolute;z-index:2147483645;transform:translate(-50%,-50%);pointer-events:auto;cursor:pointer;border:1px dashed #C87A3A;background:#fff;color:#C87A3A;font:600 11px/1 system-ui,sans-serif;padding:6px 10px;border-radius:999px;box-shadow:0 1px 4px rgba(0,0,0,.15);opacity:.9;";
+    el.addEventListener("mouseenter", () => { el.style.background = "#C87A3A"; el.style.color = "#fff"; });
+    el.addEventListener("mouseleave", () => { el.style.background = "#fff"; el.style.color = "#C87A3A"; });
+    doc.body.appendChild(el);
+    return { el, after, before, anchor, edge };
+  }
+
+  function positionMarker(m: Marker) {
+    const r = m.anchor.getBoundingClientRect();
+    m.el.style.left = `${r.left + r.width / 2 + win.scrollX}px`;
+    m.el.style.top = `${(m.edge === "top" ? r.top : r.bottom) + win.scrollY}px`;
+  }
+
+  function renderMarkers() {
+    clearMarkers();
+    if (!insertMode) return;
+    const sections = topLevelSections();
+    if (sections.length === 0) return;
+    for (let i = 0; i < sections.length; i++) {
+      markers.push(makeMarker(i > 0 ? sections[i - 1] : null, sections[i], sections[i], "top"));
+    }
+    const last = sections[sections.length - 1];
+    markers.push(makeMarker(last, null, last, "bottom"));
+    markers.forEach(positionMarker);
+  }
+
+  function buildInsertDescriptor(after: Element | null, before: Element | null): ElementDescriptor {
+    const afterLabel = after ? sectionLabel(after) : "top of page";
+    const beforeLabel = before ? sectionLabel(before) : "bottom of page";
+    const afterRef = after ? domIndexPath(after, doc) : "start";
+    const beforeRef = before ? domIndexPath(before, doc) : "end";
+    const anchor = before ?? after;
+    const r = anchor ? anchor.getBoundingClientRect() : null;
+    return {
+      element_ref: `${handlers.slug}::insert::${afterRef}__${beforeRef}`,
+      element_type: "section_insert",
+      element_label: `Insert between “${afterLabel}” and “${beforeLabel}”`,
+      heading_text: null,
+      heading_level: null,
+      section_order: null,
+      parent_section_label: afterLabel,
+      dom_selector: null,
+      dom_path: null,
+      css_classes: null,
+      component_name: null,
+      content_summary: `New content requested between "${afterLabel}" and "${beforeLabel}".`,
+      bounding_box: r ? { x: Math.round(r.left + win.scrollX), y: Math.round(r.top + win.scrollY), width: Math.round(r.width), height: 0 } : null,
+    };
+  }
+
   function place(box: HTMLElement, el: Element) {
     const r = el.getBoundingClientRect();
     box.style.display = "block";
@@ -224,6 +295,7 @@ export function installOverlay(doc: Document, win: Window, handlers: OverlayHand
 
   let rafPending = false;
   function onMove(e: MouseEvent) {
+    if (insertMode) { hoverBox.style.display = "none"; return; }
     if (!active) return;
     if (rafPending) return;
     rafPending = true;
@@ -239,9 +311,19 @@ export function installOverlay(doc: Document, win: Window, handlers: OverlayHand
   }
 
   function onClick(e: MouseEvent) {
-    if (!active) return;
     const target = e.target as Element | null;
     if (!target) return;
+
+    // Insert markers take priority and work regardless of select mode.
+    const insEl = (target as HTMLElement).closest?.("[data-lpe-insert]") as HTMLElement | null;
+    if (insEl) {
+      e.preventDefault(); e.stopPropagation();
+      const m = markers.find((mk) => mk.el === insEl);
+      if (m) handlers.onSelect(buildInsertDescriptor(m.after, m.before));
+      return;
+    }
+    if (insertMode) { e.preventDefault(); e.stopPropagation(); return; }
+    if (!active) return;
     e.preventDefault();
     e.stopPropagation();
 
@@ -269,6 +351,7 @@ export function installOverlay(doc: Document, win: Window, handlers: OverlayHand
   function reposition() {
     if (selectedEl && doc.body.contains(selectedEl)) place(selBox, selectedEl);
     else selBox.style.display = "none";
+    if (insertMode) markers.forEach(positionMarker);
   }
 
   doc.addEventListener("mousemove", onMove, true);
@@ -279,6 +362,7 @@ export function installOverlay(doc: Document, win: Window, handlers: OverlayHand
   return {
     setMode(m) { mode = m; hoverBox.style.display = "none"; },
     setActive(a) { active = a; if (!a) hoverBox.style.display = "none"; },
+    setInsertMode(on) { insertMode = on; hoverBox.style.display = "none"; renderMarkers(); },
     selectByRef(ref) {
       const el = refMap.get(ref);
       if (!el || !doc.body.contains(el)) return null;
@@ -314,6 +398,7 @@ export function installOverlay(doc: Document, win: Window, handlers: OverlayHand
       doc.removeEventListener("click", onClick, true);
       win.removeEventListener("scroll", reposition, true);
       win.removeEventListener("resize", reposition);
+      clearMarkers();
       hoverBox.remove(); selBox.remove();
       refMap.clear();
     },

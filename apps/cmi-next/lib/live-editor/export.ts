@@ -12,6 +12,8 @@ export type ExportNote = {
   status: string;
   change_type: string | null;
   change_type_label: string | null;
+  insert_kind: string | null;
+  component_name: string | null;
   ai_generated: boolean;
   element: {
     element_type: string | null;
@@ -61,6 +63,8 @@ export function buildStructuredExport(bundle: {
       status: n.status,
       change_type: n.change_type,
       change_type_label: changeTypeLabel(n.change_type),
+      insert_kind: n.insert_kind,
+      component_name: n.component_name,
       ai_generated: n.ai_generated,
       element: el ? {
         element_type: el.element_type,
@@ -101,8 +105,15 @@ export function buildStructuredExport(bundle: {
 
 function elementTypeLabel(en: ExportNote): string {
   const t = en.element?.element_type ?? "element";
+  if (t === "section_insert") return "Insert point (new content)";
   if (/^h[1-6]$/.test(t)) return `${t.toUpperCase()} Heading`;
   return t.charAt(0).toUpperCase() + t.slice(1);
+}
+
+function addSpec(en: ExportNote): string | null {
+  if (!en.insert_kind) return null;
+  const kind = en.insert_kind.charAt(0).toUpperCase() + en.insert_kind.slice(1);
+  return en.component_name ? `${kind} — ${en.component_name}` : kind;
 }
 
 /** Human-readable Markdown brief. */
@@ -126,6 +137,7 @@ export function buildMarkdown(data: StructuredExport): string {
       if (en.element?.element_ref) lines.push(`- Element ref: \`${en.element.element_ref}\``);
       if (en.element?.dom_selector) lines.push(`- Selector: \`${en.element.dom_selector}\``);
       lines.push(`- Requested change: ${en.note}`);
+      { const a = addSpec(en); if (a) lines.push(`- Add: ${a}`); }
       if (en.change_type_label) lines.push(`- Change type: ${en.change_type_label}`);
       lines.push(`- Priority: ${en.priority}`);
       lines.push(`- Status: ${en.status}`);
@@ -228,6 +240,7 @@ export function buildAiBrief(data: StructuredExport): string {
     if (en.element?.heading_text) lines.push(`Element Text: ${en.element.heading_text}`);
     if (en.element?.element_ref) lines.push(`Element Ref: ${en.element.element_ref}`);
     lines.push(`Requested Change: ${en.note}`);
+    { const a = addSpec(en); if (a) lines.push(`Add: ${a}`); }
     if (en.change_type_label) lines.push(`Change Type: ${en.change_type_label}`);
     lines.push(`Priority: ${en.priority}`);
     lines.push("");

@@ -2,8 +2,11 @@
 // client; the caller (API route) has already enforced Super Admin.
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import type {
-  ElementDescriptor, ReviewElement, ReviewNote, ReviewSession, SaveNoteInput,
+  ElementDescriptor, Priority, ReviewElement, ReviewNote, ReviewSession,
+  SaveNoteInput, SessionSummary,
 } from "./types";
+
+const PRIORITY_RANK: Record<Priority, number> = { low: 0, medium: 1, high: 2, urgent: 3 };
 
 export type PageReview = {
   session: ReviewSession | null;
@@ -128,6 +131,8 @@ export async function saveNote(input: SaveNoteInput, createdBy: string): Promise
       priority: input.priority,
       status: input.status,
       change_type: input.change_type,
+      insert_kind: input.insert_kind ?? null,
+      component_name: input.component_name ?? null,
       created_by: createdBy,
     })
     .select("*")
@@ -170,6 +175,74 @@ export async function loadSessionBundle(sessionId: string): Promise<{
     elements: (elements ?? []) as ReviewElement[],
     notes: (notes ?? []) as ReviewNote[],
   };
+}
+
+/** Summaries for the Saved Reviews gallery: one row per session with counts. */
+export async function listSessions(): Promise<SessionSummary[]> {
+  const sb = getSupabaseAdmin();
+  const { data: sessions, error } = await sb
+    .from("page_review_sessions").select("*").order("updated_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  if (!sessions?.length) return [];
+
+  const ids = sessions.map((s) => s.id);
+  const { data: notes } = await sb
+    .from("page_review_notes")
+    .select("review_session_id, status, priority, created_at")
+    .in("review_session_id", ids);
+
+  const bySession = new Map<string, { count: number; open: number; resolved: number; top: number; last: string }>();
+  for (const n of notes ?? []) {
+    const agg = bySession.get(n.review_session_id) ?? { count: 0, open: 0, resolved: 0, top: -1, last: "" };
+    agg.count += 1;
+    if (n.status === "resolved" || n.status === "archived") agg.resolved += 1; else agg.open += 1;
+    agg.top = Math.max(agg.top, PRIORITY_RANK[(n.priority as Priority)] ?? -1);
+    if (n.created_at > agg.last) agg.last = n.created_at;
+    bySession.set(n.review_session_id, agg);
+  }
+
+  const rankToPriority = (r: number): Priority | null =>
+    (Object.entries(PRIORITY_RANK).find(([, v]) => v === r)?.[0] as Priority) ?? null;
+
+  return (sessions as ReviewSession[]).map((session) => {
+    const agg = bySession.get(session.id);
+    return {
+      session,
+      note_count: agg?.count ?? 0,
+      open_count: agg?.open ?? 0,
+      resolved_count: agg?.resolved ?? 0,
+      top_priority: agg && agg.top >= 0 ? rankToPriority(agg.top) : null,
+      last_activity: agg?.last && agg.last > session.updated_at ? agg.last : session.updated_at,
+    };
+  });
+}
+
+export async function updateSession(id: string, patch: Partial<Pick<ReviewSession,
+  "status" | "requester_name" | "requester_email">>): Promise<ReviewSession> {
+  const sb = getSupabaseAdmin();
+  const { data, error } = await sb
+    .from("page_review_sessions")
+    .update({ ...patch, updated_at: new Date().toISOString() })
+    .eq("id", id).select("*").single();
+  if (error) throw new Error(error.message);
+  return data as ReviewSession;
+}
+
+export async function recordNotification(args: {
+  sessionId: string; toEmail: string; toName: string | null; subject: string; body: string;
+  statusSnapshot: string; provider: string | null; providerId: string | null; error: string | null; sentBy: string;
+}): Promise<void> {
+  const sb = getSupabaseAdmin();
+  await sb.from("page_review_notifications").insert({
+    review_session_id: args.sessionId, to_email: args.toEmail, to_name: args.toName,
+    subject: args.subject, body: args.body, status_snapshot: args.statusSnapshot,
+    provider: args.provider, provider_id: args.providerId, error: args.error, sent_by: args.sentBy,
+  });
+  if (!args.error) {
+    await sb.from("page_review_sessions")
+      .update({ last_notified_at: new Date().toISOString() })
+      .eq("id", args.sessionId);
+  }
 }
 
 export async function recordExport(args: {

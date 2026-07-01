@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { BookOpen, Check, MonitorSmartphone, Plus, Sparkles, X } from "lucide-react";
+import { BookOpen, Check, ClipboardList, MonitorSmartphone, Plus, Sparkles, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -119,13 +119,22 @@ export function SiteContentClient({ initialBlocks }: { initialBlocks: ContentBlo
             <Sparkles className="h-3.5 w-3.5 text-accent" /> Bolt AI
           </Link>
           {isSuperAdmin && (
-            <Link
-              href="/dashboard/site-content/live-editor"
-              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-transparent px-2.5 text-xs font-medium text-foreground transition hover:bg-muted"
-              title="Visual page review — Super Admin only"
-            >
-              <MonitorSmartphone className="h-3.5 w-3.5 text-accent" /> Live Page Editor
-            </Link>
+            <>
+              <Link
+                href="/dashboard/site-content/live-editor"
+                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-transparent px-2.5 text-xs font-medium text-foreground transition hover:bg-muted"
+                title="Visual page review — Super Admin only"
+              >
+                <MonitorSmartphone className="h-3.5 w-3.5 text-accent" /> Live Page Editor
+              </Link>
+              <Link
+                href="/dashboard/site-content/live-editor/reviews"
+                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-transparent px-2.5 text-xs font-medium text-foreground transition hover:bg-muted"
+                title="Saved page reviews / edit requests"
+              >
+                <ClipboardList className="h-3.5 w-3.5 text-accent" /> Review Requests
+              </Link>
+            </>
           )}
           <Button size="sm" variant="accent" onClick={openNew}><Plus className="h-3.5 w-3.5" /> New Block</Button>
         </div>
