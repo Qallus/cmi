@@ -30,6 +30,7 @@ type Req = {
   meta: string;        // "3 notes" | note type
   updated: string;
   openHref: string;
+  screenshot: string | null;
 };
 
 const STATUS_TONE: Record<string, string> = {
@@ -88,6 +89,7 @@ export function SiteContentHub({ initialBlocks }: { initialBlocks: ContentBlock[
     status: s.session.status, statusLabel: SESSION_STATUS_LABELS[(s.session.status as SessionStatus)] ?? s.session.status,
     priority: s.top_priority, meta: `${s.note_count} note${s.note_count !== 1 ? "s" : ""}`,
     updated: s.last_activity, openHref: `/dashboard/site-content/live-editor?page=${encodeURIComponent(s.session.page_slug)}`,
+    screenshot: null,
   })), [sessions]);
 
   const backendReqs: Req[] = React.useMemo(() => notes.filter((n) => n.status !== "archived").map((n) => ({
@@ -96,6 +98,7 @@ export function SiteContentHub({ initialBlocks }: { initialBlocks: ContentBlock[
     status: n.status, statusLabel: NOTE_STATUS_LABELS[(n.status as DashboardNoteStatus)] ?? n.status,
     priority: n.priority, meta: NOTE_TYPE_LABELS[n.type] ?? n.type,
     updated: n.updated_at, openHref: n.route ?? "/dashboard/overview",
+    screenshot: n.screenshot_url,
   })), [notes]);
 
   const all = React.useMemo(() => [...frontendReqs, ...backendReqs], [frontendReqs, backendReqs]);
@@ -257,6 +260,11 @@ function DeleteBtn({ r, onDelete }: { r: Req; onDelete: (r: Req) => void }) {
 function ReqCard({ r, onStatus, onOpen, onDelete }: { r: Req; onStatus: (r: Req, s: string) => void; onOpen: (id: string) => void; onDelete: (r: Req) => void }) {
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-border bg-background p-3">
+      {r.screenshot && (
+        <a href={r.screenshot} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-md border border-border">
+          <img src={r.screenshot} alt="" className="h-32 w-full object-cover object-top" />
+        </a>
+      )}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0"><div className="truncate text-sm font-medium">{r.title}</div><div className="truncate text-[11px] text-muted-foreground">{r.subtitle}</div></div>
         {r.priority && <span className={cn("shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase", PRIORITY_TONE[r.priority])}>{r.priority}</span>}
@@ -274,6 +282,7 @@ function ReqCard({ r, onStatus, onOpen, onDelete }: { r: Req; onStatus: (r: Req,
 function ReqRow({ r, onStatus, onOpen, onDelete }: { r: Req; onStatus: (r: Req, s: string) => void; onOpen: (id: string) => void; onDelete: (r: Req) => void }) {
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-background px-3 py-2.5">
+      {r.screenshot && <a href={r.screenshot} target="_blank" rel="noreferrer" className="shrink-0"><img src={r.screenshot} alt="" className="h-10 w-16 rounded border border-border object-cover object-top" /></a>}
       <div className="min-w-[160px] flex-1"><div className="text-sm font-medium">{r.title}</div><div className="truncate text-[11px] text-muted-foreground">{r.subtitle}</div></div>
       {r.priority && <span className={cn("rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase", PRIORITY_TONE[r.priority])}>{r.priority}</span>}
       <span className="text-[11px] text-muted-foreground">{r.meta}</span>
@@ -292,7 +301,12 @@ function ReqTable({ reqs, onStatus, onOpen, onDelete }: { reqs: Req[]; onStatus:
         <tbody>
           {reqs.map((r) => (
             <tr key={r.id} className="border-b border-border last:border-0">
-              <td className="px-4 py-2.5 font-medium">{r.title}</td>
+              <td className="px-4 py-2.5">
+                <div className="flex items-center gap-2">
+                  {r.screenshot && <a href={r.screenshot} target="_blank" rel="noreferrer"><img src={r.screenshot} alt="" className="h-9 w-14 rounded border border-border object-cover object-top" /></a>}
+                  <span className="font-medium">{r.title}</span>
+                </div>
+              </td>
               <td className="px-4 py-2.5 text-xs text-muted-foreground"><div className="max-w-[240px] truncate">{r.subtitle}</div><div className="text-[11px]">{r.meta}</div></td>
               <td className="px-4 py-2.5">{r.priority && <span className={cn("rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase", PRIORITY_TONE[r.priority])}>{r.priority}</span>}</td>
               <td className="px-4 py-2.5"><StatusPicker r={r} onStatus={onStatus} /></td>
