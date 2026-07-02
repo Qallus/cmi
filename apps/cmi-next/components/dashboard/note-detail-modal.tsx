@@ -3,6 +3,7 @@
 import * as React from "react";
 import { ExternalLink, ImageOff, Loader2, Send, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ConfirmDeleteDialog } from "./confirm-delete-dialog";
 import { cn } from "@/lib/utils";
 import {
   NOTE_STATUSES, NOTE_STATUS_LABELS, NOTE_TYPE_LABELS,
@@ -25,6 +26,7 @@ export function NoteDetailModal({ noteId, onClose, onChanged }: { noteId: string
   const [error, setError] = React.useState<string | null>(null);
   const [reply, setReply] = React.useState("");
   const [sending, setSending] = React.useState(false);
+  const [showConfirm, setShowConfirm] = React.useState(false);
 
   React.useEffect(() => {
     let alive = true;
@@ -47,11 +49,15 @@ export function NoteDetailModal({ noteId, onClose, onChanged }: { noteId: string
     onChanged?.();
   }
 
-  async function remove() {
-    if (!note || !window.confirm("Delete this request? This can't be undone.")) return;
+  async function doDelete() {
+    if (!note) return;
     await fetch("/api/dashboard-notes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "delete", id: note.id }) }).catch(() => {});
-    onChanged?.();
-    onClose();
+    onChanged?.(); onClose();
+  }
+  async function doArchive() {
+    if (!note) return;
+    await fetch("/api/dashboard-notes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "update_status", id: note.id, status: "archived" }) }).catch(() => {});
+    onChanged?.(); onClose();
   }
 
   async function sendReply() {
@@ -77,7 +83,7 @@ export function NoteDetailModal({ noteId, onClose, onChanged }: { noteId: string
             <h2 className="truncate text-base font-semibold">{note?.page_title ?? "Request"}</h2>
           </div>
           <div className="flex items-center gap-1">
-            {note && <button type="button" className="rounded p-1 text-muted-foreground hover:text-destructive" onClick={() => void remove()} title="Delete request"><Trash2 className="h-4 w-4" /></button>}
+            {note && <button type="button" className="rounded p-1 text-muted-foreground hover:text-destructive" onClick={() => setShowConfirm(true)} title="Delete request"><Trash2 className="h-4 w-4" /></button>}
             <button type="button" className="rounded p-1 text-muted-foreground hover:text-foreground" onClick={onClose}><X className="h-4 w-4" /></button>
           </div>
         </div>
@@ -151,6 +157,14 @@ export function NoteDetailModal({ noteId, onClose, onChanged }: { noteId: string
           </div>
         )}
       </div>
+
+      {showConfirm && (
+        <ConfirmDeleteDialog
+          onConfirm={async () => { setShowConfirm(false); await doDelete(); }}
+          onArchive={async () => { setShowConfirm(false); await doArchive(); }}
+          onCancel={() => setShowConfirm(false)}
+        />
+      )}
     </div>
   );
 }

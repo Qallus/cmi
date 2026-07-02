@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { SiteContentClient } from "./site-content-client";
 import { NoteDetailModal } from "@/components/dashboard/note-detail-modal";
+import { ConfirmDeleteDialog } from "@/components/dashboard/confirm-delete-dialog";
 import type { ContentBlock } from "./page";
 import { SESSION_STATUSES, SESSION_STATUS_LABELS, type SessionStatus, type SessionSummary } from "@/lib/live-editor/types";
 import { NOTE_STATUSES, NOTE_STATUS_LABELS, NOTE_TYPE_LABELS, type DashboardNote, type DashboardNoteStatus } from "@/lib/dashboard-notes/types";
@@ -59,6 +60,7 @@ export function SiteContentHub({ initialBlocks }: { initialBlocks: ContentBlock[
   const [view, setView] = React.useState<View>("cards");
   const [blocksOpen, setBlocksOpen] = React.useState(false);
   const [detailId, setDetailId] = React.useState<string | null>(null);
+  const [confirmDel, setConfirmDel] = React.useState<Req | null>(null);
 
   React.useEffect(() => {
     fetch("/api/auth/me").then((r) => r.json())
@@ -79,7 +81,7 @@ export function SiteContentHub({ initialBlocks }: { initialBlocks: ContentBlock[
 
   React.useEffect(() => { if (isSuperAdmin) void loadRequests(); }, [isSuperAdmin, loadRequests]);
 
-  const frontendReqs: Req[] = React.useMemo(() => sessions.map((s) => ({
+  const frontendReqs: Req[] = React.useMemo(() => sessions.filter((s) => s.session.status !== "archived").map((s) => ({
     id: s.session.id, surface: "frontend",
     title: s.session.page_title ?? s.session.page_slug,
     subtitle: s.session.page_url ?? s.session.page_slug,
@@ -88,7 +90,7 @@ export function SiteContentHub({ initialBlocks }: { initialBlocks: ContentBlock[
     updated: s.last_activity, openHref: `/dashboard/site-content/live-editor?page=${encodeURIComponent(s.session.page_slug)}`,
   })), [sessions]);
 
-  const backendReqs: Req[] = React.useMemo(() => notes.map((n) => ({
+  const backendReqs: Req[] = React.useMemo(() => notes.filter((n) => n.status !== "archived").map((n) => ({
     id: n.id, surface: "backend",
     title: n.page_title ?? "Dashboard", subtitle: n.note,
     status: n.status, statusLabel: NOTE_STATUS_LABELS[(n.status as DashboardNoteStatus)] ?? n.status,
@@ -109,8 +111,7 @@ export function SiteContentHub({ initialBlocks }: { initialBlocks: ContentBlock[
 
   const shown = surface === "frontend" ? frontendReqs : backendReqs;
 
-  async function deleteReq(r: Req) {
-    if (!window.confirm(`Delete this ${r.surface === "frontend" ? "page review" : "request"}? This can't be undone.`)) return;
+  async function hardDelete(r: Req) {
     if (r.surface === "frontend") {
       setSessions((prev) => prev.filter((s) => s.session.id !== r.id));
       await fetch("/api/site-content/live-editor", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "delete_session", id: r.id }) }).catch(() => {});
@@ -194,11 +195,11 @@ export function SiteContentHub({ initialBlocks }: { initialBlocks: ContentBlock[
                   : <>No dashboard requests yet. Use the review button (bottom-right of any page) to capture one.</>}
               </div>
             ) : view === "cards" ? (
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{shown.map((r) => <ReqCard key={r.id} r={r} onStatus={setStatus} onOpen={setDetailId} onDelete={deleteReq} />)}</div>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{shown.map((r) => <ReqCard key={r.id} r={r} onStatus={setStatus} onOpen={setDetailId} onDelete={setConfirmDel} />)}</div>
             ) : view === "list" ? (
-              <div className="space-y-2">{shown.map((r) => <ReqRow key={r.id} r={r} onStatus={setStatus} onOpen={setDetailId} onDelete={deleteReq} />)}</div>
+              <div className="space-y-2">{shown.map((r) => <ReqRow key={r.id} r={r} onStatus={setStatus} onOpen={setDetailId} onDelete={setConfirmDel} />)}</div>
             ) : (
-              <ReqTable reqs={shown} onStatus={setStatus} onOpen={setDetailId} onDelete={deleteReq} />
+              <ReqTable reqs={shown} onStatus={setStatus} onOpen={setDetailId} onDelete={setConfirmDel} />
             )}
           </div>
         </div>
@@ -214,6 +215,15 @@ export function SiteContentHub({ initialBlocks }: { initialBlocks: ContentBlock[
       )}
 
       {detailId && <NoteDetailModal noteId={detailId} onClose={() => setDetailId(null)} onChanged={() => void loadRequests()} />}
+
+      {confirmDel && (
+        <ConfirmDeleteDialog
+          itemName={confirmDel.surface === "frontend" ? "this page review" : "this request"}
+          onConfirm={async () => { const r = confirmDel; setConfirmDel(null); await hardDelete(r); }}
+          onArchive={async () => { const r = confirmDel; setConfirmDel(null); await setStatus(r, "archived"); }}
+          onCancel={() => setConfirmDel(null)}
+        />
+      )}
     </div>
   );
 }

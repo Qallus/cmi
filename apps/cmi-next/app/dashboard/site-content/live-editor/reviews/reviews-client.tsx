@@ -6,6 +6,7 @@ import {
   ArrowLeft, Bell, LayoutGrid, List, Loader2, RefreshCw, Table as TableIcon, Trash2, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ConfirmDeleteDialog } from "@/components/dashboard/confirm-delete-dialog";
 import { cn } from "@/lib/utils";
 import {
   SESSION_STATUSES, SESSION_STATUS_LABELS,
@@ -39,6 +40,8 @@ export function ReviewsClient() {
   const [error, setError] = React.useState<string | null>(null);
   const [view, setView] = React.useState<View>("cards");
   const [notify, setNotify] = React.useState<SessionSummary | null>(null);
+  const [confirmDel, setConfirmDel] = React.useState<SessionSummary | null>(null);
+  const visibleRows = React.useMemo(() => rows.filter((r) => r.session.status !== "archived"), [rows]);
 
   const load = React.useCallback(async () => {
     setLoading(true); setError(null);
@@ -66,8 +69,7 @@ export function ReviewsClient() {
     setRows((prev) => prev.map((r) => (r.session.id === updated.id ? { ...r, session: updated } : r)));
   }
 
-  async function remove(row: SessionSummary) {
-    if (!window.confirm(`Delete the review for "${row.session.page_title ?? row.session.page_slug}"? This removes its notes too and can't be undone.`)) return;
+  async function hardRemove(row: SessionSummary) {
     setRows((prev) => prev.filter((r) => r.session.id !== row.session.id));
     await fetch("/api/site-content/live-editor", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -103,21 +105,21 @@ export function ReviewsClient() {
 
       {loading ? (
         <div className="flex items-center justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-accent" /></div>
-      ) : rows.length === 0 ? (
+      ) : visibleRows.length === 0 ? (
         <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border py-16 text-center">
           <div className="text-sm text-muted-foreground">No page reviews yet.</div>
           <Link href="/dashboard/site-content/live-editor" className="text-sm font-medium text-accent">Start a review →</Link>
         </div>
       ) : view === "cards" ? (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {rows.map((r) => <ReviewCard key={r.session.id} row={r} onStatus={changeStatus} onNotify={() => setNotify(r)} onDelete={remove} />)}
+          {visibleRows.map((r) => <ReviewCard key={r.session.id} row={r} onStatus={changeStatus} onNotify={() => setNotify(r)} onDelete={setConfirmDel} />)}
         </div>
       ) : view === "list" ? (
         <div className="space-y-2">
-          {rows.map((r) => <ReviewRow key={r.session.id} row={r} onStatus={changeStatus} onNotify={() => setNotify(r)} onDelete={remove} />)}
+          {visibleRows.map((r) => <ReviewRow key={r.session.id} row={r} onStatus={changeStatus} onNotify={() => setNotify(r)} onDelete={setConfirmDel} />)}
         </div>
       ) : (
-        <ReviewTable rows={rows} onStatus={changeStatus} onNotify={setNotify} onDelete={remove} />
+        <ReviewTable rows={visibleRows} onStatus={changeStatus} onNotify={setNotify} onDelete={setConfirmDel} />
       )}
 
       {notify && (
@@ -125,6 +127,15 @@ export function ReviewsClient() {
           row={notify}
           onClose={() => setNotify(null)}
           onDone={(updated) => { if (updated) applyNotifiedSession(updated); setNotify(null); void load(); }}
+        />
+      )}
+
+      {confirmDel && (
+        <ConfirmDeleteDialog
+          itemName={`the "${confirmDel.session.page_title ?? confirmDel.session.page_slug}" review`}
+          onConfirm={async () => { const r = confirmDel; setConfirmDel(null); await hardRemove(r); }}
+          onArchive={async () => { const r = confirmDel; setConfirmDel(null); await changeStatus(r, "archived"); }}
+          onCancel={() => setConfirmDel(null)}
         />
       )}
     </div>

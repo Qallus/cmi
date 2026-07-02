@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { BoltModal } from "./bolt-modal";
 import { NoteDetailModal } from "./note-detail-modal";
 import { ScreenshotEditor } from "./screenshot-editor";
+import { ConfirmDeleteDialog } from "./confirm-delete-dialog";
 import {
   NOTE_PRIORITIES, NOTE_STATUS_LABELS, NOTE_STATUSES, NOTE_TYPES, NOTE_TYPE_LABELS,
   type DashboardNote, type DashboardNoteStatus, type NotePriority, type NoteType,
@@ -39,6 +40,7 @@ export function ReviewFab() {
   const [tab, setTab] = React.useState<Tab>("note");
   const [boltOpen, setBoltOpen] = React.useState(false);
   const [detailId, setDetailId] = React.useState<string | null>(null);
+  const [confirmDel, setConfirmDel] = React.useState<DashboardNote | null>(null);
   const [unread, setUnread] = React.useState(0);
 
   const pageTitle = prettyRoute(pathname);
@@ -148,10 +150,15 @@ export function ReviewFab() {
     await fetch("/api/dashboard-notes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "update_status", id: n.id, status }) }).catch(() => {});
   }
 
-  async function removeNote(n: DashboardNote) {
-    if (!window.confirm("Delete this request? This can't be undone.")) return;
+  async function hardRemoveNote(n: DashboardNote) {
     setShared((prev) => prev.filter((x) => x.id !== n.id));
     await fetch("/api/dashboard-notes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "delete", id: n.id }) }).catch(() => {});
+    loadUnread();
+  }
+
+  async function archiveNote(n: DashboardNote) {
+    setShared((prev) => prev.filter((x) => x.id !== n.id));
+    await fetch("/api/dashboard-notes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "update_status", id: n.id, status: "archived" }) }).catch(() => {});
     loadUnread();
   }
 
@@ -238,7 +245,7 @@ export function ReviewFab() {
                       <select value={n.status} onClick={(e) => e.stopPropagation()} onChange={(e) => void setStatus(n, e.target.value as DashboardNoteStatus)} className={cn("ml-auto h-6 rounded border border-border bg-background px-1 text-[10px]", STATUS_TONE[n.status])}>
                         {NOTE_STATUSES.map((s) => <option key={s} value={s}>{NOTE_STATUS_LABELS[s]}</option>)}
                       </select>
-                      <button type="button" onClick={(e) => { e.stopPropagation(); void removeNote(n); }} title="Delete request" className="text-muted-foreground hover:text-destructive"><Trash2 className="h-3 w-3" /></button>
+                      <button type="button" onClick={(e) => { e.stopPropagation(); setConfirmDel(n); }} title="Delete request" className="text-muted-foreground hover:text-destructive"><Trash2 className="h-3 w-3" /></button>
                     </div>
                   </div>
                 ))}
@@ -265,6 +272,13 @@ export function ReviewFab() {
       {editing && <ScreenshotEditor src={editing} onSave={(url) => { setShot(url); setEditing(null); }} onCancel={() => setEditing(null)} />}
       {boltOpen && <BoltModal context={pageTitle} onClose={() => setBoltOpen(false)} />}
       {detailId && <NoteDetailModal noteId={detailId} onClose={() => setDetailId(null)} onChanged={() => { void loadShared(); loadUnread(); }} />}
+      {confirmDel && (
+        <ConfirmDeleteDialog
+          onConfirm={async () => { const n = confirmDel; setConfirmDel(null); await hardRemoveNote(n); }}
+          onArchive={async () => { const n = confirmDel; setConfirmDel(null); await archiveNote(n); }}
+          onCancel={() => setConfirmDel(null)}
+        />
+      )}
     </>
   );
 }
