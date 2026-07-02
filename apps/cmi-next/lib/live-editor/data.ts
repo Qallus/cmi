@@ -217,6 +217,13 @@ export async function listSessions(): Promise<SessionSummary[]> {
   });
 }
 
+/** Delete a review session; elements, notes, exports, and notifications cascade. */
+export async function deleteSession(id: string): Promise<void> {
+  const sb = getSupabaseAdmin();
+  const { error } = await sb.from("page_review_sessions").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
 export async function updateSession(id: string, patch: Partial<Pick<ReviewSession,
   "status" | "requester_name" | "requester_email">>): Promise<ReviewSession> {
   const sb = getSupabaseAdmin();

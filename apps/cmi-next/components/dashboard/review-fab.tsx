@@ -3,7 +3,7 @@
 import * as React from "react";
 import { usePathname } from "next/navigation";
 import {
-  Camera, Check, Inbox, Loader2, MessageSquarePlus, PenLine, Sparkles, X,
+  Camera, Check, Inbox, Loader2, MessageSquarePlus, PenLine, Sparkles, Trash2, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -148,6 +148,13 @@ export function ReviewFab() {
     await fetch("/api/dashboard-notes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "update_status", id: n.id, status }) }).catch(() => {});
   }
 
+  async function removeNote(n: DashboardNote) {
+    if (!window.confirm("Delete this request? This can't be undone.")) return;
+    setShared((prev) => prev.filter((x) => x.id !== n.id));
+    await fetch("/api/dashboard-notes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "delete", id: n.id }) }).catch(() => {});
+    loadUnread();
+  }
+
   function toggleRecipient(email: string) {
     setRecipients((prev) => prev.includes(email) ? prev.filter((e) => e !== email) : [...prev, email]);
   }
@@ -231,6 +238,7 @@ export function ReviewFab() {
                       <select value={n.status} onClick={(e) => e.stopPropagation()} onChange={(e) => void setStatus(n, e.target.value as DashboardNoteStatus)} className={cn("ml-auto h-6 rounded border border-border bg-background px-1 text-[10px]", STATUS_TONE[n.status])}>
                         {NOTE_STATUSES.map((s) => <option key={s} value={s}>{NOTE_STATUS_LABELS[s]}</option>)}
                       </select>
+                      <button type="button" onClick={(e) => { e.stopPropagation(); void removeNote(n); }} title="Delete request" className="text-muted-foreground hover:text-destructive"><Trash2 className="h-3 w-3" /></button>
                     </div>
                   </div>
                 ))}

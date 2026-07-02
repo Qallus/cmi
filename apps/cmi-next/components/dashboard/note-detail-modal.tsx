@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ExternalLink, ImageOff, Loader2, Send, X } from "lucide-react";
+import { ExternalLink, ImageOff, Loader2, Send, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
@@ -47,6 +47,13 @@ export function NoteDetailModal({ noteId, onClose, onChanged }: { noteId: string
     onChanged?.();
   }
 
+  async function remove() {
+    if (!note || !window.confirm("Delete this request? This can't be undone.")) return;
+    await fetch("/api/dashboard-notes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "delete", id: note.id }) }).catch(() => {});
+    onChanged?.();
+    onClose();
+  }
+
   async function sendReply() {
     if (!note || !reply.trim()) return;
     setSending(true);
@@ -69,7 +76,10 @@ export function NoteDetailModal({ noteId, onClose, onChanged }: { noteId: string
             <div className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Dashboard request</div>
             <h2 className="truncate text-base font-semibold">{note?.page_title ?? "Request"}</h2>
           </div>
-          <button type="button" className="rounded p-1 text-muted-foreground hover:text-foreground" onClick={onClose}><X className="h-4 w-4" /></button>
+          <div className="flex items-center gap-1">
+            {note && <button type="button" className="rounded p-1 text-muted-foreground hover:text-destructive" onClick={() => void remove()} title="Delete request"><Trash2 className="h-4 w-4" /></button>}
+            <button type="button" className="rounded p-1 text-muted-foreground hover:text-foreground" onClick={onClose}><X className="h-4 w-4" /></button>
+          </div>
         </div>
 
         {loading ? (

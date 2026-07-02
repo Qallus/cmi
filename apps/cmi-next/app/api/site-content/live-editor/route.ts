@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireSuperAdmin, AuthError } from "@/lib/auth/require-admin";
 import {
   loadPageReview, saveNote, updateNote, deleteNote, loadSessionBundle, recordExport,
-  listSessions, updateSession, recordNotification,
+  listSessions, updateSession, deleteSession, recordNotification,
 } from "@/lib/live-editor/data";
 import { buildStructuredExport, buildMarkdown, buildAiBrief, buildPrintableHtml } from "@/lib/live-editor/export";
 import { buildStatusEmailHtml, sendReviewNotification } from "@/lib/live-editor/notify";
@@ -73,6 +73,12 @@ export async function POST(req: NextRequest) {
         if (!id) return NextResponse.json({ error: "session_id is required." }, { status: 400 });
         const session = await updateSession(id, patch ?? {});
         return NextResponse.json({ session });
+      }
+      case "delete_session": {
+        const { id } = body as { id?: string };
+        if (!id) return NextResponse.json({ error: "session_id is required." }, { status: 400 });
+        await deleteSession(id);
+        return NextResponse.json({ ok: true });
       }
       case "notify_requester": {
         const { session_id, to_email, status, message } = body as

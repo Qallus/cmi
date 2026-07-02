@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import {
   BookOpen, ChevronDown, ClipboardList, LayoutGrid, List, Loader2, Monitor,
-  MonitorSmartphone, RefreshCw, Sparkles, Table as TableIcon,
+  MonitorSmartphone, RefreshCw, Sparkles, Table as TableIcon, Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -109,6 +109,17 @@ export function SiteContentHub({ initialBlocks }: { initialBlocks: ContentBlock[
 
   const shown = surface === "frontend" ? frontendReqs : backendReqs;
 
+  async function deleteReq(r: Req) {
+    if (!window.confirm(`Delete this ${r.surface === "frontend" ? "page review" : "request"}? This can't be undone.`)) return;
+    if (r.surface === "frontend") {
+      setSessions((prev) => prev.filter((s) => s.session.id !== r.id));
+      await fetch("/api/site-content/live-editor", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "delete_session", id: r.id }) }).catch(() => {});
+    } else {
+      setNotes((prev) => prev.filter((n) => n.id !== r.id));
+      await fetch("/api/dashboard-notes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "delete", id: r.id }) }).catch(() => {});
+    }
+  }
+
   async function setStatus(r: Req, status: string) {
     if (r.surface === "frontend") {
       setSessions((prev) => prev.map((s) => (s.session.id === r.id ? { ...s, session: { ...s.session, status } } : s)));
@@ -183,11 +194,11 @@ export function SiteContentHub({ initialBlocks }: { initialBlocks: ContentBlock[
                   : <>No dashboard requests yet. Use the review button (bottom-right of any page) to capture one.</>}
               </div>
             ) : view === "cards" ? (
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{shown.map((r) => <ReqCard key={r.id} r={r} onStatus={setStatus} onOpen={setDetailId} />)}</div>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{shown.map((r) => <ReqCard key={r.id} r={r} onStatus={setStatus} onOpen={setDetailId} onDelete={deleteReq} />)}</div>
             ) : view === "list" ? (
-              <div className="space-y-2">{shown.map((r) => <ReqRow key={r.id} r={r} onStatus={setStatus} onOpen={setDetailId} />)}</div>
+              <div className="space-y-2">{shown.map((r) => <ReqRow key={r.id} r={r} onStatus={setStatus} onOpen={setDetailId} onDelete={deleteReq} />)}</div>
             ) : (
-              <ReqTable reqs={shown} onStatus={setStatus} onOpen={setDetailId} />
+              <ReqTable reqs={shown} onStatus={setStatus} onOpen={setDetailId} onDelete={deleteReq} />
             )}
           </div>
         </div>
@@ -229,7 +240,11 @@ function StatusPicker({ r, onStatus }: { r: Req; onStatus: (r: Req, s: string) =
   );
 }
 
-function ReqCard({ r, onStatus, onOpen }: { r: Req; onStatus: (r: Req, s: string) => void; onOpen: (id: string) => void }) {
+function DeleteBtn({ r, onDelete }: { r: Req; onDelete: (r: Req) => void }) {
+  return <button type="button" onClick={() => onDelete(r)} title="Delete request" className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border text-muted-foreground transition hover:border-destructive/50 hover:text-destructive"><Trash2 className="h-3.5 w-3.5" /></button>;
+}
+
+function ReqCard({ r, onStatus, onOpen, onDelete }: { r: Req; onStatus: (r: Req, s: string) => void; onOpen: (id: string) => void; onDelete: (r: Req) => void }) {
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-border bg-background p-3">
       <div className="flex items-start justify-between gap-2">
@@ -240,12 +255,13 @@ function ReqCard({ r, onStatus, onOpen }: { r: Req; onStatus: (r: Req, s: string
       <div className="flex items-center gap-2">
         <OpenBtn r={r} onOpen={onOpen} />
         <StatusPicker r={r} onStatus={onStatus} />
+        <div className="ml-auto"><DeleteBtn r={r} onDelete={onDelete} /></div>
       </div>
     </div>
   );
 }
 
-function ReqRow({ r, onStatus, onOpen }: { r: Req; onStatus: (r: Req, s: string) => void; onOpen: (id: string) => void }) {
+function ReqRow({ r, onStatus, onOpen, onDelete }: { r: Req; onStatus: (r: Req, s: string) => void; onOpen: (id: string) => void; onDelete: (r: Req) => void }) {
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-background px-3 py-2.5">
       <div className="min-w-[160px] flex-1"><div className="text-sm font-medium">{r.title}</div><div className="truncate text-[11px] text-muted-foreground">{r.subtitle}</div></div>
@@ -253,11 +269,12 @@ function ReqRow({ r, onStatus, onOpen }: { r: Req; onStatus: (r: Req, s: string)
       <span className="text-[11px] text-muted-foreground">{r.meta}</span>
       <OpenBtn r={r} onOpen={onOpen} />
       <StatusPicker r={r} onStatus={onStatus} />
+      <DeleteBtn r={r} onDelete={onDelete} />
     </div>
   );
 }
 
-function ReqTable({ reqs, onStatus, onOpen }: { reqs: Req[]; onStatus: (r: Req, s: string) => void; onOpen: (id: string) => void }) {
+function ReqTable({ reqs, onStatus, onOpen, onDelete }: { reqs: Req[]; onStatus: (r: Req, s: string) => void; onOpen: (id: string) => void; onDelete: (r: Req) => void }) {
   return (
     <div className="overflow-x-auto rounded-lg border border-border">
       <table className="w-full min-w-[640px] border-collapse text-sm">
@@ -270,9 +287,14 @@ function ReqTable({ reqs, onStatus, onOpen }: { reqs: Req[]; onStatus: (r: Req, 
               <td className="px-4 py-2.5">{r.priority && <span className={cn("rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase", PRIORITY_TONE[r.priority])}>{r.priority}</span>}</td>
               <td className="px-4 py-2.5"><StatusPicker r={r} onStatus={onStatus} /></td>
               <td className="px-4 py-2.5 text-xs text-muted-foreground">{fmt(r.updated)}</td>
-              <td className="px-4 py-2.5">{r.surface === "backend"
-                ? <button type="button" onClick={() => onOpen(r.id)} className="text-[11px] font-medium text-accent">Open →</button>
-                : <a href={r.openHref} className="text-[11px] font-medium text-accent">Open →</a>}</td>
+              <td className="px-4 py-2.5">
+                <div className="flex items-center gap-2">
+                  {r.surface === "backend"
+                    ? <button type="button" onClick={() => onOpen(r.id)} className="text-[11px] font-medium text-accent">Open →</button>
+                    : <a href={r.openHref} className="text-[11px] font-medium text-accent">Open →</a>}
+                  <DeleteBtn r={r} onDelete={onDelete} />
+                </div>
+              </td>
             </tr>
           ))}
         </tbody>

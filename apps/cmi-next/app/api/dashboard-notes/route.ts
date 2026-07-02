@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireSuperAdmin, AuthError } from "@/lib/auth/require-admin";
-import { createNote, listSharedWith, listInbox, listAll, updateNote, markRead, getNote, listComments, addComment } from "@/lib/dashboard-notes/data";
+import { createNote, listSharedWith, listInbox, listAll, updateNote, deleteNote, markRead, getNote, listComments, addComment } from "@/lib/dashboard-notes/data";
 import { sendSharedNoteEmails } from "@/lib/dashboard-notes/notify";
 import type { CreateNoteInput } from "@/lib/dashboard-notes/types";
 
@@ -61,6 +61,12 @@ export async function POST(req: NextRequest) {
         const { id } = body as { id?: string };
         if (!id) return NextResponse.json({ error: "id is required." }, { status: 400 });
         await markRead(id, email);
+        return NextResponse.json({ ok: true });
+      }
+      case "delete": {
+        const { id } = body as { id?: string };
+        if (!id) return NextResponse.json({ error: "id is required." }, { status: 400 });
+        await deleteNote(id);
         return NextResponse.json({ ok: true });
       }
       case "get_note": {

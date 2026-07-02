@@ -69,6 +69,13 @@ export async function updateNote(id: string, patch: Partial<Pick<DashboardNote, 
   return data as DashboardNote;
 }
 
+/** Delete a dashboard note; its comments cascade. */
+export async function deleteNote(id: string): Promise<void> {
+  const sb = getSupabaseAdmin();
+  const { error } = await sb.from("dashboard_notes").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
 export async function getNote(id: string): Promise<DashboardNote | null> {
   const sb = getSupabaseAdmin();
   const { data } = await sb.from("dashboard_notes").select("*").eq("id", id).maybeSingle();

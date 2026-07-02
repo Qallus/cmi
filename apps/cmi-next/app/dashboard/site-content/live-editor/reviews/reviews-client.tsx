@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import {
-  ArrowLeft, Bell, LayoutGrid, List, Loader2, RefreshCw, Table as TableIcon, X,
+  ArrowLeft, Bell, LayoutGrid, List, Loader2, RefreshCw, Table as TableIcon, Trash2, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -66,6 +66,15 @@ export function ReviewsClient() {
     setRows((prev) => prev.map((r) => (r.session.id === updated.id ? { ...r, session: updated } : r)));
   }
 
+  async function remove(row: SessionSummary) {
+    if (!window.confirm(`Delete the review for "${row.session.page_title ?? row.session.page_slug}"? This removes its notes too and can't be undone.`)) return;
+    setRows((prev) => prev.filter((r) => r.session.id !== row.session.id));
+    await fetch("/api/site-content/live-editor", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "delete_session", id: row.session.id }),
+    }).catch(() => void load());
+  }
+
   return (
     <div className="p-4 md:p-6">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
@@ -101,14 +110,14 @@ export function ReviewsClient() {
         </div>
       ) : view === "cards" ? (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {rows.map((r) => <ReviewCard key={r.session.id} row={r} onStatus={changeStatus} onNotify={() => setNotify(r)} />)}
+          {rows.map((r) => <ReviewCard key={r.session.id} row={r} onStatus={changeStatus} onNotify={() => setNotify(r)} onDelete={remove} />)}
         </div>
       ) : view === "list" ? (
         <div className="space-y-2">
-          {rows.map((r) => <ReviewRow key={r.session.id} row={r} onStatus={changeStatus} onNotify={() => setNotify(r)} />)}
+          {rows.map((r) => <ReviewRow key={r.session.id} row={r} onStatus={changeStatus} onNotify={() => setNotify(r)} onDelete={remove} />)}
         </div>
       ) : (
-        <ReviewTable rows={rows} onStatus={changeStatus} onNotify={setNotify} />
+        <ReviewTable rows={rows} onStatus={changeStatus} onNotify={setNotify} onDelete={remove} />
       )}
 
       {notify && (
@@ -150,7 +159,11 @@ function NotifyBtn({ onNotify, hasTarget }: { onNotify: () => void; hasTarget: b
   return <button type="button" onClick={onNotify} title={hasTarget ? "Notify requester" : "No requester email set"} className="inline-flex h-7 items-center gap-1 rounded-md border border-border px-2 text-[11px] font-medium text-muted-foreground hover:text-foreground"><Bell className="h-3 w-3" /> Notify</button>;
 }
 
-function ReviewCard({ row, onStatus, onNotify }: { row: SessionSummary; onStatus: (r: SessionSummary, s: SessionStatus) => void; onNotify: () => void }) {
+function DeleteBtn({ onDelete }: { onDelete: () => void }) {
+  return <button type="button" onClick={onDelete} title="Delete review" className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border text-muted-foreground transition hover:border-destructive/50 hover:text-destructive"><Trash2 className="h-3.5 w-3.5" /></button>;
+}
+
+function ReviewCard({ row, onStatus, onNotify, onDelete }: { row: SessionSummary; onStatus: (r: SessionSummary, s: SessionStatus) => void; onNotify: () => void; onDelete: (r: SessionSummary) => void }) {
   const target = row.session.requester_email || row.session.created_by;
   return (
     <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-4">
@@ -167,12 +180,13 @@ function ReviewCard({ row, onStatus, onNotify }: { row: SessionSummary; onStatus
         <OpenLink slug={row.session.page_slug} />
         <StatusSelect row={row} onStatus={onStatus} />
         <NotifyBtn onNotify={onNotify} hasTarget={Boolean(target)} />
+        <div className="ml-auto"><DeleteBtn onDelete={() => onDelete(row)} /></div>
       </div>
     </div>
   );
 }
 
-function ReviewRow({ row, onStatus, onNotify }: { row: SessionSummary; onStatus: (r: SessionSummary, s: SessionStatus) => void; onNotify: () => void }) {
+function ReviewRow({ row, onStatus, onNotify, onDelete }: { row: SessionSummary; onStatus: (r: SessionSummary, s: SessionStatus) => void; onNotify: () => void; onDelete: (r: SessionSummary) => void }) {
   const target = row.session.requester_email || row.session.created_by;
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
@@ -186,12 +200,13 @@ function ReviewRow({ row, onStatus, onNotify }: { row: SessionSummary; onStatus:
         <OpenLink slug={row.session.page_slug} />
         <StatusSelect row={row} onStatus={onStatus} />
         <NotifyBtn onNotify={onNotify} hasTarget={Boolean(target)} />
+        <DeleteBtn onDelete={() => onDelete(row)} />
       </div>
     </div>
   );
 }
 
-function ReviewTable({ rows, onStatus, onNotify }: { rows: SessionSummary[]; onStatus: (r: SessionSummary, s: SessionStatus) => void; onNotify: (r: SessionSummary) => void }) {
+function ReviewTable({ rows, onStatus, onNotify, onDelete }: { rows: SessionSummary[]; onStatus: (r: SessionSummary, s: SessionStatus) => void; onNotify: (r: SessionSummary) => void; onDelete: (r: SessionSummary) => void }) {
   return (
     <div className="overflow-x-auto rounded-lg border border-border">
       <table className="w-full min-w-[720px] border-collapse text-sm">
@@ -212,7 +227,7 @@ function ReviewTable({ rows, onStatus, onNotify }: { rows: SessionSummary[]; onS
                 <td className="px-4 py-2.5"><Counts row={r} /></td>
                 <td className="px-4 py-2.5"><StatusSelect row={r} onStatus={onStatus} /></td>
                 <td className="px-4 py-2.5 text-xs text-muted-foreground">{fmt(r.last_activity)}</td>
-                <td className="px-4 py-2.5"><div className="flex items-center gap-2"><OpenLink slug={r.session.page_slug} /><NotifyBtn onNotify={() => onNotify(r)} hasTarget={Boolean(target)} /></div></td>
+                <td className="px-4 py-2.5"><div className="flex items-center gap-2"><OpenLink slug={r.session.page_slug} /><NotifyBtn onNotify={() => onNotify(r)} hasTarget={Boolean(target)} /><DeleteBtn onDelete={() => onDelete(r)} /></div></td>
               </tr>
             );
           })}
