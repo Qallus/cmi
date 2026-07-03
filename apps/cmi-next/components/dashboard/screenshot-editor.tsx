@@ -2,8 +2,8 @@
 
 import * as React from "react";
 import {
-  ArrowUpRight, Bold, Check, Crop, HelpCircle, Highlighter, Move, PaintBucket,
-  Pen, RotateCcw, Square, Type, Undo2, X,
+  ArrowUpRight, Bold, Check, Crop, HelpCircle, Highlighter, Maximize2, Minimize2,
+  Move, PaintBucket, Pen, RotateCcw, Square, Type, Undo2, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -115,6 +115,7 @@ export function ScreenshotEditor({ src, onSave, onCancel }: { src: string; onSav
   const dragging = React.useRef(false);
   const moving = React.useRef<{ index: number; offX: number; offY: number } | null>(null);
   const [showHelp, setShowHelp] = React.useState(false);
+  const [expanded, setExpanded] = React.useState(false);
 
   // Text tool
   const [textDraft, setTextDraft] = React.useState<TextDraft | null>(null);
@@ -190,6 +191,14 @@ export function ScreenshotEditor({ src, onSave, onCancel }: { src: string; onSav
   }, [img, shapes, crop]);
 
   React.useEffect(() => { redraw(); }, [redraw]);
+
+  // Focus the text box AFTER the placing click settles, so the browser's default
+  // mousedown focus handling doesn't blur it out from under us.
+  React.useEffect(() => {
+    if (!textDraft) return;
+    const id = requestAnimationFrame(() => textInputRef.current?.focus());
+    return () => cancelAnimationFrame(id);
+  }, [textKey, textDraft]);
 
   function pos(e: React.PointerEvent): Pt {
     const canvas = canvasRef.current!;
@@ -312,7 +321,7 @@ export function ScreenshotEditor({ src, onSave, onCancel }: { src: string; onSav
   return (
     <div data-fab-ignore className="fixed inset-0 z-[80] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-background/85 backdrop-blur-sm" onClick={() => { commitText(); onCancel(); }} />
-      <div className="relative z-10 flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
+      <div className={cn("relative z-10 flex flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl", expanded ? "h-[96vh] w-[98vw] max-w-none" : "max-h-[94vh] w-full max-w-5xl")}>
         <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2.5">
           <div className="inline-flex rounded-md border border-border p-0.5">
             {TOOLS.map((t) => (
@@ -347,6 +356,7 @@ export function ScreenshotEditor({ src, onSave, onCancel }: { src: string; onSav
             {tool === "crop" && crop && <Button size="sm" variant="outline" onClick={applyCrop}><Crop className="h-3.5 w-3.5" /> Apply {cropSize ? `${cropSize.w}×${cropSize.h}` : ""}</Button>}
             <Button size="sm" variant="outline" onClick={() => updateShapes((p) => p.slice(0, -1))} disabled={!shapes.length}><Undo2 className="h-3.5 w-3.5" /></Button>
             <Button size="sm" variant="outline" onClick={() => { textDraftRef.current = null; setTextDraft(null); updateShapes([]); setCrop(null); }}><RotateCcw className="h-3.5 w-3.5" /></Button>
+            <button type="button" title={expanded ? "Shrink editor" : "Expand editor"} onClick={() => setExpanded((v) => !v)} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground hover:text-accent">{expanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}</button>
             <button type="button" title="How the tools work" onClick={() => setShowHelp(true)} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground hover:text-accent"><HelpCircle className="h-4 w-4" /></button>
             <button type="button" className="rounded p-1 text-muted-foreground hover:text-foreground" onClick={() => { commitText(); onCancel(); }}><X className="h-4 w-4" /></button>
           </div>
@@ -381,7 +391,6 @@ export function ScreenshotEditor({ src, onSave, onCancel }: { src: string; onSav
         <textarea
           key={textKey}
           ref={textInputRef}
-          autoFocus
           rows={1}
           defaultValue=""
           placeholder="Type…"
@@ -390,7 +399,7 @@ export function ScreenshotEditor({ src, onSave, onCancel }: { src: string; onSav
             else if (e.key === "Escape") { textDraftRef.current = null; setTextDraft(null); }
           }}
           onInput={(e) => { const t = e.currentTarget; t.style.height = "auto"; t.style.height = `${t.scrollHeight}px`; }}
-          onBlur={commitText}
+          onBlur={() => { if (pendingTextShape()) commitText(); }}
           className="z-[85]"
           style={{
             position: "fixed", left: textDraft.left, top: textDraft.top,
