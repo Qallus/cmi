@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import {
-  ArrowUpRight, Check, Crop, Highlighter, Pen, RotateCcw, Square, Type, Undo2, X,
+  ArrowUpRight, Bold, Check, Crop, HelpCircle, Highlighter, Move, PaintBucket,
+  Pen, RotateCcw, Square, Type, Undo2, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -11,22 +12,47 @@ type Tool = "crop" | "pen" | "arrow" | "rect" | "highlight" | "text";
 type Pt = { x: number; y: number };
 type FreeShape = { tool: "pen" | "highlight"; color: string; size: number; points: Pt[] };
 type LineShape = { tool: "arrow" | "rect"; color: string; size: number; a: Pt; b: Pt };
-type TextShape = { tool: "text"; color: string; size: number; x: number; y: number; text: string };
+type TextShape = { tool: "text"; color: string; size: number; x: number; y: number; text: string; bold: boolean; bg: boolean };
 type Shape = FreeShape | LineShape | TextShape;
 type DragShape = FreeShape | LineShape;
 function isFree(s: DragShape): s is FreeShape { return s.tool === "pen" || s.tool === "highlight"; }
 
-// Where a text label is being typed. Screen coords (left/top) position the input;
-// canvas coords (x/y) + fontPx are used to bake it into the image.
-type TextDraft = { x: number; y: number; left: number; top: number; dispFont: number; fontPx: number; color: string };
+type TextDraft = { x: number; y: number; left: number; top: number; dispFont: number; fontPx: number; color: string; bold: boolean; bg: boolean };
 
 const COLORS = ["#ef4444", "#f59e0b", "#22c55e", "#3b82f6", "#111111", "#ffffff"];
 const MAX_DIM = 1600; // clamp captured image for performance / upload size
+const FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';
 
 function hexA(hex: string, a: number): string {
   const h = hex.replace("#", "");
   const n = parseInt(h.length === 3 ? h.split("").map((c) => c + c).join("") : h, 16);
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
+}
+function luminance(hex: string): number {
+  const h = hex.replace("#", "");
+  const n = parseInt(h.length === 3 ? h.split("").map((c) => c + c).join("") : h, 16);
+  return (0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255;
+}
+// A background that contrasts the text color (dark box behind light text, light behind dark).
+function bgFor(color: string): string { return luminance(color) > 0.6 ? "rgba(17,17,17,.62)" : "rgba(255,255,255,.88)"; }
+
+function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  const rr = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + rr, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rr);
+  ctx.arcTo(x + w, y + h, x, y + h, rr);
+  ctx.arcTo(x, y + h, x, y, rr);
+  ctx.arcTo(x, y, x + w, y, rr);
+  ctx.closePath();
+}
+
+function textBounds(ctx: CanvasRenderingContext2D, s: TextShape) {
+  ctx.font = `${s.bold ? 800 : 600} ${s.size}px ${FONT}`;
+  const lines = s.text.split("\n"); const lh = s.size * 1.2;
+  let maxW = 0; for (const ln of lines) maxW = Math.max(maxW, ctx.measureText(ln).width);
+  const pad = s.bg ? s.size * 0.3 : s.size * 0.15;
+  return { x: s.x - pad, y: s.y - pad, w: maxW + pad * 2, h: lines.length * lh + pad * 2 };
 }
 
 function drawShape(ctx: CanvasRenderingContext2D, s: Shape) {
@@ -60,10 +86,18 @@ function drawShape(ctx: CanvasRenderingContext2D, s: Shape) {
       break;
     }
     case "text": {
-      ctx.fillStyle = s.color;
-      ctx.font = `600 ${s.size}px system-ui, -apple-system, "Segoe UI", sans-serif`;
+      ctx.font = `${s.bold ? 800 : 600} ${s.size}px ${FONT}`;
       ctx.textBaseline = "top";
-      s.text.split("\n").forEach((line, i) => ctx.fillText(line, s.x, s.y + i * s.size * 1.2));
+      const lines = s.text.split("\n"); const lh = s.size * 1.2;
+      if (s.bg) {
+        let maxW = 0; for (const ln of lines) maxW = Math.max(maxW, ctx.measureText(ln).width);
+        const pad = s.size * 0.3;
+        ctx.fillStyle = bgFor(s.color);
+        roundRect(ctx, s.x - pad, s.y - pad, maxW + pad * 2, lines.length * lh + pad * 2, s.size * 0.25);
+        ctx.fill();
+      }
+      ctx.fillStyle = s.color;
+      lines.forEach((ln, i) => ctx.fillText(ln, s.x, s.y + i * lh));
       break;
     }
   }
@@ -79,13 +113,17 @@ export function ScreenshotEditor({ src, onSave, onCancel }: { src: string; onSav
   const [crop, setCrop] = React.useState<{ a: Pt; b: Pt } | null>(null);
   const draft = React.useRef<DragShape | null>(null);
   const dragging = React.useRef(false);
+  const moving = React.useRef<{ index: number; offX: number; offY: number } | null>(null);
+  const [showHelp, setShowHelp] = React.useState(false);
 
   // Text tool
   const [textDraft, setTextDraft] = React.useState<TextDraft | null>(null);
   const textDraftRef = React.useRef<TextDraft | null>(null);
   const textInputRef = React.useRef<HTMLTextAreaElement>(null);
   const [textKey, setTextKey] = React.useState(0);
-  const [textScale, setTextScale] = React.useState(1); // S/M/L multiplier for new text
+  const [textScale, setTextScale] = React.useState(1);
+  const [textBold, setTextBold] = React.useState(false);
+  const [textBg, setTextBg] = React.useState(false);
 
   function updateShapes(next: Shape[] | ((p: Shape[]) => Shape[])) {
     setShapes((prev) => {
@@ -95,7 +133,6 @@ export function ScreenshotEditor({ src, onSave, onCancel }: { src: string; onSav
     });
   }
 
-  // Load (and clamp) the captured image.
   React.useEffect(() => {
     const image = new Image();
     image.onload = () => {
@@ -111,11 +148,10 @@ export function ScreenshotEditor({ src, onSave, onCancel }: { src: string; onSav
     image.src = src;
   }, [src]);
 
-  // A text label currently being typed but not yet committed (so save/crop bake it).
   function pendingTextShape(): TextShape | null {
     const d = textDraftRef.current;
     const v = textInputRef.current?.value.trim();
-    if (d && v) return { tool: "text", color: d.color, size: d.fontPx, x: d.x, y: d.y, text: v };
+    if (d && v) return { tool: "text", color: d.color, size: d.fontPx, x: d.x, y: d.y, text: v, bold: d.bold, bg: d.bg };
     return null;
   }
 
@@ -161,6 +197,17 @@ export function ScreenshotEditor({ src, onSave, onCancel }: { src: string; onSav
     return { x: (e.clientX - r.left) * (canvas.width / r.width), y: (e.clientY - r.top) * (canvas.height / r.height) };
   }
 
+  function hitTextAt(p: Pt): number {
+    const ctx = canvasRef.current?.getContext("2d"); if (!ctx) return -1;
+    for (let i = shapesRef.current.length - 1; i >= 0; i--) {
+      const s = shapesRef.current[i];
+      if (s.tool !== "text") continue;
+      const b = textBounds(ctx, s);
+      if (p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h) return i;
+    }
+    return -1;
+  }
+
   function commitText() {
     const s = pendingTextShape();
     textDraftRef.current = null;
@@ -169,12 +216,12 @@ export function ScreenshotEditor({ src, onSave, onCancel }: { src: string; onSav
   }
 
   function placeText(e: React.PointerEvent) {
-    commitText(); // finish any label already in progress
+    commitText();
     const canvas = canvasRef.current!;
     const r = canvas.getBoundingClientRect();
     const p = pos(e);
     const fontPx = Math.max(12, Math.round((canvas.width / 40) * textScale));
-    const d: TextDraft = { x: p.x, y: p.y, left: e.clientX, top: e.clientY, fontPx, dispFont: fontPx * (r.width / canvas.width), color };
+    const d: TextDraft = { x: p.x, y: p.y, left: e.clientX, top: e.clientY, fontPx, dispFont: fontPx * (r.width / canvas.width), color, bold: textBold, bg: textBg };
     textDraftRef.current = d;
     setTextDraft(d);
     setTextKey((k) => k + 1);
@@ -182,7 +229,19 @@ export function ScreenshotEditor({ src, onSave, onCancel }: { src: string; onSav
 
   function down(e: React.PointerEvent) {
     if (!img) return;
-    if (tool === "text") { placeText(e); return; }
+    if (tool === "text") {
+      const p = pos(e);
+      const hit = hitTextAt(p);
+      if (hit >= 0) { // drag an existing label
+        commitText();
+        const s = shapesRef.current[hit] as TextShape;
+        moving.current = { index: hit, offX: p.x - s.x, offY: p.y - s.y };
+        dragging.current = true;
+        canvasRef.current?.setPointerCapture(e.pointerId);
+        return;
+      }
+      placeText(e); return;
+    }
     dragging.current = true;
     canvasRef.current?.setPointerCapture(e.pointerId);
     const p = pos(e);
@@ -192,6 +251,11 @@ export function ScreenshotEditor({ src, onSave, onCancel }: { src: string; onSav
       : { tool, color, size: 3, a: p, b: p };
   }
   function move(e: React.PointerEvent) {
+    if (moving.current) {
+      const p = pos(e); const { index, offX, offY } = moving.current;
+      updateShapes((prev) => prev.map((s, i) => (i === index && s.tool === "text" ? { ...s, x: p.x - offX, y: p.y - offY } : s)));
+      return;
+    }
     if (!dragging.current) return;
     const p = pos(e);
     if (tool === "crop") { setCrop((c) => (c ? { a: c.a, b: p } : null)); return; }
@@ -200,6 +264,7 @@ export function ScreenshotEditor({ src, onSave, onCancel }: { src: string; onSav
     redraw();
   }
   function up() {
+    if (moving.current) { moving.current = null; dragging.current = false; return; }
     dragging.current = false;
     if (draft.current) {
       const d = draft.current;
@@ -221,6 +286,16 @@ export function ScreenshotEditor({ src, onSave, onCancel }: { src: string; onSav
     const next = new Image();
     next.onload = () => { textDraftRef.current = null; setTextDraft(null); updateShapes([]); setImg(next); setCrop(null); setTool("pen"); };
     next.src = c.toDataURL("image/jpeg", 0.92);
+  }
+
+  // Toggles that also update the label currently being typed.
+  function toggleBold() {
+    const nv = !textBold; setTextBold(nv);
+    if (textDraftRef.current) { textDraftRef.current.bold = nv; setTextDraft((d) => (d ? { ...d, bold: nv } : d)); }
+  }
+  function toggleBg() {
+    const nv = !textBg; setTextBg(nv);
+    if (textDraftRef.current) { textDraftRef.current.bg = nv; setTextDraft((d) => (d ? { ...d, bg: nv } : d)); }
   }
 
   const cropSize = crop ? { w: Math.round(Math.abs(crop.b.x - crop.a.x)), h: Math.round(Math.abs(crop.b.y - crop.a.y)) } : null;
@@ -255,19 +330,24 @@ export function ScreenshotEditor({ src, onSave, onCancel }: { src: string; onSav
             ))}
           </div>
           {tool === "text" && (
-            <div className="inline-flex items-center rounded-md border border-border p-0.5" title="Text size">
-              {([["S", 0.7], ["M", 1], ["L", 1.7]] as const).map(([lbl, mul]) => (
-                <button key={lbl} type="button" onClick={() => setTextScale(mul)}
-                  className={cn("h-7 w-7 rounded text-xs font-semibold", textScale === mul ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground")}>
-                  {lbl}
-                </button>
-              ))}
+            <div className="flex items-center gap-1">
+              <div className="inline-flex items-center rounded-md border border-border p-0.5" title="Text size">
+                {([["S", 0.7], ["M", 1], ["L", 1.7]] as const).map(([lbl, mul]) => (
+                  <button key={lbl} type="button" onClick={() => setTextScale(mul)}
+                    className={cn("h-7 w-7 rounded text-xs font-semibold", textScale === mul ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground")}>{lbl}</button>
+                ))}
+              </div>
+              <button type="button" title="Bold" onClick={toggleBold}
+                className={cn("inline-flex h-7 w-7 items-center justify-center rounded-md border border-border", textBold ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground")}><Bold className="h-3.5 w-3.5" /></button>
+              <button type="button" title="Background behind text" onClick={toggleBg}
+                className={cn("inline-flex h-7 w-7 items-center justify-center rounded-md border border-border", textBg ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground")}><PaintBucket className="h-3.5 w-3.5" /></button>
             </div>
           )}
           <div className="ml-auto flex items-center gap-2">
             {tool === "crop" && crop && <Button size="sm" variant="outline" onClick={applyCrop}><Crop className="h-3.5 w-3.5" /> Apply {cropSize ? `${cropSize.w}×${cropSize.h}` : ""}</Button>}
             <Button size="sm" variant="outline" onClick={() => updateShapes((p) => p.slice(0, -1))} disabled={!shapes.length}><Undo2 className="h-3.5 w-3.5" /></Button>
             <Button size="sm" variant="outline" onClick={() => { textDraftRef.current = null; setTextDraft(null); updateShapes([]); setCrop(null); }}><RotateCcw className="h-3.5 w-3.5" /></Button>
+            <button type="button" title="How the tools work" onClick={() => setShowHelp(true)} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground hover:text-accent"><HelpCircle className="h-4 w-4" /></button>
             <button type="button" className="rounded p-1 text-muted-foreground hover:text-foreground" onClick={() => { commitText(); onCancel(); }}><X className="h-4 w-4" /></button>
           </div>
         </div>
@@ -287,7 +367,7 @@ export function ScreenshotEditor({ src, onSave, onCancel }: { src: string; onSav
 
         <div className="flex items-center justify-between border-t border-border px-4 py-2.5">
           <div className="text-[11px] text-muted-foreground">
-            {tool === "crop" ? "Drag to select an area, then Apply." : tool === "text" ? "Click anywhere and type. Enter to place · Shift+Enter for a new line · S/M/L sets size." : "Drag on the image to annotate."}
+            {tool === "crop" ? "Drag to select an area, then Apply." : tool === "text" ? "Click and type · Enter places · Shift+Enter new line · drag a placed label to move it." : "Drag on the image to annotate."}
           </div>
           <div className="flex items-center gap-2">
             <Button size="sm" variant="outline" onClick={() => { commitText(); onCancel(); }}>Cancel</Button>
@@ -296,8 +376,7 @@ export function ScreenshotEditor({ src, onSave, onCancel }: { src: string; onSav
         </div>
       </div>
 
-      {/* Floating text box — positioned at the click point, styled like the baked text.
-          Enter places it; Shift+Enter adds a new line. */}
+      {/* Floating text box — Enter places, Shift+Enter adds a line */}
       {textDraft && (
         <textarea
           key={textKey}
@@ -315,13 +394,53 @@ export function ScreenshotEditor({ src, onSave, onCancel }: { src: string; onSav
           className="z-[85]"
           style={{
             position: "fixed", left: textDraft.left, top: textDraft.top,
-            color: textDraft.color, font: `600 ${textDraft.dispFont}px system-ui, -apple-system, sans-serif`, lineHeight: 1.2,
-            background: "rgba(255,255,255,.9)", border: `1px dashed ${textDraft.color}`,
-            outline: "none", padding: "0 4px", borderRadius: 4, minWidth: 80,
+            color: textDraft.color, font: `${textDraft.bold ? 800 : 600} ${textDraft.dispFont}px ${FONT}`, lineHeight: 1.2,
+            background: textDraft.bg ? bgFor(textDraft.color) : "rgba(255,255,255,.9)",
+            border: `1px dashed ${textDraft.color}`, outline: "none", padding: "0 4px", borderRadius: 4, minWidth: 80,
             resize: "none", overflow: "hidden",
           }}
         />
       )}
+
+      {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
+    </div>
+  );
+}
+
+function HelpModal({ onClose }: { onClose: () => void }) {
+  const items: { icon: React.ReactNode; title: string; body: string }[] = [
+    { icon: <Crop className="h-4 w-4" />, title: "Crop", body: "Drag a box over the area you want, then Apply. Trims the screenshot to that region (shows live W×H)." },
+    { icon: <Pen className="h-4 w-4" />, title: "Pen", body: "Freehand draw. Drag to sketch on the image." },
+    { icon: <ArrowUpRight className="h-4 w-4" />, title: "Arrow", body: "Drag from start to end to point at something." },
+    { icon: <Square className="h-4 w-4" />, title: "Box", body: "Drag to draw a rectangle outline around an area." },
+    { icon: <Highlighter className="h-4 w-4" />, title: "Highlight", body: "Drag a translucent marker stroke to emphasize an area." },
+    { icon: <Type className="h-4 w-4" />, title: "Text", body: "Click anywhere and type. Enter places it, Shift+Enter adds a line. Use S/M/L for size, Bold for weight, and the fill button for a readable background. Drag a placed label to move it." },
+    { icon: <PaintBucket className="h-4 w-4" />, title: "Colors", body: "Pick the color used for the next annotation or text label." },
+    { icon: <Move className="h-4 w-4" />, title: "Move text", body: "With the Text tool active, drag any label you've placed to reposition it." },
+    { icon: <Undo2 className="h-4 w-4" />, title: "Undo / Reset", body: "Undo removes the last annotation; Reset clears them all (and any crop selection)." },
+    { icon: <Check className="h-4 w-4" />, title: "Use screenshot", body: "Bakes the crop and every annotation into the image and attaches it to your request." },
+  ];
+  return (
+    <div className="fixed inset-0 z-[88] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative z-10 flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
+        <div className="flex items-center justify-between border-b border-border px-5 py-3">
+          <div className="flex items-center gap-2"><HelpCircle className="h-4 w-4 text-accent" /><h2 className="text-base font-semibold">Screenshot tools</h2></div>
+          <button type="button" className="rounded p-1 text-muted-foreground hover:text-foreground" onClick={onClose}><X className="h-4 w-4" /></button>
+        </div>
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-5">
+          <p className="text-sm text-muted-foreground">Mark up your screenshot before attaching it. Pick a tool and a color, then work on the image. Everything is baked into the saved picture.</p>
+          {items.map((it) => (
+            <div key={it.title} className="flex gap-3">
+              <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-accent/10 text-accent">{it.icon}</span>
+              <div><div className="text-sm font-semibold">{it.title}</div><div className="text-[13px] text-muted-foreground">{it.body}</div></div>
+            </div>
+          ))}
+        </div>
+        <div className="border-t border-border px-5 py-3 text-right">
+          <Button size="sm" variant="accent" onClick={onClose}>Got it</Button>
+        </div>
+      </div>
     </div>
   );
 }
