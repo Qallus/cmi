@@ -83,8 +83,9 @@ export function ScreenshotEditor({ src, onSave, onCancel }: { src: string; onSav
   // Text tool
   const [textDraft, setTextDraft] = React.useState<TextDraft | null>(null);
   const textDraftRef = React.useRef<TextDraft | null>(null);
-  const textInputRef = React.useRef<HTMLInputElement>(null);
+  const textInputRef = React.useRef<HTMLTextAreaElement>(null);
   const [textKey, setTextKey] = React.useState(0);
+  const [textScale, setTextScale] = React.useState(1); // S/M/L multiplier for new text
 
   function updateShapes(next: Shape[] | ((p: Shape[]) => Shape[])) {
     setShapes((prev) => {
@@ -172,7 +173,7 @@ export function ScreenshotEditor({ src, onSave, onCancel }: { src: string; onSav
     const canvas = canvasRef.current!;
     const r = canvas.getBoundingClientRect();
     const p = pos(e);
-    const fontPx = Math.max(18, Math.round(canvas.width / 40));
+    const fontPx = Math.max(12, Math.round((canvas.width / 40) * textScale));
     const d: TextDraft = { x: p.x, y: p.y, left: e.clientX, top: e.clientY, fontPx, dispFont: fontPx * (r.width / canvas.width), color };
     textDraftRef.current = d;
     setTextDraft(d);
@@ -253,6 +254,16 @@ export function ScreenshotEditor({ src, onSave, onCancel }: { src: string; onSav
                 style={{ background: c }} />
             ))}
           </div>
+          {tool === "text" && (
+            <div className="inline-flex items-center rounded-md border border-border p-0.5" title="Text size">
+              {([["S", 0.7], ["M", 1], ["L", 1.7]] as const).map(([lbl, mul]) => (
+                <button key={lbl} type="button" onClick={() => setTextScale(mul)}
+                  className={cn("h-7 w-7 rounded text-xs font-semibold", textScale === mul ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground")}>
+                  {lbl}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="ml-auto flex items-center gap-2">
             {tool === "crop" && crop && <Button size="sm" variant="outline" onClick={applyCrop}><Crop className="h-3.5 w-3.5" /> Apply {cropSize ? `${cropSize.w}×${cropSize.h}` : ""}</Button>}
             <Button size="sm" variant="outline" onClick={() => updateShapes((p) => p.slice(0, -1))} disabled={!shapes.length}><Undo2 className="h-3.5 w-3.5" /></Button>
@@ -276,7 +287,7 @@ export function ScreenshotEditor({ src, onSave, onCancel }: { src: string; onSav
 
         <div className="flex items-center justify-between border-t border-border px-4 py-2.5">
           <div className="text-[11px] text-muted-foreground">
-            {tool === "crop" ? "Drag to select an area, then Apply." : tool === "text" ? "Click anywhere, then type. Enter to place." : "Drag on the image to annotate."}
+            {tool === "crop" ? "Drag to select an area, then Apply." : tool === "text" ? "Click anywhere and type. Enter to place · Shift+Enter for a new line · S/M/L sets size." : "Drag on the image to annotate."}
           </div>
           <div className="flex items-center gap-2">
             <Button size="sm" variant="outline" onClick={() => { commitText(); onCancel(); }}>Cancel</Button>
@@ -285,25 +296,29 @@ export function ScreenshotEditor({ src, onSave, onCancel }: { src: string; onSav
         </div>
       </div>
 
-      {/* Floating text input — positioned at the click point, styled like the baked text */}
+      {/* Floating text box — positioned at the click point, styled like the baked text.
+          Enter places it; Shift+Enter adds a new line. */}
       {textDraft && (
-        <input
+        <textarea
           key={textKey}
           ref={textInputRef}
           autoFocus
+          rows={1}
           defaultValue=""
           placeholder="Type…"
           onKeyDown={(e) => {
-            if (e.key === "Enter") { e.preventDefault(); commitText(); }
+            if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); commitText(); }
             else if (e.key === "Escape") { textDraftRef.current = null; setTextDraft(null); }
           }}
+          onInput={(e) => { const t = e.currentTarget; t.style.height = "auto"; t.style.height = `${t.scrollHeight}px`; }}
           onBlur={commitText}
           className="z-[85]"
           style={{
             position: "fixed", left: textDraft.left, top: textDraft.top,
-            color: textDraft.color, font: `600 ${textDraft.dispFont}px system-ui, -apple-system, sans-serif`,
+            color: textDraft.color, font: `600 ${textDraft.dispFont}px system-ui, -apple-system, sans-serif`, lineHeight: 1.2,
             background: "rgba(255,255,255,.9)", border: `1px dashed ${textDraft.color}`,
             outline: "none", padding: "0 4px", borderRadius: 4, minWidth: 80,
+            resize: "none", overflow: "hidden",
           }}
         />
       )}
