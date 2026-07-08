@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@react-pdf/renderer": "^4.5.1",
     "@supabase/supabase-js": "^2.49.1",
     "@twilio/voice-sdk": "^2.18.3",
     "class-variance-authority": "^0.7.1",

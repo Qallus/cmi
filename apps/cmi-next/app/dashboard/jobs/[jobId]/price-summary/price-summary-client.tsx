@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Printer } from "lucide-react";
+import { Download, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { PriceSummary } from "@/lib/jobs/types";
 import { money, formatDate } from "../../job-ui";
@@ -22,6 +22,7 @@ export function PriceSummaryClient({ summary, client }: { summary: PriceSummary;
         <div className="flex flex-wrap items-center gap-3">
           <label className="flex items-center gap-1.5 text-sm"><input type="checkbox" checked={showChangeOrders} onChange={(e) => setShowChangeOrders(e.target.checked)} /> Show approved change orders</label>
           <label className="flex items-center gap-1.5 text-sm"><input type="checkbox" checked={showInvoices} onChange={(e) => setShowInvoices(e.target.checked)} /> Show invoices</label>
+          <a href={`/api/jobs/${job.id}/price-summary/pdf`} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-3 text-xs font-medium text-foreground hover:bg-muted"><Download className="h-3.5 w-3.5" /> Download PDF</a>
           <Button size="sm" variant="accent" onClick={() => window.print()}><Printer className="h-3.5 w-3.5" /> Print</Button>
         </div>
       </div>

@@ -387,11 +387,25 @@ export async function createJobFromTemplate(
 // placeholders (empty) until those modules/tables exist — the contract price
 // still drives the grand total. See docs/features/cmi-jobs-implementation.md.
 export async function buildPriceSummary(jobId: string): Promise<PriceSummary> {
+  const sb = getSupabaseAdmin();
   const job = await getJobBasic(jobId);
   if (!job) throw new JobError("Job not found.", 404);
   const contract_price = job.contract_price ?? 0;
-  const change_orders: PriceSummary["change_orders"] = []; // TODO: change_orders table
-  const invoices: PriceSummary["invoices"] = [];           // TODO: invoices table
+
+  // Approved change orders + all invoices for this job feed the summary.
+  const [{ data: cos }, { data: invs }] = await Promise.all([
+    sb.from("change_orders").select("title,amount,co_date,approved_date,status").eq("job_id", jobId).eq("status", "approved").order("co_date"),
+    sb.from("invoices").select("invoice_number,issue_date,due_date,amount,amount_paid,status").eq("job_id", jobId).neq("status", "void").order("issue_date"),
+  ]);
+
+  const change_orders: PriceSummary["change_orders"] = (cos ?? []).map((c) => ({
+    title: c.title ?? "Change Order", date: c.approved_date ?? c.co_date ?? "", price: Number(c.amount ?? 0), status: c.status ?? "approved",
+  }));
+  const invoices: PriceSummary["invoices"] = (invs ?? []).map((i) => ({
+    number: i.invoice_number ?? "—", date: i.issue_date ?? "", due_date: i.due_date ?? "",
+    amount: Number(i.amount ?? 0), paid: Number(i.amount_paid ?? 0), balance: Number(i.amount ?? 0) - Number(i.amount_paid ?? 0), status: i.status ?? "draft",
+  }));
+
   const approved_change_orders_total = change_orders.reduce((s, c) => s + c.price, 0);
   const invoice_total = invoices.reduce((s, i) => s + i.amount, 0);
   const invoice_paid_total = invoices.reduce((s, i) => s + i.paid, 0);

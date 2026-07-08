@@ -29,11 +29,21 @@ Lead (contacts / quotes)
 - **Agent** — `job` entity registered in `lib/agent/entities.ts` (guardrails: never set job number, follow status list).
 - **Print** — dashboard `<aside>`/`<header>` get `print:hidden`; root grid `print:!block` so the Price Summary prints clean.
 
-## Placeholders / follow-ups (per doc)
+## Job modules (built) — Change Orders, Invoices, Daily Logs, Files
 
-- Deep modules — schedule, tasks, files, messages, photos, daily logs, change orders, invoices, purchase orders — are **linked** (schedule→Project Manager, selections→Selections, warranty→Sales, messages→Communications) or **"Coming soon"** scaffolds under `[jobId]/[module]`.
-- Price summary change-orders/invoices tables are empty until those tables exist (contract price drives totals).
-- Not yet built: time-clock "clocked-in", client payment settings, QuickBooks/accounting sync, saved custom views, map clustering, insurance certificate upload / "request quote", per-job deep-linking of shared tools, geofencing enforcement.
+Migration `supabase/2026-07-08_job_modules.sql`: `change_orders`, `invoices` + `invoice_line_items`, `daily_logs`, `job_files` (all job-scoped, cascade-delete, RLS + indexes). Per-job numbering `CO-####` / `INV-####` via `lib/jobs/numbering.ts`.
+
+- **lib**: `lib/change-orders`, `lib/invoices` (+ line items, `invoiceBalance`), `lib/daily-logs`, `lib/job-files`; `lib/storage.ts` (shared `cmi-media` upload). `buildPriceSummary()` now loads **approved change orders + invoices** (no longer placeholder).
+- **Branded PDFs** — `@react-pdf/renderer` + `components/pdf/` (`cmi-theme`, `invoice-pdf`, `change-order-pdf`, `price-summary-pdf`), `lib/pdf/render.ts` + `lib/pdf/assets.ts` (logo→data URI). Server routes `…/pdf` (Node runtime) stream `application/pdf`.
+- **Invoice email** — `…/invoices/[invId]/send` renders the PDF and emails it as an attachment via **Resend**, respecting `isSuppressed`, logging to `messages`, and marking the invoice sent.
+- **API** — `app/api/jobs/[id]/{change-orders,invoices,daily-logs,files}` (+ `[subId]`, `pdf`, `send`), role-gated (PM; daily-logs/files also `superintendent`). Files upload is multipart → `cmi-media`.
+- **UI** — concrete job tabs `change-orders/`, `invoices/` (line-item editor + Download PDF + Send), `daily-logs/`, `files/` (drag-drop upload); shared `job-module-shell.tsx`. Price Summary page gained **Download PDF**. Those four slugs removed from the `[module]` "Coming soon" map.
+- **Agent** — `change_order`, `invoice`, `daily_log`, `job_file` entities registered.
+
+## Remaining placeholders / follow-ups
+
+- Still linked/scaffolded: schedule→Project Manager, selections→Selections, warranty→Sales, messages→Communications; `[module]` scaffolds for tasks, photos, purchase-orders, activity.
+- Not yet built: payment processing (invoices track `amount_paid` manually), time-clock "clocked-in", QuickBooks/accounting sync, saved custom views, map clustering, insurance certificate upload / "request quote", change-order line items, daily-log photo upload UI (URLs stored), geofencing enforcement.
 - Geocoding is best-effort (Nominatim, ~1 req/s) — un-geocoded jobs show in the list, not the map.
 
 ## Verification

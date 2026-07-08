@@ -15,9 +15,10 @@ const LINKED: Record<string, { label: string; href: string; blurb: string }> = {
   warranty: { label: "Warranty", href: "/dashboard/sales?tab=opportunities", blurb: "Warranty requests are tracked in the Sales pipeline / warranty area." },
   messages: { label: "Messages", href: "/dashboard/communications", blurb: "Messaging is handled in Communications." },
 };
+// change-orders, invoices, daily-logs, and files are now concrete routes and
+// take precedence over this catch-all; the rest remain scaffolded.
 const COMING_SOON: Record<string, string> = {
-  tasks: "Tasks", files: "Files", photos: "Photos", "daily-logs": "Daily Logs",
-  "change-orders": "Change Orders", invoices: "Invoices", "purchase-orders": "Purchase Orders", activity: "Activity",
+  tasks: "Tasks", photos: "Photos", "purchase-orders": "Purchase Orders", activity: "Activity",
 };
 
 export default async function JobModulePage({ params }: { params: Promise<{ jobId: string; module: string }> }) {
