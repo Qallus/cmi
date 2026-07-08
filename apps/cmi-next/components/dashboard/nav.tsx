@@ -30,10 +30,10 @@ type NavItem =
 // optional `children` list that expands/collapses via the +/- toggle.
 const nav: NavItem[] = [
   { href: "/dashboard/overview",       label: "Overview",       icon: Home },
-  { href: "/dashboard/my-profile",     label: "My Profile",     icon: User },
-  { href: "/dashboard/users",          label: "Users",          icon: UserRoundCog,   roles: ["super_admin", "admin"] },
   { href: "/dashboard/contacts",       label: "Contacts",       icon: Users,          roles: ["super_admin", "admin", "project_manager", "estimator"] },
   { href: "/dashboard/project-manager",label: "Projects",       icon: FolderKanban,   roles: ["super_admin", "admin", "project_manager", "designer", "estimator", "superintendent", "subcontractor", "client"] },
+  { href: "/dashboard/selections",     label: "Selections",     icon: Package,        roles: ["super_admin", "admin", "project_manager", "designer", "client"] },
+  { href: "/dashboard/sales",          label: "Sales",          icon: BriefcaseBusiness, roles: ["super_admin", "admin", "project_manager", "estimator"] },
   {
     href: "/dashboard/jobs",           label: "Jobs",           icon: HardHat,        roles: ["super_admin", "admin", "project_manager", "estimator", "superintendent", "designer"],
     children: [
@@ -41,10 +41,8 @@ const nav: NavItem[] = [
       { href: "/dashboard/jobs/new-from-template",  label: "Templates",     icon: FileText,   roles: ["super_admin", "admin", "project_manager"] },
     ],
   },
-  { href: "/dashboard/selections",     label: "Selections",     icon: Package,        roles: ["super_admin", "admin", "project_manager", "designer", "client"] },
-  { href: "/dashboard/bookings",       label: "Bookings",       icon: CalendarRange,  roles: ["super_admin", "admin", "project_manager", "estimator", "client"] },
   { href: "/dashboard/billing",        label: "Billing",        icon: CreditCard,     roles: ["super_admin", "admin", "estimator", "client"] },
-  { href: "/dashboard/sales",          label: "Sales",          icon: BriefcaseBusiness, roles: ["super_admin", "admin", "project_manager", "estimator"] },
+  { href: "/dashboard/bookings",       label: "Bookings",       icon: CalendarRange,  roles: ["super_admin", "admin", "project_manager", "estimator", "client"] },
   {
     href: "/dashboard/communications", label: "Communications", icon: MessageCircle,  roles: ["super_admin", "admin", "project_manager", "estimator"],
     children: [
@@ -52,6 +50,7 @@ const nav: NavItem[] = [
       { href: "/dashboard/recording-studio", label: "Recording Studio", icon: Mic,    roles: ["super_admin", "admin", "project_manager", "designer", "estimator", "superintendent", "staff"] },
     ],
   },
+  { href: "/dashboard/documents",      label: "Documents",      icon: FileText },
   {
     href: "/dashboard/site-content",   label: "Site Content",   icon: BookOpen,       roles: ["super_admin", "admin", "designer"],
     children: [
@@ -61,9 +60,12 @@ const nav: NavItem[] = [
       { href: "/dashboard/messaging-consent", label: "Messaging Consent", icon: ShieldCheck, roles: ["super_admin", "admin"] },
     ],
   },
-  { href: "/dashboard/documents",      label: "Documents",      icon: FileText },
-  { href: "/dashboard/agent",          label: "Agent",          icon: Sparkles,       roles: ["super_admin", "admin", "project_manager", "designer", "estimator", "superintendent"] },
-  { section: "Settings" },
+  { href: "/dashboard/agent",          label: "Bolt AI Agent",  icon: Sparkles,       roles: ["super_admin", "admin", "project_manager", "designer", "estimator", "superintendent"] },
+
+  // ── Account / administration ──
+  { section: "Account" },
+  { href: "/dashboard/users",          label: "User Management", icon: UserRoundCog,  roles: ["super_admin", "admin"] },
+  { href: "/dashboard/my-profile",     label: "My Profile",     icon: User },
   { href: "/dashboard/settings",       label: "Settings",       icon: Settings,       roles: ["super_admin", "admin"] },
   { href: "/",                         label: "Back to Site",   icon: ArrowLeft },
 ];
