@@ -1,15 +1,7 @@
-import { loadQuotes } from "@/lib/quotes/data";
-import { QuotesClient } from "./quotes-client";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "Quotes & Leads — CMI Dashboard" };
-
-export const dynamic = "force-dynamic";
-
-export default async function QuotesLeadsPage() {
-  try {
-    const quotes = await loadQuotes();
-    return <QuotesClient initialQuotes={quotes} />;
-  } catch {
-    return <QuotesClient initialQuotes={[]} />;
-  }
+// Quotes & Leads is now the "Leads" tab of the unified Sales hub.
+// Kept as a redirect so existing links/bookmarks continue to work.
+export default function QuotesLeadsRedirect() {
+  redirect("/dashboard/sales?tab=leads");
 }

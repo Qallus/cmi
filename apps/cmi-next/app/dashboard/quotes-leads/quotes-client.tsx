@@ -1,7 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { MoreHorizontal, Plus, Search, X } from "lucide-react";
+import Link from "next/link";
+import {
+  Calendar as CalendarIcon, ChevronLeft, ChevronRight, LayoutGrid, List as ListIcon,
+  MoreHorizontal, Plus, Search, Table as TableIcon, X,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/input";
@@ -45,16 +49,27 @@ const EMPTY_DRAFT: QuoteDraft = {
 };
 
 type ModalMode = "add" | "edit" | "view";
+type ViewMode = "list" | "table" | "calendar" | "kanban";
+
+const VIEWS: { key: ViewMode; label: string; icon: typeof ListIcon }[] = [
+  { key: "list", label: "List", icon: ListIcon },
+  { key: "table", label: "Table", icon: TableIcon },
+  { key: "calendar", label: "Calendar", icon: CalendarIcon },
+  { key: "kanban", label: "Kanban", icon: LayoutGrid },
+];
 
 export function QuotesClient({ initialQuotes }: { initialQuotes: Quote[] }) {
   const [quotes, setQuotes] = React.useState<Quote[]>(initialQuotes);
   const [search, setSearch] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<string>("all");
+  const [view, setView] = React.useState<ViewMode>("table");
   const [modal, setModal] = React.useState<{ mode: ModalMode; quote?: Quote } | null>(null);
   const [draft, setDraft] = React.useState<QuoteDraft>(EMPTY_DRAFT);
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = React.useState<string | null>(null);
+  const [converting, setConverting] = React.useState(false);
+  const [convertMsg, setConvertMsg] = React.useState<{ ok: boolean; text: string } | null>(null);
 
   const pipelineCounts = React.useMemo(() => {
     const counts: Record<string, number> = { all: quotes.length };
@@ -62,17 +77,26 @@ export function QuotesClient({ initialQuotes }: { initialQuotes: Quote[] }) {
     return counts;
   }, [quotes]);
 
-  const filtered = React.useMemo(() => {
+  const matchesSearch = React.useCallback((item: Quote) => {
     const q = search.toLowerCase();
-    return quotes.filter((item) => {
-      if (statusFilter !== "all" && item.status !== statusFilter) return false;
-      if (q && !item.name.toLowerCase().includes(q) && !(item.email ?? "").toLowerCase().includes(q) && !(item.location ?? "").toLowerCase().includes(q) && !(item.project_type ?? "").toLowerCase().includes(q)) return false;
-      return true;
-    });
-  }, [quotes, search, statusFilter]);
+    if (!q) return true;
+    return item.name.toLowerCase().includes(q)
+      || (item.email ?? "").toLowerCase().includes(q)
+      || (item.location ?? "").toLowerCase().includes(q)
+      || (item.project_type ?? "").toLowerCase().includes(q);
+  }, [search]);
+
+  // Status tabs + search apply to list/table/calendar.
+  const filtered = React.useMemo(
+    () => quotes.filter((item) => (statusFilter === "all" || item.status === statusFilter) && matchesSearch(item)),
+    [quotes, statusFilter, matchesSearch],
+  );
+
+  // Kanban shows every status column, so it ignores the status tab (search still applies).
+  const searchFiltered = React.useMemo(() => quotes.filter(matchesSearch), [quotes, matchesSearch]);
 
   function openAdd() { setDraft({ ...EMPTY_DRAFT }); setError(null); setModal({ mode: "add" }); }
-  function openView(q: Quote) { setModal({ mode: "view", quote: q }); setError(null); }
+  function openView(q: Quote) { setModal({ mode: "view", quote: q }); setError(null); setConvertMsg(null); }
   function openEdit(q: Quote) {
     setDraft({ contact_id: q.contact_id, name: q.name, email: q.email ?? "", phone: q.phone ?? "", project_type: q.project_type ?? "", location: q.location ?? "", sq_ft: q.sq_ft, budget_range: q.budget_range ?? "", timeline: q.timeline ?? "", services: q.services ?? [], description: q.description ?? "", status: q.status, estimated_value: q.estimated_value, source: q.source ?? "Website" });
     setError(null);
@@ -115,10 +139,49 @@ export function QuotesClient({ initialQuotes }: { initialQuotes: Quote[] }) {
     finally { setSaving(false); }
   }
 
+  // Convert a quote (a Lead) into a Sales Pipeline Opportunity. This is the
+  // moment a job number is created — see the Sales Pipeline feature.
+  async function convertToOpportunity(q: Quote) {
+    setConverting(true); setConvertMsg(null);
+    try {
+      const res = await fetch("/api/pipeline/convert", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source: "quote", id: q.id, overrides: { opportunity_name: q.name } }),
+      });
+      const json = await res.json() as { job_number?: string; error?: string };
+      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+      setConvertMsg({ ok: true, text: `Created opportunity ${json.job_number ?? ""} — open the Opportunities tab to continue.` });
+      // Reflect the quote's new "Won" status locally.
+      setQuotes((prev) => prev.map((x) => (x.id === q.id ? { ...x, status: "Won" } : x)));
+    } catch (err) {
+      setConvertMsg({ ok: false, text: err instanceof Error ? err.message : "Conversion failed." });
+    } finally { setConverting(false); }
+  }
+
+  // Update a quote's status (used by the Kanban drag-and-drop). Optimistic with
+  // rollback so the board feels instant but stays consistent with the server.
+  async function updateStatus(id: string, status: QuoteStatus) {
+    const snapshot = quotes;
+    setQuotes((prev) => prev.map((q) => (q.id === id ? { ...q, status } : q)));
+    try {
+      const res = await fetch(`/api/quotes/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = (await res.json()) as Quote;
+      setQuotes((prev) => prev.map((q) => (q.id === id ? json : q)));
+    } catch {
+      setQuotes(snapshot); // rollback on failure
+    }
+  }
+
   const viewQuote = modal?.quote;
 
   return (
-    <div className="flex h-[calc(100vh-56px)] flex-col">
+    <div className="flex h-full flex-col">
       {/* Header */}
       <div className="border-b border-border bg-card px-4 py-4 md:px-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -127,11 +190,29 @@ export function QuotesClient({ initialQuotes }: { initialQuotes: Quote[] }) {
             <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight">Quotes & Leads</h1>
             <p className="mt-1 text-sm text-muted-foreground">{quotes.length} total</p>
           </div>
-          <Button size="sm" variant="accent" onClick={openAdd}><Plus className="h-3.5 w-3.5" /> Add Quote</Button>
+          <div className="flex items-center gap-2">
+            <div className="flex overflow-hidden rounded-md border border-border">
+              {VIEWS.map((v) => (
+                <button
+                  key={v.key}
+                  type="button"
+                  onClick={() => setView(v.key)}
+                  title={v.label}
+                  className={cn(
+                    "flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium transition",
+                    view === v.key ? "bg-accent/15 text-accent" : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <v.icon className="h-3.5 w-3.5" /> <span className="hidden sm:inline">{v.label}</span>
+                </button>
+              ))}
+            </div>
+            <Button size="sm" variant="accent" onClick={openAdd}><Plus className="h-3.5 w-3.5" /> Add Quote</Button>
+          </div>
         </div>
 
-        {/* Pipeline status tabs */}
-        <div className="mt-3 flex flex-wrap gap-1.5">
+        {/* Pipeline status tabs (hidden in Kanban, which shows every column) */}
+        <div className={cn("mt-3 flex-wrap gap-1.5", view === "kanban" ? "hidden" : "flex")}>
           {[{ key: "all", label: "All" }, ...STATUSES.map((s) => ({ key: s, label: s }))].map(({ key, label }) => (
             <button
               key={key}
@@ -163,44 +244,12 @@ export function QuotesClient({ initialQuotes }: { initialQuotes: Quote[] }) {
         </div>
       </div>
 
-      {/* Table */}
+      {/* Body — switches between List / Table / Calendar / Kanban */}
       <div className="flex-1 overflow-auto">
-        <table className="w-full min-w-[600px] border-collapse text-sm">
-          <thead className="sticky top-0 z-10 bg-card">
-            <tr className="border-b border-border text-left">
-              <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Contact</th>
-              <th className="hidden px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground md:table-cell">Project Type</th>
-              <th className="hidden px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground lg:table-cell">Location</th>
-              <th className="hidden px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground sm:table-cell">Budget</th>
-              <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Status</th>
-              <th className="hidden px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground md:table-cell">Received</th>
-              <th className="w-10 px-4 py-3" />
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {filtered.length === 0 && (
-              <tr><td colSpan={7} className="px-4 py-12 text-center text-sm text-muted-foreground">No quotes found.</td></tr>
-            )}
-            {filtered.map((q) => (
-              <tr key={q.id} className="cursor-pointer transition hover:bg-muted/30" onClick={() => openView(q)}>
-                <td className="px-4 py-3">
-                  <div className="font-medium">{q.name}</div>
-                  {q.email && <div className="text-xs text-muted-foreground">{q.email}</div>}
-                </td>
-                <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">{q.project_type ?? "—"}</td>
-                <td className="hidden px-4 py-3 text-muted-foreground lg:table-cell">{q.location ?? "—"}</td>
-                <td className="hidden px-4 py-3 text-muted-foreground sm:table-cell">{q.budget_range ?? "—"}</td>
-                <td className="px-4 py-3"><Badge tone={STATUS_TONES[q.status]}>{q.status}</Badge></td>
-                <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">{formatDate(q.created_at)}</td>
-                <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                  <button type="button" className="rounded p-1 text-muted-foreground hover:text-foreground" onClick={(e) => { e.stopPropagation(); openEdit(q); }}>
-                    <MoreHorizontal className="h-4 w-4" />
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        {view === "table" && <TableView rows={filtered} onOpen={openView} onEdit={openEdit} />}
+        {view === "list" && <ListView rows={filtered} onOpen={openView} onEdit={openEdit} />}
+        {view === "calendar" && <CalendarView rows={filtered} onOpen={openView} />}
+        {view === "kanban" && <KanbanView rows={searchFiltered} onOpen={openView} onStatusChange={updateStatus} />}
       </div>
 
       {/* View Modal */}
@@ -229,7 +278,16 @@ export function QuotesClient({ initialQuotes }: { initialQuotes: Quote[] }) {
               </div>
             )}
             {viewQuote.description && <div className="rounded-lg bg-muted/40 px-4 py-3 text-sm text-muted-foreground whitespace-pre-wrap">{viewQuote.description}</div>}
-            <div className="flex justify-end gap-2 pt-2">
+            {convertMsg && (
+              <div className={cn("rounded-md px-3 py-2 text-sm", convertMsg.ok ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive")}>
+                {convertMsg.text}
+                {convertMsg.ok && <> <Link href="/dashboard/sales?tab=opportunities" className="font-medium underline">Go to Opportunities →</Link></>}
+              </div>
+            )}
+            <div className="flex flex-wrap justify-end gap-2 pt-2">
+              <Button size="sm" variant="accent" onClick={() => void convertToOpportunity(viewQuote)} disabled={converting}>
+                {converting ? "Converting…" : "Convert to Opportunity"}
+              </Button>
               <Button size="sm" variant="outline" onClick={() => { closeModal(); setTimeout(() => openEdit(viewQuote), 50); }}>Edit</Button>
               <Button size="sm" variant="outline" className="text-destructive" onClick={() => setDeleteConfirm(viewQuote.id)}>Delete</Button>
             </div>
@@ -324,6 +382,188 @@ export function QuotesClient({ initialQuotes }: { initialQuotes: Quote[] }) {
           </div>
         </Modal>
       )}
+    </div>
+  );
+}
+
+// ─── Views ───────────────────────────────────────────────────
+
+function TableView({ rows, onOpen, onEdit }: { rows: Quote[]; onOpen: (q: Quote) => void; onEdit: (q: Quote) => void }) {
+  return (
+    <table className="w-full min-w-[600px] border-collapse text-sm">
+      <thead className="sticky top-0 z-10 bg-card">
+        <tr className="border-b border-border text-left">
+          <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Contact</th>
+          <th className="hidden px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground md:table-cell">Project Type</th>
+          <th className="hidden px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground lg:table-cell">Location</th>
+          <th className="hidden px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground sm:table-cell">Budget</th>
+          <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Status</th>
+          <th className="hidden px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground md:table-cell">Received</th>
+          <th className="w-10 px-4 py-3" />
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-border">
+        {rows.length === 0 && (
+          <tr><td colSpan={7} className="px-4 py-12 text-center text-sm text-muted-foreground">No quotes found.</td></tr>
+        )}
+        {rows.map((q) => (
+          <tr key={q.id} className="cursor-pointer transition hover:bg-muted/30" onClick={() => onOpen(q)}>
+            <td className="px-4 py-3">
+              <div className="font-medium">{q.name}</div>
+              {q.email && <div className="text-xs text-muted-foreground">{q.email}</div>}
+            </td>
+            <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">{q.project_type ?? "—"}</td>
+            <td className="hidden px-4 py-3 text-muted-foreground lg:table-cell">{q.location ?? "—"}</td>
+            <td className="hidden px-4 py-3 text-muted-foreground sm:table-cell">{q.budget_range ?? "—"}</td>
+            <td className="px-4 py-3"><Badge tone={STATUS_TONES[q.status]}>{q.status}</Badge></td>
+            <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">{formatDate(q.created_at)}</td>
+            <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+              <button type="button" className="rounded p-1 text-muted-foreground hover:text-foreground" onClick={(e) => { e.stopPropagation(); onEdit(q); }}>
+                <MoreHorizontal className="h-4 w-4" />
+              </button>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function ListView({ rows, onOpen, onEdit }: { rows: Quote[]; onOpen: (q: Quote) => void; onEdit: (q: Quote) => void }) {
+  if (rows.length === 0) return <div className="px-4 py-12 text-center text-sm text-muted-foreground">No quotes found.</div>;
+  return (
+    <div className="divide-y divide-border">
+      {rows.map((q) => (
+        <button key={q.id} type="button" onClick={() => onOpen(q)} className="flex w-full items-center gap-4 px-4 py-3 text-left transition hover:bg-muted/30 md:px-6">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span className="truncate font-medium">{q.name}</span>
+              <Badge tone={STATUS_TONES[q.status]}>{q.status}</Badge>
+            </div>
+            <div className="mt-0.5 truncate text-xs text-muted-foreground">
+              {[q.project_type, q.location, q.budget_range].filter(Boolean).join(" · ") || q.email || "—"}
+            </div>
+          </div>
+          <div className="hidden shrink-0 text-xs text-muted-foreground sm:block">{formatDate(q.created_at)}</div>
+          <span onClick={(e) => { e.stopPropagation(); onEdit(q); }} className="rounded p-1 text-muted-foreground hover:text-foreground">
+            <MoreHorizontal className="h-4 w-4" />
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function CalendarView({ rows, onOpen }: { rows: Quote[]; onOpen: (q: Quote) => void }) {
+  const [cursor, setCursor] = React.useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); });
+
+  // Bucket quotes by their received (created_at) day.
+  const byDay = React.useMemo(() => {
+    const map = new Map<string, Quote[]>();
+    for (const q of rows) {
+      const key = new Date(q.created_at).toISOString().slice(0, 10);
+      (map.get(key) ?? map.set(key, []).get(key)!).push(q);
+    }
+    return map;
+  }, [rows]);
+
+  const first = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
+  const gridStart = new Date(first); gridStart.setDate(first.getDate() - first.getDay());
+  const days = Array.from({ length: 42 }, (_, i) => { const d = new Date(gridStart); d.setDate(gridStart.getDate() + i); return d; });
+  const today = new Date().toISOString().slice(0, 10);
+  const monthLabel = cursor.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+
+  return (
+    <div className="p-4 md:p-6">
+      <div className="mb-3 flex items-center justify-between">
+        <div className="text-sm font-semibold">{monthLabel}</div>
+        <div className="flex items-center gap-1">
+          <button type="button" className="grid h-8 w-8 place-items-center rounded-md border border-border text-muted-foreground hover:text-foreground" onClick={() => setCursor((c) => new Date(c.getFullYear(), c.getMonth() - 1, 1))}><ChevronLeft className="h-4 w-4" /></button>
+          <button type="button" className="rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground" onClick={() => { const d = new Date(); setCursor(new Date(d.getFullYear(), d.getMonth(), 1)); }}>Today</button>
+          <button type="button" className="grid h-8 w-8 place-items-center rounded-md border border-border text-muted-foreground hover:text-foreground" onClick={() => setCursor((c) => new Date(c.getFullYear(), c.getMonth() + 1, 1))}><ChevronRight className="h-4 w-4" /></button>
+        </div>
+      </div>
+      <div className="grid grid-cols-7 gap-px overflow-hidden rounded-lg border border-border bg-border text-center text-[11px] font-medium text-muted-foreground">
+        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => <div key={d} className="bg-card py-2">{d}</div>)}
+        {days.map((day) => {
+          const key = day.toISOString().slice(0, 10);
+          const items = byDay.get(key) ?? [];
+          const muted = day.getMonth() !== cursor.getMonth();
+          return (
+            <div key={key} className={cn("min-h-[92px] bg-background p-1.5 text-left", muted && "opacity-40")}>
+              <div className={cn("mb-1 text-[11px]", key === today ? "font-bold text-accent" : "text-muted-foreground")}>{day.getDate()}</div>
+              <div className="space-y-1">
+                {items.slice(0, 3).map((q) => (
+                  <button key={q.id} type="button" onClick={() => onOpen(q)} className="block w-full truncate rounded bg-accent/10 px-1.5 py-0.5 text-left text-[11px] text-foreground hover:bg-accent/20">
+                    {q.name}
+                  </button>
+                ))}
+                {items.length > 3 && <div className="px-1 text-[10px] text-muted-foreground">+{items.length - 3} more</div>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function KanbanView({ rows, onOpen, onStatusChange }: { rows: Quote[]; onOpen: (q: Quote) => void; onStatusChange: (id: string, status: QuoteStatus) => void }) {
+  const [dragId, setDragId] = React.useState<string | null>(null);
+  const [overStatus, setOverStatus] = React.useState<QuoteStatus | null>(null);
+
+  function onDrop(status: QuoteStatus) {
+    if (dragId) {
+      const q = rows.find((x) => x.id === dragId);
+      if (q && q.status !== status) onStatusChange(dragId, status);
+    }
+    setDragId(null); setOverStatus(null);
+  }
+
+  return (
+    <div className="flex h-full gap-3 overflow-x-auto p-4">
+      {STATUSES.map((status) => {
+        const items = rows.filter((q) => q.status === status);
+        return (
+          <div
+            key={status}
+            onDragOver={(e) => { e.preventDefault(); setOverStatus(status); }}
+            onDragLeave={() => setOverStatus((s) => (s === status ? null : s))}
+            onDrop={() => onDrop(status)}
+            className={cn(
+              "flex w-72 shrink-0 flex-col rounded-lg border bg-card/50 transition",
+              overStatus === status ? "border-accent ring-2 ring-accent/30" : "border-border",
+            )}
+          >
+            <div className="flex items-center justify-between border-b border-border px-3 py-2">
+              <Badge tone={STATUS_TONES[status]}>{status}</Badge>
+              <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{items.length}</span>
+            </div>
+            <div className="flex-1 space-y-2 overflow-y-auto p-2">
+              {items.map((q) => (
+                <div
+                  key={q.id}
+                  draggable
+                  onDragStart={() => setDragId(q.id)}
+                  onDragEnd={() => { setDragId(null); setOverStatus(null); }}
+                  onClick={() => onOpen(q)}
+                  className={cn(
+                    "cursor-grab rounded-md border border-border bg-background p-2.5 transition hover:border-accent/50 active:cursor-grabbing",
+                    dragId === q.id && "opacity-50",
+                  )}
+                >
+                  <div className="text-sm font-medium leading-tight">{q.name}</div>
+                  <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
+                    <span className="truncate">{q.project_type ?? "—"}</span>
+                    <span className="shrink-0">{q.budget_range ?? ""}</span>
+                  </div>
+                </div>
+              ))}
+              {items.length === 0 && <div className="px-2 py-6 text-center text-xs text-muted-foreground">Drop here</div>}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

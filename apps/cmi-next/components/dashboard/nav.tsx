@@ -32,7 +32,7 @@ const nav: NavItem[] = [
   { href: "/dashboard/billing",        label: "Billing",        icon: CreditCard,     roles: ["super_admin", "admin", "estimator", "client"] },
   { href: "/dashboard/communications", label: "Communications", icon: MessageCircle,  roles: ["super_admin", "admin", "project_manager", "estimator"] },
   { href: "/dashboard/recording-studio", label: "Recording Studio", icon: Mic,        roles: ["super_admin", "admin", "project_manager", "designer", "estimator", "superintendent", "staff"] },
-  { href: "/dashboard/quotes-leads",   label: "Quotes & Leads", icon: BriefcaseBusiness, roles: ["super_admin", "admin", "estimator"] },
+  { href: "/dashboard/sales",          label: "Sales",          icon: BriefcaseBusiness, roles: ["super_admin", "admin", "project_manager", "estimator"] },
   { href: "/dashboard/messaging-consent", label: "Messaging Consent", icon: ShieldCheck, roles: ["super_admin", "admin"] },
   { href: "/dashboard/portfolio",      label: "Portfolio",      icon: LayoutGrid,     roles: ["super_admin", "admin", "designer"] },
   { href: "/dashboard/blog",           label: "Blog",           icon: Newspaper,      roles: ["super_admin", "admin", "designer"] },
