@@ -12,11 +12,16 @@ export async function POST() {
   try {
     const res = await fetch("https://api.x.ai/v1/realtime/client_secrets", {
       method: "POST",
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      // Trim in case the env value picked up stray whitespace/newlines.
+      headers: { Authorization: `Bearer ${key.trim()}`, "Content-Type": "application/json" },
       body: JSON.stringify({ expires_after: { seconds: 300 } }),
     });
     if (!res.ok) {
-      return NextResponse.json({ error: `Token request failed (${res.status}).` }, { status: 502 });
+      // Surface xAI's own error detail so the cause is visible (e.g. voice agent
+      // not enabled, wrong team, insufficient credits).
+      const detail = (await res.text()).slice(0, 300);
+      console.error("[voice-agent/token] xAI error", res.status, detail);
+      return NextResponse.json({ error: `Token request failed (${res.status}). ${detail}` }, { status: 502 });
     }
     const json = await res.json() as Record<string, unknown>;
 
