@@ -54,6 +54,16 @@ export type Job = {
   is_template: boolean;
   source_template_id: string | null;
   accounting_customer_id: string | null;
+
+  // Client portal (see docs/features/client-portal-jobs-feature.md)
+  client_portal_enabled: boolean | null;
+  progress_percentage: number | null;
+  current_phase: string | null;
+  next_milestone: string | null;
+  client_description: string | null;
+  cover_image_url: string | null;
+  last_client_update_at: string | null;
+
   created_by: string | null;
   created_at: string;
   updated_at: string;

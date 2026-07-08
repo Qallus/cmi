@@ -10,6 +10,7 @@ const TABS: { slug: string; label: string; href: (id: string) => string }[] = [
   { slug: "summary", label: "Summary", href: (id) => `/dashboard/jobs/${id}/summary` },
   { slug: "info", label: "Job Info", href: (id) => `/dashboard/jobs/${id}/info` },
   { slug: "price-summary", label: "Price Summary", href: (id) => `/dashboard/jobs/${id}/price-summary` },
+  { slug: "client-portal", label: "Client Portal", href: (id) => `/dashboard/jobs/${id}/client-portal` },
   { slug: "schedule", label: "Schedule", href: (id) => `/dashboard/jobs/${id}/schedule` },
   { slug: "files", label: "Files", href: (id) => `/dashboard/jobs/${id}/files` },
   { slug: "messages", label: "Messages", href: (id) => `/dashboard/jobs/${id}/messages` },

@@ -191,6 +191,21 @@ export const ENTITIES: AgentEntity[] = [
     ],
   },
   {
+    key: "job_update", label: "Client Update", plural: "client updates", table: "job_updates",
+    description: "Client-portal update posts for a job. Only visibility='client_visible' updates appear in the client portal. Great for turning daily logs into client-friendly updates — but never expose internal notes; set visibility deliberately.",
+    idColumn: "id", hasUpdatedAt: true, searchColumns: ["title", "body"],
+    orderBy: { column: "created_at", ascending: false }, writeRoles: PM,
+    fields: [
+      { name: "job_id", type: "string", desc: "Parent job id", required: true },
+      { name: "title", type: "string", desc: "Update title", required: true },
+      { name: "body", type: "text", desc: "Update body" },
+      { name: "update_type", type: "string", desc: "Type (general, schedule, delay_notice, action_needed, …)" },
+      { name: "visibility", type: "enum", desc: "Visibility", enumValues: ["internal", "client_visible", "team"] },
+      { name: "client_action_required", type: "boolean", desc: "Flag as needing client action" },
+      { name: "posted_by", type: "string", desc: "Author" },
+    ],
+  },
+  {
     key: "warranty_request", label: "Warranty Request", plural: "warranty requests", table: "warranty_requests",
     description: "Client-submitted warranty issues tied back to a project (job number / opportunity).",
     idColumn: "id", hasUpdatedAt: true, searchColumns: ["request_title", "job_number", "submitted_by"],
