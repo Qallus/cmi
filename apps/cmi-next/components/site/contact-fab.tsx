@@ -2,10 +2,12 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { CalendarDays, Headphones, Mail, Phone, X } from "lucide-react";
+import { CalendarDays, Headphones, Mail, Phone, Sparkles, X } from "lucide-react";
+import { BoltVoiceModal } from "./bolt-voice-modal";
 
 export function ContactFab() {
   const [open, setOpen] = React.useState(false);
+  const [voiceOpen, setVoiceOpen] = React.useState(false);
 
   return (
     <div className="fixed bottom-5 right-5 z-[80]">
@@ -28,9 +30,19 @@ export function ContactFab() {
               <CalendarDays className="h-4 w-4 text-accent" strokeWidth={1.6} />
               Book Appointment
             </Link>
+            <button
+              type="button"
+              onClick={() => { setVoiceOpen(true); setOpen(false); }}
+              className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
+            >
+              <Sparkles className="h-4 w-4 text-accent" strokeWidth={1.6} />
+              Talk to Bolt AI
+            </button>
           </div>
         </div>
       )}
+
+      {voiceOpen && <BoltVoiceModal onClose={() => setVoiceOpen(false)} />}
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-xs shadow-lg">
           <span className="font-semibold text-foreground">Need Help?</span>
