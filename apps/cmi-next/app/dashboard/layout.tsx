@@ -59,8 +59,8 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className={cn("min-h-screen bg-background text-foreground lg:grid", collapsed ? "lg:grid-cols-[76px_1fr]" : "lg:grid-cols-[232px_1fr]")}>
-      <aside className={cn("fixed inset-y-0 left-0 z-40 hidden flex-col border-r border-border bg-card transition-all lg:flex", collapsed ? "w-[76px]" : "w-[232px]")}>
+    <div className={cn("min-h-screen bg-background text-foreground lg:grid print:!block", collapsed ? "lg:grid-cols-[76px_1fr]" : "lg:grid-cols-[232px_1fr]")}>
+      <aside className={cn("fixed inset-y-0 left-0 z-40 hidden flex-col border-r border-border bg-card transition-all lg:flex print:hidden", collapsed ? "w-[76px]" : "w-[232px]")}>
         <div className={cn("flex h-[104px] items-start border-b border-border pt-4", collapsed ? "justify-center px-2" : "px-4")}>
           {collapsed ? (
             <>
@@ -93,7 +93,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         </div>
       </aside>
       <main className="min-w-0 lg:col-start-2">
-        <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-background/92 px-5 backdrop-blur">
+        <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-background/92 px-5 backdrop-blur print:hidden">
           <div className="text-sm font-semibold">CMI Dashboard</div>
           <div className="flex items-center gap-2">
             <label className="hidden h-8 w-56 items-center gap-2 rounded-md border border-border bg-card px-3 text-xs text-muted-foreground md:flex">

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { ArrowRight, LayoutGrid, Plus, Search, Table as TableIcon, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -512,8 +513,26 @@ function DetailModal({
   const [tnote, setTnote] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
+  const [promoting, setPromoting] = React.useState(false);
+  const [promoteMsg, setPromoteMsg] = React.useState<{ ok: boolean; text: string; jobId?: string } | null>(null);
 
   const allowed = ALLOWED_TRANSITIONS[opp.stage] ?? [];
+
+  // Promote this opportunity into a Job (creates the job record + job number).
+  async function promoteToJob() {
+    setPromoting(true); setPromoteMsg(null);
+    try {
+      const res = await fetch("/api/jobs/convert", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ opportunity_id: opp.id }),
+      });
+      const job = await res.json();
+      if (!res.ok) throw new Error(job.error ?? `HTTP ${res.status}`);
+      setPromoteMsg({ ok: true, text: `Job ${job.job_number ?? ""} created.`, jobId: job.id });
+    } catch (e) {
+      setPromoteMsg({ ok: false, text: e instanceof Error ? e.message : "Promotion failed." });
+    } finally { setPromoting(false); }
+  }
 
   // Fields to render for the chosen target: the required ones + curated extras.
   const fields = React.useMemo(() => {
@@ -637,7 +656,16 @@ function DetailModal({
 
         {opp.notes && <div className="rounded-lg bg-muted/40 px-4 py-3 text-sm text-muted-foreground whitespace-pre-wrap">{opp.notes}</div>}
 
-        <div className="flex justify-end gap-2 pt-1">
+        {/* Promote to Job — creates the downstream project record + job number */}
+        {promoteMsg && (
+          <div className={cn("rounded-md px-3 py-2 text-sm", promoteMsg.ok ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive")}>
+            {promoteMsg.text}
+            {promoteMsg.ok && promoteMsg.jobId && <> <Link href={`/dashboard/jobs/${promoteMsg.jobId}/summary`} className="font-medium underline">Open Job →</Link></>}
+          </div>
+        )}
+
+        <div className="flex flex-wrap justify-end gap-2 pt-1">
+          <Button size="sm" variant="accent" onClick={() => void promoteToJob()} disabled={promoting}>{promoting ? "Promoting…" : "Promote to Job"}</Button>
           <Button size="sm" variant="outline" onClick={onEdit}>Edit</Button>
           <Button size="sm" variant="outline" className="text-destructive" onClick={onDelete}>Delete</Button>
         </div>

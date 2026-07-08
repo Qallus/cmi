@@ -63,7 +63,7 @@ export function SalesClient({
             </button>
           ))}
         </div>
-        {activeHint && <div className="pb-1.5 text-xs text-muted-foreground">{activeHint}</div>}
+        {activeHint && <div className="pb-1.5 pt-2 text-xs text-muted-foreground">{activeHint}</div>}
       </div>
 
       {/* Active tab content. Each workspace fills the remaining height. */}

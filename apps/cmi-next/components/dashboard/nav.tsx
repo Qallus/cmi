@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { Tooltip } from "@/components/ui/tooltip";
 import {
   ArrowLeft, BookOpen, BriefcaseBusiness, CalendarRange,
-  CreditCard, FileText, FolderKanban, Home, IdCard, LayoutGrid,
+  CreditCard, FileText, FolderKanban, HardHat, Home, IdCard, LayoutGrid,
   MessageCircle, Mic, Minus, Newspaper, Package, Plus, Settings, ShieldCheck,
   Sparkles, User, UserRoundCog, Users,
 } from "lucide-react";
@@ -34,6 +34,13 @@ const nav: NavItem[] = [
   { href: "/dashboard/users",          label: "Users",          icon: UserRoundCog,   roles: ["super_admin", "admin"] },
   { href: "/dashboard/contacts",       label: "Contacts",       icon: Users,          roles: ["super_admin", "admin", "project_manager", "estimator"] },
   { href: "/dashboard/project-manager",label: "Projects",       icon: FolderKanban,   roles: ["super_admin", "admin", "project_manager", "designer", "estimator", "superintendent", "subcontractor", "client"] },
+  {
+    href: "/dashboard/jobs",           label: "Jobs",           icon: HardHat,        roles: ["super_admin", "admin", "project_manager", "estimator", "superintendent", "designer"],
+    children: [
+      { href: "/dashboard/jobs/map",               label: "Jobs Map",      icon: LayoutGrid, roles: ["super_admin", "admin", "project_manager", "estimator", "superintendent", "designer"] },
+      { href: "/dashboard/jobs/new-from-template",  label: "Templates",     icon: FileText,   roles: ["super_admin", "admin", "project_manager"] },
+    ],
+  },
   { href: "/dashboard/selections",     label: "Selections",     icon: Package,        roles: ["super_admin", "admin", "project_manager", "designer", "client"] },
   { href: "/dashboard/bookings",       label: "Bookings",       icon: CalendarRange,  roles: ["super_admin", "admin", "project_manager", "estimator", "client"] },
   { href: "/dashboard/billing",        label: "Billing",        icon: CreditCard,     roles: ["super_admin", "admin", "estimator", "client"] },
