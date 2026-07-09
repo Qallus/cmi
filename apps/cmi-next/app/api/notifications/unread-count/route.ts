@@ -13,7 +13,8 @@ export async function GET(request: Request) {
     let leadsQuery = supabase
       .from("business_card_leads")
       .select("id", { count: "exact", head: true })
-      .eq("status", "new");
+      .eq("status", "new")
+      .is("notification_read_at", null);
     if (!isAdmin) leadsQuery = leadsQuery.eq("owner_staff_id", staff.id);
 
     // Dashboard notes shared with this user that they haven't read yet.
@@ -34,7 +35,8 @@ export async function GET(request: Request) {
         .from("messages")
         .select("id", { count: "exact", head: true })
         .eq("direction", "inbound")
-        .eq("status", "received"),
+        .eq("status", "received")
+        .is("notification_read_at", null),
       leadsQuery,
       sharedNotesReq,
     ]);
