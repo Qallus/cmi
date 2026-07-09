@@ -42,6 +42,8 @@ export type Job = {
   actual_start_date: string | null;
   projected_completion_date: string | null;
   actual_completion_date: string | null;
+  project_manager: string | null;
+  superintendent: string | null;
   update_actual_dates_from_schedule: boolean | null;
   schedule_color: string | null;
   work_days: string[] | null;

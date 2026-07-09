@@ -9,11 +9,14 @@ export async function GET(request: Request) {
 
   const { data, error } = await getSupabaseAdmin()
     .from("staff_users")
-    .select("id, display_name, email, role_slug")
+    .select("id, display_name, email, role_slug, title, job_title")
     .in("status", ["active", "invited", "pending"])
     .order("display_name");
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  const staff = (data ?? []).map((s) => ({ id: s.id, label: s.display_name || s.email || "Staff", email: s.email ?? "", role: s.role_slug }));
+  const staff = (data ?? []).map((s) => ({
+    id: s.id, label: s.display_name || s.email || "Staff", email: s.email ?? "",
+    role: s.role_slug, job_title: s.job_title || s.title || "",
+  }));
   return NextResponse.json({ staff });
 }

@@ -2,16 +2,34 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Clock, MapPin, Pencil } from "lucide-react";
+import { Clock, MapPin, Pencil, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { JobWithRelations, JobStatus } from "@/lib/jobs/types";
+import { cn } from "@/lib/utils";
+import type { JobWithRelations, JobStatus, JobInternalUser } from "@/lib/jobs/types";
 import { JobStatusBadge, money, formatDate } from "../../job-ui";
 import { JobDetailNav } from "../job-detail-nav";
 
+type StaffOption = { id: string; label: string; email: string; role: string; job_title: string };
+
 export function JobSummaryClient({ job }: { job: JobWithRelations }) {
   const clients = job.contacts.filter((c) => c.contact);
-  const pms = job.internal_users.filter((u) => u.user);
+  const [pms, setPms] = React.useState<JobInternalUser[]>(job.internal_users.filter((u) => u.user));
+  const [manualPm, setManualPm] = React.useState<string | null>(job.project_manager);
+  const [pmModal, setPmModal] = React.useState(false);
+
+  async function addTeamPm(staff: StaffOption) {
+    const res = await fetch(`/api/jobs/${job.id}/internal-users`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ staff_user_id: staff.id, role: "Project Manager" }) });
+    if (res.ok) { const created = await res.json(); setPms((p) => [...p, created]); setPmModal(false); }
+  }
+  async function addManualPm(text: string) {
+    const res = await fetch(`/api/jobs/${job.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ project_manager: text }) });
+    if (res.ok) { setManualPm(text); setPmModal(false); }
+  }
+  async function clearManualPm() {
+    await fetch(`/api/jobs/${job.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ project_manager: null }) }).catch(() => {});
+    setManualPm(null);
+  }
 
   return (
     <div className="flex h-[calc(100vh-56px)] flex-col">
@@ -68,14 +86,26 @@ export function JobSummaryClient({ job }: { job: JobWithRelations }) {
               ))}
             </Card>
 
-            <Card title="Project Managers" action={<Link href={`/dashboard/jobs/${job.id}/info`} className="text-xs text-accent hover:underline">Add</Link>}>
-              {pms.length === 0 ? <Empty>No internal users yet.</Empty> : pms.map((u) => (
-                <div key={u.id} className="flex items-center gap-2 py-1 text-sm">
-                  <Avatar name={u.user?.display_name ?? u.user?.email ?? "?"} />
-                  <span>{u.user?.display_name ?? u.user?.email}</span>
-                  <span className="text-xs text-muted-foreground">{u.role ?? u.user?.role_slug}</span>
-                </div>
-              ))}
+            <Card title="Project Managers" action={<button type="button" onClick={() => setPmModal(true)} className="text-xs text-accent hover:underline">Add</button>}>
+              {pms.length === 0 && !manualPm ? <Empty>No project managers yet.</Empty> : (
+                <>
+                  {pms.map((u) => (
+                    <div key={u.id} className="flex items-center gap-2 py-1 text-sm">
+                      <Avatar name={u.user?.display_name ?? u.user?.email ?? "?"} />
+                      <span>{u.user?.display_name ?? u.user?.email}</span>
+                      <span className="text-xs text-muted-foreground">{u.role ?? u.user?.role_slug}</span>
+                    </div>
+                  ))}
+                  {manualPm && (
+                    <div className="flex items-center gap-2 py-1 text-sm">
+                      <Avatar name={manualPm} />
+                      <span>{manualPm}</span>
+                      <span className="text-xs text-muted-foreground">Manual</span>
+                      <button type="button" onClick={() => void clearManualPm()} className="ml-auto text-muted-foreground hover:text-destructive" title="Remove"><X className="h-3.5 w-3.5" /></button>
+                    </div>
+                  )}
+                </>
+              )}
             </Card>
           </div>
 
@@ -93,8 +123,110 @@ export function JobSummaryClient({ job }: { job: JobWithRelations }) {
           Schedule, tasks, files, daily logs, change orders, and invoices are being connected to jobs. Use the tabs above — implemented areas link to their tools; the rest show what&apos;s coming.
         </p>
       </div>
+
+      {pmModal && (
+        <AddPmModal
+          existingIds={new Set(pms.map((p) => p.staff_user_id).filter(Boolean) as string[])}
+          onTeam={addTeamPm}
+          onManual={addManualPm}
+          onClose={() => setPmModal(false)}
+        />
+      )}
     </div>
   );
+}
+
+// Add a project manager: pick from the team (filtered to PMs by role/job title)
+// or add one manually via "Other".
+function AddPmModal({ existingIds, onTeam, onManual, onClose }: { existingIds: Set<string>; onTeam: (s: StaffOption) => void; onManual: (text: string) => void; onClose: () => void }) {
+  const [staff, setStaff] = React.useState<StaffOption[] | null>(null);
+  const [showAll, setShowAll] = React.useState(false);
+  const [other, setOther] = React.useState(false);
+  const [form, setForm] = React.useState({ name: "", email: "", phone: "" });
+  const [busy, setBusy] = React.useState(false);
+
+  React.useEffect(() => {
+    fetch("/api/staff-options").then((r) => r.json()).then((d) => setStaff(d?.staff ?? [])).catch(() => setStaff([]));
+  }, []);
+  React.useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onClose]);
+
+  const isPm = (s: StaffOption) => s.role === "project_manager" || /project\s*manager|proj\s*mgr|\bpm\b/i.test(s.job_title);
+  const available = (staff ?? []).filter((s) => !existingIds.has(s.id));
+  const pmList = available.filter(isPm);
+  const list = showAll ? available : pmList;
+
+  function submitManual() {
+    if (!form.name.trim()) return;
+    setBusy(true);
+    const text = [form.name.trim(), [form.email, form.phone].filter(Boolean).join(" · ")].filter(Boolean).join(" — ");
+    onManual(text);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative z-10 max-h-[85vh] w-full max-w-md overflow-y-auto rounded-xl border border-border bg-card shadow-xl">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <h2 className="font-semibold">Add Project Manager</h2>
+          <button type="button" className="rounded p-1 text-muted-foreground hover:text-foreground" onClick={onClose}><X className="h-4 w-4" /></button>
+        </div>
+        <div className="p-5">
+          {!other ? (
+            <>
+              <div className="mb-2 flex items-center justify-between">
+                <div className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">From your team</div>
+                <button type="button" onClick={() => setShowAll((v) => !v)} className="text-[11px] text-accent hover:underline">{showAll ? "Show project managers only" : "Show all team members"}</button>
+              </div>
+              {staff === null ? (
+                <div className="py-6 text-center text-sm text-muted-foreground">Loading…</div>
+              ) : list.length === 0 ? (
+                <div className="rounded-md border border-dashed border-border px-3 py-5 text-center text-xs text-muted-foreground">
+                  {showAll ? "No team members available." : <>No project managers found. <button type="button" onClick={() => setShowAll(true)} className="text-accent hover:underline">Show all team members</button></>}
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  {list.map((s) => (
+                    <button key={s.id} type="button" onClick={() => onTeam(s)} className="flex w-full items-center gap-2 rounded-md border border-border px-3 py-2 text-left text-sm transition hover:border-accent/50 hover:bg-muted/40">
+                      <Avatar name={s.label} />
+                      <div className="min-w-0">
+                        <div className="truncate font-medium">{s.label}</div>
+                        <div className="truncate text-xs text-muted-foreground">{s.job_title || s.role} {s.email && `· ${s.email}`}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+              <button type="button" onClick={() => setOther(true)} className={cn("mt-3 w-full rounded-md border border-dashed border-border px-3 py-2 text-sm text-muted-foreground transition hover:border-accent/50 hover:text-foreground")}>
+                Other — add manually
+              </button>
+            </>
+          ) : (
+            <div className="space-y-3">
+              <div className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Add manually</div>
+              <Field label="Name"><input className={inputCls} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} autoFocus /></Field>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Email"><input className={inputCls} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
+                <Field label="Phone"><input className={inputCls} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></Field>
+              </div>
+              <div className="flex justify-between gap-2 pt-1">
+                <Button size="sm" variant="outline" onClick={() => setOther(false)}>← Team</Button>
+                <Button size="sm" variant="accent" onClick={submitManual} disabled={busy || !form.name.trim()}>Add Project Manager</Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const inputCls = "h-9 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-accent";
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return <div className="flex flex-col gap-1"><label className="text-xs font-medium text-muted-foreground">{label}</label>{children}</div>;
 }
 
 function Card({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
