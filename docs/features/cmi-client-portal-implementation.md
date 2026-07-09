@@ -31,8 +31,18 @@ Clients = `job_contacts` (`portal_access_enabled` + `permissions` jsonb). Photos
 
 New **Client Portal** job tab: enable/disable portal, edit progress/phase/next-milestone/description/cover, **publish updates** (job_updates), **invite clients**, **triage warranty**, **reply to client messages**, client-link preview. Per-client visibility (financials/schedule/submit) remains on the existing **Job Info → Clients** tab (`job_contacts.permissions`). Staff API: `/api/jobs/[id]/updates(+[updateId])`, `/api/jobs/[id]/clients/[subId]/invite`, `/api/jobs/[id]/messages`, `/api/jobs/[id]/warranty`. Agent: `job_update` entity registered.
 
-## Deferred (later phases)
-Selections + approval workflow, client action items, in-app/SMS notifications & preferences, message attachments/read-receipts, engagement reporting, public-portfolio photo promotion.
+## Phase 2 (built) — Selections+Approvals, Action Items, Notifications, Engagement Reporting
+
+Migration `supabase/2026-07-08_client_portal_phase2.sql`: `project_selections.job_id` (reuse the rich selection/approval model job-scoped), `job_action_items`, `client_notifications`, `client_notification_prefs`.
+
+- **Selections + approvals** — staff tab `[jobId]/selections` (reuses `project_selections` via `lib/job-selections`), toggles for client-visible + needs-approval; client tab `/client/jobs/[jobId]/selections` with **Approve / Request change**; decision API sets `approval_status` + timestamps + comment. Marking a selection pending → clients notified.
+- **Action items** — `lib/action-items` + APIs; staff panel on the Client Portal page (assign to a client) + client `/client/jobs/[jobId]/action-items` tab and an Overview "Action Needed" card; client **mark complete**. New items notify the client.
+- **Notifications** — `lib/client-portal/notifications.ts`: in-app (`client_notifications`) always, plus **Resend email** and **Twilio SMS** per `client_notification_prefs` (SMS opt-in + `isSuppressed` consent check, logged via `logMessage`). Triggers wired into client-visible updates, staff messages, selection-approval, action-item create, warranty status change. Client **bell + unread badge** (`client-shell`), `/client/notifications` center, `/client/settings` channel prefs.
+- **Engagement reporting** — `lib/client-portal/reporting.ts` + `/dashboard/client-engagement` (nav child under **Jobs**): per-job last client login, pending approvals, open action items, unread client messages, open warranty, and stale-update flags.
+- Agent: `action_item` (+ `job_update`) entities registered.
+
+## Deferred (later)
+Message attachments/read-receipts, client inspiration-image uploads on selections, push notifications, quiet-hours/granular SMS scheduling, public-portfolio photo promotion.
 
 ## Verification
 - `tsc`, `eslint`, `next build` pass; DB smoke on portal enable + job_update + job-scoped warranty.

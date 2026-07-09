@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { verifyClientJob } from "@/lib/client-portal/auth";
 import { getClientJob, loadClientUpdates, loadClientFiles } from "@/lib/client-portal/data";
+import { loadClientActionItems } from "@/lib/action-items/data";
 import { fmtDate, humanize } from "../../portal-ui";
 
 export const dynamic = "force-dynamic";
@@ -10,15 +11,26 @@ export default async function ClientJobOverview({ params }: { params: Promise<{ 
   const { jobId } = await params;
   const contact = await verifyClientJob(jobId);
   if (!contact) redirect("/client/jobs");
-  const [job, updates, files] = await Promise.all([getClientJob(contact.id, jobId), loadClientUpdates(jobId), loadClientFiles(jobId)]);
+  const [job, updates, files, actionItems] = await Promise.all([getClientJob(contact.id, jobId), loadClientUpdates(jobId), loadClientFiles(jobId), loadClientActionItems(contact.id, jobId)]);
   if (!job) redirect("/client/jobs");
   const recentUpdates = updates.slice(0, 3);
   const recentPhotos = files.photos.slice(0, 6);
+  const openActions = actionItems.filter((a) => a.status === "open" || a.status === "in_progress");
   const pm = job.project_manager_contacts[0];
 
   return (
     <div className="grid gap-6 lg:grid-cols-3">
       <div className="space-y-6 lg:col-span-2">
+        {openActions.length > 0 && (
+          <div className="rounded-xl border border-accent/40 bg-accent/5 p-5">
+            <div className="mb-2 flex items-center justify-between"><h2 className="text-sm font-semibold uppercase tracking-[0.1em] text-accent">Action Needed</h2><Link href={`/client/jobs/${jobId}/action-items`} className="text-xs text-accent hover:underline">View all</Link></div>
+            <ul className="space-y-1.5">
+              {openActions.slice(0, 3).map((a) => (
+                <li key={a.id} className="flex items-center justify-between text-sm"><span>{a.title}</span>{a.due_date && <span className="text-xs text-muted-foreground">due {fmtDate(a.due_date)}</span>}</li>
+              ))}
+            </ul>
+          </div>
+        )}
         {job.client_description && (
           <Card title="About This Project"><p className="whitespace-pre-wrap text-sm text-muted-foreground">{job.client_description}</p></Card>
         )}

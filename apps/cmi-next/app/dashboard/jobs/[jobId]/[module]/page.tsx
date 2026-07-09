@@ -11,7 +11,6 @@ export const dynamic = "force-dynamic";
 // construction modules are built.
 const LINKED: Record<string, { label: string; href: string; blurb: string }> = {
   schedule: { label: "Schedule", href: "/dashboard/project-manager", blurb: "Job scheduling lives in the Project Manager (Gantt board)." },
-  selections: { label: "Selections", href: "/dashboard/selections", blurb: "Client selections are managed in the Selections module." },
   warranty: { label: "Warranty", href: "/dashboard/sales?tab=opportunities", blurb: "Warranty requests are tracked in the Sales pipeline / warranty area." },
   messages: { label: "Messages", href: "/dashboard/communications", blurb: "Messaging is handled in Communications." },
 };

@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { requireAdmin, AuthError } from "@/lib/auth/require-admin";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { notifyJobClients } from "@/lib/client-portal/notifications";
 
 const WRITE_ROLES = ["super_admin", "admin", "project_manager", "estimator", "superintendent"];
 
@@ -29,6 +30,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       body: body.trim(), category: category ?? "general", visibility: visibility === "internal" ? "internal" : "client_visible",
     }).select().single();
     if (error) throw new Error(error.message);
+    // Notify clients only for client-visible replies.
+    if (data.visibility === "client_visible") {
+      notifyJobClients(id, { type: "message", title: "New message from your team", body: body.trim().slice(0, 140), link: `/client/jobs/${id}/messages` }).catch(() => {});
+    }
     return NextResponse.json(data, { status: 201 });
   } catch (err) { const e = err as AuthError; return NextResponse.json({ error: e.message }, { status: e.status ?? 500 }); }
 }

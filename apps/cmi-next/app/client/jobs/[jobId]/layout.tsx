@@ -18,6 +18,8 @@ function tabsFor(job: { status: string; permissions: Record<string, boolean> }) 
     { slug: "photos", label: "Photos" },
     { slug: "documents", label: "Documents" },
   ];
+  if (p.locked_selections) tabs.push({ slug: "selections", label: "Selections" });
+  tabs.push({ slug: "action-items", label: "Action Items" });
   if (p.price_summary || p.invoices) tabs.push({ slug: "financials", label: "Financials" });
   tabs.push({ slug: "change-orders", label: "Change Orders" });
   if (p.messages !== false) tabs.push({ slug: "messages", label: "Messages" });

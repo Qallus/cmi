@@ -37,8 +37,9 @@ const nav: NavItem[] = [
   {
     href: "/dashboard/jobs",           label: "Jobs",           icon: HardHat,        roles: ["super_admin", "admin", "project_manager", "estimator", "superintendent", "designer"],
     children: [
-      { href: "/dashboard/jobs/map",               label: "Jobs Map",      icon: LayoutGrid, roles: ["super_admin", "admin", "project_manager", "estimator", "superintendent", "designer"] },
-      { href: "/dashboard/jobs/new-from-template",  label: "Templates",     icon: FileText,   roles: ["super_admin", "admin", "project_manager"] },
+      { href: "/dashboard/jobs/map",               label: "Jobs Map",         icon: LayoutGrid, roles: ["super_admin", "admin", "project_manager", "estimator", "superintendent", "designer"] },
+      { href: "/dashboard/jobs/new-from-template",  label: "Templates",        icon: FileText,   roles: ["super_admin", "admin", "project_manager"] },
+      { href: "/dashboard/client-engagement",       label: "Client Engagement", icon: Users,     roles: ["super_admin", "admin", "project_manager"] },
     ],
   },
   { href: "/dashboard/billing",        label: "Billing",        icon: CreditCard,     roles: ["super_admin", "admin", "estimator", "client"] },

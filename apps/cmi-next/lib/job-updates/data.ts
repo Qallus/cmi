@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { notifyJobClients } from "@/lib/client-portal/notifications";
 import type { JobUpdate, JobUpdateDraft } from "./types";
 
 export async function loadJobUpdates(jobId: string): Promise<JobUpdate[]> {
@@ -13,9 +14,11 @@ export async function createJobUpdate(jobId: string, draft: JobUpdateDraft, acto
   const { data, error } = await sb.from("job_updates")
     .insert({ ...draft, job_id: jobId, posted_by: draft.posted_by ?? actor ?? null }).select().single();
   if (error) throw new Error(error.message);
-  // Bump the job's last client-update marker when a client-visible update posts.
+  // Bump the job's last client-update marker + notify clients when a
+  // client-visible update posts (best-effort — never block the write).
   if ((draft.visibility ?? "client_visible") === "client_visible") {
     await sb.from("jobs").update({ last_client_update_at: new Date().toISOString() }).eq("id", jobId);
+    notifyJobClients(jobId, { type: "update", title: draft.title, body: draft.body ?? null, link: `/client/jobs/${jobId}/updates` }).catch(() => {});
   }
   return data as JobUpdate;
 }

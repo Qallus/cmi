@@ -206,6 +206,21 @@ export const ENTITIES: AgentEntity[] = [
     ],
   },
   {
+    key: "action_item", label: "Client Action Item", plural: "action items", table: "job_action_items",
+    description: "Tasks a client needs to do (approve a selection, review a change order, upload a document, etc.). Assign to a client contact; they see it in the portal and get notified. Good for turning follow-ups into tracked client asks.",
+    idColumn: "id", hasUpdatedAt: true, searchColumns: ["title", "description"],
+    orderBy: { column: "created_at", ascending: false }, writeRoles: ["super_admin", "admin", "project_manager", "designer", "superintendent"],
+    fields: [
+      { name: "job_id", type: "string", desc: "Parent job id", required: true },
+      { name: "title", type: "string", desc: "What the client needs to do", required: true },
+      { name: "description", type: "text", desc: "Details" },
+      { name: "assigned_contact_id", type: "string", desc: "Client contact to assign" },
+      { name: "due_date", type: "date", desc: "Due date" },
+      { name: "priority", type: "enum", desc: "Priority", enumValues: ["low", "normal", "high", "urgent"] },
+      { name: "status", type: "enum", desc: "Status", enumValues: ["open", "in_progress", "completed", "dismissed"] },
+    ],
+  },
+  {
     key: "warranty_request", label: "Warranty Request", plural: "warranty requests", table: "warranty_requests",
     description: "Client-submitted warranty issues tied back to a project (job number / opportunity).",
     idColumn: "id", hasUpdatedAt: true, searchColumns: ["request_title", "job_number", "submitted_by"],

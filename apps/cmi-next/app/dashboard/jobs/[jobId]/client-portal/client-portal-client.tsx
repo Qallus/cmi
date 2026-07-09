@@ -135,11 +135,60 @@ export function ClientPortalClient({ job, initialUpdates, clients }: { job: JobW
           </div>
         </Section>
 
-        {/* Warranty + messages management */}
+        {/* Action items, warranty + messages management */}
+        <ActionItemsPanel jobId={job.id} clients={clients} />
         <WarrantyPanel jobId={job.id} />
         <MessagesPanel jobId={job.id} />
       </div>
     </JobModuleShell>
+  );
+}
+
+// ── Action items ──
+type ActionItemRow = { id: string; title: string; status: string; priority: string; due_date: string | null; assigned_contact_id: string | null; assigned_contact?: { first_name: string | null; last_name: string | null } | null };
+function ActionItemsPanel({ jobId, clients }: { jobId: string; clients: JobContact[] }) {
+  const [rows, setRows] = React.useState<ActionItemRow[] | null>(null);
+  const [f, setF] = React.useState({ title: "", assigned_contact_id: "", priority: "normal", due_date: "" });
+  const [busy, setBusy] = React.useState(false);
+  React.useEffect(() => { fetch(`/api/jobs/${jobId}/action-items`).then((r) => r.json()).then((d) => setRows(Array.isArray(d) ? d : [])).catch(() => setRows([])); }, [jobId]);
+  async function add() {
+    if (!f.title.trim()) return; setBusy(true);
+    try {
+      const res = await fetch(`/api/jobs/${jobId}/action-items`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...f, assigned_contact_id: f.assigned_contact_id || null, due_date: f.due_date || null }) });
+      const j = await res.json(); if (res.ok) { setRows((r) => [j, ...(r ?? [])]); setF({ title: "", assigned_contact_id: "", priority: "normal", due_date: "" }); }
+    } finally { setBusy(false); }
+  }
+  async function patch(id: string, body: Record<string, unknown>) {
+    const res = await fetch(`/api/jobs/${jobId}/action-items/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    if (res.ok) { const j = await res.json(); setRows((r) => (r ?? []).map((x) => (x.id === id ? j : x))); }
+  }
+  async function remove(id: string) {
+    const res = await fetch(`/api/jobs/${jobId}/action-items/${id}`, { method: "DELETE" });
+    if (res.ok || res.status === 204) setRows((r) => (r ?? []).filter((x) => x.id !== id));
+  }
+  return (
+    <Section title="Client Action Items">
+      <div className="grid gap-2 sm:grid-cols-[2fr_1.5fr_1fr_auto]">
+        <input className={inputCls} placeholder="What does the client need to do?" value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} />
+        <Select value={f.assigned_contact_id} onChange={(e) => setF({ ...f, assigned_contact_id: e.target.value })}><option value="">— Assign client —</option>{clients.map((c) => <option key={c.id} value={c.contact_id ?? ""}>{`${c.contact?.first_name ?? ""} ${c.contact?.last_name ?? ""}`.trim() || "Client"}</option>)}</Select>
+        <Select value={f.priority} onChange={(e) => setF({ ...f, priority: e.target.value })}><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></Select>
+        <Button size="sm" variant="accent" onClick={() => void add()} disabled={busy || !f.title.trim()}>Add</Button>
+      </div>
+      <div className="mt-3 space-y-2">
+        {rows === null ? <p className="text-sm text-muted-foreground">Loading…</p> : rows.length === 0 ? <p className="text-sm text-muted-foreground">No action items.</p> : rows.map((a) => (
+          <div key={a.id} className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm">
+            <div>
+              <span className={a.status === "completed" ? "text-muted-foreground line-through" : "font-medium"}>{a.title}</span>
+              <span className="ml-2 text-xs text-muted-foreground">{a.assigned_contact ? `${a.assigned_contact.first_name ?? ""} ${a.assigned_contact.last_name ?? ""}`.trim() : "Unassigned"}{a.due_date ? ` · due ${fmtDate(a.due_date)}` : ""}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              {a.status !== "completed" && <button type="button" onClick={() => void patch(a.id, { status: "completed" })} className="text-xs text-accent hover:underline">Complete</button>}
+              <button type="button" onClick={() => void remove(a.id)} className="text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </Section>
   );
 }
 
