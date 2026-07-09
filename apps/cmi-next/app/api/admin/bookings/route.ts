@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin, AuthError } from "@/lib/auth/require-admin";
-import { createBookingAppointment, createBookingEventPage, loadBookingData, updateBookingAppointment } from "@/lib/booking/data";
+import { createBookingAppointment, createBookingEventPage, loadBookingData, updateBookingAppointment, deleteBookingAppointment } from "@/lib/booking/data";
 
 export async function GET(request: Request) {
   try {
@@ -40,5 +40,19 @@ export async function PATCH(request: NextRequest) {
   } catch (error) {
     if (error instanceof AuthError) return NextResponse.json({ message: error.message }, { status: error.status });
     return NextResponse.json({ message: error instanceof Error ? error.message : "Booking update failed." }, { status: 400 });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    await requireAdmin(request);
+    let id = new URL(request.url).searchParams.get("id") || "";
+    if (!id) { const body = await request.json().catch(() => ({})); id = String((body as { id?: string }).id || ""); }
+    if (!id) throw new Error("Appointment id is required.");
+    await deleteBookingAppointment(id);
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    if (error instanceof AuthError) return NextResponse.json({ message: error.message }, { status: error.status });
+    return NextResponse.json({ message: error instanceof Error ? error.message : "Booking delete failed." }, { status: 400 });
   }
 }

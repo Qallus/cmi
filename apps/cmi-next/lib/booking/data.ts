@@ -578,3 +578,13 @@ export async function updateBookingAppointment(id: string, rawInput: Record<stri
 
   return appointment;
 }
+
+export async function deleteBookingAppointment(id: string) {
+  const supabase = getSupabaseAdmin();
+  // Clean up dependent rows that may lack ON DELETE CASCADE, then remove the row.
+  await supabase.from("booking_question_answers").delete().eq("appointment_id", id);
+  await supabase.from("booking_notifications").delete().eq("appointment_id", id);
+  const { error } = await supabase.from("booking_appointments").delete().eq("id", id);
+  if (error) throw error;
+  return { ok: true };
+}

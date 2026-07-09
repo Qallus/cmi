@@ -1,8 +1,9 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
-import { CalendarClock, CheckCircle2, Clock, Contact, FolderKanban, Loader2, MoreHorizontal, Plus, Search, UserPlus, UserRound, XCircle } from "lucide-react";
+import { CalendarClock, CheckCircle2, Clock, Contact, FolderKanban, Loader2, MoreHorizontal, Plus, Search, Trash2, UserPlus, UserRound, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,8 +45,11 @@ const statusTone: Record<AppointmentStatus, "default" | "accent" | "success" | "
   awaiting_project_info: "warning"
 };
 
-function AppointmentLinksFab({ appointment }: { appointment: BookingAppointment }) {
+function AppointmentLinksFab({ appointment, onDelete }: { appointment: BookingAppointment; onDelete: (appointment: BookingAppointment) => void }) {
   const [open, setOpen] = React.useState(false);
+  const [coords, setCoords] = React.useState<{ top: number; left: number } | null>(null);
+  const btnRef = React.useRef<HTMLButtonElement>(null);
+  const menuRef = React.useRef<HTMLDivElement>(null);
   const contactHref = appointment.contact_id
     ? `/dashboard/contacts?id=${encodeURIComponent(appointment.contact_id)}`
     : appointment.customer_email
@@ -70,41 +74,68 @@ function AppointmentLinksFab({ appointment }: { appointment: BookingAppointment 
     { label: "Gantt", href: ganttHref, icon: FolderKanban, available: Boolean(appointment.project_schedule_item_id || appointment.project_id || appointment.project_name || appointment.show_on_project_manager) }
   ];
 
+  const MENU_WIDTH = 176;
+  const menuHeight = (actions.length + 1) * 40 + 24; // links + Delete + padding
+
+  // Position the (portaled) menu next to the button, flipping above when there
+  // isn't room below — so it's never clipped by the card's overflow.
+  function toggle() {
+    if (open) { setOpen(false); return; }
+    const rect = btnRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const dropUp = spaceBelow < menuHeight + 8 && rect.top > spaceBelow;
+    setCoords({
+      top: dropUp ? Math.max(8, rect.top - menuHeight - 6) : rect.bottom + 6,
+      left: Math.max(8, rect.right - MENU_WIDTH),
+    });
+    setOpen(true);
+  }
+
+  React.useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    const onDown = (e: MouseEvent) => {
+      if (!menuRef.current?.contains(e.target as Node) && !btnRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    document.addEventListener("mousedown", onDown);
+    return () => { window.removeEventListener("scroll", close, true); window.removeEventListener("resize", close); document.removeEventListener("mousedown", onDown); };
+  }, [open]);
+
   return (
-    <div className="relative flex justify-end" onClick={event => event.stopPropagation()}>
-      {open ? (
-        <div className="absolute bottom-10 right-0 z-20 w-44 rounded-xl border border-border bg-card p-1.5 shadow-xl">
-          {actions.map(action => {
-            const Icon = action.icon;
-            return (
-              <Link
-                key={action.label}
-                href={action.href}
-                className={cn(
-                  "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition hover:bg-muted",
-                  !action.available && "text-muted-foreground"
-                )}
-                onClick={() => setOpen(false)}
-              >
-                <Icon className="h-4 w-4 text-accent" />
-                <span>{action.label}</span>
-              </Link>
-            );
-          })}
-        </div>
-      ) : null}
+    <div className="flex justify-end" onClick={event => event.stopPropagation()}>
       <button
+        ref={btnRef}
         type="button"
         className={cn(
           "inline-flex h-9 w-9 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition hover:border-accent hover:text-accent",
           open && "border-accent bg-accent text-accent-foreground hover:text-accent-foreground"
         )}
-        aria-label="Open booking links"
+        aria-label="Open booking actions"
         aria-expanded={open}
-        onClick={() => setOpen(current => !current)}
+        onClick={toggle}
       >
         <MoreHorizontal className="h-4 w-4" />
       </button>
+      {open && coords && typeof document !== "undefined" && createPortal(
+        <div ref={menuRef} style={{ position: "fixed", top: coords.top, left: coords.left, width: MENU_WIDTH }} className="z-[200] rounded-xl border border-border bg-card p-1.5 shadow-xl" onClick={e => e.stopPropagation()}>
+          {actions.map(action => {
+            const Icon = action.icon;
+            return (
+              <Link key={action.label} href={action.href} className={cn("flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition hover:bg-muted", !action.available && "text-muted-foreground")} onClick={() => setOpen(false)}>
+                <Icon className="h-4 w-4 text-accent" /><span>{action.label}</span>
+              </Link>
+            );
+          })}
+          <div className="my-1 border-t border-border" />
+          <button type="button" onClick={() => { setOpen(false); onDelete(appointment); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-destructive transition hover:bg-destructive/10">
+            <Trash2 className="h-4 w-4" /><span>Delete</span>
+          </button>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
@@ -272,6 +303,30 @@ export function BookingsClient({ initialData, demoMode, setupMessage }: { initia
     }
   }
 
+  async function deleteAppointment(appointment: BookingAppointment) {
+    if (!window.confirm(`Delete "${appointment.title || "this appointment"}"? This can't be undone.`)) return;
+    setSaving(true);
+    setNotice(null);
+    try {
+      if (demoMode) {
+        setData(current => ({ ...current, appointments: current.appointments.filter(item => item.id !== appointment.id) }));
+        setSelected(current => (current?.id === appointment.id ? null : current));
+        setNotice("Demo appointment removed locally.");
+        return;
+      }
+      const response = await fetch(`/api/admin/bookings?id=${encodeURIComponent(appointment.id)}`, { method: "DELETE" });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.message || "Booking delete failed.");
+      setData(current => ({ ...current, appointments: current.appointments.filter(item => item.id !== appointment.id) }));
+      setSelected(current => (current?.id === appointment.id ? null : current));
+      setNotice("Appointment deleted.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Booking delete failed.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div className="space-y-5 p-4 md:p-6">
       <header className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
@@ -369,7 +424,7 @@ export function BookingsClient({ initialData, demoMode, setupMessage }: { initia
                     <div className="text-muted-foreground">{formatDateTime(appointment.start_time)}</div>
                     <div className="truncate text-muted-foreground">{appointment.project_name || "-"}</div>
                     <div><Badge tone={statusTone[appointment.status]}>{appointment.status}</Badge></div>
-                    <AppointmentLinksFab appointment={appointment} />
+                    <AppointmentLinksFab appointment={appointment} onDelete={deleteAppointment} />
                   </div>
                 ))}
                 {!filtered.length ? <div className="p-8 text-center text-sm text-muted-foreground">No bookings match those filters.</div> : null}

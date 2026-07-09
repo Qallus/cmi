@@ -27,6 +27,15 @@ export function NoteDetailModal({ noteId, onClose, onChanged }: { noteId: string
   const [reply, setReply] = React.useState("");
   const [sending, setSending] = React.useState(false);
   const [showConfirm, setShowConfirm] = React.useState(false);
+  const [lightbox, setLightbox] = React.useState(false);
+
+  // Close the screenshot lightbox on Escape (without closing the whole modal).
+  React.useEffect(() => {
+    if (!lightbox) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); setLightbox(false); } };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [lightbox]);
 
   React.useEffect(() => {
     let alive = true;
@@ -98,9 +107,9 @@ export function NoteDetailModal({ noteId, onClose, onChanged }: { noteId: string
             <div className="min-h-0 overflow-y-auto border-b border-border p-4 md:border-b-0 md:border-r">
               <div className="mb-3 overflow-hidden rounded-lg border border-border bg-muted/30">
                 {note.screenshot_url ? (
-                  <a href={note.screenshot_url} target="_blank" rel="noreferrer" title="Open full screenshot">
+                  <button type="button" onClick={() => setLightbox(true)} title="Click to enlarge" className="block w-full cursor-zoom-in">
                     <img src={note.screenshot_url} alt="Screenshot" className="w-full object-contain" />
-                  </a>
+                  </button>
                 ) : (
                   <div className="flex h-40 flex-col items-center justify-center gap-2 text-muted-foreground">
                     <ImageOff className="h-6 w-6 opacity-50" /><span className="text-xs">No screenshot attached</span>
@@ -164,6 +173,20 @@ export function NoteDetailModal({ noteId, onClose, onChanged }: { noteId: string
           onArchive={async () => { setShowConfirm(false); await doArchive(); }}
           onCancel={() => setShowConfirm(false)}
         />
+      )}
+
+      {/* Screenshot lightbox — stays in-app (with a close X) instead of opening
+          the raw image in a new tab, so the user returns to this modal. */}
+      {lightbox && note?.screenshot_url && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/80 p-4" onClick={() => setLightbox(false)}>
+          <button type="button" onClick={(e) => { e.stopPropagation(); setLightbox(false); }} className="absolute right-4 top-4 grid h-10 w-10 place-items-center rounded-full bg-white/10 text-white transition hover:bg-white/20" title="Close (Esc)" aria-label="Close screenshot">
+            <X className="h-5 w-5" />
+          </button>
+          <img src={note.screenshot_url} alt="Screenshot" className="max-h-[92vh] max-w-[95vw] object-contain" onClick={(e) => e.stopPropagation()} />
+          <a href={note.screenshot_url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="absolute bottom-4 right-4 inline-flex items-center gap-1 rounded-md bg-white/10 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-white/20">
+            Open original <ExternalLink className="h-3 w-3" />
+          </a>
+        </div>
       )}
     </div>
   );
