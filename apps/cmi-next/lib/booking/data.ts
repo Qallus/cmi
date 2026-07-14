@@ -325,6 +325,18 @@ export async function createBookingEventPage(rawInput: Partial<EventPageInput>) 
   if (!title) throw new Error("Event title is required.");
   if (!startTime || !endTime) throw new Error("Event start and end are required.");
 
+  const galleryUrls = Array.isArray(rawInput.gallery_urls)
+    ? rawInput.gallery_urls.map(url => cleanText(url)).filter(Boolean)
+    : [];
+  const metadata: Record<string, unknown> = {};
+  const eventType = cleanText(rawInput.event_type);
+  const photoUrl = cleanText(rawInput.photo_url);
+  const videoUrl = cleanText(rawInput.video_url);
+  if (eventType) metadata.event_type = eventType;
+  if (photoUrl) metadata.photo_url = photoUrl;
+  if (videoUrl) metadata.video_url = videoUrl;
+  if (galleryUrls.length) metadata.gallery_urls = galleryUrls;
+
   const payload = {
     title,
     slug: slugify(rawInput.slug || title),
@@ -344,6 +356,7 @@ export async function createBookingEventPage(rawInput: Partial<EventPageInput>) 
     client_visible: rawInput.client_visible !== false,
     show_on_project_manager: Boolean(rawInput.show_on_project_manager),
     status: rawInput.status || "draft",
+    metadata,
     published_at: rawInput.status === "published" ? new Date().toISOString() : null
   };
 

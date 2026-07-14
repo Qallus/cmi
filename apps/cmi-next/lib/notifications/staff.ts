@@ -13,7 +13,7 @@
 
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 
-export type StaffNotificationKind = "submission" | "message" | "lead" | "note";
+export type StaffNotificationKind = "submission" | "message" | "lead" | "note" | "booking";
 
 export type StaffNotification = {
   id: string;
@@ -31,7 +31,15 @@ const HREF: Record<StaffNotificationKind, string> = {
   message: "/dashboard/communications",
   lead: "/dashboard/business-cards",
   note: "/dashboard/site-content",
+  booking: "/dashboard/bookings",
 };
+
+function bookingWhen(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
 
 function messageTitle(channel: string | null): string {
   switch ((channel ?? "").toLowerCase()) {
@@ -60,7 +68,7 @@ export async function loadStaffNotifications(ctx: Ctx): Promise<StaffNotificatio
     .limit(50);
   if (!ctx.isAdmin) leadsQuery = leadsQuery.eq("owner_staff_id", ctx.staffId);
 
-  const [submissionsRes, messagesRes, leadsRes, notesRes] = await Promise.all([
+  const [submissionsRes, messagesRes, leadsRes, notesRes, bookingsRes] = await Promise.all([
     supabase
       .from("contact_submissions")
       .select("id, first_name, last_name, subject, message, submitted_at, created_at")
@@ -85,6 +93,13 @@ export async function loadStaffNotifications(ctx: Ctx): Promise<StaffNotificatio
           .order("created_at", { ascending: false })
           .limit(50)
       : Promise.resolve({ data: [] as Record<string, unknown>[] }),
+    supabase
+      .from("bookings")
+      .select("id, title, booking_type, guest_name, guest_email, start_datetime, status, created_at")
+      .is("notification_read_at", null)
+      .neq("status", "canceled")
+      .order("created_at", { ascending: false })
+      .limit(50),
   ]);
 
   const items: StaffNotification[] = [];
@@ -137,6 +152,20 @@ export async function loadStaffNotifications(ctx: Ctx): Promise<StaffNotificatio
     });
   }
 
+  for (const b of (bookingsRes.data ?? []) as Record<string, unknown>[]) {
+    const who = String(b.guest_name ?? "").trim() || String(b.guest_email ?? "").trim() || "Someone";
+    const type = String(b.booking_type ?? "").trim();
+    const when = bookingWhen(b.start_datetime as string | null);
+    items.push({
+      id: String(b.id),
+      kind: "booking",
+      title: type ? `New booking · ${type}` : "New booking",
+      subtitle: snippet(`${who}${when ? ` — ${when}` : ""}`),
+      time: String(b.created_at),
+      href: HREF.booking,
+    });
+  }
+
   items.sort((a, b) => (a.time < b.time ? 1 : a.time > b.time ? -1 : 0));
   return items;
 }
@@ -166,6 +195,8 @@ export async function markStaffNotificationRead(
       if (!readBy.includes(email)) {
         await supabase.from("dashboard_notes").update({ read_by: [...readBy, email] }).eq("id", id);
       }
+    } else if (kind === "booking") {
+      await supabase.from("bookings").update({ notification_read_at: nowExpr }).eq("id", id);
     }
     return true;
   } catch {

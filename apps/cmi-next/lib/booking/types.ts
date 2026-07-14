@@ -224,4 +224,8 @@ export type EventPageInput = {
   client_visible?: boolean;
   show_on_project_manager?: boolean;
   status?: "draft" | "published" | "private";
+  event_type?: string;
+  photo_url?: string;
+  video_url?: string;
+  gallery_urls?: string[];
 };

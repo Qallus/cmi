@@ -9,7 +9,7 @@ import {
   type StaffNotificationKind,
 } from "@/lib/notifications/staff";
 
-const KINDS: StaffNotificationKind[] = ["submission", "message", "lead", "note"];
+const KINDS: StaffNotificationKind[] = ["submission", "message", "lead", "note", "booking"];
 
 function ctxFrom(user: { email?: string | null }, staff: { id: string; role_slug: string }) {
   return {

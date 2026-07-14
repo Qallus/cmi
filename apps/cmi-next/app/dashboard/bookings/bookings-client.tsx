@@ -3,7 +3,7 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { CalendarClock, CheckCircle2, Clock, Contact, FolderKanban, Loader2, MoreHorizontal, Plus, Search, Trash2, UserPlus, UserRound, XCircle } from "lucide-react";
+import { CalendarClock, CheckCircle2, Clock, Contact, FolderKanban, Loader2, MoreHorizontal, Plus, Search, Trash2, Upload, UserPlus, UserRound, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,6 +18,7 @@ type EventDraft = {
   summary: string;
   description: string;
   appointment_type_id: string;
+  event_type: string;
   host_staff_user_id: string;
   project_id: string;
   start_time: string;
@@ -27,8 +28,38 @@ type EventDraft = {
   capacity: string;
   status: "draft" | "published" | "private";
   show_on_project_manager: boolean;
+  photo_url: string;
+  video_url: string;
+  gallery_urls: string[];
 };
 type ViewMode = "list" | "calendar" | "events" | "availability";
+
+// Curated event-page categories for the "Event Type" select. Unlike appointment
+// types (which drive scheduling/availability), these describe the kind of one-time
+// event and are stored on the event page's metadata.
+const EVENT_TYPES = [
+  "Open House",
+  "Workshop",
+  "Webinar",
+  "Community Event",
+  "Grand Opening",
+  "Groundbreaking",
+  "Networking Event",
+  "Seminar",
+  "Client Appreciation",
+  "Other",
+];
+
+// Upload a file to the shared media bucket and return its public URL.
+async function uploadToMedia(file: File, folder: string): Promise<string> {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("folder", folder);
+  const response = await fetch("/api/admin/uploads", { method: "POST", body: form });
+  const json = await response.json();
+  if (!response.ok) throw new Error(json.message || "Upload failed.");
+  return String(json.url);
+}
 
 const statuses: AppointmentStatus[] = ["pending", "confirmed", "rescheduled", "completed", "canceled", "no_show", "follow_up_needed", "awaiting_client", "awaiting_staff", "awaiting_project_info"];
 
@@ -47,6 +78,7 @@ const statusTone: Record<AppointmentStatus, "default" | "accent" | "success" | "
 
 function AppointmentLinksFab({ appointment, onDelete }: { appointment: BookingAppointment; onDelete: (appointment: BookingAppointment) => void }) {
   const [open, setOpen] = React.useState(false);
+  const [btnRect, setBtnRect] = React.useState<DOMRect | null>(null);
   const [coords, setCoords] = React.useState<{ top: number; left: number } | null>(null);
   const btnRef = React.useRef<HTMLButtonElement>(null);
   const menuRef = React.useRef<HTMLDivElement>(null);
@@ -75,22 +107,32 @@ function AppointmentLinksFab({ appointment, onDelete }: { appointment: BookingAp
   ];
 
   const MENU_WIDTH = 176;
-  const menuHeight = (actions.length + 1) * 40 + 24; // links + Delete + padding
 
-  // Position the (portaled) menu next to the button, flipping above when there
-  // isn't room below — so it's never clipped by the card's overflow.
+  // Open by capturing the button's viewport rect. The exact position is computed
+  // in the layout effect below, once the (portaled) menu has rendered and its
+  // real height is known — so top rows drop down, bottom rows flip up, and the
+  // menu is never clipped by the card's overflow or the viewport edges.
   function toggle() {
     if (open) { setOpen(false); return; }
     const rect = btnRef.current?.getBoundingClientRect();
     if (!rect) return;
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const dropUp = spaceBelow < menuHeight + 8 && rect.top > spaceBelow;
-    setCoords({
-      top: dropUp ? Math.max(8, rect.top - menuHeight - 6) : rect.bottom + 6,
-      left: Math.max(8, rect.right - MENU_WIDTH),
-    });
+    setBtnRect(rect);
+    setCoords(null);
     setOpen(true);
   }
+
+  React.useLayoutEffect(() => {
+    if (!open || !btnRect || !menuRef.current) return;
+    const gap = 6;
+    const h = menuRef.current.offsetHeight;
+    const spaceBelow = window.innerHeight - btnRect.bottom;
+    const dropUp = spaceBelow < h + gap + 8 && btnRect.top > spaceBelow;
+    const rawTop = dropUp ? btnRect.top - h - gap : btnRect.bottom + gap;
+    setCoords({
+      top: Math.min(Math.max(8, rawTop), Math.max(8, window.innerHeight - h - 8)),
+      left: Math.min(Math.max(8, btnRect.right - MENU_WIDTH), Math.max(8, window.innerWidth - MENU_WIDTH - 8)),
+    });
+  }, [open, btnRect]);
 
   React.useEffect(() => {
     if (!open) return;
@@ -119,8 +161,8 @@ function AppointmentLinksFab({ appointment, onDelete }: { appointment: BookingAp
       >
         <MoreHorizontal className="h-4 w-4" />
       </button>
-      {open && coords && typeof document !== "undefined" && createPortal(
-        <div ref={menuRef} style={{ position: "fixed", top: coords.top, left: coords.left, width: MENU_WIDTH }} className="z-[200] rounded-xl border border-border bg-card p-1.5 shadow-xl" onClick={e => e.stopPropagation()}>
+      {open && btnRect && typeof document !== "undefined" && createPortal(
+        <div ref={menuRef} style={{ position: "fixed", top: coords?.top ?? btnRect.bottom + 6, left: coords?.left ?? Math.max(8, btnRect.right - MENU_WIDTH), width: MENU_WIDTH, visibility: coords ? "visible" : "hidden" }} className="z-[200] rounded-xl border border-border bg-card p-1.5 shadow-xl" onClick={e => e.stopPropagation()}>
           {actions.map(action => {
             const Icon = action.icon;
             return (
@@ -175,6 +217,7 @@ function emptyEventDraft(types: AppointmentType[]): EventDraft {
     summary: "",
     description: "",
     appointment_type_id: types[0]?.id || "",
+    event_type: EVENT_TYPES[0],
     host_staff_user_id: "",
     project_id: "",
     start_time: toDateTimeLocal(start),
@@ -183,7 +226,10 @@ function emptyEventDraft(types: AppointmentType[]): EventDraft {
     location: "",
     capacity: "",
     status: "draft",
-    show_on_project_manager: true
+    show_on_project_manager: true,
+    photo_url: "",
+    video_url: "",
+    gallery_urls: []
   };
 }
 
@@ -525,9 +571,9 @@ export function BookingsClient({ initialData, demoMode, setupMessage }: { initia
               <div className="grid gap-4 p-5 md:grid-cols-2">
                 <Field label="Title *"><Input required value={eventDraft.title} onChange={event => setEventDraft({ ...eventDraft, title: event.target.value })} /></Field>
                 <Field label="Slug"><Input value={eventDraft.slug} onChange={event => setEventDraft({ ...eventDraft, slug: event.target.value })} placeholder="event-page-url" /></Field>
-                <Field label="Appointment Type">
-                  <Select value={eventDraft.appointment_type_id} onChange={event => setEventDraft({ ...eventDraft, appointment_type_id: event.target.value })}>
-                    {data.appointmentTypes.map(type => <option key={type.id} value={type.id}>{type.name}</option>)}
+                <Field label="Event Type">
+                  <Select value={eventDraft.event_type} onChange={event => setEventDraft({ ...eventDraft, event_type: event.target.value })}>
+                    {EVENT_TYPES.map(type => <option key={type} value={type}>{type}</option>)}
                   </Select>
                 </Field>
                 <Field label="Host Staff">
@@ -557,6 +603,9 @@ export function BookingsClient({ initialData, demoMode, setupMessage }: { initia
                 <label className="flex items-center gap-2 rounded-lg border border-border p-3 text-sm"><input type="checkbox" checked={eventDraft.show_on_project_manager} onChange={event => setEventDraft({ ...eventDraft, show_on_project_manager: event.target.checked })} /><CalendarClock className="h-4 w-4 text-accent" /> Show on Project Manager</label>
                 <Field label="Summary" className="md:col-span-2"><Input value={eventDraft.summary} onChange={event => setEventDraft({ ...eventDraft, summary: event.target.value })} /></Field>
                 <Field label="Description" className="md:col-span-2"><Textarea value={eventDraft.description} onChange={event => setEventDraft({ ...eventDraft, description: event.target.value })} /></Field>
+                <MediaUploadField label="Photo" accept="image/*" folder="event-pages" demoMode={demoMode} value={eventDraft.photo_url} onChange={url => setEventDraft(current => current ? { ...current, photo_url: url } : current)} />
+                <MediaUploadField label="Video" accept="video/*" folder="event-pages" demoMode={demoMode} value={eventDraft.video_url} onChange={url => setEventDraft(current => current ? { ...current, video_url: url } : current)} />
+                <GalleryUploadField className="md:col-span-2" folder="event-pages" demoMode={demoMode} values={eventDraft.gallery_urls} onChange={urls => setEventDraft(current => current ? { ...current, gallery_urls: urls } : current)} />
               </div>
               <div className="flex flex-wrap gap-3 border-t border-border p-5">
                 <Button type="submit" variant="accent" disabled={saving}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Create Event Page</Button>
@@ -583,7 +632,12 @@ export function BookingsClient({ initialData, demoMode, setupMessage }: { initia
       const response = await fetch("/api/admin/bookings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...eventDraft, resource: "event_page", capacity: eventDraft.capacity ? Number(eventDraft.capacity) : null })
+        body: JSON.stringify({
+          ...eventDraft,
+          resource: "event_page",
+          capacity: eventDraft.capacity ? Number(eventDraft.capacity) : null,
+          gallery_urls: eventDraft.gallery_urls.filter(Boolean)
+        })
       });
       const json = await response.json();
       if (!response.ok) throw new Error(json.message || "Event page create failed.");
@@ -730,6 +784,103 @@ function EventsPanel({ data, onCreate }: { data: BookingData; onCreate: () => vo
 
 function Field({ label, className, children }: { label: string; className?: string; children: React.ReactNode }) {
   return <label className={cn("block text-sm font-medium", className)}><span className="mb-1 block text-[11px] uppercase tracking-[0.14em] text-muted-foreground">{label}</span>{children}</label>;
+}
+
+// Single-asset picker: upload a file to the media bucket, or paste a URL as a
+// secondary option. Used for the event page Photo and Video fields.
+function MediaUploadField({ label, accept, folder, value, demoMode, onChange, className }: { label: string; accept: string; folder: string; value: string; demoMode: boolean; onChange: (url: string) => void; className?: string }) {
+  const inputRef = React.useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const isImage = accept.startsWith("image/");
+
+  async function pick(file: File | undefined) {
+    if (!file) return;
+    setError(null);
+    setBusy(true);
+    try { onChange(await uploadToMedia(file, folder)); }
+    catch (e) { setError(e instanceof Error ? e.message : "Upload failed."); }
+    finally { setBusy(false); if (inputRef.current) inputRef.current.value = ""; }
+  }
+
+  return (
+    <Field label={label} className={className}>
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <input ref={inputRef} type="file" accept={accept} className="hidden" onChange={e => void pick(e.target.files?.[0] ?? undefined)} />
+          <Button type="button" variant="outline" size="sm" disabled={busy || demoMode} onClick={() => inputRef.current?.click()}>
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />} Upload
+          </Button>
+          {value ? <button type="button" onClick={() => onChange("")} className="inline-flex items-center gap-1 text-xs text-destructive hover:underline"><XCircle className="h-3.5 w-3.5" /> Remove</button> : null}
+        </div>
+        <Input value={value} onChange={e => onChange(e.target.value)} placeholder={demoMode ? "Paste a URL (upload disabled in demo)" : "…or paste a URL"} />
+        {value && isImage ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={value} alt="" className="h-16 w-auto rounded-md border border-border object-cover" />
+        ) : value ? <div className="truncate text-xs text-muted-foreground">{value}</div> : null}
+        {error ? <div className="text-xs text-destructive">{error}</div> : null}
+      </div>
+    </Field>
+  );
+}
+
+// Multi-asset picker for the event page Gallery: upload one or more images, or
+// add by URL. Renders removable thumbnails.
+function GalleryUploadField({ values, folder, demoMode, onChange, className }: { values: string[]; folder: string; demoMode: boolean; onChange: (urls: string[]) => void; className?: string }) {
+  const inputRef = React.useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [url, setUrl] = React.useState("");
+
+  async function pick(files: FileList | null) {
+    if (!files || !files.length) return;
+    setError(null);
+    setBusy(true);
+    try {
+      const uploaded: string[] = [];
+      for (const file of Array.from(files)) uploaded.push(await uploadToMedia(file, folder));
+      onChange([...values, ...uploaded]);
+    } catch (e) { setError(e instanceof Error ? e.message : "Upload failed."); }
+    finally { setBusy(false); if (inputRef.current) inputRef.current.value = ""; }
+  }
+
+  function addUrl() {
+    const trimmed = url.trim();
+    if (!trimmed) return;
+    onChange([...values, trimmed]);
+    setUrl("");
+  }
+
+  return (
+    <Field label="Gallery" className={className}>
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <input ref={inputRef} type="file" accept="image/*,video/*" multiple className="hidden" onChange={e => void pick(e.target.files)} />
+          <Button type="button" variant="outline" size="sm" disabled={busy || demoMode} onClick={() => inputRef.current?.click()}>
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />} Upload images
+          </Button>
+          <div className="flex min-w-[220px] flex-1 items-center gap-2">
+            <Input value={url} onChange={e => setUrl(e.target.value)} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addUrl(); } }} placeholder="…or paste a URL" />
+            <Button type="button" variant="outline" size="sm" onClick={addUrl}>Add</Button>
+          </div>
+        </div>
+        {values.length ? (
+          <div className="flex flex-wrap gap-2">
+            {values.map((item, index) => (
+              <div key={`${item}-${index}`} className="group relative">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={item} alt="" className="h-16 w-16 rounded-md border border-border object-cover" />
+                <button type="button" onClick={() => onChange(values.filter((_, i) => i !== index))} className="absolute -right-1.5 -top-1.5 grid h-5 w-5 place-items-center rounded-full bg-destructive text-white shadow" title="Remove" aria-label="Remove image">
+                  <XCircle className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : null}
+        {error ? <div className="text-xs text-destructive">{error}</div> : null}
+      </div>
+    </Field>
+  );
 }
 
 function Info({ label, value }: { label: string; value: string }) {

@@ -1,11 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { Bell, Check, FileText, Loader2, Mail, MessageSquare, StickyNote, UserPlus } from "lucide-react";
+import { Bell, CalendarClock, Check, FileText, Loader2, Mail, MessageSquare, StickyNote, UserPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 
-type Kind = "submission" | "message" | "lead" | "note";
+type Kind = "submission" | "message" | "lead" | "note" | "booking";
 type Item = { id: string; kind: Kind; title: string; subtitle: string; time: string; href: string };
 
 const ICON: Record<Kind, React.ComponentType<{ className?: string }>> = {
@@ -13,12 +13,14 @@ const ICON: Record<Kind, React.ComponentType<{ className?: string }>> = {
   message: MessageSquare,
   lead: UserPlus,
   note: StickyNote,
+  booking: CalendarClock,
 };
 const ICON_TONE: Record<Kind, string> = {
   submission: "bg-info/15 text-info",
   message: "bg-accent/15 text-accent",
   lead: "bg-success/15 text-success",
   note: "bg-warning/15 text-warning",
+  booking: "bg-accent/15 text-accent",
 };
 
 function relTime(iso: string): string {
