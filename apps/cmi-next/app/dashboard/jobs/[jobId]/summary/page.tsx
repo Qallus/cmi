@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getJob } from "@/lib/jobs/data";
+import { getJob, getJobStats } from "@/lib/jobs/data";
 import { JobSummaryClient } from "./job-summary-client";
 
 export const metadata = { title: "Job Summary — CMI Dashboard" };
@@ -9,5 +9,6 @@ export default async function JobSummaryPage({ params }: { params: Promise<{ job
   const { jobId } = await params;
   const job = await getJob(jobId);
   if (!job) notFound();
-  return <JobSummaryClient job={job} />;
+  const stats = await getJobStats(job);
+  return <JobSummaryClient job={job} stats={stats} />;
 }

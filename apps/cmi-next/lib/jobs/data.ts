@@ -5,7 +5,7 @@ import { geocodeAddress } from "./geocode";
 import { opportunityStageToJobStatus } from "./status";
 import type {
   Job, JobDraft, JobType, JobGroup, JobContact, JobInternalUser, JobVendor,
-  JobSettings, JobInsurance, JobWithRelations, PriceSummary, JobStatus,
+  JobSettings, JobInsurance, JobWithRelations, JobStats, PriceSummary, JobStatus,
 } from "./types";
 
 type Actor = { name?: string | null; id?: string | null };
@@ -160,6 +160,41 @@ export async function getJob(id: string): Promise<JobWithRelations | null> {
     vendors: (vendors.data ?? []) as JobVendor[],
     settings: (settings.data as JobSettings) ?? null,
     insurance: (insurance.data as JobInsurance) ?? null,
+  };
+}
+
+// Per-job stat-tile counts for the summary. invoices/staff/contacts are true
+// job FKs; documents/contracts/sows match by project name (that table links by
+// text, not job_id); quotes/bookings match by the job's client contacts.
+export async function getJobStats(job: JobWithRelations): Promise<JobStats> {
+  const sb = getSupabaseAdmin();
+  const name = (job.job_name ?? "").trim();
+  const clientIds = job.contacts.map((c) => c.contact_id).filter(Boolean) as string[];
+  const num = (res: { count: number | null }) => res.count ?? 0;
+  const head = (table: string) => sb.from(table).select("id", { count: "exact", head: true });
+
+  const docsQ = name ? head("documents").ilike("project", name) : null;
+  const contractsQ = name ? head("documents").ilike("project", name).ilike("type", "%contract%") : null;
+  const sowsQ = name ? head("documents").ilike("project", name).or("type.ilike.%sow%,type.ilike.%statement of work%,type.ilike.%scope of work%") : null;
+  const invoicesQ = head("invoices").eq("job_id", job.id);
+  const quotesQ = clientIds.length ? head("quotes").in("contact_id", clientIds) : null;
+  const bookingsQ = clientIds.length ? head("booking_appointments").in("contact_id", clientIds) : null;
+
+  const [documents, contracts, sows, invoices, quotes, bookings] = await Promise.all([
+    docsQ ? docsQ.then(num) : Promise.resolve(0),
+    contractsQ ? contractsQ.then(num) : Promise.resolve(0),
+    sowsQ ? sowsQ.then(num) : Promise.resolve(0),
+    invoicesQ.then(num),
+    quotesQ ? quotesQ.then(num) : Promise.resolve(0),
+    bookingsQ ? bookingsQ.then(num) : Promise.resolve(0),
+  ]);
+
+  return {
+    documents, contracts, sows,
+    staff: job.internal_users.length,
+    quotes, invoices,
+    contacts: job.contacts.length,
+    bookings,
   };
 }
 

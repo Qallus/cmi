@@ -2,17 +2,17 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Clock, MapPin, Pencil, X } from "lucide-react";
+import { BadgeDollarSign, CalendarClock, Clock, Contact, FileSignature, FileText, MapPin, Pencil, ReceiptText, ScrollText, Users, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { JobWithRelations, JobStatus, JobInternalUser } from "@/lib/jobs/types";
+import type { JobWithRelations, JobStatus, JobInternalUser, JobStats } from "@/lib/jobs/types";
 import { JobStatusBadge, money, formatDate } from "../../job-ui";
 import { JobDetailNav } from "../job-detail-nav";
 
 type StaffOption = { id: string; label: string; email: string; role: string; job_title: string };
 
-export function JobSummaryClient({ job }: { job: JobWithRelations }) {
+export function JobSummaryClient({ job, stats }: { job: JobWithRelations; stats: JobStats }) {
   const clients = job.contacts.filter((c) => c.contact);
   const [pms, setPms] = React.useState<JobInternalUser[]>(job.internal_users.filter((u) => u.user));
   const [manualPm, setManualPm] = React.useState<string | null>(job.project_manager);
@@ -33,34 +33,34 @@ export function JobSummaryClient({ job }: { job: JobWithRelations }) {
 
   return (
     <div className="flex h-[calc(100vh-56px)] flex-col">
-      {/* Header */}
-      <div className="border-b border-border bg-card px-4 pt-4 md:px-6">
-        <Link href="/dashboard/jobs" className="text-xs text-muted-foreground hover:text-foreground">← All jobs</Link>
-        <div className="mt-1 flex flex-wrap items-start justify-between gap-3 pb-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="font-display text-2xl font-semibold tracking-tight">{job.job_name}</h1>
-              <JobStatusBadge status={job.status as JobStatus} />
-            </div>
-            <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-              <span className="font-mono text-xs">{job.job_number ?? "—"}</span>
-              {job.full_address && (
-                <a href={`https://maps.google.com/?q=${encodeURIComponent(job.full_address)}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:text-foreground">
-                  <MapPin className="h-3.5 w-3.5" /> {job.full_address}
-                </a>
-              )}
-            </div>
-          </div>
-          <Link href={`/dashboard/jobs/${job.id}/info`}><Button size="sm" variant="outline"><Pencil className="h-3.5 w-3.5" /> Edit Job Info</Button></Link>
-        </div>
-      </div>
-      <JobDetailNav jobId={job.id} active="summary" />
+      {/* Single-row job header: back · tabs · Edit */}
+      <JobDetailNav
+        jobId={job.id}
+        active="summary"
+        action={<Link href={`/dashboard/jobs/${job.id}/info`}><Button size="sm" variant="outline"><Pencil className="h-3.5 w-3.5" /> Edit Job Info</Button></Link>}
+      />
 
       <div className="flex-1 overflow-auto p-4 md:p-6">
-        <div className="grid gap-4 lg:grid-cols-3">
-          {/* Summary card */}
+        {/* Stat tiles aligned with the job */}
+        <JobStatsRow stats={stats} />
+
+        <div className="mt-4 grid gap-4 lg:grid-cols-3">
+          {/* Summary card — job identity now lives here (moved out of the header) */}
           <div className="space-y-4 lg:col-span-1">
-            <Card title="Job">
+            <div className="rounded-lg border border-border bg-card p-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="font-display text-xl font-semibold tracking-tight">{job.job_name}</h1>
+                <JobStatusBadge status={job.status as JobStatus} />
+              </div>
+              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                <span className="font-mono">{job.job_number ?? "—"}</span>
+                {job.full_address && (
+                  <a href={`https://maps.google.com/?q=${encodeURIComponent(job.full_address)}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:text-foreground">
+                    <MapPin className="h-3.5 w-3.5" /> {job.full_address}
+                  </a>
+                )}
+              </div>
+              <div className="mb-2 mt-4 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Job</div>
               <KV label="Status"><JobStatusBadge status={job.status as JobStatus} /></KV>
               <KV label="Job #">{job.job_number ?? "—"}</KV>
               {job.lead_number && <KV label="Pre-Con #"><span className="font-mono text-xs text-accent">{job.lead_number}</span></KV>}
@@ -75,7 +75,7 @@ export function JobSummaryClient({ job }: { job: JobWithRelations }) {
                   {job.related_lead_id && <Link href="/dashboard/contacts" className="text-accent hover:underline">Lead</Link>}
                 </KV>
               )}
-            </Card>
+            </div>
 
             <Card title="Clients" action={<Link href={`/dashboard/jobs/${job.id}/info`} className="text-xs text-accent hover:underline">Add</Link>}>
               {clients.length === 0 ? <Empty>No clients yet.</Empty> : clients.map((c) => (
@@ -228,6 +228,32 @@ function AddPmModal({ existingIds, onTeam, onManual, onClose }: { existingIds: S
 const inputCls = "h-9 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-accent";
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return <div className="flex flex-col gap-1"><label className="text-xs font-medium text-muted-foreground">{label}</label>{children}</div>;
+}
+
+function JobStatsRow({ stats }: { stats: JobStats }) {
+  const tiles: { label: string; value: number; icon: React.ComponentType<{ className?: string }> }[] = [
+    { label: "Documents", value: stats.documents, icon: FileText },
+    { label: "Contracts", value: stats.contracts, icon: FileSignature },
+    { label: "SOWs", value: stats.sows, icon: ScrollText },
+    { label: "Active Staff", value: stats.staff, icon: Users },
+    { label: "Quotes", value: stats.quotes, icon: BadgeDollarSign },
+    { label: "Invoices", value: stats.invoices, icon: ReceiptText },
+    { label: "Contacts", value: stats.contacts, icon: Contact },
+    { label: "Bookings", value: stats.bookings, icon: CalendarClock },
+  ];
+  return (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-8">
+      {tiles.map((t) => (
+        <div key={t.label} className="rounded-lg border border-border bg-card p-4">
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">{t.label}</div>
+            <t.icon className="h-4 w-4 shrink-0 text-accent/70" />
+          </div>
+          <div className="mt-3 text-2xl font-semibold">{t.value}</div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function Card({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
