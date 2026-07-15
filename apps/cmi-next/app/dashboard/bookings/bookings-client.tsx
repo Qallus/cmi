@@ -3,7 +3,7 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { CalendarClock, CheckCircle2, Clock, Contact, FolderKanban, Loader2, MoreHorizontal, Plus, Search, Trash2, Upload, UserPlus, UserRound, XCircle } from "lucide-react";
+import { CalendarClock, CheckCircle2, Clock, Contact, FolderKanban, Loader2, MoreHorizontal, Plus, Search, Trash2, Upload, UserPlus, UserRound, Users, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,6 +13,7 @@ import type { AppointmentStatus, AppointmentType, BookingAppointment, BookingDat
 
 type Draft = Partial<BookingInput>;
 type EventDraft = {
+  id?: string;
   title: string;
   slug: string;
   summary: string;
@@ -31,6 +32,7 @@ type EventDraft = {
   photo_url: string;
   video_url: string;
   gallery_urls: string[];
+  show_spots_remaining: boolean;
 };
 type ViewMode = "list" | "calendar" | "events" | "availability";
 
@@ -229,7 +231,36 @@ function emptyEventDraft(types: AppointmentType[]): EventDraft {
     show_on_project_manager: true,
     photo_url: "",
     video_url: "",
-    gallery_urls: []
+    gallery_urls: [],
+    show_spots_remaining: false
+  };
+}
+
+// Populate the event modal from an existing event page for editing.
+function eventPageToDraft(page: BookingEventPage): EventDraft {
+  const meta = (page.metadata ?? {}) as Record<string, unknown>;
+  const str = (v: unknown) => (typeof v === "string" ? v : "");
+  return {
+    id: page.id,
+    title: page.title || "",
+    slug: page.slug || "",
+    summary: page.summary || "",
+    description: page.description || "",
+    appointment_type_id: page.appointment_type_id || "",
+    event_type: str(meta.event_type) || EVENT_TYPES[0],
+    host_staff_user_id: page.host_staff_user_id || "",
+    project_id: page.project_id || "",
+    start_time: page.start_time ? toDateTimeLocal(new Date(page.start_time)) : "",
+    end_time: page.end_time ? toDateTimeLocal(new Date(page.end_time)) : "",
+    location_type: page.location_type || "in_person",
+    location: page.location || "",
+    capacity: page.capacity != null ? String(page.capacity) : "",
+    status: (["draft", "published", "private"].includes(page.status) ? page.status : "draft") as EventDraft["status"],
+    show_on_project_manager: Boolean(page.show_on_project_manager),
+    photo_url: str(meta.photo_url),
+    video_url: str(meta.video_url),
+    gallery_urls: Array.isArray(meta.gallery_urls) ? (meta.gallery_urls as unknown[]).map(str).filter(Boolean) : [],
+    show_spots_remaining: Boolean(meta.show_spots_remaining)
   };
 }
 
@@ -482,7 +513,7 @@ export function BookingsClient({ initialData, demoMode, setupMessage }: { initia
       ) : mode === "calendar" ? (
         <CalendarPanel appointments={filtered} onSelect={setSelected} />
       ) : mode === "events" ? (
-        <EventsPanel data={data} onCreate={() => setEventDraft(emptyEventDraft(data.appointmentTypes))} />
+        <EventsPanel data={data} onCreate={() => setEventDraft(emptyEventDraft(data.appointmentTypes))} onEdit={page => setEventDraft(eventPageToDraft(page))} onDelete={deleteEventPage} />
       ) : (
         <AvailabilityPanel data={data} />
       )}
@@ -563,7 +594,7 @@ export function BookingsClient({ initialData, demoMode, setupMessage }: { initia
               <div className="flex items-start justify-between border-b border-border p-5">
                 <div>
                   <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-accent">One-Time Event</div>
-                  <h2 className="mt-2 font-display text-2xl font-semibold">Create Event Page</h2>
+                  <h2 className="mt-2 font-display text-2xl font-semibold">{eventDraft.id ? "Edit Event Page" : "Create Event Page"}</h2>
                   <p className="mt-2 text-sm text-muted-foreground">Publish a frontend event page that can register contacts, optional client users, and Project Manager timeline items.</p>
                 </div>
                 <Button type="button" variant="outline" size="icon" onClick={() => setEventDraft(null)}><XCircle className="h-4 w-4" /></Button>
@@ -601,6 +632,7 @@ export function BookingsClient({ initialData, demoMode, setupMessage }: { initia
                 <Field label="Location"><Input value={eventDraft.location} onChange={event => setEventDraft({ ...eventDraft, location: event.target.value })} /></Field>
                 <Field label="Capacity"><Input type="number" value={eventDraft.capacity} onChange={event => setEventDraft({ ...eventDraft, capacity: event.target.value })} /></Field>
                 <label className="flex items-center gap-2 rounded-lg border border-border p-3 text-sm"><input type="checkbox" checked={eventDraft.show_on_project_manager} onChange={event => setEventDraft({ ...eventDraft, show_on_project_manager: event.target.checked })} /><CalendarClock className="h-4 w-4 text-accent" /> Show on Project Manager</label>
+                <label className="flex items-center gap-2 rounded-lg border border-border p-3 text-sm"><input type="checkbox" checked={eventDraft.show_spots_remaining} onChange={event => setEventDraft({ ...eventDraft, show_spots_remaining: event.target.checked })} /><Users className="h-4 w-4 text-accent" /> Show spots remaining on public page</label>
                 <Field label="Summary" className="md:col-span-2"><Input value={eventDraft.summary} onChange={event => setEventDraft({ ...eventDraft, summary: event.target.value })} /></Field>
                 <Field label="Description" className="md:col-span-2"><Textarea value={eventDraft.description} onChange={event => setEventDraft({ ...eventDraft, description: event.target.value })} /></Field>
                 <MediaUploadField label="Photo" accept="image/*" folder="event-pages" demoMode={demoMode} value={eventDraft.photo_url} onChange={url => setEventDraft(current => current ? { ...current, photo_url: url } : current)} />
@@ -608,7 +640,7 @@ export function BookingsClient({ initialData, demoMode, setupMessage }: { initia
                 <GalleryUploadField className="md:col-span-2" folder="event-pages" demoMode={demoMode} values={eventDraft.gallery_urls} onChange={urls => setEventDraft(current => current ? { ...current, gallery_urls: urls } : current)} />
               </div>
               <div className="flex flex-wrap gap-3 border-t border-border p-5">
-                <Button type="submit" variant="accent" disabled={saving}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Create Event Page</Button>
+                <Button type="submit" variant="accent" disabled={saving}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} {eventDraft.id ? "Save Changes" : "Create Event Page"}</Button>
                 <Button type="button" variant="outline" onClick={() => setEventDraft(null)}>Cancel</Button>
               </div>
             </form>
@@ -621,16 +653,17 @@ export function BookingsClient({ initialData, demoMode, setupMessage }: { initia
   async function saveEventDraft(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!eventDraft) return;
+    const isEdit = Boolean(eventDraft.id);
     setSaving(true);
     setNotice(null);
     try {
       if (demoMode) {
-        setNotice("Demo event page created locally. Live mode will publish /events/[slug] and queue staff calendar sync.");
+        setNotice(isEdit ? "Demo event page updated locally." : "Demo event page created locally. Live mode will publish /events/[slug] and queue staff calendar sync.");
         setEventDraft(null);
         return;
       }
       const response = await fetch("/api/admin/bookings", {
-        method: "POST",
+        method: isEdit ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...eventDraft,
@@ -640,12 +673,39 @@ export function BookingsClient({ initialData, demoMode, setupMessage }: { initia
         })
       });
       const json = await response.json();
-      if (!response.ok) throw new Error(json.message || "Event page create failed.");
-      setData(current => ({ ...current, eventPages: [json.eventPage, ...current.eventPages] }));
+      if (!response.ok) throw new Error(json.message || (isEdit ? "Event page update failed." : "Event page create failed."));
+      setData(current => ({
+        ...current,
+        eventPages: isEdit
+          ? current.eventPages.map(page => (page.id === json.eventPage.id ? json.eventPage : page))
+          : [json.eventPage, ...current.eventPages]
+      }));
       setEventDraft(null);
-      setNotice(`Event page created: /events/${json.eventPage.slug}`);
+      setNotice(isEdit ? `Event page updated: /events/${json.eventPage.slug}` : `Event page created: /events/${json.eventPage.slug}`);
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Event page create failed.");
+      setNotice(error instanceof Error ? error.message : "Event page save failed.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function deleteEventPage(page: BookingEventPage) {
+    if (!window.confirm(`Delete the event page "${page.title}"? This removes /events/${page.slug} and can't be undone.`)) return;
+    setSaving(true);
+    setNotice(null);
+    try {
+      if (demoMode) {
+        setData(current => ({ ...current, eventPages: current.eventPages.filter(item => item.id !== page.id) }));
+        setNotice("Demo event page removed locally.");
+        return;
+      }
+      const response = await fetch(`/api/admin/bookings?resource=event_page&id=${encodeURIComponent(page.id)}`, { method: "DELETE" });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.message || "Event page delete failed.");
+      setData(current => ({ ...current, eventPages: current.eventPages.filter(item => item.id !== page.id) }));
+      setNotice("Event page deleted.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Event page delete failed.");
     } finally {
       setSaving(false);
     }
@@ -733,7 +793,7 @@ function eventTypeOf(eventPage: BookingEventPage): string {
   return typeof meta.event_type === "string" ? meta.event_type : "";
 }
 
-function EventsPanel({ data, onCreate }: { data: BookingData; onCreate: () => void }) {
+function EventsPanel({ data, onCreate, onEdit, onDelete }: { data: BookingData; onCreate: () => void; onEdit: (page: BookingEventPage) => void; onDelete: (page: BookingEventPage) => void }) {
   const [typeFilter, setTypeFilter] = React.useState("all");
 
   // Distinct event types present across the current pages, used to build the filter.
@@ -772,7 +832,7 @@ function EventsPanel({ data, onCreate }: { data: BookingData; onCreate: () => vo
           const host = data.users.find(user => user.id === eventPage.host_staff_user_id);
           const eventType = eventTypeOf(eventPage);
           return (
-            <div key={eventPage.id} className="grid gap-3 rounded-lg border border-border p-4 text-sm md:grid-cols-[1fr_160px_140px_120px_auto] md:items-center">
+            <div key={eventPage.id} className="grid gap-3 rounded-lg border border-border p-4 text-sm md:grid-cols-[1fr_150px_130px_110px_auto] md:items-center">
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium">{eventPage.title}</span>
@@ -783,7 +843,13 @@ function EventsPanel({ data, onCreate }: { data: BookingData; onCreate: () => vo
               <div className="text-muted-foreground">{formatDateTime(eventPage.start_time)}</div>
               <div className="text-muted-foreground">{host?.display_name || "No host"}</div>
               <Badge tone={eventPage.status === "published" ? "success" : "warning"}>{eventPage.status}</Badge>
-              <Button variant="outline" size="sm" onClick={() => window.open(`/events/${eventPage.slug}`, "_blank")}>Open</Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => onEdit(eventPage)}>Edit</Button>
+                <Button variant="outline" size="sm" onClick={() => window.open(`/events/${eventPage.slug}`, "_blank")}>Open</Button>
+                <button type="button" onClick={() => onDelete(eventPage)} className="grid h-8 w-8 place-items-center rounded-md border border-border text-muted-foreground transition hover:border-destructive hover:text-destructive" title="Delete event page" aria-label="Delete event page">
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
             </div>
           );
         })}

@@ -229,4 +229,5 @@ export type EventPageInput = {
   photo_url?: string;
   video_url?: string;
   gallery_urls?: string[];
+  show_spots_remaining?: boolean;
 };

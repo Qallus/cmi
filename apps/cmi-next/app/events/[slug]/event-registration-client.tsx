@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Textarea } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
 type EventRecord = {
   id: string;
@@ -30,7 +31,13 @@ function readMedia(metadata: Record<string, unknown> | null | undefined) {
   const gallery = Array.isArray(meta.gallery_urls)
     ? (meta.gallery_urls as unknown[]).map(str).filter(Boolean)
     : [];
-  return { eventType: str(meta.event_type), photoUrl: str(meta.photo_url), videoUrl: str(meta.video_url), gallery };
+  return {
+    eventType: str(meta.event_type),
+    photoUrl: str(meta.photo_url),
+    videoUrl: str(meta.video_url),
+    gallery,
+    showSpots: Boolean(meta.show_spots_remaining),
+  };
 }
 
 export function EventRegistrationClient({ eventPage }: { eventPage: EventRecord }) {
@@ -40,7 +47,9 @@ export function EventRegistrationClient({ eventPage }: { eventPage: EventRecord 
   const [done, setDone] = React.useState(false);
   const [lightbox, setLightbox] = React.useState<string | null>(null);
   const isFull = Boolean(eventPage.capacity && eventPage.registration_count >= eventPage.capacity);
-  const { eventType, photoUrl, videoUrl, gallery } = readMedia(eventPage.metadata);
+  const { eventType, photoUrl, videoUrl, gallery, showSpots } = readMedia(eventPage.metadata);
+  const spotsRemaining = eventPage.capacity != null ? Math.max(0, eventPage.capacity - (eventPage.registration_count || 0)) : null;
+  const showSpotsRemaining = showSpots && spotsRemaining != null;
 
   React.useEffect(() => {
     if (!lightbox) return;
@@ -71,12 +80,10 @@ export function EventRegistrationClient({ eventPage }: { eventPage: EventRecord 
   }
 
   return (
-    <main id="main-content" tabIndex={-1} className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto grid max-w-6xl gap-6 px-4 py-8 lg:grid-cols-[1fr_420px]">
+    <main id="main-content" tabIndex={-1} className="bg-background text-foreground">
+      <div className="mx-auto grid max-w-6xl items-start gap-6 px-4 py-10 lg:grid-cols-[1fr_420px]">
         <section>
-          <img src="/brand/cmi-logo-light.png" alt="Constructed Matter, Inc." className="h-9 w-auto object-contain dark:hidden" />
-          <img src="/brand/cmi-logo-dark.png" alt="Constructed Matter, Inc." className="hidden h-9 w-auto object-contain dark:block" />
-          <div className="mt-10 flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="text-[10px] uppercase tracking-[0.18em] text-accent">CMI Event</span>
             {eventType ? <Badge tone="accent">{eventType}</Badge> : null}
           </div>
@@ -92,7 +99,7 @@ export function EventRegistrationClient({ eventPage }: { eventPage: EventRecord 
             <CardContent className="grid gap-4 p-5 md:grid-cols-3">
               <Info label="When" value={`${formatDateTime(eventPage.start_time)} - ${formatTime(eventPage.end_time)}`} />
               <Info label="Location" value={eventPage.location || eventPage.location_type.replace(/_/g, " ")} />
-              <Info label="Availability" value={eventPage.capacity ? `${eventPage.registration_count}/${eventPage.capacity} registered` : "Open registration"} />
+              <Info label="Availability" value={showSpotsRemaining ? `${spotsRemaining} ${spotsRemaining === 1 ? "spot" : "spots"} remaining` : eventPage.capacity ? `${eventPage.registration_count}/${eventPage.capacity} registered` : "Open registration"} />
             </CardContent>
           </Card>
           {eventPage.description ? <div className="mt-8 max-w-3xl whitespace-pre-wrap text-sm leading-7 text-muted-foreground">{eventPage.description}</div> : null}
@@ -117,9 +124,16 @@ export function EventRegistrationClient({ eventPage }: { eventPage: EventRecord 
           ) : null}
         </section>
 
-        <Card>
+        <Card className="self-start shadow-lg lg:sticky lg:top-24">
           <CardHeader>
-            <CardTitle>Register</CardTitle>
+            <div className="flex items-start justify-between gap-3">
+              <CardTitle>Register</CardTitle>
+              {showSpotsRemaining ? (
+                <span className={cn("shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold", spotsRemaining === 0 ? "bg-destructive/10 text-destructive" : "bg-accent/15 text-accent")}>
+                  {spotsRemaining === 0 ? "Full" : `${spotsRemaining} ${spotsRemaining === 1 ? "spot" : "spots"} left`}
+                </span>
+              ) : null}
+            </div>
             <CardDescription>{eventPage.requires_approval ? "CMI will review this registration before confirming." : "Reserve your spot for this one-time event."}</CardDescription>
           </CardHeader>
           <CardContent>

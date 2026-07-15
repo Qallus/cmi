@@ -317,6 +317,29 @@ function slugify(value: string) {
   return cleanText(value).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || `event-${Date.now()}`;
 }
 
+// Capacity is optional; treat empty/zero/non-numeric as "no limit" (null).
+function normalizeCapacity(value: unknown): number | null {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : null;
+}
+
+// Build the event page metadata (event type + media + display flags). When an
+// existing metadata object is passed (update), unspecified keys are preserved
+// and empty values clear the key.
+function buildEventMetadata(rawInput: Partial<EventPageInput>, existing?: Record<string, unknown> | null): Record<string, unknown> {
+  const metadata: Record<string, unknown> = { ...(existing ?? {}) };
+  const setText = (key: string, value: string) => { if (value) metadata[key] = value; else delete metadata[key]; };
+  setText("event_type", cleanText(rawInput.event_type));
+  setText("photo_url", cleanText(rawInput.photo_url));
+  setText("video_url", cleanText(rawInput.video_url));
+  if (rawInput.gallery_urls !== undefined) {
+    const gallery = (Array.isArray(rawInput.gallery_urls) ? rawInput.gallery_urls : []).map(url => cleanText(url)).filter(Boolean);
+    if (gallery.length) metadata.gallery_urls = gallery; else delete metadata.gallery_urls;
+  }
+  if (rawInput.show_spots_remaining !== undefined) metadata.show_spots_remaining = Boolean(rawInput.show_spots_remaining);
+  return metadata;
+}
+
 export async function createBookingEventPage(rawInput: Partial<EventPageInput>) {
   const supabase = getSupabaseAdmin();
   const title = cleanText(rawInput.title);
@@ -324,18 +347,6 @@ export async function createBookingEventPage(rawInput: Partial<EventPageInput>) 
   const endTime = cleanText(rawInput.end_time);
   if (!title) throw new Error("Event title is required.");
   if (!startTime || !endTime) throw new Error("Event start and end are required.");
-
-  const galleryUrls = Array.isArray(rawInput.gallery_urls)
-    ? rawInput.gallery_urls.map(url => cleanText(url)).filter(Boolean)
-    : [];
-  const metadata: Record<string, unknown> = {};
-  const eventType = cleanText(rawInput.event_type);
-  const photoUrl = cleanText(rawInput.photo_url);
-  const videoUrl = cleanText(rawInput.video_url);
-  if (eventType) metadata.event_type = eventType;
-  if (photoUrl) metadata.photo_url = photoUrl;
-  if (videoUrl) metadata.video_url = videoUrl;
-  if (galleryUrls.length) metadata.gallery_urls = galleryUrls;
 
   const payload = {
     title,
@@ -351,12 +362,12 @@ export async function createBookingEventPage(rawInput: Partial<EventPageInput>) 
     location_type: cleanText(rawInput.location_type) || "in_person",
     location: cleanText(rawInput.location) || null,
     meeting_url: cleanText(rawInput.meeting_url) || null,
-    capacity: Number.isFinite(Number(rawInput.capacity)) ? Number(rawInput.capacity) : null,
+    capacity: normalizeCapacity(rawInput.capacity),
     requires_approval: Boolean(rawInput.requires_approval),
     client_visible: rawInput.client_visible !== false,
     show_on_project_manager: Boolean(rawInput.show_on_project_manager),
     status: rawInput.status || "draft",
-    metadata,
+    metadata: buildEventMetadata(rawInput),
     published_at: rawInput.status === "published" ? new Date().toISOString() : null
   };
 
@@ -598,6 +609,73 @@ export async function deleteBookingAppointment(id: string) {
   await supabase.from("booking_question_answers").delete().eq("appointment_id", id);
   await supabase.from("booking_notifications").delete().eq("appointment_id", id);
   const { error } = await supabase.from("booking_appointments").delete().eq("id", id);
+  if (error) throw error;
+  return { ok: true };
+}
+
+export async function updateBookingEventPage(id: string, rawInput: Partial<EventPageInput>) {
+  const supabase = getSupabaseAdmin();
+  const { data: existing, error: loadError } = await supabase.from("booking_event_pages").select("*").eq("id", id).maybeSingle();
+  if (loadError) throw loadError;
+  if (!existing) throw new Error("Event page was not found.");
+
+  const title = cleanText(rawInput.title) || (existing.title as string);
+  const startTime = cleanText(rawInput.start_time);
+  const endTime = cleanText(rawInput.end_time);
+  const nextStatus = (rawInput.status || existing.status) as string;
+
+  const updates: Record<string, unknown> = {
+    title,
+    summary: cleanText(rawInput.summary) || null,
+    description: cleanText(rawInput.description) || null,
+    appointment_type_id: cleanText(rawInput.appointment_type_id) || (existing.appointment_type_id as string | null) || null,
+    host_staff_user_id: cleanText(rawInput.host_staff_user_id) || null,
+    project_id: cleanText(rawInput.project_id) || null,
+    location_type: cleanText(rawInput.location_type) || (existing.location_type as string) || "in_person",
+    location: cleanText(rawInput.location) || null,
+    meeting_url: cleanText(rawInput.meeting_url) || null,
+    capacity: normalizeCapacity(rawInput.capacity),
+    requires_approval: Boolean(rawInput.requires_approval),
+    client_visible: rawInput.client_visible !== false,
+    show_on_project_manager: Boolean(rawInput.show_on_project_manager),
+    status: nextStatus,
+    metadata: buildEventMetadata(rawInput, existing.metadata as Record<string, unknown> | null),
+    updated_at: new Date().toISOString()
+  };
+  if (rawInput.slug) updates.slug = slugify(rawInput.slug);
+  if (startTime) updates.start_time = new Date(startTime).toISOString();
+  if (endTime) updates.end_time = new Date(endTime).toISOString();
+  // Stamp published_at the first time it goes live; keep it thereafter.
+  if (nextStatus === "published" && !existing.published_at) updates.published_at = new Date().toISOString();
+
+  const { data, error } = await supabase.from("booking_event_pages").update(updates).eq("id", id).select("*").single();
+  if (error) throw error;
+
+  // Keep the linked Project Manager schedule item (if any) in sync.
+  const scheduleItemId = existing.project_schedule_item_id as string | null;
+  if (scheduleItemId) {
+    await supabase.from("project_schedule_items").update({
+      title,
+      project_title: title,
+      start_date: dateTimeToDateKey(data.start_time),
+      end_date: dateTimeToDateKey(data.end_time),
+      description: (data.summary as string) || (data.description as string) || null,
+      client_visible: data.client_visible
+    }).eq("id", scheduleItemId);
+  }
+
+  return data;
+}
+
+export async function deleteBookingEventPage(id: string) {
+  const supabase = getSupabaseAdmin();
+  const { data: existing } = await supabase.from("booking_event_pages").select("project_schedule_item_id").eq("id", id).maybeSingle();
+  // Best-effort cleanup of the linked schedule item so it doesn't orphan.
+  const scheduleItemId = existing?.project_schedule_item_id as string | null | undefined;
+  if (scheduleItemId) {
+    await supabase.from("project_schedule_items").delete().eq("id", scheduleItemId);
+  }
+  const { error } = await supabase.from("booking_event_pages").delete().eq("id", id);
   if (error) throw error;
   return { ok: true };
 }

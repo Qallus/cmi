@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin, AuthError } from "@/lib/auth/require-admin";
-import { createBookingAppointment, createBookingEventPage, loadBookingData, updateBookingAppointment, deleteBookingAppointment } from "@/lib/booking/data";
+import { createBookingAppointment, createBookingEventPage, loadBookingData, updateBookingAppointment, deleteBookingAppointment, updateBookingEventPage, deleteBookingEventPage } from "@/lib/booking/data";
 
 export async function GET(request: Request) {
   try {
@@ -34,7 +34,11 @@ export async function PATCH(request: NextRequest) {
     await requireAdmin(request);
     const body = await request.json();
     const id = String(body.id || "");
-    if (!id) throw new Error("Appointment id is required.");
+    if (!id) throw new Error("id is required.");
+    if (body.resource === "event_page") {
+      const eventPage = await updateBookingEventPage(id, body);
+      return NextResponse.json({ eventPage });
+    }
     const appointment = await updateBookingAppointment(id, body);
     return NextResponse.json({ appointment });
   } catch (error) {
@@ -46,9 +50,15 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     await requireAdmin(request);
-    let id = new URL(request.url).searchParams.get("id") || "";
+    const url = new URL(request.url);
+    let id = url.searchParams.get("id") || "";
+    const resource = url.searchParams.get("resource") || "";
     if (!id) { const body = await request.json().catch(() => ({})); id = String((body as { id?: string }).id || ""); }
-    if (!id) throw new Error("Appointment id is required.");
+    if (!id) throw new Error("id is required.");
+    if (resource === "event_page") {
+      await deleteBookingEventPage(id);
+      return NextResponse.json({ ok: true });
+    }
     await deleteBookingAppointment(id);
     return NextResponse.json({ ok: true });
   } catch (error) {
