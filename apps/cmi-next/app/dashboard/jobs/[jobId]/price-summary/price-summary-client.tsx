@@ -16,11 +16,11 @@ export function PriceSummaryClient({ summary, client }: { summary: PriceSummary;
   const job = summary.job;
 
   return (
-    <div className="flex h-[calc(100vh-56px)] flex-col">
+    <div className="flex h-[calc(100vh-56px)] flex-col print:block print:h-auto">
       <div className="print:hidden">
         <JobDetailNav jobId={job.id} active="price-summary" />
       </div>
-      <div className="flex-1 overflow-auto p-4 md:p-6">
+      <div className="flex-1 overflow-auto p-4 md:p-6 print:overflow-visible print:p-0">
         {/* Controls (hidden when printing) */}
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
           <Link href={`/dashboard/jobs/${job.id}/summary`} className="text-xs text-muted-foreground hover:text-foreground">← {job.job_name}</Link>
@@ -32,8 +32,8 @@ export function PriceSummaryClient({ summary, client }: { summary: PriceSummary;
           </div>
         </div>
 
-        {/* Printable sheet */}
-        <div className="mx-auto max-w-4xl rounded-lg border border-border bg-card p-6 print:border-0 print:shadow-none">
+        {/* Full-width on screen; a clean centered document when printing. */}
+        <div className="w-full rounded-lg border border-border bg-card p-6 print:mx-auto print:max-w-[7.5in] print:border-0 print:p-0 print:shadow-none">
         {/* Branding */}
         <div className="flex items-start justify-between border-b border-border pb-4">
           <div>
