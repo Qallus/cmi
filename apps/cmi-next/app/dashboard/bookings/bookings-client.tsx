@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Select, Textarea } from "@/components/ui/input";
 import { cn, initials } from "@/lib/utils";
-import type { AppointmentStatus, AppointmentType, BookingAppointment, BookingData, BookingInput, BookingSlot } from "@/lib/booking/types";
+import type { AppointmentStatus, AppointmentType, BookingAppointment, BookingData, BookingEventPage, BookingInput, BookingSlot } from "@/lib/booking/types";
 
 type Draft = Partial<BookingInput>;
 type EventDraft = {
@@ -728,7 +728,26 @@ function AvailabilityPanel({ data }: { data: BookingData }) {
   );
 }
 
+function eventTypeOf(eventPage: BookingEventPage): string {
+  const meta = (eventPage.metadata ?? {}) as Record<string, unknown>;
+  return typeof meta.event_type === "string" ? meta.event_type : "";
+}
+
 function EventsPanel({ data, onCreate }: { data: BookingData; onCreate: () => void }) {
+  const [typeFilter, setTypeFilter] = React.useState("all");
+
+  // Distinct event types present across the current pages, used to build the filter.
+  const presentTypes = React.useMemo(() => {
+    const set = new Set<string>();
+    for (const page of data.eventPages) { const type = eventTypeOf(page); if (type) set.add(type); }
+    return Array.from(set).sort();
+  }, [data.eventPages]);
+
+  const visiblePages = React.useMemo(
+    () => (typeFilter === "all" ? data.eventPages : data.eventPages.filter(page => eventTypeOf(page) === typeFilter)),
+    [data.eventPages, typeFilter]
+  );
+
   return (
     <Card>
       <CardHeader>
@@ -737,16 +756,28 @@ function EventsPanel({ data, onCreate }: { data: BookingData; onCreate: () => vo
             <CardTitle>One-Time Event Pages</CardTitle>
             <CardDescription>Frontend event pages can register contacts, create users, connect staff calendars, and show on the Project Manager.</CardDescription>
           </div>
-          <Button variant="accent" onClick={onCreate}><Plus className="h-4 w-4" /> New Event</Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {presentTypes.length ? (
+              <Select className="md:w-48" value={typeFilter} onChange={event => setTypeFilter(event.target.value)}>
+                <option value="all">All event types</option>
+                {presentTypes.map(type => <option key={type} value={type}>{type}</option>)}
+              </Select>
+            ) : null}
+            <Button variant="accent" onClick={onCreate}><Plus className="h-4 w-4" /> New Event</Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
-        {data.eventPages.map(eventPage => {
+        {visiblePages.map(eventPage => {
           const host = data.users.find(user => user.id === eventPage.host_staff_user_id);
+          const eventType = eventTypeOf(eventPage);
           return (
-            <div key={eventPage.id} className="grid gap-3 rounded-lg border border-border p-4 text-sm md:grid-cols-[1fr_180px_140px_120px_auto] md:items-center">
+            <div key={eventPage.id} className="grid gap-3 rounded-lg border border-border p-4 text-sm md:grid-cols-[1fr_160px_140px_120px_auto] md:items-center">
               <div>
-                <div className="font-medium">{eventPage.title}</div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium">{eventPage.title}</span>
+                  {eventType ? <Badge tone="accent">{eventType}</Badge> : null}
+                </div>
                 <div className="mt-1 text-muted-foreground">/events/{eventPage.slug}</div>
               </div>
               <div className="text-muted-foreground">{formatDateTime(eventPage.start_time)}</div>
@@ -757,6 +788,7 @@ function EventsPanel({ data, onCreate }: { data: BookingData; onCreate: () => vo
           );
         })}
         {!data.eventPages.length ? <div className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">No event pages yet.</div> : null}
+        {data.eventPages.length > 0 && visiblePages.length === 0 ? <div className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">No events match this type.</div> : null}
 
         <div className="mt-6 rounded-lg border border-border bg-muted/30 p-4">
           <div className="font-medium">Staff Calendar Sync Foundation</div>

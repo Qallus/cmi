@@ -165,6 +165,7 @@ export type BookingEventPage = {
   seo_title: string | null;
   seo_description: string | null;
   published_at: string | null;
+  metadata?: Record<string, unknown> | null;
 };
 
 export type BookingData = {
