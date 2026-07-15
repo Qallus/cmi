@@ -13,15 +13,14 @@ export function JobModuleShell({
 }) {
   return (
     <div className="flex h-[calc(100vh-56px)] flex-col">
-      <div className="border-b border-border bg-card px-4 pt-4 md:px-6">
-        <Link href={`/dashboard/jobs/${jobId}/summary`} className="text-xs text-muted-foreground hover:text-foreground">← {jobName}</Link>
-        <div className="mt-1 flex flex-wrap items-center justify-between gap-3 pb-3">
+      <JobDetailNav jobId={jobId} active={active} action={action} />
+      <div className="flex-1 overflow-auto p-4 md:p-6">
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <Link href={`/dashboard/jobs/${jobId}/summary`} className="text-xs text-muted-foreground hover:text-foreground">← {jobName}</Link>
           <h1 className="font-display text-2xl font-semibold tracking-tight">{title}</h1>
-          {action}
         </div>
+        {children}
       </div>
-      <JobDetailNav jobId={jobId} active={active} />
-      <div className="flex-1 overflow-auto p-4 md:p-6">{children}</div>
     </div>
   );
 }

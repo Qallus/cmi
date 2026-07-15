@@ -9,7 +9,6 @@ import { cn } from "@/lib/utils";
 import { ALL_JOB_STATUSES, JOB_STATUS_META } from "@/lib/jobs/status";
 import { CONTRACT_TYPES, INSURANCE_STATUSES } from "@/lib/jobs/types";
 import type { JobWithRelations, JobType, JobGroup, JobStatus, JobContact, JobInternalUser, JobVendor, JobSettings, JobInsurance, ClientPermissions } from "@/lib/jobs/types";
-import { JobStatusBadge } from "../../job-ui";
 import { JobDetailNav } from "../job-detail-nav";
 
 type TabKey = "details" | "clients" | "internal" | "vendors" | "advanced" | "insurance";
@@ -40,17 +39,10 @@ export function JobInfoClient({ job, types, groups }: { job: JobWithRelations; t
 
   return (
     <div className="flex h-[calc(100vh-56px)] flex-col">
-      <div className="border-b border-border bg-card px-4 pt-4 md:px-6">
-        <Link href={`/dashboard/jobs/${job.id}/summary`} className="text-xs text-muted-foreground hover:text-foreground">← {job.job_name}</Link>
-        <div className="mt-1 flex items-center gap-2 pb-3">
-          <h1 className="font-display text-2xl font-semibold tracking-tight">Job Info</h1>
-          <JobStatusBadge status={job.status as JobStatus} />
-          <span className="font-mono text-xs text-muted-foreground">{job.job_number ?? "—"}</span>
-        </div>
-      </div>
       <JobDetailNav jobId={job.id} active="info" />
       <div className="border-b border-border bg-card px-4 md:px-6">
-        <div className="flex flex-wrap gap-1 py-2">
+        <div className="flex flex-wrap items-center gap-2 py-2">
+          <Link href={`/dashboard/jobs/${job.id}/summary`} className="mr-1 text-xs text-muted-foreground hover:text-foreground">← {job.job_name}</Link>
           {TABS.map((t) => (
             <button key={t.key} type="button" onClick={() => setTab(t.key)}
               className={cn("rounded-md px-3 py-1.5 text-xs font-medium transition", tab === t.key ? "bg-accent/15 text-accent" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
@@ -61,7 +53,7 @@ export function JobInfoClient({ job, types, groups }: { job: JobWithRelations; t
       </div>
 
       <div className="flex-1 overflow-auto p-4 md:p-6">
-        <div className="mx-auto max-w-3xl">
+        <div className="max-w-5xl">
           {tab === "details" && <DetailsTab job={job} types={types} groups={groups} />}
           {tab === "clients" && <ClientsTab job={job} contacts={contacts} />}
           {tab === "internal" && <InternalTab job={job} staff={staff} />}

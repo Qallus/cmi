@@ -32,12 +32,12 @@ export default async function JobModulePage({ params }: { params: Promise<{ jobI
 
   return (
     <div className="flex h-[calc(100vh-56px)] flex-col">
-      <div className="border-b border-border bg-card px-4 pt-4 md:px-6">
-        <Link href={`/dashboard/jobs/${jobId}/summary`} className="text-xs text-muted-foreground hover:text-foreground">← {job.job_name}</Link>
-        <h1 className="mb-3 mt-1 font-display text-2xl font-semibold tracking-tight">{title}</h1>
-      </div>
       <JobDetailNav jobId={jobId} active={module} />
       <div className="flex-1 overflow-auto p-4 md:p-6">
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <Link href={`/dashboard/jobs/${jobId}/summary`} className="text-xs text-muted-foreground hover:text-foreground">← {job.job_name}</Link>
+          <h1 className="font-display text-2xl font-semibold tracking-tight">{title}</h1>
+        </div>
         <div className="mx-auto max-w-2xl rounded-lg border border-border bg-card p-8 text-center">
           {linked ? (
             <>

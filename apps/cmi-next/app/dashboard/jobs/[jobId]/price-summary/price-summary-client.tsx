@@ -6,6 +6,7 @@ import { Download, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { PriceSummary } from "@/lib/jobs/types";
 import { money, formatDate } from "../../job-ui";
+import { JobDetailNav } from "../job-detail-nav";
 
 // Printable job price summary. `print:hidden` hides app chrome (nav/header set in
 // the dashboard layout + the controls here) so the printout is client-ready.
@@ -15,20 +16,24 @@ export function PriceSummaryClient({ summary, client }: { summary: PriceSummary;
   const job = summary.job;
 
   return (
-    <div className="p-4 md:p-6">
-      {/* Controls (hidden when printing) */}
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
-        <Link href={`/dashboard/jobs/${job.id}/summary`} className="text-xs text-muted-foreground hover:text-foreground">← {job.job_name}</Link>
-        <div className="flex flex-wrap items-center gap-3">
-          <label className="flex items-center gap-1.5 text-sm"><input type="checkbox" checked={showChangeOrders} onChange={(e) => setShowChangeOrders(e.target.checked)} /> Show approved change orders</label>
-          <label className="flex items-center gap-1.5 text-sm"><input type="checkbox" checked={showInvoices} onChange={(e) => setShowInvoices(e.target.checked)} /> Show invoices</label>
-          <a href={`/api/jobs/${job.id}/price-summary/pdf`} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-3 text-xs font-medium text-foreground hover:bg-muted"><Download className="h-3.5 w-3.5" /> Download PDF</a>
-          <Button size="sm" variant="accent" onClick={() => window.print()}><Printer className="h-3.5 w-3.5" /> Print</Button>
-        </div>
+    <div className="flex h-[calc(100vh-56px)] flex-col">
+      <div className="print:hidden">
+        <JobDetailNav jobId={job.id} active="price-summary" />
       </div>
+      <div className="flex-1 overflow-auto p-4 md:p-6">
+        {/* Controls (hidden when printing) */}
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
+          <Link href={`/dashboard/jobs/${job.id}/summary`} className="text-xs text-muted-foreground hover:text-foreground">← {job.job_name}</Link>
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-1.5 text-sm"><input type="checkbox" checked={showChangeOrders} onChange={(e) => setShowChangeOrders(e.target.checked)} /> Show approved change orders</label>
+            <label className="flex items-center gap-1.5 text-sm"><input type="checkbox" checked={showInvoices} onChange={(e) => setShowInvoices(e.target.checked)} /> Show invoices</label>
+            <a href={`/api/jobs/${job.id}/price-summary/pdf`} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-3 text-xs font-medium text-foreground hover:bg-muted"><Download className="h-3.5 w-3.5" /> Download PDF</a>
+            <Button size="sm" variant="accent" onClick={() => window.print()}><Printer className="h-3.5 w-3.5" /> Print</Button>
+          </div>
+        </div>
 
-      {/* Printable sheet */}
-      <div className="mx-auto max-w-3xl rounded-lg border border-border bg-card p-6 print:border-0 print:shadow-none">
+        {/* Printable sheet */}
+        <div className="mx-auto max-w-4xl rounded-lg border border-border bg-card p-6 print:border-0 print:shadow-none">
         {/* Branding */}
         <div className="flex items-start justify-between border-b border-border pb-4">
           <div>
@@ -99,6 +104,7 @@ export function PriceSummaryClient({ summary, client }: { summary: PriceSummary;
         <p className="mt-6 text-[11px] text-muted-foreground print:hidden">
           Change orders and invoices are placeholders until those modules are connected; the contract price already drives the total.
         </p>
+        </div>
       </div>
     </div>
   );
