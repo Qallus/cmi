@@ -3,6 +3,7 @@ export type QuoteStatus = "New" | "In Review" | "Quoted" | "Won" | "Lost";
 export type Quote = {
   id: string;
   fluent_crm_id: number | null;
+  lead_number: string | null;
   contact_id: string | null;
   name: string;
   email: string | null;
@@ -21,4 +22,4 @@ export type Quote = {
   updated_at: string;
 };
 
-export type QuoteDraft = Omit<Quote, "id" | "fluent_crm_id" | "created_at" | "updated_at">;
+export type QuoteDraft = Omit<Quote, "id" | "fluent_crm_id" | "lead_number" | "created_at" | "updated_at">;

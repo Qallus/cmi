@@ -46,8 +46,8 @@ const pages: Record<string, { title: string; eyebrow: string; description: strin
     stats: ["Single SMS", "Bulk SMS", "Email", "Inbox"]
   },
   "quotes-leads": {
-    title: "Quotes & Leads",
-    eyebrow: "Sales",
+    title: "Pre-Construction",
+    eyebrow: "Pre-Con",
     description: "Quote pipeline, lead status, project intake details, and conversion to projects.",
     stats: ["New", "In Review", "Quoted", "Won"]
   },

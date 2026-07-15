@@ -186,8 +186,8 @@ export function QuotesClient({ initialQuotes }: { initialQuotes: Quote[] }) {
       <div className="border-b border-border bg-card px-4 py-4 md:px-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Sales</div>
-            <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight">Quotes & Leads</h1>
+            <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Pre-Con</div>
+            <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight">Pre-Construction</h1>
             <p className="mt-1 text-sm text-muted-foreground">{quotes.length} total</p>
           </div>
           <div className="flex items-center gap-2">
@@ -409,6 +409,7 @@ function TableView({ rows, onOpen, onEdit }: { rows: Quote[]; onOpen: (q: Quote)
         {rows.map((q) => (
           <tr key={q.id} className="cursor-pointer transition hover:bg-muted/30" onClick={() => onOpen(q)}>
             <td className="px-4 py-3">
+              {q.lead_number && <div className="font-mono text-[11px] font-medium text-accent">{q.lead_number}</div>}
               <div className="font-medium">{q.name}</div>
               {q.email && <div className="text-xs text-muted-foreground">{q.email}</div>}
             </td>
@@ -437,6 +438,7 @@ function ListView({ rows, onOpen, onEdit }: { rows: Quote[]; onOpen: (q: Quote) 
         <button key={q.id} type="button" onClick={() => onOpen(q)} className="flex w-full items-center gap-4 px-4 py-3 text-left transition hover:bg-muted/30 md:px-6">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
+              {q.lead_number && <span className="shrink-0 font-mono text-[11px] font-medium text-accent">{q.lead_number}</span>}
               <span className="truncate font-medium">{q.name}</span>
               <Badge tone={STATUS_TONES[q.status]}>{q.status}</Badge>
             </div>

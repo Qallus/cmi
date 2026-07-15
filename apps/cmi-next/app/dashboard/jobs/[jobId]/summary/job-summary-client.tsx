@@ -63,6 +63,7 @@ export function JobSummaryClient({ job }: { job: JobWithRelations }) {
             <Card title="Job">
               <KV label="Status"><JobStatusBadge status={job.status as JobStatus} /></KV>
               <KV label="Job #">{job.job_number ?? "—"}</KV>
+              {job.lead_number && <KV label="Pre-Con #"><span className="font-mono text-xs text-accent">{job.lead_number}</span></KV>}
               <KV label="Type">{job.job_type?.name ?? "—"}</KV>
               <KV label="Contract">{money(job.contract_price)}</KV>
               <KV label="Address">{job.full_address ?? "—"}</KV>

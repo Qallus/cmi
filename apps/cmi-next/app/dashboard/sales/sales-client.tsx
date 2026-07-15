@@ -13,7 +13,7 @@ import type { PipelineReport } from "@/lib/pipeline/reporting";
 type SalesTab = "leads" | "opportunities" | "reports";
 
 const TABS: { key: SalesTab; label: string; icon: typeof Workflow; hint: string }[] = [
-  { key: "leads", label: "Leads", icon: BriefcaseBusiness, hint: "Marketing & intake — quote requests and CRM leads (no job number yet)." },
+  { key: "leads", label: "Leads", icon: BriefcaseBusiness, hint: "Marketing & intake — quote requests and CRM leads, each with a pre-construction number (CM-YYYY-####) that follows it into Opportunities and Jobs." },
   { key: "opportunities", label: "Opportunities", icon: Workflow, hint: "Real projects with a job number, moving through the build lifecycle." },
   { key: "reports", label: "Reports", icon: PieChart, hint: "Conversion, forecast, and loss reporting across the whole funnel." },
 ];

@@ -38,12 +38,17 @@ export async function getOpportunity(id: string): Promise<Opportunity | null> {
 export async function createOpportunity(
   draft: OpportunityDraft,
   actor?: { name?: string | null; id?: string | null },
+  explicitJobNumber?: string | null,
 ): Promise<Opportunity> {
   const supabase = getSupabaseAdmin();
   const stage = (draft.stage ?? "opportunity") as PipelineStage;
+  // When promoted from a lead, inherit the lead's pre-construction number
+  // (CM-YYYY-####). The trigger only mints a new one when job_number is blank.
+  const insert: Record<string, unknown> = { ...sanitizeDraft(draft), stage };
+  if (explicitJobNumber) insert.job_number = explicitJobNumber;
   const { data, error } = await supabase
     .from("pipeline_opportunities")
-    .insert({ ...sanitizeDraft(draft), stage })
+    .insert(insert)
     .select()
     .single();
   if (error) throw new Error(error.message);
@@ -161,7 +166,8 @@ export async function convertQuoteToOpportunity(
     stage: "opportunity",
     ...overrides,
   };
-  const created = await createOpportunity(draft, actor);
+  // Thread the lead's pre-construction number onto the opportunity.
+  const created = await createOpportunity(draft, actor, quote.lead_number ?? null);
 
   // Mark the quote as won/converted so it drops out of the open lead list.
   await supabase.from("quotes").update({ status: "Won", updated_at: new Date().toISOString() }).eq("id", quoteId);

@@ -23,6 +23,7 @@ export type Job = {
   related_lead_id: string | null;
   related_opportunity_id: string | null;
   job_number: string | null;
+  lead_number: string | null;
   job_name: string;
   prefix: string | null;
   job_type_id: string | null;

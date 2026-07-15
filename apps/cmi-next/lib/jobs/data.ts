@@ -328,6 +328,14 @@ export async function convertOpportunityToJob(
   };
   const job = await createJob(draft, actor);
 
+  // Thread the pre-construction number (CM-YYYY-####) onto the job so the lead →
+  // opportunity → job chain shares one traceable number, alongside the job's own
+  // YY_###_JobName.
+  if (opp.job_number) {
+    await sb.from("jobs").update({ lead_number: opp.job_number }).eq("id", job.id);
+    (job as Job).lead_number = opp.job_number;
+  }
+
   // Seed the client list from the opportunity's linked contact.
   if (opp.contact_id) {
     await sb.from("job_contacts").insert({ job_id: job.id, contact_id: opp.contact_id, role: "client", is_primary: true }).select("id").maybeSingle();
