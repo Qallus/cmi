@@ -7,7 +7,7 @@ import { Tooltip } from "@/components/ui/tooltip";
 import {
   ArrowLeft, BookOpen, BriefcaseBusiness, CalendarRange,
   CreditCard, FileText, FolderKanban, HardHat, Home, IdCard, LayoutGrid,
-  MessageCircle, Mic, Minus, Newspaper, Package, Plus, Settings, ShieldCheck,
+  MessageCircle, MessagesSquare, Mic, Minus, Newspaper, Package, Plus, Settings, ShieldCheck,
   Sparkles, User, UserRoundCog, Users,
 } from "lucide-react";
 
@@ -47,6 +47,7 @@ const nav: NavItem[] = [
   {
     href: "/dashboard/communications", label: "Communications", icon: MessageCircle,  roles: ["super_admin", "admin", "project_manager", "estimator"],
     children: [
+      { href: "/dashboard/direct-messages",  label: "Direct Messages",  icon: MessagesSquare, roles: ["super_admin", "admin", "project_manager", "designer", "estimator", "superintendent", "staff"] },
       { href: "/dashboard/business-cards",   label: "Business Cards",   icon: IdCard, roles: ["super_admin", "admin", "project_manager", "designer", "estimator", "superintendent", "staff"] },
       { href: "/dashboard/recording-studio", label: "Recording Studio", icon: Mic,    roles: ["super_admin", "admin", "project_manager", "designer", "estimator", "superintendent", "staff"] },
     ],

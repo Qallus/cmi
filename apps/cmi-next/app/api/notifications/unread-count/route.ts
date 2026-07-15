@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { requireAdmin, AuthError } from "@/lib/auth/require-admin";
+import { getUnreadCount as getDmUnreadCount } from "@/lib/direct-messages/data";
 
 export async function GET(request: Request) {
   try {
@@ -49,7 +50,8 @@ export async function GET(request: Request) {
     const unreadShared = ((sharedNotesRes.data as { read_by: string[] }[] | null) ?? [])
       .filter((r) => !(r.read_by ?? []).map((e) => e.toLowerCase()).includes(email.toLowerCase())).length;
 
-    const count = (submissionsRes.count ?? 0) + (messagesRes.count ?? 0) + (leadsRes.count ?? 0) + unreadShared + (bookingsRes.count ?? 0);
+    const dmUnread = await getDmUnreadCount(staff.id).catch(() => 0);
+    const count = (submissionsRes.count ?? 0) + (messagesRes.count ?? 0) + (leadsRes.count ?? 0) + unreadShared + (bookingsRes.count ?? 0) + dmUnread;
     return NextResponse.json({ count });
   } catch (error) {
     if (error instanceof AuthError) return NextResponse.json({ count: 0 }, { status: error.status });

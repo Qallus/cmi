@@ -12,8 +12,9 @@
 // use status='read'; notes append the reader's email to read_by[].
 
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { listConversations } from "@/lib/direct-messages/data";
 
-export type StaffNotificationKind = "submission" | "message" | "lead" | "note" | "booking";
+export type StaffNotificationKind = "submission" | "message" | "lead" | "note" | "booking" | "dm";
 
 export type StaffNotification = {
   id: string;
@@ -32,6 +33,7 @@ const HREF: Record<StaffNotificationKind, string> = {
   lead: "/dashboard/business-cards",
   note: "/dashboard/site-content",
   booking: "/dashboard/bookings",
+  dm: "/dashboard/direct-messages",
 };
 
 function bookingWhen(iso: string | null): string {
@@ -167,6 +169,22 @@ export async function loadStaffNotifications(ctx: Ctx): Promise<StaffNotificatio
     });
   }
 
+  // Unread direct messages → one item per conversation with unread messages.
+  try {
+    const convos = await listConversations(ctx.staffId);
+    for (const c of convos) {
+      if (c.unread <= 0) continue;
+      items.push({
+        id: c.id,
+        kind: "dm",
+        title: `Message from ${c.other?.name ?? "a teammate"}`,
+        subtitle: snippet(c.last_message_preview ?? ""),
+        time: c.last_message_at ?? new Date(0).toISOString(),
+        href: HREF.dm,
+      });
+    }
+  } catch { /* DM feed is best-effort */ }
+
   items.sort((a, b) => (a.time < b.time ? 1 : a.time > b.time ? -1 : 0));
   return items;
 }
@@ -198,6 +216,9 @@ export async function markStaffNotificationRead(
       }
     } else if (kind === "booking") {
       await supabase.from("booking_appointments").update({ notification_read_at: nowExpr }).eq("id", id);
+    } else if (kind === "dm") {
+      // Mark the conversation read for this staff user.
+      await supabase.from("dm_participants").update({ last_read_at: nowExpr }).eq("conversation_id", id).eq("user_id", ctx.staffId);
     }
     return true;
   } catch {
