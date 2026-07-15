@@ -41,8 +41,8 @@ export function JobSummaryClient({ job, stats }: { job: JobWithRelations; stats:
       />
 
       <div className="flex-1 overflow-auto p-4 md:p-6">
-        {/* Stat tiles aligned with the job */}
-        <JobStatsRow stats={stats} />
+        {/* Stat tiles aligned with the job — each links into its area */}
+        <JobStatsRow stats={stats} jobId={job.id} />
 
         <div className="mt-4 grid gap-4 lg:grid-cols-3">
           {/* Summary card — job identity now lives here (moved out of the header) */}
@@ -230,27 +230,27 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   return <div className="flex flex-col gap-1"><label className="text-xs font-medium text-muted-foreground">{label}</label>{children}</div>;
 }
 
-function JobStatsRow({ stats }: { stats: JobStats }) {
-  const tiles: { label: string; value: number; icon: React.ComponentType<{ className?: string }> }[] = [
-    { label: "Documents", value: stats.documents, icon: FileText },
-    { label: "Contracts", value: stats.contracts, icon: FileSignature },
-    { label: "SOWs", value: stats.sows, icon: ScrollText },
-    { label: "Active Staff", value: stats.staff, icon: Users },
-    { label: "Quotes", value: stats.quotes, icon: BadgeDollarSign },
-    { label: "Invoices", value: stats.invoices, icon: ReceiptText },
-    { label: "Contacts", value: stats.contacts, icon: Contact },
-    { label: "Bookings", value: stats.bookings, icon: CalendarClock },
+function JobStatsRow({ stats, jobId }: { stats: JobStats; jobId: string }) {
+  const tiles: { label: string; value: number; icon: React.ComponentType<{ className?: string }>; href: string }[] = [
+    { label: "Documents", value: stats.documents, icon: FileText, href: `/dashboard/jobs/${jobId}/files` },
+    { label: "Contracts", value: stats.contracts, icon: FileSignature, href: "/dashboard/documents" },
+    { label: "SOWs", value: stats.sows, icon: ScrollText, href: "/dashboard/documents" },
+    { label: "Active Staff", value: stats.staff, icon: Users, href: `/dashboard/jobs/${jobId}/info` },
+    { label: "Quotes", value: stats.quotes, icon: BadgeDollarSign, href: "/dashboard/sales" },
+    { label: "Invoices", value: stats.invoices, icon: ReceiptText, href: `/dashboard/jobs/${jobId}/invoices` },
+    { label: "Contacts", value: stats.contacts, icon: Contact, href: `/dashboard/jobs/${jobId}/info` },
+    { label: "Bookings", value: stats.bookings, icon: CalendarClock, href: "/dashboard/bookings" },
   ];
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-8">
       {tiles.map((t) => (
-        <div key={t.label} className="rounded-lg border border-border bg-card p-4">
+        <Link key={t.label} href={t.href} className="group rounded-lg border border-border bg-card p-4 transition hover:border-accent/50 hover:bg-muted/30">
           <div className="flex items-center justify-between gap-2">
             <div className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">{t.label}</div>
-            <t.icon className="h-4 w-4 shrink-0 text-accent/70" />
+            <t.icon className="h-4 w-4 shrink-0 text-accent/70 transition group-hover:text-accent" />
           </div>
           <div className="mt-3 text-2xl font-semibold">{t.value}</div>
-        </div>
+        </Link>
       ))}
     </div>
   );
