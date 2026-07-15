@@ -1,5 +1,5 @@
 import * as React from "react";
-import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type SelectOption = {
@@ -67,6 +67,9 @@ export function Input({ className, type, ...props }: React.InputHTMLAttributes<H
   }
   if (type === "datetime-local") {
     return <DateTimeInput className={className} {...props} />;
+  }
+  if (type === "time") {
+    return <TimeInput className={className} {...props} />;
   }
 
   return (
@@ -217,6 +220,97 @@ function DateTimeInput({
             <TimeColumn values={hourOptions} value={hour} onSelect={next => { setHour(next); choose(undefined, next, minute, period); }} />
             <TimeColumn values={minuteOptions} value={minute} onSelect={next => { setMinute(next); choose(undefined, hour, next, period); }} />
             <TimeColumn values={["AM", "PM"]} value={period} onSelect={next => { const nextPeriod = next as "AM" | "PM"; setPeriod(nextPeriod); choose(undefined, hour, minute, nextPeriod); }} />
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function parseHHmm(value?: string | number | readonly string[]): { h12: number; minute: number; period: "AM" | "PM" } | null {
+  if (typeof value !== "string") return null;
+  const match = /^(\d{1,2}):(\d{2})/.exec(value);
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minute = Number(match[2]);
+  if (hours > 23 || minute > 59) return null;
+  return { h12: hours % 12 || 12, minute, period: hours >= 12 ? "PM" : "AM" };
+}
+
+function formatTimeLabel(value: string): string {
+  const parsed = parseHHmm(value);
+  return parsed ? `${parsed.h12}:${String(parsed.minute).padStart(2, "0")} ${parsed.period}` : "";
+}
+
+// Accent-themed time picker (replaces the unstyleable native type="time" popup).
+// Value stays in 24h "HH:mm" so it is a drop-in for a native time input.
+function TimeInput({
+  className,
+  value,
+  defaultValue,
+  onChange,
+  disabled,
+  name,
+  id,
+  placeholder,
+  required,
+  ..._props
+}: React.InputHTMLAttributes<HTMLInputElement>) {
+  const generatedId = React.useId();
+  const controlId = id || generatedId;
+  const isControlled = value !== undefined;
+  const [open, setOpen] = React.useState(false);
+  const [internalValue, setInternalValue] = React.useState(String(defaultValue ?? ""));
+  const selectedValue = String(isControlled ? value ?? "" : internalValue);
+  const parsed = parseHHmm(selectedValue);
+  const hour = parsed ? String(parsed.h12).padStart(2, "0") : "12";
+  const minute = parsed ? String(parsed.minute).padStart(2, "0") : "00";
+  const period: "AM" | "PM" = parsed ? parsed.period : "AM";
+  const wrapperRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    function closeOnOutsideClick(event: MouseEvent) {
+      if (!wrapperRef.current?.contains(event.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", closeOnOutsideClick);
+    return () => document.removeEventListener("mousedown", closeOnOutsideClick);
+  }, []);
+
+  const choose = (nextHour = hour, nextMinute = minute, nextPeriod: "AM" | "PM" = period) => {
+    let hours = Number(nextHour) % 12;
+    if (nextPeriod === "PM") hours += 12;
+    const next = `${String(hours).padStart(2, "0")}:${String(Number(nextMinute)).padStart(2, "0")}`;
+    if (!isControlled) setInternalValue(next);
+    onChange?.({
+      target: { value: next, name },
+      currentTarget: { value: next, name }
+    } as React.ChangeEvent<HTMLInputElement>);
+  };
+
+  const hourOptions = Array.from({ length: 12 }, (_, index) => String(index + 1).padStart(2, "0"));
+  const minuteOptions = ["00", "15", "30", "45"];
+
+  return (
+    <div ref={wrapperRef} className={cn("relative w-full", className)}>
+      {name ? <input type="hidden" name={name} value={selectedValue} required={required} /> : null}
+      <button
+        id={controlId}
+        type="button"
+        disabled={disabled}
+        className="cmi-form-control flex h-9 w-full items-center justify-between gap-2 rounded-md border border-input bg-card px-3 text-left text-sm text-foreground outline-none transition hover:border-accent focus:border-accent focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => setOpen(current => !current)}
+      >
+        <span className={cn("truncate", !parsed && "text-muted-foreground")}>{parsed ? formatTimeLabel(selectedValue) : placeholder || "Select time"}</span>
+        <Clock className="h-4 w-4 text-muted-foreground" />
+      </button>
+      {open ? (
+        <div className="absolute left-0 top-[calc(100%+4px)] z-50 w-[212px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-md border border-border bg-card text-card-foreground shadow-lg">
+          <div className="grid grid-cols-3 gap-1 bg-muted/30 p-3">
+            <TimeColumn values={hourOptions} value={hour} onSelect={next => choose(next, minute, period)} />
+            <TimeColumn values={minuteOptions} value={minute} onSelect={next => choose(hour, next, period)} />
+            <TimeColumn values={["AM", "PM"]} value={period} onSelect={next => choose(hour, minute, next as "AM" | "PM")} />
           </div>
         </div>
       ) : null}
