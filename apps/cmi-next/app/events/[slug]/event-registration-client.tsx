@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { CalendarClock, CheckCircle2, Loader2, X } from "lucide-react";
+import { CalendarClock, CheckCircle2, Loader2, MapPin, Users, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -81,28 +81,30 @@ export function EventRegistrationClient({ eventPage }: { eventPage: EventRecord 
 
   return (
     <main id="main-content" tabIndex={-1} className="bg-background text-foreground">
-      <div className="mx-auto grid max-w-6xl items-start gap-6 px-4 py-10 lg:grid-cols-[1fr_420px]">
-        <section>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[10px] uppercase tracking-[0.18em] text-accent">CMI Event</span>
-            {eventType ? <Badge tone="accent">{eventType}</Badge> : null}
+      <div className="mx-auto max-w-7xl px-4 py-10 lg:px-8">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[10px] uppercase tracking-[0.18em] text-accent">CMI Event</span>
+          {eventType ? <Badge tone="accent">{eventType}</Badge> : null}
+        </div>
+        <h1 className="mt-2 font-display text-4xl font-semibold tracking-tight">{eventPage.title}</h1>
+        {eventPage.summary ? <p className="mt-4 max-w-3xl text-base leading-7 text-muted-foreground">{eventPage.summary}</p> : null}
+        {photoUrl ? (
+          <div className="mt-8 overflow-hidden rounded-2xl border border-border">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={photoUrl} alt={eventPage.title} className="max-h-[460px] w-full object-cover" />
           </div>
-          <h1 className="mt-2 font-display text-4xl font-semibold tracking-tight">{eventPage.title}</h1>
-          {eventPage.summary ? <p className="mt-4 max-w-2xl text-base leading-7 text-muted-foreground">{eventPage.summary}</p> : null}
-          {photoUrl ? (
-            <div className="mt-8 overflow-hidden rounded-2xl border border-border">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={photoUrl} alt={eventPage.title} className="max-h-[440px] w-full object-cover" />
-            </div>
-          ) : null}
-          <Card className="mt-8">
-            <CardContent className="grid gap-4 p-5 md:grid-cols-3">
-              <Info label="When" value={`${formatDateTime(eventPage.start_time)} - ${formatTime(eventPage.end_time)}`} />
-              <Info label="Location" value={eventPage.location || eventPage.location_type.replace(/_/g, " ")} />
-              <Info label="Availability" value={showSpotsRemaining ? `${spotsRemaining} ${spotsRemaining === 1 ? "spot" : "spots"} remaining` : eventPage.capacity ? `${eventPage.registration_count}/${eventPage.capacity} registered` : "Open registration"} />
-            </CardContent>
-          </Card>
-          {eventPage.description ? <div className="mt-8 max-w-3xl whitespace-pre-wrap text-sm leading-7 text-muted-foreground">{eventPage.description}</div> : null}
+        ) : null}
+        <Card className="mt-8">
+          <CardContent className="grid gap-6 p-6 sm:grid-cols-3">
+            <Info icon={CalendarClock} label="When" value={`${formatDateTime(eventPage.start_time)} - ${formatTime(eventPage.end_time)}`} />
+            <Info icon={MapPin} label="Location" value={eventPage.location || eventPage.location_type.replace(/_/g, " ")} />
+            <Info icon={Users} label="Availability" value={showSpotsRemaining ? `${spotsRemaining} ${spotsRemaining === 1 ? "spot" : "spots"} remaining` : eventPage.capacity ? `${eventPage.registration_count}/${eventPage.capacity} registered` : "Open registration"} />
+          </CardContent>
+        </Card>
+
+        <div className="mt-8 grid items-start gap-8 lg:grid-cols-[1fr_400px]">
+          <section>
+          {eventPage.description ? <div className="max-w-3xl whitespace-pre-wrap text-sm leading-7 text-muted-foreground">{eventPage.description}</div> : null}
           {videoUrl ? (
             <div className="mt-8 max-w-3xl">
               <div className="mb-3 text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Video</div>
@@ -167,6 +169,7 @@ export function EventRegistrationClient({ eventPage }: { eventPage: EventRecord 
             )}
           </CardContent>
         </Card>
+        </div>
       </div>
 
       {lightbox ? (
@@ -196,8 +199,18 @@ function EventVideo({ url }: { url: string }) {
   return <video className="aspect-video w-full rounded-xl border border-border bg-black" src={url} controls preload="metadata" />;
 }
 
-function Info({ label, value }: { label: string; value: string }) {
-  return <div><div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{label}</div><div className="mt-2 text-sm font-medium">{value}</div></div>;
+function Info({ icon: Icon, label, value }: { icon: React.ComponentType<{ className?: string }>; label: string; value: string }) {
+  return (
+    <div className="flex items-start gap-3">
+      <span className="mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-full bg-accent/12 text-accent">
+        <Icon className="h-5 w-5" />
+      </span>
+      <div className="min-w-0">
+        <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{label}</div>
+        <div className="mt-1 text-sm font-medium leading-6">{value}</div>
+      </div>
+    </div>
+  );
 }
 
 function formatDateTime(value: string) {

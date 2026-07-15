@@ -33,7 +33,13 @@ type EventDraft = {
   video_url: string;
   gallery_urls: string[];
   show_spots_remaining: boolean;
+  multi_day: boolean;
 };
+
+// datetime-local ("YYYY-MM-DDTHH:mm") helpers for the single-date event editor.
+function datePartOf(dt: string) { return dt ? dt.slice(0, 10) : ""; }
+function timePartOf(dt: string) { return dt && dt.length >= 16 ? dt.slice(11, 16) : ""; }
+function joinDateTime(date: string, time: string) { return date ? `${date}T${time || "00:00"}` : ""; }
 type ViewMode = "list" | "calendar" | "events" | "availability";
 
 // Curated event-page categories for the "Event Type" select. Unlike appointment
@@ -232,7 +238,8 @@ function emptyEventDraft(types: AppointmentType[]): EventDraft {
     photo_url: "",
     video_url: "",
     gallery_urls: [],
-    show_spots_remaining: false
+    show_spots_remaining: false,
+    multi_day: false
   };
 }
 
@@ -260,7 +267,9 @@ function eventPageToDraft(page: BookingEventPage): EventDraft {
     photo_url: str(meta.photo_url),
     video_url: str(meta.video_url),
     gallery_urls: Array.isArray(meta.gallery_urls) ? (meta.gallery_urls as unknown[]).map(str).filter(Boolean) : [],
-    show_spots_remaining: Boolean(meta.show_spots_remaining)
+    show_spots_remaining: Boolean(meta.show_spots_remaining),
+    // Multi-day when the start and end fall on different calendar days.
+    multi_day: Boolean(page.start_time && page.end_time && page.start_time.slice(0, 10) !== page.end_time.slice(0, 10))
   };
 }
 
@@ -613,8 +622,47 @@ export function BookingsClient({ initialData, demoMode, setupMessage }: { initia
                     {data.users.filter(user => !["client", "vendor", "subcontractor"].includes(user.role_slug)).map(user => <option key={user.id} value={user.id}>{user.display_name}</option>)}
                   </Select>
                 </Field>
-                <Field label="Start *"><Input required type="datetime-local" value={eventDraft.start_time} onChange={event => setEventDraft({ ...eventDraft, start_time: event.target.value })} /></Field>
-                <Field label="End *"><Input required type="datetime-local" value={eventDraft.end_time} onChange={event => setEventDraft({ ...eventDraft, end_time: event.target.value })} /></Field>
+                <div className="space-y-3 md:col-span-2">
+                  <label className="inline-flex items-center gap-2 rounded-lg border border-border p-3 text-sm">
+                    <input type="checkbox" checked={eventDraft.multi_day} onChange={event => {
+                      const checked = event.target.checked;
+                      setEventDraft(current => {
+                        if (!current) return current;
+                        // Leaving multi-day: collapse the end onto the start's date.
+                        if (!checked) return { ...current, multi_day: false, end_time: joinDateTime(datePartOf(current.start_time), timePartOf(current.end_time)) };
+                        return { ...current, multi_day: true };
+                      });
+                    }} />
+                    <CalendarClock className="h-4 w-4 text-accent" /> Multi-day event
+                  </label>
+                  {eventDraft.multi_day ? (
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <Field label="Start *"><Input required type="datetime-local" value={eventDraft.start_time} onChange={event => setEventDraft({ ...eventDraft, start_time: event.target.value })} /></Field>
+                      <Field label="End *"><Input required type="datetime-local" value={eventDraft.end_time} onChange={event => setEventDraft({ ...eventDraft, end_time: event.target.value })} /></Field>
+                    </div>
+                  ) : (
+                    <div className="grid gap-4 md:grid-cols-3">
+                      <Field label="Date *">
+                        <Input required type="date" value={datePartOf(eventDraft.start_time)} onChange={event => {
+                          const date = event.target.value;
+                          setEventDraft(current => current ? { ...current, start_time: joinDateTime(date, timePartOf(current.start_time)), end_time: joinDateTime(date, timePartOf(current.end_time)) } : current);
+                        }} />
+                      </Field>
+                      <Field label="Start Time *">
+                        <Input required type="time" value={timePartOf(eventDraft.start_time)} onChange={event => {
+                          const time = event.target.value;
+                          setEventDraft(current => current ? { ...current, start_time: joinDateTime(datePartOf(current.start_time) || datePartOf(current.end_time), time) } : current);
+                        }} />
+                      </Field>
+                      <Field label="End Time *">
+                        <Input required type="time" value={timePartOf(eventDraft.end_time)} onChange={event => {
+                          const time = event.target.value;
+                          setEventDraft(current => current ? { ...current, end_time: joinDateTime(datePartOf(current.start_time) || datePartOf(current.end_time), time) } : current);
+                        }} />
+                      </Field>
+                    </div>
+                  )}
+                </div>
                 <Field label="Project">
                   <Select value={eventDraft.project_id} onChange={event => setEventDraft({ ...eventDraft, project_id: event.target.value })}>
                     <option value="">No linked project</option>
