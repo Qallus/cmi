@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Facebook, Instagram, Linkedin, Mail, MapPin, Phone } from "lucide-react";
 import { ContactFab } from "./contact-fab";
+import { InstallAppButton } from "@/components/pwa/install-app-button";
 
 const SERVICES_LINKS = [
   { label: "Residential",                        href: "/services/residential" },
@@ -50,6 +51,7 @@ export function SiteFooter() {
                 <Linkedin aria-hidden="true" className="h-4 w-4" />
               </a>
             </div>
+            <InstallAppButton variant="accent" className="h-auto rounded-lg px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90" />
           </div>
 
           {/* Services col */}

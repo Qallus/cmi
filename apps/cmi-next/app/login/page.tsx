@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
+import { InstallAppButton } from "@/components/pwa/install-app-button";
 
 function LoginForm() {
   const router = useRouter();
@@ -143,6 +144,10 @@ export default function LoginPage() {
         <p className="mt-6 text-center text-xs text-muted-foreground">
           This portal is for Constructed Matter staff only.
         </p>
+
+        <div className="mt-6 flex justify-center border-t border-border pt-6">
+          <InstallAppButton variant="outline" size="sm" />
+        </div>
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { InstallAppButton } from "@/components/pwa/install-app-button";
 import {
   ArrowRight,
   Brain,
@@ -250,9 +251,7 @@ export default function HomePage() {
               <Link href="/portfolio" className="inline-flex items-center gap-2 rounded-lg border border-white/30 bg-white/10 px-6 py-3 text-sm font-semibold text-white backdrop-blur transition hover:bg-white/20">
                 View Our Work <ArrowRight className="h-4 w-4" />
               </Link>
-              <Link href="/contact" className="inline-flex items-center gap-2 rounded-lg bg-accent px-6 py-3 text-sm font-semibold text-white transition hover:bg-accent/90">
-                Let's Build Together <ChevronRight className="h-4 w-4" />
-              </Link>
+              <InstallAppButton variant="accent" className="h-auto rounded-lg px-6 py-3 text-sm font-semibold text-white hover:opacity-90" />
             </div>
           </div>
         </section>

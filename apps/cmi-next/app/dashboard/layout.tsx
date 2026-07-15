@@ -8,6 +8,7 @@ import { ThemeToggle } from "@/components/dashboard/theme-toggle";
 import { DashboardNav, type UserRole } from "@/components/dashboard/nav";
 import { NotificationBell } from "@/components/dashboard/notification-bell";
 import { ReviewFab } from "@/components/dashboard/review-fab";
+import { InstallAppButton } from "@/components/pwa/install-app-button";
 import { cn } from "@/lib/utils";
 
 type SessionUser = {
@@ -94,6 +95,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                 className="h-full min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
               />
             </label>
+            <InstallAppButton variant="outline" size="sm" label="Get the App" className="hidden sm:inline-flex" />
             <ThemeToggle />
             <NotificationBell />
             <button

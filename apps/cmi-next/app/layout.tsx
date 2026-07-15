@@ -1,18 +1,29 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
+import { ServiceWorkerRegister } from "@/components/pwa/service-worker-register";
 
 export const metadata: Metadata = {
   title: "Constructed Matter",
   description: "Constructed Matter website and project dashboard.",
+  applicationName: "Constructed Matter",
+  appleWebApp: {
+    capable: true,
+    title: "CMI",
+    statusBarStyle: "black-translucent",
+  },
   icons: {
     icon: [
       { url: "/brand/cmi-favicon-black.png", media: "(prefers-color-scheme: light)" },
       { url: "/brand/cmi-favicon-white.png", media: "(prefers-color-scheme: dark)" },
     ],
     shortcut: "/brand/cmi-favicon-black.png",
-    apple: "/brand/cmi-favicon-black.png",
+    apple: "/icons/apple-touch-icon.png",
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#111113",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
@@ -25,7 +36,10 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
           }}
         />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <ServiceWorkerRegister />
+      </body>
     </html>
   );
 }
