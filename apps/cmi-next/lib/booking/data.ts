@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { sendPushToAllSubscribers } from "@/lib/push/web-push";
 import { buildAvailabilitySlots, cleanText, dateTimeToDateKey, formatPhoenixDateTime, makeBookingTitle, normalizePhone, parseDateKey } from "./availability";
 import type { AppointmentStatus, AppointmentType, BookingAppointment, BookingData, BookingInput, BookingSlot, EventPageInput } from "./types";
 
@@ -297,6 +298,13 @@ export async function createBookingAppointment(rawInput: Partial<BookingInput>) 
   await createScheduleItemForAppointment(supabase, appointment, appointmentType, input);
   await queueCalendarSync(supabase, appointment);
   await queueBookingNotifications(supabase, appointment, appointmentType);
+  // Push to staff devices (best-effort; no-op if VAPID keys aren't configured).
+  await sendPushToAllSubscribers({
+    title: "New booking",
+    body: `${title} · ${formatPhoenixDateTime(appointment.start_time)}`,
+    url: "/dashboard/bookings",
+    tag: `booking-${appointment.id}`
+  });
   return appointment;
 }
 

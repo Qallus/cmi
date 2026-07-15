@@ -19,6 +19,46 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+// ── Web Push ────────────────────────────────────────────────────────────────
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { title: "Constructed Matter", body: event.data ? event.data.text() : "" };
+  }
+  const title = data.title || "Constructed Matter";
+  const options = {
+    body: data.body || "",
+    icon: "/icons/icon-192.png",
+    badge: "/icons/icon-192.png",
+    tag: data.tag || undefined,
+    data: { url: data.url || "/dashboard" },
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || "/dashboard";
+  event.waitUntil(
+    (async () => {
+      const all = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      for (const client of all) {
+        // Focus an existing tab if one is already open.
+        if ("focus" in client) {
+          await client.focus();
+          if ("navigate" in client) {
+            try { await client.navigate(url); } catch { /* cross-origin or blocked */ }
+          }
+          return;
+        }
+      }
+      if (self.clients.openWindow) await self.clients.openWindow(url);
+    })(),
+  );
+});
+
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET") return;

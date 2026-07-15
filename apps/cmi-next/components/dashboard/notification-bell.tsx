@@ -4,6 +4,7 @@ import * as React from "react";
 import { Bell, CalendarClock, Check, FileText, Loader2, Mail, MessageSquare, StickyNote, UserPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { PushToggle } from "@/components/pwa/push-toggle";
 
 type Kind = "submission" | "message" | "lead" | "note" | "booking";
 type Item = { id: string; kind: Kind; title: string; subtitle: string; time: string; href: string };
@@ -196,6 +197,10 @@ export function NotificationBell() {
                 })}
               </ul>
             )}
+          </div>
+
+          <div className="border-t border-border bg-muted/20">
+            <PushToggle />
           </div>
         </div>
       )}
