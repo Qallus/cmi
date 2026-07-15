@@ -159,7 +159,7 @@ function DateTimeInput({
         <CalendarDays className="h-4 w-4 text-muted-foreground" />
       </button>
       {open ? (
-        <div className="absolute left-0 top-[calc(100%+4px)] z-50 grid w-[430px] max-w-[calc(100vw-2rem)] grid-cols-[1fr_132px] overflow-hidden rounded-md border border-border bg-card text-card-foreground shadow-lg">
+        <div className="absolute left-0 top-[calc(100%+4px)] z-50 grid w-[470px] max-w-[calc(100vw-2rem)] grid-cols-[1fr_176px] overflow-hidden rounded-md border border-border bg-card text-card-foreground shadow-lg">
           <div className="p-3">
             <div className="mb-3 flex items-center justify-between">
               <div className="text-sm font-semibold">{monthLabel}</div>
@@ -226,12 +226,12 @@ function DateTimeInput({
 
 function TimeColumn({ values, value, onSelect }: { values: string[]; value: string; onSelect: (value: string) => void }) {
   return (
-    <div className="max-h-[292px] space-y-1 overflow-y-auto pr-1">
+    <div className="cmi-time-scroll max-h-[292px] space-y-1 overflow-y-auto pr-1.5">
       {values.map(item => (
         <button
           key={item}
           type="button"
-          className={cn("grid h-8 w-full place-items-center rounded-md text-sm transition hover:bg-accent hover:text-accent-foreground", item === value && "bg-accent text-accent-foreground")}
+          className={cn("grid h-8 w-full place-items-center rounded-md px-1 text-sm tabular-nums transition hover:bg-accent hover:text-accent-foreground", item === value && "bg-accent text-accent-foreground")}
           onClick={() => onSelect(item)}
         >
           {item}

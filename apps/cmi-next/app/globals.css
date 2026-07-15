@@ -196,6 +196,23 @@
     box-shadow: 0 1px 4px rgb(20 14 6 / 0.18);
   }
 
+  /* Slim scrollbar for the date-time picker's time columns so the numbers
+     aren't crowded by a thick native scrollbar. */
+  .cmi-time-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklch, var(--accent) 55%, var(--muted)) transparent;
+  }
+  .cmi-time-scroll::-webkit-scrollbar {
+    width: 6px;
+  }
+  .cmi-time-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .cmi-time-scroll::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: color-mix(in oklch, var(--accent) 50%, var(--muted));
+  }
+
   .cmi-gantt-scrollbar::-webkit-scrollbar-thumb:hover {
     background:
       linear-gradient(90deg, color-mix(in oklch, var(--accent) 92%, var(--foreground)), color-mix(in oklch, var(--accent) 88%, white)) padding-box,
