@@ -177,24 +177,31 @@ export async function getJobStats(job: JobWithRelations): Promise<JobStats> {
   const contractsQ = name ? head("documents").ilike("project", name).ilike("type", "%contract%") : null;
   const sowsQ = name ? head("documents").ilike("project", name).or("type.ilike.%sow%,type.ilike.%statement of work%,type.ilike.%scope of work%") : null;
   const invoicesQ = head("invoices").eq("job_id", job.id);
+  const selectionsQ = head("project_selections").eq("job_id", job.id);
+  const changeOrdersQ = head("change_orders").eq("job_id", job.id);
+  const updatesQ = head("job_updates").eq("job_id", job.id);
   const quotesQ = clientIds.length ? head("quotes").in("contact_id", clientIds) : null;
   const bookingsQ = clientIds.length ? head("booking_appointments").in("contact_id", clientIds) : null;
 
-  const [documents, contracts, sows, invoices, quotes, bookings] = await Promise.all([
+  const [documents, contracts, sows, invoices, selections, changeOrders, updates, quotes, bookings] = await Promise.all([
     docsQ ? docsQ.then(num) : Promise.resolve(0),
     contractsQ ? contractsQ.then(num) : Promise.resolve(0),
     sowsQ ? sowsQ.then(num) : Promise.resolve(0),
     invoicesQ.then(num),
+    selectionsQ.then(num),
+    changeOrdersQ.then(num),
+    updatesQ.then(num),
     quotesQ ? quotesQ.then(num) : Promise.resolve(0),
     bookingsQ ? bookingsQ.then(num) : Promise.resolve(0),
   ]);
 
   return {
-    documents, contracts, sows,
+    documents, contracts, sows, selections, changeOrders,
     staff: job.internal_users.length,
+    vendors: job.vendors.length,
     quotes, invoices,
     contacts: job.contacts.length,
-    bookings,
+    bookings, updates,
   };
 }
 

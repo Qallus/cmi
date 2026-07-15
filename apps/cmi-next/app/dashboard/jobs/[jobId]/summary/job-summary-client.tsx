@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { BadgeDollarSign, CalendarClock, Clock, Contact, FileSignature, FileText, MapPin, Pencil, ReceiptText, ScrollText, Users, X } from "lucide-react";
+import { BadgeDollarSign, CalendarClock, Clock, Contact, FileSignature, FileText, HardHat, LayoutGrid, MapPin, MessagesSquare, Pencil, ReceiptText, ScrollText, SlidersHorizontal, Users, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -107,6 +107,19 @@ export function JobSummaryClient({ job, stats }: { job: JobWithRelations; stats:
                   )}
                 </>
               )}
+            </Card>
+
+            <Card title="Subs / Vendors" action={<Link href={`/dashboard/jobs/${job.id}/info`} className="text-xs text-accent hover:underline">Manage</Link>}>
+              {job.vendors.length === 0 ? <Empty>No subs or vendors yet.</Empty> : job.vendors.map((v) => {
+                const label = v.vendor?.company || `${v.vendor?.first_name ?? ""} ${v.vendor?.last_name ?? ""}`.trim() || "Vendor";
+                return (
+                  <div key={v.id} className="flex items-center gap-2 py-1 text-sm">
+                    <Avatar name={label} />
+                    <span className="min-w-0 flex-1 truncate">{label}</span>
+                    {v.role && <span className="shrink-0 text-xs text-muted-foreground">{v.role}</span>}
+                  </div>
+                );
+              })}
             </Card>
           </div>
 
@@ -235,18 +248,22 @@ function JobStatsRow({ stats, jobId }: { stats: JobStats; jobId: string }) {
     { label: "Documents", value: stats.documents, icon: FileText, href: `/dashboard/jobs/${jobId}/files` },
     { label: "Contracts", value: stats.contracts, icon: FileSignature, href: "/dashboard/documents" },
     { label: "SOWs", value: stats.sows, icon: ScrollText, href: "/dashboard/documents" },
-    { label: "Active Staff", value: stats.staff, icon: Users, href: `/dashboard/jobs/${jobId}/info` },
-    { label: "Quotes", value: stats.quotes, icon: BadgeDollarSign, href: "/dashboard/sales" },
+    { label: "Selections", value: stats.selections, icon: SlidersHorizontal, href: `/dashboard/jobs/${jobId}/selections` },
+    { label: "Change Orders", value: stats.changeOrders, icon: LayoutGrid, href: `/dashboard/jobs/${jobId}/change-orders` },
     { label: "Invoices", value: stats.invoices, icon: ReceiptText, href: `/dashboard/jobs/${jobId}/invoices` },
+    { label: "Active Staff", value: stats.staff, icon: Users, href: `/dashboard/jobs/${jobId}/info` },
+    { label: "Subs / Vendors", value: stats.vendors, icon: HardHat, href: `/dashboard/jobs/${jobId}/info` },
+    { label: "Quotes", value: stats.quotes, icon: BadgeDollarSign, href: "/dashboard/sales" },
     { label: "Contacts", value: stats.contacts, icon: Contact, href: `/dashboard/jobs/${jobId}/info` },
+    { label: "Client Updates", value: stats.updates, icon: MessagesSquare, href: `/dashboard/jobs/${jobId}/client-portal` },
     { label: "Bookings", value: stats.bookings, icon: CalendarClock, href: "/dashboard/bookings" },
   ];
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-8">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
       {tiles.map((t) => (
         <Link key={t.label} href={t.href} className="group rounded-lg border border-border bg-card p-4 transition hover:border-accent/50 hover:bg-muted/30">
           <div className="flex items-center justify-between gap-2">
-            <div className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">{t.label}</div>
+            <div className="truncate text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">{t.label}</div>
             <t.icon className="h-4 w-4 shrink-0 text-accent/70 transition group-hover:text-accent" />
           </div>
           <div className="mt-3 text-2xl font-semibold">{t.value}</div>

@@ -25,11 +25,15 @@ export type JobStats = {
   documents: number;
   contracts: number;
   sows: number;
+  selections: number;
+  changeOrders: number;
   staff: number;
+  vendors: number;
   quotes: number;
   invoices: number;
   contacts: number;
   bookings: number;
+  updates: number;
 };
 
 export type Job = {
