@@ -40,7 +40,7 @@ export async function GET(request: Request) {
       leadsQuery,
       sharedNotesReq,
       supabase
-        .from("bookings")
+        .from("booking_appointments")
         .select("id", { count: "exact", head: true })
         .is("notification_read_at", null)
         .neq("status", "canceled"),

@@ -94,8 +94,8 @@ export async function loadStaffNotifications(ctx: Ctx): Promise<StaffNotificatio
           .limit(50)
       : Promise.resolve({ data: [] as Record<string, unknown>[] }),
     supabase
-      .from("bookings")
-      .select("id, title, booking_type, guest_name, guest_email, start_datetime, status, created_at")
+      .from("booking_appointments")
+      .select("id, title, customer_first_name, customer_last_name, customer_email, start_time, status, created_at")
       .is("notification_read_at", null)
       .neq("status", "canceled")
       .order("created_at", { ascending: false })
@@ -153,14 +153,15 @@ export async function loadStaffNotifications(ctx: Ctx): Promise<StaffNotificatio
   }
 
   for (const b of (bookingsRes.data ?? []) as Record<string, unknown>[]) {
-    const who = String(b.guest_name ?? "").trim() || String(b.guest_email ?? "").trim() || "Someone";
-    const type = String(b.booking_type ?? "").trim();
-    const when = bookingWhen(b.start_datetime as string | null);
+    const who = [b.customer_first_name, b.customer_last_name].filter(Boolean).join(" ").trim()
+      || String(b.customer_email ?? "").trim() || "Someone";
+    const label = String(b.title ?? "").trim();
+    const when = bookingWhen(b.start_time as string | null);
     items.push({
       id: String(b.id),
       kind: "booking",
-      title: type ? `New booking · ${type}` : "New booking",
-      subtitle: snippet(`${who}${when ? ` — ${when}` : ""}`),
+      title: "New booking",
+      subtitle: snippet(`${label || who}${when ? ` — ${when}` : ""}`),
       time: String(b.created_at),
       href: HREF.booking,
     });
@@ -196,7 +197,7 @@ export async function markStaffNotificationRead(
         await supabase.from("dashboard_notes").update({ read_by: [...readBy, email] }).eq("id", id);
       }
     } else if (kind === "booking") {
-      await supabase.from("bookings").update({ notification_read_at: nowExpr }).eq("id", id);
+      await supabase.from("booking_appointments").update({ notification_read_at: nowExpr }).eq("id", id);
     }
     return true;
   } catch {
