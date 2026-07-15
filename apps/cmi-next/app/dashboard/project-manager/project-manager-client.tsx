@@ -138,7 +138,7 @@ const emptyFilters: ProjectFilters = {
   quick: null
 };
 
-const boardId = "default";
+const DEFAULT_BOARD_ID = "default";
 const dayWidth = 46;
 const minutesPerDay = 1440;
 const dragSnapMinutes = 15;
@@ -252,7 +252,7 @@ function buildTemplateSummaries(templates: ProjectTemplate[], tasks: ProjectTemp
   });
 }
 
-function buildProjectViewModels(items: ProjectScheduleItem[]): ProjectViewModel[] {
+function buildProjectViewModels(items: ProjectScheduleItem[], boardId: string): ProjectViewModel[] {
   const map = new Map<string, ProjectScheduleItem[]>();
   items.forEach(item => {
     const key = projectKeyForItem(item);
@@ -362,7 +362,7 @@ function emptyDraft(): ItemDraft {
   };
 }
 
-export function ProjectManagerClient({ initialData, demoMode = false }: { initialData: ProjectManagerData; demoMode?: boolean }) {
+export function ProjectManagerClient({ initialData, demoMode = false, boardId = DEFAULT_BOARD_ID }: { initialData: ProjectManagerData; demoMode?: boolean; boardId?: string }) {
   const [items, setItems] = React.useState(initialData.items);
   const [dependencies, setDependencies] = React.useState(initialData.dependencies);
   const [templates] = React.useState(initialData.templates);
@@ -447,8 +447,8 @@ export function ProjectManagerClient({ initialData, demoMode = false }: { initia
   const templateSummaries = React.useMemo(() => buildTemplateSummaries(templates, templateTasks), [templates, templateTasks]);
   const itemLevelFiltersActive = Boolean(filters.type || filters.status || filters.priority || filters.phase || filters.assignee || filters.quick);
   const includeProjectSummaryRows = !itemLevelFiltersActive;
-  const projectViews = React.useMemo(() => buildProjectViewModels(filteredItems), [filteredItems]);
-  const myTaskProjectViews = React.useMemo(() => buildProjectViewModels(myTaskItems), [myTaskItems]);
+  const projectViews = React.useMemo(() => buildProjectViewModels(filteredItems, boardId), [filteredItems, boardId]);
+  const myTaskProjectViews = React.useMemo(() => buildProjectViewModels(myTaskItems, boardId), [myTaskItems, boardId]);
   const visibleProjectViews = React.useMemo(() => (
     projectViews
       .map(project => ({
@@ -644,7 +644,7 @@ export function ProjectManagerClient({ initialData, demoMode = false }: { initia
 
   async function saveItem(draft: ItemDraft) {
     if (demoMode) {
-      const item = draftToDemoItem(draft);
+      const item = draftToDemoItem(draft, boardId);
       setItems(current => draft.id ? current.map(row => row.id === draft.id ? item : row) : [...current, item]);
       setSelected(null);
       setNotice("Demo schedule item saved locally.");
@@ -936,7 +936,7 @@ export function ProjectManagerClient({ initialData, demoMode = false }: { initia
     };
 
     if (demoMode) {
-      const child = draftToDemoItem(childDraft);
+      const child = draftToDemoItem(childDraft, boardId);
       setItems(current => [...current, child]);
       if (!isProjectSummaryItem(parent)) {
         await createDependency({
@@ -3321,7 +3321,7 @@ function itemToDraft(item: ProjectScheduleItem): ItemDraft {
   };
 }
 
-function draftToDemoItem(draft: ItemDraft): ProjectScheduleItem {
+function draftToDemoItem(draft: ItemDraft, boardId: string): ProjectScheduleItem {
   return {
     id: draft.id || crypto.randomUUID(),
     board_id: boardId,
