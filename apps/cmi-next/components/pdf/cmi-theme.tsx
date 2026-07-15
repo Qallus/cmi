@@ -16,7 +16,7 @@ export const CMI = {
 export const styles = StyleSheet.create({
   page: { paddingTop: 40, paddingBottom: 56, paddingHorizontal: 44, fontSize: 10, color: CMI.ink, fontFamily: "Helvetica" },
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", borderBottomWidth: 1, borderBottomColor: CMI.border, paddingBottom: 12, marginBottom: 16 },
-  logo: { width: 150, height: 34, objectFit: "contain" },
+  logo: { width: 165, height: 32, objectFit: "contain" },
   brandName: { fontSize: 14, fontFamily: "Helvetica-Bold" },
   brandMeta: { fontSize: 8, color: CMI.muted, marginTop: 2 },
   docTitle: { fontSize: 16, fontFamily: "Helvetica-Bold", textAlign: "right" },
