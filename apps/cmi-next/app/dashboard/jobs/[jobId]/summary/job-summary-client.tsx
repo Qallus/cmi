@@ -245,9 +245,9 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 function JobStatsRow({ stats, jobId }: { stats: JobStats; jobId: string }) {
   const tiles: { label: string; value: number; icon: React.ComponentType<{ className?: string }>; href: string }[] = [
-    { label: "Documents", value: stats.documents, icon: FileText, href: `/dashboard/jobs/${jobId}/files` },
-    { label: "Contracts", value: stats.contracts, icon: FileSignature, href: "/dashboard/documents" },
-    { label: "SOWs", value: stats.sows, icon: ScrollText, href: "/dashboard/documents" },
+    { label: "Documents", value: stats.documents, icon: FileText, href: `/dashboard/jobs/${jobId}/documents` },
+    { label: "Contracts", value: stats.contracts, icon: FileSignature, href: `/dashboard/jobs/${jobId}/documents` },
+    { label: "SOWs", value: stats.sows, icon: ScrollText, href: `/dashboard/jobs/${jobId}/documents` },
     { label: "Selections", value: stats.selections, icon: SlidersHorizontal, href: `/dashboard/jobs/${jobId}/selections` },
     { label: "Change Orders", value: stats.changeOrders, icon: LayoutGrid, href: `/dashboard/jobs/${jobId}/change-orders` },
     { label: "Invoices", value: stats.invoices, icon: ReceiptText, href: `/dashboard/jobs/${jobId}/invoices` },
