@@ -60,7 +60,7 @@ export function JobsListClient({
       if (pmFilter !== "all" && !r.project_managers.includes(pmFilter)) return false;
       if (activeOnly && !JOB_STATUS_META[r.status].open) return false;
       if (q) {
-        const hay = `${r.job_name} ${r.job_number ?? ""} ${r.full_address ?? ""} ${r.city ?? ""} ${r.clients.map((c) => c.name).join(" ")} ${r.type_name ?? ""}`.toLowerCase();
+        const hay = `${r.job_name} ${r.job_number ?? ""} ${r.lead_number ?? ""} ${r.full_address ?? ""} ${r.city ?? ""} ${r.clients.map((c) => c.name).join(" ")} ${r.type_name ?? ""}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
