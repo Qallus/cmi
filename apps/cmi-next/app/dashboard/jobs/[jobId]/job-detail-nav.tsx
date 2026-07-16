@@ -19,6 +19,7 @@ const TABS: { slug: string; label: string; href: (id: string) => string }[] = [
   { slug: "invoices", label: "Invoices", href: (id) => `/dashboard/jobs/${id}/invoices` },
   { slug: "selections", label: "Selections", href: (id) => `/dashboard/jobs/${id}/selections` },
   { slug: "warranty", label: "Warranty", href: (id) => `/dashboard/jobs/${id}/warranty` },
+  { slug: "notes", label: "Notes", href: (id) => `/dashboard/jobs/${id}/notes` },
   { slug: "activity", label: "Activity", href: (id) => `/dashboard/jobs/${id}/activity` },
 ];
 
