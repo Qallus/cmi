@@ -184,7 +184,7 @@ export function ReviewFab() {
       {/* FAB */}
       <div data-fab-ignore className="fixed bottom-5 right-5 z-50 print:hidden">
         {open && !(fullscreen && tab === "messages") && (
-          <div className={cn("mb-3 overflow-hidden rounded-2xl border border-border bg-card shadow-2xl", tab === "messages" ? "w-[92vw] max-w-[640px]" : "w-[340px]")}>
+          <div className={cn("mb-3 overflow-hidden rounded-2xl border border-border bg-card shadow-2xl", tab === "messages" ? "w-[92vw] max-w-[640px]" : "w-[380px]")}>
             <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
               <div className="flex items-center gap-1">
                 <TabBtn active={tab === "note"} onClick={() => setTab("note")} icon={<PenLine className="h-3.5 w-3.5" />} label="Note" />
