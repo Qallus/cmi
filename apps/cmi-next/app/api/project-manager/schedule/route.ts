@@ -30,6 +30,8 @@ function normalizeItem(body: Record<string, unknown>) {
     dependencies: body.dependencies ? String(body.dependencies) : null,
     start_date: start,
     end_date: end,
+    client_start_date: body.client_start_date ? String(body.client_start_date) : null,
+    client_end_date: body.client_end_date ? String(body.client_end_date) : null,
     status,
     priority,
     progress: Math.max(0, Math.min(100, Number(body.progress) || 0)),

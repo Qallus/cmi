@@ -18,6 +18,8 @@ export type ProjectScheduleItem = {
   dependencies: string | null;
   start_date: string;
   end_date: string;
+  client_start_date: string | null;
+  client_end_date: string | null;
   status: ScheduleStatus;
   priority: SchedulePriority | null;
   progress: number;

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { verifyClientJob } from "@/lib/client-portal/auth";
 import { getClientJob } from "@/lib/client-portal/data";
+import { loadClientScheduleItems } from "@/lib/client-portal/schedule";
 import { ProgressBar, fmtDate } from "../../../portal-ui";
 
 export const dynamic = "force-dynamic";
@@ -14,6 +15,7 @@ export default async function ClientProgressPage({ params }: { params: Promise<{
   if (!contact) redirect("/client/jobs");
   const job = await getClientJob(contact.id, jobId);
   if (!job) redirect("/client/jobs");
+  const milestones = await loadClientScheduleItems(jobId).catch(() => []);
 
   const currentIdx = job.current_phase ? PHASES.findIndex((p) => p.toLowerCase() === job.current_phase!.toLowerCase()) : -1;
 
@@ -44,6 +46,27 @@ export default async function ClientProgressPage({ params }: { params: Promise<{
               );
             })}
           </ol>
+        </div>
+
+        <div className="rounded-xl border border-border bg-card p-5">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-[0.1em] text-muted-foreground">Upcoming Milestones</h2>
+          {milestones.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No scheduled milestones yet.</p>
+          ) : (
+            <ul className="space-y-2">
+              {milestones.map((m) => (
+                <li key={m.id} className="flex items-center gap-3 rounded-lg border border-border p-3 text-sm">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-medium">{m.title}</div>
+                    {m.phase && <div className="text-xs text-muted-foreground">{m.phase}</div>}
+                  </div>
+                  <div className="shrink-0 text-right text-xs text-muted-foreground">
+                    {m.start && m.end ? `${fmtDate(m.start)} – ${fmtDate(m.end)}` : fmtDate(m.end ?? m.start)}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </div>
 

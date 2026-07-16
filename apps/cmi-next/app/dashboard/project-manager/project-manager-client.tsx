@@ -68,6 +68,8 @@ type ItemDraft = {
   participants: string;
   start_date: string;
   end_date: string;
+  client_start_date: string;
+  client_end_date: string;
   status: ScheduleStatus;
   priority: SchedulePriority;
   progress: number;
@@ -290,6 +292,8 @@ function buildProjectViewModels(items: ProjectScheduleItem[], boardId: string): 
       dependencies: null,
       start_date: startDate,
       end_date: endDate,
+      client_start_date: null,
+      client_end_date: null,
       status,
       priority: rollupPriority(sortedRows),
       progress,
@@ -342,6 +346,8 @@ function emptyDraft(): ItemDraft {
     participants: "",
     start_date: today,
     end_date: addDays(today, 2),
+    client_start_date: "",
+    client_end_date: "",
     status: "scheduled",
     priority: "normal",
     progress: 0,
@@ -560,6 +566,8 @@ export function ProjectManagerClient({ initialData, demoMode = false, boardId = 
             dependencies: templateTask.dependency_keys.join(", ") || null,
             start_date: itemStart,
             end_date: itemEnd,
+            client_start_date: null,
+            client_end_date: null,
             status: "scheduled",
             priority: templateTask.priority,
             progress: 0,
@@ -657,7 +665,7 @@ export function ProjectManagerClient({ initialData, demoMode = false, boardId = 
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...draft, board_id: boardId, schedule_group_key: draft.project_title })
+        body: JSON.stringify({ ...draft, board_id: boardId, schedule_group_key: draft.project_title, client_start_date: draft.client_start_date || null, client_end_date: draft.client_end_date || null })
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.message || "Save failed.");
@@ -773,6 +781,8 @@ export function ProjectManagerClient({ initialData, demoMode = false, boardId = 
       participants: item.participants || "",
       start_date: item.start_date || today,
       end_date: item.end_date || addDays(today, 2),
+      client_start_date: item.client_start_date || "",
+      client_end_date: item.client_end_date || "",
       status: "scheduled",
       priority: item.priority || "normal",
       progress: 0,
@@ -3189,6 +3199,25 @@ function ItemEditor({
               <Input className="mt-1" type="number" min={0} max={100} value={draft.progress} onChange={event => update("progress", Number(event.target.value))} />
             </label>
           </div>
+          <div className="rounded-md border border-accent/30 bg-accent/5 p-3">
+            <div className="mb-2 flex items-center justify-between">
+              <div className="text-xs font-semibold uppercase tracking-wide text-accent">Client-facing dates (optional)</div>
+              {(draft.client_start_date || draft.client_end_date) && (
+                <button type="button" onClick={() => { update("client_start_date", ""); update("client_end_date", ""); }} className="text-[11px] text-muted-foreground hover:text-foreground">Clear</button>
+              )}
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="block text-sm font-medium">
+                Client Start
+                <Input className="mt-1" type="date" value={draft.client_start_date} onChange={event => update("client_start_date", event.target.value)} />
+              </label>
+              <label className="block text-sm font-medium">
+                Client Due
+                <Input className="mt-1" type="date" value={draft.client_end_date} onChange={event => update("client_end_date", event.target.value)} />
+              </label>
+            </div>
+            <div className="mt-2 text-[11px] text-muted-foreground">Shown to the client instead of the internal dates — set a later date to under-promise and over-deliver. Leave blank to show the internal dates.</div>
+          </div>
           <div className="rounded-md border border-border bg-muted p-4 text-sm text-muted-foreground">
             <div className="font-medium text-foreground">Duration examples</div>
             <div className="mt-1">0.125 = 1 hour, 0.25 = 2 hours, 0.5 = half day. Drag either bar edge to adjust this live.</div>
@@ -3301,6 +3330,8 @@ function itemToDraft(item: ProjectScheduleItem): ItemDraft {
     participants: item.participants || "",
     start_date: item.start_date,
     end_date: item.end_date,
+    client_start_date: item.client_start_date || "",
+    client_end_date: item.client_end_date || "",
     status: item.status || "scheduled",
     priority: item.priority || "normal",
     progress: item.progress || 0,
@@ -3337,6 +3368,8 @@ function draftToDemoItem(draft: ItemDraft, boardId: string): ProjectScheduleItem
     dependencies: draft.dependencies || null,
     start_date: draft.start_date,
     end_date: draft.end_date,
+    client_start_date: draft.client_start_date || null,
+    client_end_date: draft.client_end_date || null,
     status: draft.status,
     priority: draft.priority,
     progress: draft.progress,
