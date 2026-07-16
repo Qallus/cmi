@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     const body = (await request.json().catch(() => ({}))) as { otherUserId?: string; job_id?: string | null; body?: string; importance?: "normal" | "important" | "urgent"; attachments?: unknown[] };
     const otherUserId = String(body.otherUserId || "");
     if (!otherUserId) return NextResponse.json({ error: "Recipient is required." }, { status: 400 });
-    const conversationId = await findOrCreateConversation(staff.id, otherUserId, body.job_id ?? null);
+    const conversationId = await findOrCreateConversation({ id: staff.id, kind: "staff" }, { id: otherUserId, kind: "staff" }, body.job_id ?? null);
     if (body.body && body.body.trim()) {
       await sendMessage(staff.id, conversationId, { body: body.body, importance: body.importance, attachments: body.attachments });
     }

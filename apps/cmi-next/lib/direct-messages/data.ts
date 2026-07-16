@@ -1,10 +1,14 @@
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 
 // Direct Messages data layer (service-role; the API authorizes the requester as
-// a participant). Staff↔staff 1:1 today, group-ready. Adapted from the MJG DM
-// model to CMI's staff_users. `userId` is a staff_users.id.
+// a participant). Participants/senders are polymorphic — a "party" is a
+// staff_users row (kind "staff") or a contacts row (kind "client"). Ids are
+// unique across those tables, so the unread RPCs (keyed on the party id) work
+// for both. `userId` params below are the current party's id.
 
 export type DmImportance = "normal" | "important" | "urgent";
+export type DmPartyKind = "staff" | "client";
+export type DmParty = { id: string; kind: DmPartyKind };
 export type DmPerson = { id: string; name: string; email: string };
 export type DmConversationSummary = {
   id: string;
@@ -25,18 +29,29 @@ export type DmMessage = {
   mine: boolean;
 };
 
-type StaffRow = { id: string; display_name: string | null; email: string | null };
-type EmbeddedStaff = StaffRow | StaffRow[] | null;
-
-function personName(p: { display_name?: string | null; email?: string | null }): string {
+function staffName(p: { display_name?: string | null; email?: string | null }): string {
   return (p.display_name ?? "").trim() || (p.email ?? "Unknown");
 }
-function pickStaff(embedded: EmbeddedStaff): StaffRow | null {
-  if (!embedded) return null;
-  return Array.isArray(embedded) ? embedded[0] ?? null : embedded;
+function contactName(c: { first_name?: string | null; last_name?: string | null; company?: string | null; email?: string | null }): string {
+  return [c.first_name, c.last_name].filter(Boolean).join(" ").trim() || (c.company ?? "").trim() || (c.email ?? "Client");
 }
 
-/** Conversations the user is in, newest first, with unread counts. */
+// Batch-resolve (id, kind) parties to display people from staff_users + contacts.
+async function resolveParties(supabase: ReturnType<typeof getSupabaseAdmin>, parties: DmParty[]): Promise<Map<string, DmPerson>> {
+  const map = new Map<string, DmPerson>();
+  const staffIds = [...new Set(parties.filter((p) => p.kind === "staff").map((p) => p.id))];
+  const clientIds = [...new Set(parties.filter((p) => p.kind === "client").map((p) => p.id))];
+  if (staffIds.length) {
+    const { data } = await supabase.from("staff_users").select("id, display_name, email").in("id", staffIds);
+    for (const r of data ?? []) map.set(r.id, { id: r.id, name: staffName(r), email: r.email ?? "" });
+  }
+  if (clientIds.length) {
+    const { data } = await supabase.from("contacts").select("id, first_name, last_name, company, email").in("id", clientIds);
+    for (const r of data ?? []) map.set(r.id, { id: r.id, name: contactName(r), email: r.email ?? "" });
+  }
+  return map;
+}
+
 export async function listConversations(
   userId: string,
   filter?: { search?: string; from?: string; to?: string; jobId?: string },
@@ -62,13 +77,15 @@ export async function listConversations(
   const ids = convos.map((c) => c.id);
   const { data: others } = await supabase
     .from("dm_participants")
-    .select("conversation_id, staff:user_id(id, display_name, email)")
+    .select("conversation_id, user_id, user_kind")
     .in("conversation_id", ids)
     .neq("user_id", userId);
+  const otherRows = (others ?? []) as { conversation_id: string; user_id: string; user_kind: DmPartyKind }[];
+  const peopleMap = await resolveParties(supabase, otherRows.map((r) => ({ id: r.user_id, kind: r.user_kind })));
   const otherByConv = new Map<string, DmPerson>();
-  for (const row of (others ?? []) as unknown as { conversation_id: string; staff: EmbeddedStaff }[]) {
-    const p = pickStaff(row.staff);
-    if (p) otherByConv.set(row.conversation_id, { id: p.id, name: personName(p), email: p.email ?? "" });
+  for (const row of otherRows) {
+    const person = peopleMap.get(row.user_id);
+    if (person) otherByConv.set(row.conversation_id, person);
   }
 
   const unreadByConv = new Map<string, number>();
@@ -108,7 +125,6 @@ export async function isParticipant(userId: string, conversationId: string): Pro
   return Boolean(data);
 }
 
-/** Full thread + the other participant; marks the conversation read for the user. */
 export async function getThread(userId: string, conversationId: string) {
   const supabase = getSupabaseAdmin();
   if (!(await isParticipant(userId, conversationId))) return null;
@@ -123,12 +139,15 @@ export async function getThread(userId: string, conversationId: string) {
 
   const { data: otherRow } = await supabase
     .from("dm_participants")
-    .select("staff:user_id(id, display_name, email)")
+    .select("user_id, user_kind")
     .eq("conversation_id", conversationId)
     .neq("user_id", userId)
     .maybeSingle();
-  const op = pickStaff((otherRow as unknown as { staff: EmbeddedStaff } | null)?.staff ?? null);
-  const other: DmPerson | null = op ? { id: op.id, name: personName(op), email: op.email ?? "" } : null;
+  let other: DmPerson | null = null;
+  if (otherRow) {
+    const map = await resolveParties(supabase, [{ id: otherRow.user_id, kind: otherRow.user_kind as DmPartyKind }]);
+    other = map.get(otherRow.user_id) ?? null;
+  }
 
   await supabase
     .from("dm_participants")
@@ -152,6 +171,7 @@ export async function sendMessage(
   userId: string,
   conversationId: string,
   input: { body: string; importance?: DmImportance; attachments?: unknown[] },
+  senderKind: DmPartyKind = "staff",
 ) {
   const supabase = getSupabaseAdmin();
   if (!(await isParticipant(userId, conversationId))) throw new Error("You are not a participant in this conversation.");
@@ -161,7 +181,7 @@ export async function sendMessage(
 
   const { data: message, error } = await supabase
     .from("dm_messages")
-    .insert({ conversation_id: conversationId, sender_id: userId, body, importance: input.importance ?? "normal", attachments })
+    .insert({ conversation_id: conversationId, sender_id: userId, sender_kind: senderKind, body, importance: input.importance ?? "normal", attachments })
     .select("id, created_at")
     .single();
   if (error) throw error;
@@ -169,25 +189,24 @@ export async function sendMessage(
   const preview = body ? body.slice(0, 140) : "📎 Attachment";
   await supabase
     .from("dm_conversations")
-    .update({ last_message_at: message.created_at, last_message_preview: preview, last_sender_id: userId, updated_at: message.created_at })
+    .update({ last_message_at: message.created_at, last_message_preview: preview, last_sender_id: userId, last_sender_kind: senderKind, updated_at: message.created_at })
     .eq("id", conversationId);
   await supabase.from("dm_participants").update({ last_read_at: message.created_at }).eq("conversation_id", conversationId).eq("user_id", userId);
 
   return { id: message.id, created_at: message.created_at };
 }
 
-/** Find or create a 1:1 conversation between two staff (optionally job-scoped). */
-export async function findOrCreateConversation(creatorId: string, otherUserId: string, jobId?: string | null): Promise<string> {
+/** Find or create a 1:1 conversation between two parties (optionally job-scoped). */
+export async function findOrCreateConversation(creator: DmParty, other: DmParty, jobId?: string | null): Promise<string> {
   const supabase = getSupabaseAdmin();
-  if (creatorId === otherUserId) throw new Error("You cannot message yourself.");
+  if (creator.id === other.id) throw new Error("You cannot message yourself.");
 
-  const { data: mine } = await supabase.from("dm_participants").select("conversation_id").eq("user_id", creatorId);
+  const { data: mine } = await supabase.from("dm_participants").select("conversation_id").eq("user_id", creator.id);
   const myIds = (mine ?? []).map((r) => r.conversation_id);
   if (myIds.length) {
-    const { data: shared } = await supabase.from("dm_participants").select("conversation_id").eq("user_id", otherUserId).in("conversation_id", myIds);
+    const { data: shared } = await supabase.from("dm_participants").select("conversation_id").eq("user_id", other.id).in("conversation_id", myIds);
     const candidateIds = (shared ?? []).map((r) => r.conversation_id);
     if (candidateIds.length) {
-      // If job-scoped, prefer a conversation on the same job; otherwise reuse any.
       if (jobId) {
         const { data: onJob } = await supabase.from("dm_conversations").select("id").in("id", candidateIds).eq("job_id", jobId).limit(1);
         if (onJob?.length) return onJob[0].id;
@@ -199,13 +218,13 @@ export async function findOrCreateConversation(creatorId: string, otherUserId: s
 
   const { data: conv, error } = await supabase
     .from("dm_conversations")
-    .insert({ created_by: creatorId, job_id: jobId ?? null })
+    .insert({ created_by: creator.id, job_id: jobId ?? null })
     .select("id")
     .single();
   if (error) throw error;
   await supabase.from("dm_participants").insert([
-    { conversation_id: conv.id, user_id: creatorId },
-    { conversation_id: conv.id, user_id: otherUserId },
+    { conversation_id: conv.id, user_id: creator.id, user_kind: creator.kind },
+    { conversation_id: conv.id, user_id: other.id, user_kind: other.kind },
   ]);
   return conv.id;
 }
@@ -224,12 +243,31 @@ export async function listMessageableUsers(userId: string, search?: string): Pro
   const { data } = await query;
   return (data ?? [])
     .filter((p) => (p.status ?? "active") !== "disabled" && (p.status ?? "active") !== "inactive")
-    .map((p) => ({ id: p.id, name: personName(p), email: p.email ?? "" }));
+    .map((p) => ({ id: p.id, name: staffName(p), email: p.email ?? "" }));
 }
 
-/** Total unread messages for a user (powers the bell badge). */
+/** Total unread messages for a party (powers the bell / portal badge). */
 export async function getUnreadCount(userId: string): Promise<number> {
   const supabase = getSupabaseAdmin();
   const { data } = await supabase.rpc("dm_unread_count", { p_user: userId });
   return typeof data === "number" ? data : 0;
+}
+
+// ── Client↔PM helpers ────────────────────────────────────────────────────────
+
+/** The staff member a client should message about a job (their PM / team lead). */
+export async function getJobPrimaryPm(jobId: string): Promise<string | null> {
+  const supabase = getSupabaseAdmin();
+  const { data } = await supabase.from("job_internal_users").select("staff_user_id, role").eq("job_id", jobId);
+  const rows = (data ?? []).filter((r) => r.staff_user_id) as { staff_user_id: string; role: string | null }[];
+  if (!rows.length) return null;
+  const pm = rows.find((r) => /manager|pm|superintendent|lead/i.test(r.role ?? ""));
+  return (pm ?? rows[0]).staff_user_id;
+}
+
+/** Find or create the client↔PM conversation for a job. */
+export async function findOrCreateClientPmConversation(contactId: string, jobId: string): Promise<string> {
+  const pmId = await getJobPrimaryPm(jobId);
+  if (!pmId) throw new Error("No project team member is assigned to this job yet.");
+  return findOrCreateConversation({ id: contactId, kind: "client" }, { id: pmId, kind: "staff" }, jobId);
 }
