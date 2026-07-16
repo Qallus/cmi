@@ -3,10 +3,11 @@
 import * as React from "react";
 import { usePathname } from "next/navigation";
 import {
-  Camera, Check, Inbox, Loader2, MessageSquarePlus, PenLine, Sparkles, Trash2, X,
+  Camera, Check, Inbox, Loader2, Maximize2, MessageSquarePlus, MessagesSquare, Minimize2, PenLine, Sparkles, Trash2, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { DmInbox } from "@/components/direct-messages/dm-inbox";
 import { BoltModal } from "./bolt-modal";
 import { NoteDetailModal } from "./note-detail-modal";
 import { ScreenshotEditor } from "./screenshot-editor";
@@ -17,7 +18,7 @@ import {
 } from "@/lib/dashboard-notes/types";
 
 type StaffOption = { id: string; label: string; email: string; role: string };
-type Tab = "note" | "shared";
+type Tab = "note" | "shared" | "messages";
 
 const PRIORITY_TONE: Record<NotePriority, string> = {
   low: "bg-muted text-muted-foreground", medium: "bg-info/15 text-info",
@@ -42,6 +43,8 @@ export function ReviewFab() {
   const [detailId, setDetailId] = React.useState<string | null>(null);
   const [confirmDel, setConfirmDel] = React.useState<DashboardNote | null>(null);
   const [unread, setUnread] = React.useState(0);
+  const [dmUnread, setDmUnread] = React.useState(0);
+  const [fullscreen, setFullscreen] = React.useState(false);
 
   const pageTitle = prettyRoute(pathname);
 
@@ -67,12 +70,20 @@ export function ReviewFab() {
       .then((r) => r.json()).then((d: { unread?: number }) => setUnread(d.unread ?? 0)).catch(() => {});
   }, []);
 
+  const loadDmUnread = React.useCallback(() => {
+    fetch("/api/direct-messages/unread")
+      .then((r) => r.json()).then((d: { count?: number }) => setDmUnread(d.count ?? 0)).catch(() => {});
+  }, []);
+
   React.useEffect(() => {
     loadUnread();
+    loadDmUnread();
+    const interval = setInterval(loadDmUnread, 30000);
     fetch("/api/staff-options").then((r) => r.json())
       .then((d: { staff?: StaffOption[] }) => setStaff((d.staff ?? []).filter((s) => ["super_admin", "admin"].includes(s.role) && s.email)))
       .catch(() => {});
-  }, [loadUnread]);
+    return () => clearInterval(interval);
+  }, [loadUnread, loadDmUnread]);
 
   const loadShared = React.useCallback(async () => {
     setLoadingShared(true);
@@ -89,6 +100,8 @@ export function ReviewFab() {
       if (unreadIds.length) setUnread(0);
     } finally { setLoadingShared(false); }
   }, []);
+
+  React.useEffect(() => { if (!open) setFullscreen(false); }, [open]);
 
   function openPanel(t: Tab) { setOpen(true); setTab(t); if (t === "shared") void loadShared(); }
 
@@ -170,17 +183,25 @@ export function ReviewFab() {
     <>
       {/* FAB */}
       <div data-fab-ignore className="fixed bottom-5 right-5 z-50 print:hidden">
-        {open && (
-          <div className="mb-3 w-[340px] overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
+        {open && !(fullscreen && tab === "messages") && (
+          <div className={cn("mb-3 overflow-hidden rounded-2xl border border-border bg-card shadow-2xl", tab === "messages" ? "w-[92vw] max-w-[640px]" : "w-[340px]")}>
             <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
               <div className="flex items-center gap-1">
                 <TabBtn active={tab === "note"} onClick={() => setTab("note")} icon={<PenLine className="h-3.5 w-3.5" />} label="Note" />
                 <TabBtn active={tab === "shared"} onClick={() => openPanel("shared")} icon={<Inbox className="h-3.5 w-3.5" />} label="Requests" badge={unread} />
+                <TabBtn active={tab === "messages"} onClick={() => setTab("messages")} icon={<MessagesSquare className="h-3.5 w-3.5" />} label="Direct Messages" badge={dmUnread} />
               </div>
-              <button type="button" onClick={() => setOpen(false)} className="rounded p-1 text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+              <div className="flex items-center gap-1">
+                {tab === "messages" && (
+                  <button type="button" onClick={() => setFullscreen(true)} title="Expand to fullscreen" className="rounded p-1 text-muted-foreground hover:text-foreground"><Maximize2 className="h-4 w-4" /></button>
+                )}
+                <button type="button" onClick={() => setOpen(false)} className="rounded p-1 text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+              </div>
             </div>
 
-            {tab === "note" ? (
+            {tab === "messages" ? (
+              <DmInbox className="h-[62vh] rounded-none border-0" />
+            ) : tab === "note" ? (
               <div className="max-h-[70vh] space-y-3 overflow-y-auto p-4">
                 <div className="text-[11px] text-muted-foreground">On <span className="font-medium text-foreground">{pageTitle}</span> — captured automatically.</div>
                 {error && <div className="rounded bg-destructive/10 px-2 py-1 text-[11px] text-destructive">{error}</div>}
@@ -264,10 +285,23 @@ export function ReviewFab() {
           <button type="button" onClick={() => (open ? setOpen(false) : openPanel("note"))} title="Leadership review"
             className="relative flex h-14 w-14 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-xl transition hover:opacity-90">
             {open ? <X className="h-6 w-6" /> : <MessageSquarePlus className="h-6 w-6" />}
-            {!open && unread > 0 && <span className="absolute -right-0.5 -top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-white">{unread > 9 ? "9+" : unread}</span>}
+            {!open && (unread + dmUnread) > 0 && <span className="absolute -right-0.5 -top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-white">{(unread + dmUnread) > 9 ? "9+" : unread + dmUnread}</span>}
           </button>
         </div>
       </div>
+
+      {open && fullscreen && tab === "messages" && (
+        <div className="fixed inset-0 z-[110] flex flex-col bg-background p-4 print:hidden">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm font-semibold"><MessagesSquare className="h-4 w-4 text-accent" /> Direct Messages</div>
+            <div className="flex items-center gap-1">
+              <button type="button" onClick={() => setFullscreen(false)} title="Exit fullscreen" className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"><Minimize2 className="h-4 w-4" /></button>
+              <button type="button" onClick={() => { setFullscreen(false); setOpen(false); }} title="Close" className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"><X className="h-4 w-4" /></button>
+            </div>
+          </div>
+          <DmInbox className="min-h-0 flex-1" />
+        </div>
+      )}
 
       {editing && <ScreenshotEditor src={editing} onSave={(url) => { setShot(url); setEditing(null); }} onCancel={() => setEditing(null)} />}
       {boltOpen && <BoltModal context={pageTitle} onClose={() => setBoltOpen(false)} />}
