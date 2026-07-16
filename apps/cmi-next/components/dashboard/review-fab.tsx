@@ -47,6 +47,12 @@ export function ReviewFab() {
   const [fullscreen, setFullscreen] = React.useState(false);
 
   const pageTitle = prettyRoute(pathname);
+  // When on a specific job page (/dashboard/jobs/<uuid>/…), hand Bolt the job id
+  // so "this job" resolves to a get_job_overview call.
+  const boltJobId = React.useMemo(() => {
+    const m = pathname.match(/\/dashboard\/jobs\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\/|$)/i);
+    return m ? m[1] : null;
+  }, [pathname]);
 
   // Composer state
   const [note, setNote] = React.useState("");
@@ -304,7 +310,7 @@ export function ReviewFab() {
       )}
 
       {editing && <ScreenshotEditor src={editing} onSave={(url) => { setShot(url); setEditing(null); }} onCancel={() => setEditing(null)} />}
-      {boltOpen && <BoltModal context={pageTitle} onClose={() => setBoltOpen(false)} />}
+      {boltOpen && <BoltModal context={pageTitle} jobId={boltJobId} onClose={() => setBoltOpen(false)} />}
       {detailId && <NoteDetailModal noteId={detailId} onClose={() => setDetailId(null)} onChanged={() => { void loadShared(); loadUnread(); }} />}
       {confirmDel && (
         <ConfirmDeleteDialog

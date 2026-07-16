@@ -22,7 +22,7 @@ function getSpeechCtor(): (new () => SpeechRec) | null {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
-export function BoltModal({ context, onClose }: { context?: string; onClose: () => void }) {
+export function BoltModal({ context, jobId, onClose }: { context?: string; jobId?: string | null; onClose: () => void }) {
   const [messages, setMessages] = React.useState<Msg[]>([]);
   const [input, setInput] = React.useState("");
   const [loading, setLoading] = React.useState(false);
@@ -68,7 +68,7 @@ export function BoltModal({ context, onClose }: { context?: string; onClose: () 
     try {
       const res = await fetch("/api/agent/chat", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: [...messages.map((m) => ({ role: m.role, content: m.content })), { role: "user", content: outbound }] }),
+        body: JSON.stringify({ messages: [...messages.map((m) => ({ role: m.role, content: m.content })), { role: "user", content: outbound }], jobContext: jobId || undefined }),
       });
       const json = await res.json() as { message?: { content?: string }; activities?: ToolActivity[]; pendingActions?: PendingAction[]; error?: string };
       if (!res.ok || json.error) throw new Error(json.error ?? `HTTP ${res.status}`);

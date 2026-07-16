@@ -2,6 +2,7 @@
 // executes them. Reads/creates/updates run inline; deletes and sends are staged
 // as pending actions for the staff member to confirm.
 import { ENTITIES, getEntity } from "./entities";
+import { getJobOverview } from "./job-context";
 import {
   createRecord, deleteRecord, getRecord, listRecords, sendMessage, updateRecord,
 } from "./registry";
@@ -28,6 +29,18 @@ export const TOOL_DEFS: any[] = [
         type: "object",
         properties: { entity: { type: "string", enum: entityEnum, description: "Entity key" } },
         required: ["entity"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_job_overview",
+      description: "Load a full snapshot of ONE construction job in a single call: the job record plus its projects, tasks/milestones, change orders, invoices (with open balance), daily logs, selections, client updates, action items, internal notes, contacts, vendors, and assigned staff. Use this FIRST whenever the user asks about a specific job or says 'this job' — it's far more efficient than many list_records calls. Then use get_record/list_records to drill in, or create/update/delete to act on a child.",
+      parameters: {
+        type: "object",
+        properties: { job: { type: "string", description: "Job id (uuid), job number (e.g. 25_014_Smith), or part of the job name/address" } },
+        required: ["job"],
       },
     },
   },
@@ -141,6 +154,13 @@ export async function dispatchTool(name: string, args: Record<string, unknown>, 
         const e = getEntity(String(args.entity));
         if (!e) return { result: { error: `Unknown entity "${args.entity}".` }, activity: act(`Unknown entity ${args.entity}`, false) };
         return { result: { key: e.key, label: e.label, description: e.description, writeRoles: e.writeRoles, fields: e.fields }, activity: act(`Described ${e.label} fields`) };
+      }
+
+      case "get_job_overview": {
+        const r = await getJobOverview(String(args.job ?? ""));
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const label = (r as any)?.job?.job_number || (r as any)?.job?.job_name;
+        return { result: r, activity: act(r.error ? String(r.error) : `Loaded job overview${label ? ` for ${label}` : ""}`, !r.error) };
       }
 
       case "list_records": {

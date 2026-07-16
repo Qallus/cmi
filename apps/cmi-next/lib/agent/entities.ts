@@ -191,6 +191,18 @@ export const ENTITIES: AgentEntity[] = [
     ],
   },
   {
+    key: "job_note", label: "Job Note", plural: "job notes", table: "job_notes",
+    description: "Internal notes on a job (the job's shared notes stream). Staff-only — never client-visible. Use for logging decisions, reminders, and context on a job. Pin important notes.",
+    idColumn: "id", hasUpdatedAt: true, searchColumns: ["body", "author_name"],
+    orderBy: { column: "created_at", ascending: false }, writeRoles: PM,
+    fields: [
+      { name: "job_id", type: "string", desc: "Parent job id", required: true },
+      { name: "body", type: "text", desc: "Note text", required: true },
+      { name: "pinned", type: "boolean", desc: "Pin to top of the stream" },
+      { name: "author_name", type: "string", desc: "Author display name (set to the acting user when you add a note)" },
+    ],
+  },
+  {
     key: "job_update", label: "Client Update", plural: "client updates", table: "job_updates",
     description: "Client-portal update posts for a job. Only visibility='client_visible' updates appear in the client portal. Great for turning daily logs into client-friendly updates — but never expose internal notes; set visibility deliberately.",
     idColumn: "id", hasUpdatedAt: true, searchColumns: ["title", "body"],

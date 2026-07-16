@@ -23,8 +23,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Bolt is not configured (HERMES_AGENT_URL)." }, { status: 501 });
   }
 
-  const body = await req.json().catch(() => null) as { messages?: Array<{ role: string; content: string }> } | null;
+  const body = await req.json().catch(() => null) as { messages?: Array<{ role: string; content: string }>; jobContext?: string } | null;
   if (!body?.messages?.length) return NextResponse.json({ error: "messages are required." }, { status: 400 });
+  const jobContext = typeof body.jobContext === "string" && body.jobContext.trim() ? body.jobContext.trim() : null;
 
   const ctx: StaffContext = {
     id: staff.id,
@@ -37,7 +38,7 @@ export async function POST(req: NextRequest) {
   // Rebuild the conversation: our trusted system prompt + the user/assistant history.
   const history = body.messages.filter((m) => m.role === "user" || m.role === "assistant");
   const convo: ChatMessage[] = [
-    { role: "system", content: buildSystemPrompt(ctx) },
+    { role: "system", content: buildSystemPrompt(ctx, jobContext) },
     ...history.map((m) => ({ role: m.role as ChatMessage["role"], content: m.content })),
   ];
 
