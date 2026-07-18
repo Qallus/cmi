@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { BroadcastToggle } from "@/components/notifications/broadcast-toggle";
 
 export function SettingsClient({ initial }: { initial: { email_enabled: boolean; sms_enabled: boolean; phone: string | null } }) {
   const [email, setEmail] = React.useState(initial.email_enabled);
@@ -30,6 +31,11 @@ export function SettingsClient({ initial }: { initial: { email_enabled: boolean;
           onChange={(v) => { setSms(v); void patch({ sms_enabled: v }); }}
         />
       </div>
+
+      <div className="mt-4">
+        <BroadcastToggle endpoint="/api/client/notification-prefs" />
+      </div>
+
       {saved && <div className="mt-3 text-sm text-success">{saved}</div>}
     </div>
   );

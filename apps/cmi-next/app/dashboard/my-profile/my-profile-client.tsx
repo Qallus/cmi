@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input, Textarea } from "@/components/ui/input";
 import { PhotoField } from "@/components/ui/photo-field";
+import { BroadcastToggle } from "@/components/notifications/broadcast-toggle";
 import { cn } from "@/lib/utils";
 import { slugForTeamMember } from "@/lib/team/fallback";
 import type { TeamMember, TeamMemberDraft } from "@/lib/team/types";
@@ -104,6 +105,8 @@ export function MyProfileClient({ profile }: { profile: TeamMember | null }) {
           {!editing ? <Button size="sm" variant="accent" onClick={startEdit}>Edit Profile</Button> : null}
         </div>
       </header>
+
+      <BroadcastToggle endpoint="/api/me/notification-prefs" />
 
       {!member ? (
         <Card>

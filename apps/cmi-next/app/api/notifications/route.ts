@@ -9,13 +9,14 @@ import {
   type StaffNotificationKind,
 } from "@/lib/notifications/staff";
 
-const KINDS: StaffNotificationKind[] = ["submission", "message", "lead", "note", "booking", "dm"];
+const KINDS: StaffNotificationKind[] = ["submission", "message", "lead", "note", "booking", "dm", "broadcast"];
 
 function ctxFrom(user: { email?: string | null }, staff: { id: string; role_slug: string }) {
   return {
     email: user.email ?? "",
     staffId: staff.id,
     isAdmin: ["super_admin", "admin"].includes(staff.role_slug),
+    role: staff.role_slug,
   };
 }
 

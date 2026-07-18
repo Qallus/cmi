@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { requireAdmin, AuthError } from "@/lib/auth/require-admin";
 import { getUnreadCount as getDmUnreadCount } from "@/lib/direct-messages/data";
+import { unreadBroadcastsForStaff } from "@/lib/broadcasts/data";
 
 export async function GET(request: Request) {
   try {
@@ -51,7 +52,8 @@ export async function GET(request: Request) {
       .filter((r) => !(r.read_by ?? []).map((e) => e.toLowerCase()).includes(email.toLowerCase())).length;
 
     const dmUnread = await getDmUnreadCount(staff.id).catch(() => 0);
-    const count = (submissionsRes.count ?? 0) + (messagesRes.count ?? 0) + (leadsRes.count ?? 0) + unreadShared + (bookingsRes.count ?? 0) + dmUnread;
+    const broadcastUnread = await unreadBroadcastsForStaff(staff.id, staff.role_slug).then((b) => b.length).catch(() => 0);
+    const count = (submissionsRes.count ?? 0) + (messagesRes.count ?? 0) + (leadsRes.count ?? 0) + unreadShared + (bookingsRes.count ?? 0) + dmUnread + broadcastUnread;
     return NextResponse.json({ count });
   } catch (error) {
     if (error instanceof AuthError) return NextResponse.json({ count: 0 }, { status: error.status });

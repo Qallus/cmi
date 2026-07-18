@@ -1,12 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { Bell, CalendarClock, Check, FileText, Loader2, Mail, MessageSquare, MessagesSquare, StickyNote, UserPlus } from "lucide-react";
+import { Bell, CalendarClock, Check, FileText, Loader2, Mail, Megaphone, MessageSquare, MessagesSquare, StickyNote, UserPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { PushToggle } from "@/components/pwa/push-toggle";
 
-type Kind = "submission" | "message" | "lead" | "note" | "booking" | "dm";
+type Kind = "submission" | "message" | "lead" | "note" | "booking" | "dm" | "broadcast";
 type Item = { id: string; kind: Kind; title: string; subtitle: string; time: string; href: string };
 
 const ICON: Record<Kind, React.ComponentType<{ className?: string }>> = {
@@ -16,6 +16,7 @@ const ICON: Record<Kind, React.ComponentType<{ className?: string }>> = {
   note: StickyNote,
   booking: CalendarClock,
   dm: MessagesSquare,
+  broadcast: Megaphone,
 };
 const ICON_TONE: Record<Kind, string> = {
   submission: "bg-info/15 text-info",
@@ -24,6 +25,7 @@ const ICON_TONE: Record<Kind, string> = {
   note: "bg-warning/15 text-warning",
   booking: "bg-accent/15 text-accent",
   dm: "bg-info/15 text-info",
+  broadcast: "bg-accent/15 text-accent",
 };
 
 function relTime(iso: string): string {

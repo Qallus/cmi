@@ -13,8 +13,9 @@
 
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { listConversations } from "@/lib/direct-messages/data";
+import { markBroadcastRead, unreadBroadcastsForStaff } from "@/lib/broadcasts/data";
 
-export type StaffNotificationKind = "submission" | "message" | "lead" | "note" | "booking" | "dm";
+export type StaffNotificationKind = "submission" | "message" | "lead" | "note" | "booking" | "dm" | "broadcast";
 
 export type StaffNotification = {
   id: string;
@@ -25,7 +26,7 @@ export type StaffNotification = {
   href: string;
 };
 
-type Ctx = { email: string; staffId: string; isAdmin: boolean };
+type Ctx = { email: string; staffId: string; isAdmin: boolean; role?: string };
 
 const HREF: Record<StaffNotificationKind, string> = {
   submission: "/dashboard/communications",
@@ -34,6 +35,7 @@ const HREF: Record<StaffNotificationKind, string> = {
   note: "/dashboard/site-content",
   booking: "/dashboard/bookings",
   dm: "/dashboard/direct-messages",
+  broadcast: "/dashboard/overview",
 };
 
 function bookingWhen(iso: string | null): string {
@@ -185,6 +187,13 @@ export async function loadStaffNotifications(ctx: Ctx): Promise<StaffNotificatio
     }
   } catch { /* DM feed is best-effort */ }
 
+  // Super-Admin broadcasts targeting this staff member (unread, opt-in).
+  try {
+    for (const b of await unreadBroadcastsForStaff(ctx.staffId, ctx.role ?? "")) {
+      items.push({ id: b.id, kind: "broadcast", title: b.title, subtitle: snippet(b.body), time: b.created_at, href: b.link || HREF.broadcast });
+    }
+  } catch { /* best-effort */ }
+
   items.sort((a, b) => (a.time < b.time ? 1 : a.time > b.time ? -1 : 0));
   return items;
 }
@@ -219,6 +228,8 @@ export async function markStaffNotificationRead(
     } else if (kind === "dm") {
       // Mark the conversation read for this staff user.
       await supabase.from("dm_participants").update({ last_read_at: nowExpr }).eq("conversation_id", id).eq("user_id", ctx.staffId);
+    } else if (kind === "broadcast") {
+      await markBroadcastRead("staff", ctx.staffId, id);
     }
     return true;
   } catch {
