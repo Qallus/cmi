@@ -61,6 +61,19 @@ export async function apiMediaUrl(path: string): Promise<string> {
   return (await json<{ url: string }>(res)).url;
 }
 
+export async function apiCreateVoicePin(canvasId: string, sceneId: string, input: { client_key: string; audio_path: string }): Promise<void> {
+  await json(await fetch(`/api/canvas/${canvasId}/scenes/${sceneId}/voice`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input),
+  }));
+}
+
+export async function apiTranscribe(path: string, clientKey: string): Promise<string> {
+  const res = await fetch("/api/canvas/transcribe", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path, client_key: clientKey }),
+  });
+  return (await json<{ transcript: string }>(res)).transcript;
+}
+
 // Upload a blob to the private bucket via a signed upload URL, returning its
 // stored path. `sub` optionally namespaces the object (e.g. "audio").
 export async function apiUploadMedia(canvasId: string, sceneId: string | null, file: Blob, filename: string, sub?: string): Promise<string> {

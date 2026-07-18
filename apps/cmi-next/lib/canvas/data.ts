@@ -6,7 +6,7 @@ import type { CanvasActor } from "./actor";
 import { removeCanvasMedia } from "./storage";
 import {
   CANVAS_ANNOTATIONS_VERSION, EMPTY_ANNOTATIONS,
-  type CanvasProject, type CanvasScene, type CanvasStatus, type SceneAnnotations,
+  type CanvasPin, type CanvasProject, type CanvasScene, type CanvasStatus, type SceneAnnotations,
 } from "./types";
 
 export class CanvasError extends Error {
@@ -190,4 +190,27 @@ export async function deleteScene(actor: CanvasActor, sceneId: string): Promise<
 
 async function touchCanvas(canvasId: string): Promise<void> {
   await getSupabaseAdmin().from("canvas_projects").update({ updated_at: new Date().toISOString() }).eq("id", canvasId);
+}
+
+// ── Voice pins (canvas_pins holds audio + transcript; the pin itself lives in
+// the scene annotations jsonb) ──────────────────────────────────────
+export async function addVoicePin(actor: CanvasActor, sceneId: string, input: { client_key: string; audio_path: string }): Promise<CanvasPin> {
+  const scene = await getScene(sceneId);
+  if (!scene) throw new CanvasError("Scene not found.", 404);
+  await loadCanvasForWrite(actor, scene.canvas_id);
+  const { data, error } = await getSupabaseAdmin().from("canvas_pins").insert({
+    scene_id: sceneId, client_key: input.client_key, kind: "voice", audio_path: input.audio_path, transcript_status: "pending",
+  }).select("*").single();
+  if (error) throw new CanvasError(error.message, 500);
+  return data as CanvasPin;
+}
+
+export async function setPinTranscript(clientKey: string, transcript: string, status: "done" | "failed"): Promise<void> {
+  await getSupabaseAdmin().from("canvas_pins").update({ transcript, transcript_status: status }).eq("client_key", clientKey);
+}
+
+export async function listScenePins(sceneId: string): Promise<CanvasPin[]> {
+  const { data, error } = await getSupabaseAdmin().from("canvas_pins").select("*").eq("scene_id", sceneId).order("created_at", { ascending: true });
+  if (error) throw new CanvasError(error.message, 500);
+  return (data ?? []) as CanvasPin[];
 }

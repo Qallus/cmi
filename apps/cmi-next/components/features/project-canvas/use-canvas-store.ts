@@ -32,6 +32,7 @@ export type CanvasStore = {
   deleteScene: (id: string) => Promise<void>;
   reorder: (orderedIds: string[]) => Promise<void>;
   ensureMediaUrl: (path: string | null | undefined) => void;
+  uploadVoiceNote: (clientKey: string, blob: Blob) => Promise<string | null>;
   refresh: () => Promise<void>;
 };
 
@@ -177,11 +178,26 @@ export function useCanvasStore(canvasId: string, surface: Surface): CanvasStore 
     try { await api.apiReorderScenes(canvasId, orderedIds); flashSaved(); } catch { setSaveStatus("error"); }
   }, [canvasId, flashSaved]);
 
+  // Upload a voice-note blob, record the pin's audio row, and transcribe it.
+  // Returns the transcript (or null on failure) so the caller can label the pin.
+  const uploadVoiceNote = React.useCallback(async (clientKey: string, blob: Blob): Promise<string | null> => {
+    const sceneId = activeSceneId;
+    if (!sceneId) return null;
+    try {
+      const path = await api.apiUploadMedia(canvasId, sceneId, blob, "voice-note.webm", "audio");
+      await api.apiCreateVoicePin(canvasId, sceneId, { client_key: clientKey, audio_path: path });
+      const transcript = await api.apiTranscribe(path, clientKey).catch(() => "");
+      return transcript || null;
+    } catch {
+      return null;
+    }
+  }, [activeSceneId, canvasId]);
+
   const activeScene = scenes.find((s) => s.id === activeSceneId) ?? null;
 
   return {
     canvas, scenes, activeSceneId, activeScene, tool, color, saveStatus, loading, error, busy, readOnly, mediaUrls,
     setTool, setColor, setActiveScene: setActiveSceneId, rename, mutateActiveAnnotations,
-    addSceneFromUpload, deleteScene, reorder, ensureMediaUrl, refresh,
+    addSceneFromUpload, deleteScene, reorder, ensureMediaUrl, uploadVoiceNote, refresh,
   };
 }
