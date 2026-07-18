@@ -17,7 +17,7 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
 
 type State = "unsupported" | "default" | "denied" | "subscribed" | "loading";
 
-export function PushToggle({ className }: { className?: string }) {
+export function PushToggle({ className, endpoint = "/api/push/subscribe" }: { className?: string; endpoint?: string }) {
   const [state, setState] = React.useState<State>("loading");
 
   const supported = React.useCallback(() => {
@@ -48,7 +48,7 @@ export function PushToggle({ className }: { className?: string }) {
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as BufferSource,
       });
-      const res = await fetch("/api/push/subscribe", {
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ subscription: sub.toJSON() }),
@@ -65,7 +65,7 @@ export function PushToggle({ className }: { className?: string }) {
       const reg = await navigator.serviceWorker.ready;
       const sub = await reg.pushManager.getSubscription();
       if (sub) {
-        await fetch("/api/push/subscribe", {
+        await fetch(endpoint, {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ endpoint: sub.endpoint }),

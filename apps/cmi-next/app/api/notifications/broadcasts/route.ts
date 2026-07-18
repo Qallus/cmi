@@ -5,7 +5,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin, AuthError } from "@/lib/auth/require-admin";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { createBroadcast, fanOutToClients, listBroadcasts, staffPushRecipients, type BroadcastAudience } from "@/lib/broadcasts/data";
-import { sendPushToStaff } from "@/lib/push/web-push";
+import { sendPushToClients, sendPushToStaff } from "@/lib/push/web-push";
 
 export const dynamic = "force-dynamic";
 
@@ -35,16 +35,19 @@ export async function POST(request: Request) {
       createdByStaffId: staff.id, createdByName,
     });
 
-    // Deliver: staff web push + client in-app fan-out (best-effort).
+    // Deliver: staff web push + client in-app fan-out + client web push (best-effort).
     const staffIds = await staffPushRecipients(broadcast).catch(() => [] as string[]);
-    const [pushedStaff, clientCount] = await Promise.all([
+    const [pushedStaff, clientIds] = await Promise.all([
       staffIds.length
         ? sendPushToStaff(staffIds, { title: broadcast.title, body: broadcast.body, url: broadcast.link || "/dashboard/overview", tag: `broadcast-${broadcast.id}` }).then(() => staffIds.length).catch(() => 0)
         : Promise.resolve(0),
-      fanOutToClients(broadcast).catch(() => 0),
+      fanOutToClients(broadcast).catch(() => [] as string[]),
     ]);
+    if (clientIds.length) {
+      await sendPushToClients(clientIds, { title: broadcast.title, body: broadcast.body, url: broadcast.link || "/client/jobs", tag: `broadcast-${broadcast.id}` }).catch(() => {});
+    }
 
-    return NextResponse.json({ broadcast, delivered: { staffPush: pushedStaff, clients: clientCount } }, { status: 201 });
+    return NextResponse.json({ broadcast, delivered: { staffPush: pushedStaff, clients: clientIds.length } }, { status: 201 });
   } catch (err) {
     if (err instanceof AuthError) return NextResponse.json({ error: err.message }, { status: err.status });
     return NextResponse.json({ error: err instanceof Error ? err.message : "Failed to send broadcast." }, { status: 500 });

@@ -72,21 +72,21 @@ export async function unreadBroadcastsForStaff(staffId: string, roleSlug: string
 // Clients already have a real per-row notification system; deliver a broadcast
 // by fanning out an in-app client_notifications row to every portal-enabled,
 // opted-in client. (Client web push is a later increment.)
-export async function fanOutToClients(b: Broadcast): Promise<number> {
-  if (b.audience === "staff" || b.audience === "role") return 0;
+export async function fanOutToClients(b: Broadcast): Promise<string[]> {
+  if (b.audience === "staff" || b.audience === "role") return [];
   const sb = getSupabaseAdmin();
   const { data } = await sb.from("job_contacts").select("contact_id").eq("portal_access_enabled", true);
   const ids = [...new Set((data ?? []).map((r) => r.contact_id as string).filter(Boolean))];
   const { data: prefs } = await sb.from("notification_prefs").select("user_id").eq("user_kind", "client").eq("broadcasts_enabled", false);
   const optedOut = new Set((prefs ?? []).map((p) => p.user_id as string));
   const recipients = ids.filter((id) => !optedOut.has(id));
-  if (!recipients.length) return 0;
+  if (!recipients.length) return [];
   const rows = recipients.map((contact_id) => ({
     contact_id, job_id: null, type: "broadcast", title: b.title, body: b.body,
     link: b.link || "/client/jobs", channels_sent: ["in_app"],
   }));
   await sb.from("client_notifications").insert(rows);
-  return recipients.length;
+  return recipients;
 }
 
 export async function markBroadcastRead(userKind: UserKind, userId: string, broadcastId: string): Promise<void> {

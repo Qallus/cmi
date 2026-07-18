@@ -46,6 +46,21 @@ export async function savePushSubscription(staffId: string, sub: PushSubscriptio
   );
 }
 
+export async function saveClientPushSubscription(contactId: string, sub: PushSubscriptionInput, userAgent?: string | null) {
+  const supabase = getSupabaseAdmin();
+  await supabase.from("push_subscriptions").upsert(
+    {
+      contact_id: contactId,
+      endpoint: sub.endpoint,
+      p256dh: sub.keys.p256dh,
+      auth: sub.keys.auth,
+      user_agent: userAgent ?? null,
+      last_used_at: new Date().toISOString(),
+    },
+    { onConflict: "endpoint" },
+  );
+}
+
 export async function removePushSubscription(endpoint: string) {
   const supabase = getSupabaseAdmin();
   await supabase.from("push_subscriptions").delete().eq("endpoint", endpoint);
@@ -91,6 +106,18 @@ export async function sendPushToStaff(staffIds: string[], payload: PushPayload) 
     if (!ensureConfigured() || !staffIds.length) return;
     const supabase = getSupabaseAdmin();
     const { data } = await supabase.from("push_subscriptions").select("endpoint, p256dh, auth").in("staff_user_id", staffIds);
+    await deliver((data ?? []) as StoredSub[], payload);
+  } catch {
+    /* swallow — push is non-critical */
+  }
+}
+
+// Push to specific client contacts.
+export async function sendPushToClients(contactIds: string[], payload: PushPayload) {
+  try {
+    if (!ensureConfigured() || !contactIds.length) return;
+    const supabase = getSupabaseAdmin();
+    const { data } = await supabase.from("push_subscriptions").select("endpoint, p256dh, auth").in("contact_id", contactIds);
     await deliver((data ?? []) as StoredSub[], payload);
   } catch {
     /* swallow — push is non-critical */

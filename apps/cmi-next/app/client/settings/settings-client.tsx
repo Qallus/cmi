@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { BroadcastToggle } from "@/components/notifications/broadcast-toggle";
+import { PushToggle } from "@/components/pwa/push-toggle";
 
 export function SettingsClient({ initial }: { initial: { email_enabled: boolean; sms_enabled: boolean; phone: string | null } }) {
   const [email, setEmail] = React.useState(initial.email_enabled);
@@ -34,6 +35,10 @@ export function SettingsClient({ initial }: { initial: { email_enabled: boolean;
 
       <div className="mt-4">
         <BroadcastToggle endpoint="/api/client/notification-prefs" />
+      </div>
+
+      <div className="mt-4 overflow-hidden rounded-xl border border-border bg-card">
+        <PushToggle endpoint="/api/client/push/subscribe" />
       </div>
 
       {saved && <div className="mt-3 text-sm text-success">{saved}</div>}
