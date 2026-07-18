@@ -3,18 +3,20 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bell, LogOut, Settings } from "lucide-react";
+import { Bell, LogOut, Settings, SquarePen } from "lucide-react";
 
 // Authenticated client-portal chrome: brand bar + notifications + sign out.
 // Wraps all authenticated /client pages.
 export function ClientShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [unread, setUnread] = React.useState(0);
+  const [canvasOn, setCanvasOn] = React.useState(false);
 
   React.useEffect(() => {
     let active = true;
     const load = () => fetch("/api/client/notifications/unread-count").then((r) => r.json()).then((d) => { if (active) setUnread(d.count ?? 0); }).catch(() => {});
     load();
+    fetch("/api/flags").then((r) => r.json()).then((d: { flags?: Record<string, boolean> }) => { if (active) setCanvasOn(d.flags?.project_canvas === true); }).catch(() => {});
     const t = setInterval(load, 60_000);
     return () => { active = false; clearInterval(t); };
   }, []);
@@ -33,6 +35,11 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
         </Link>
         <div className="flex items-center gap-2 sm:gap-3">
           <Link href="/client/jobs" className="hidden text-sm font-medium text-muted-foreground hover:text-foreground sm:inline">My Projects</Link>
+          {canvasOn && (
+            <Link href="/client/canvas" className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground" title="Project Canvas">
+              <SquarePen className="h-4 w-4" /><span className="hidden sm:inline">Canvas</span>
+            </Link>
+          )}
           <Link href="/client/notifications" className="relative inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground hover:text-foreground" title="Notifications">
             <Bell className="h-4 w-4" />
             {unread > 0 && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-bold text-accent-foreground">{unread > 9 ? "9+" : unread}</span>}

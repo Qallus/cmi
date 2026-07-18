@@ -32,7 +32,7 @@ export default async function FeatureFlagsPage() {
         <Card>
           <CardHeader>
             <CardTitle>Rollout</CardTitle>
-            <CardDescription>Super Admin and Admin only. Flags gate their feature's nav entry, pages, and API routes.</CardDescription>
+            <CardDescription>Super Admin and Admin only. Flags gate a feature&apos;s nav entry, pages, and API routes.</CardDescription>
           </CardHeader>
           <CardContent className="pt-0">
             <FeatureFlagsPanel initial={flags} />

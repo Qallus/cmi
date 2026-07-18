@@ -8,7 +8,7 @@ import {
   ArrowLeft, BookOpen, BriefcaseBusiness, CalendarRange,
   CreditCard, FileText, FolderKanban, HardHat, Home, IdCard, LayoutGrid,
   MessageCircle, MessagesSquare, Mic, Minus, Newspaper, Package, Plus, Settings, ShieldCheck,
-  Sparkles, User, UserRoundCog, Users,
+  Sparkles, SquarePen, User, UserRoundCog, Users,
 } from "lucide-react";
 
 export type UserRole =
@@ -19,11 +19,11 @@ export type UserRole =
 type IconType = typeof FolderKanban;
 
 // A nested child link that lives inside a parent's dropdown.
-type NavChild = { href: string; label: string; icon: IconType; roles?: UserRole[] };
+type NavChild = { href: string; label: string; icon: IconType; roles?: UserRole[]; flag?: string };
 
 type NavItem =
-  | { href: string; label: string; icon: IconType; roles?: UserRole[]; children?: NavChild[]; section?: never }
-  | { section: string; roles?: UserRole[]; label?: never; icon?: never; href?: never };
+  | { href: string; label: string; icon: IconType; roles?: UserRole[]; children?: NavChild[]; flag?: string; section?: never }
+  | { section: string; roles?: UserRole[]; label?: never; icon?: never; href?: never; flag?: never };
 
 // roles: undefined = visible to all; defined array = visible only to those roles.
 // A parent item keeps its own `href` (clicking the label navigates there) and an
@@ -33,6 +33,7 @@ const nav: NavItem[] = [
   { href: "/dashboard/contacts",       label: "Contacts",       icon: Users,          roles: ["super_admin", "admin", "project_manager", "estimator"] },
   { href: "/dashboard/project-manager",label: "Projects",       icon: FolderKanban,   roles: ["super_admin", "admin", "project_manager", "designer", "estimator", "superintendent", "subcontractor", "client"] },
   { href: "/dashboard/selections",     label: "Selections",     icon: Package,        roles: ["super_admin", "admin", "project_manager", "designer", "client"] },
+  { href: "/dashboard/canvas",          label: "Project Canvas", icon: SquarePen,      roles: ["super_admin", "admin", "project_manager", "designer", "estimator", "superintendent"], flag: "project_canvas" },
   { href: "/dashboard/sales",          label: "Pre-Con",        icon: BriefcaseBusiness, roles: ["super_admin", "admin", "project_manager", "estimator"] },
   {
     href: "/dashboard/jobs",           label: "Jobs",           icon: HardHat,        roles: ["super_admin", "admin", "project_manager", "estimator", "superintendent", "designer"],
@@ -81,6 +82,13 @@ function canSee(item: NavItem, role: UserRole): boolean {
 
 export function DashboardNav({ collapsed = false, role = "viewer" }: { collapsed?: boolean; role?: UserRole }) {
   const pathname = usePathname();
+
+  // Feature-flagged nav entries stay hidden until their flag is on.
+  const [flags, setFlags] = React.useState<Record<string, boolean>>({});
+  React.useEffect(() => {
+    fetch("/api/flags").then((r) => r.json()).then((d: { flags?: Record<string, boolean> }) => setFlags(d.flags ?? {})).catch(() => {});
+  }, []);
+  const flagOk = React.useCallback((flag?: string) => !flag || flags[flag] === true, [flags]);
 
   const isActive = (href: string) => href !== "/" && pathname.startsWith(href);
 
@@ -133,8 +141,8 @@ export function DashboardNav({ collapsed = false, role = "viewer" }: { collapsed
 
         // ── Parent with nested children ──
         if ("children" in item && item.children) {
-          const visibleChildren = item.children.filter((c) => canSeeRoles(c.roles, role));
-          const parentVisible = canSee(item, role);
+          const visibleChildren = item.children.filter((c) => canSeeRoles(c.roles, role) && flagOk(c.flag));
+          const parentVisible = canSee(item, role) && flagOk(item.flag);
           if (!parentVisible && visibleChildren.length === 0) return null;
 
           // Collapsed sidebar is icon-only: flatten the group to icon links so
@@ -192,7 +200,7 @@ export function DashboardNav({ collapsed = false, role = "viewer" }: { collapsed
         }
 
         // ── Regular leaf item ──
-        if (!canSee(item, role)) return null;
+        if (!canSee(item, role) || !flagOk(item.flag)) return null;
         return <LeafLink key={item.href} href={item.href} label={item.label} icon={item.icon} />;
       })}
     </nav>
