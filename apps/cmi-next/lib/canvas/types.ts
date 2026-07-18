@@ -53,6 +53,7 @@ export type CanvasProject = {
   submitted_at: string | null;
   created_at: string;
   updated_at: string;
+  cover_path?: string | null; // first scene's flattened/media path (list views)
 };
 
 export type CanvasScene = {

@@ -58,7 +58,23 @@ export async function listCanvases(actor: CanvasActor, opts: { jobId?: string; s
   if (opts.status) q = q.eq("status", opts.status);
   const { data, error } = await q;
   if (error) throw new CanvasError(error.message, 500);
-  return (data ?? []) as CanvasProject[];
+  const list = (data ?? []) as CanvasProject[];
+
+  // Attach each canvas's cover (its lowest-position scene with media) for the
+  // image/card list views.
+  if (list.length) {
+    const ids = list.map((c) => c.id);
+    const { data: scenes } = await sb.from("canvas_scenes").select("canvas_id, position, media_path, flattened_path").in("canvas_id", ids).order("position", { ascending: true });
+    const cover = new Map<string, string>();
+    for (const s of (scenes ?? []) as Record<string, unknown>[]) {
+      const cid = s.canvas_id as string;
+      if (cover.has(cid)) continue;
+      const p = (s.flattened_path as string | null) ?? (s.media_path as string | null);
+      if (p) cover.set(cid, p);
+    }
+    for (const c of list) c.cover_path = cover.get(c.id) ?? null;
+  }
+  return list;
 }
 
 export async function getCanvas(id: string): Promise<CanvasProject | null> {
@@ -112,7 +128,12 @@ export async function updateCanvas(actor: CanvasActor, id: string, patch: { titl
 export async function deleteCanvas(actor: CanvasActor, id: string): Promise<void> {
   const canvas = await getCanvas(id);
   if (!canvas) return;
-  if (!canActorWrite(actor, canvas)) throw new CanvasError("You can't delete this canvas.", 403);
+  // Staff deletes are Super-Admin only; clients may delete their own draft.
+  if (actor.kind === "staff") {
+    if (actor.role !== "super_admin") throw new CanvasError("Only Super Admins can delete canvases.", 403);
+  } else if (!canActorWrite(actor, canvas)) {
+    throw new CanvasError("You can't delete this canvas.", 403);
+  }
   const scenes = await listScenes(id);
   await removeCanvasMedia(scenes.flatMap((s) => [s.media_path, s.source_video_path, s.flattened_path].filter(Boolean) as string[]));
   const { error } = await getSupabaseAdmin().from("canvas_projects").delete().eq("id", id);

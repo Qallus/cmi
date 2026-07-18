@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Loader2, Plus, SquarePen } from "lucide-react";
+import { Loader2, Plus, SquarePen, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import * as api from "./canvas-api";
 import type { Surface } from "./use-canvas-store";
@@ -16,10 +16,21 @@ export function CanvasList({ surface, basePath }: { surface: Surface; basePath: 
   const [canvases, setCanvases] = React.useState<CanvasProject[] | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [creating, setCreating] = React.useState(false);
+  const [isSuper, setIsSuper] = React.useState(false);
 
   React.useEffect(() => {
     api.apiListCanvases().then(setCanvases).catch((e) => setError(e instanceof Error ? e.message : "Could not load canvases."));
   }, []);
+  React.useEffect(() => {
+    if (surface !== "staff") return;
+    fetch("/api/auth/me").then((r) => r.json()).then((d: { user?: { role?: string } }) => setIsSuper(d.user?.role === "super_admin")).catch(() => {});
+  }, [surface]);
+
+  async function del(id: string) {
+    if (!window.confirm("Delete this canvas permanently? This can't be undone.")) return;
+    setCanvases((prev) => prev?.filter((c) => c.id !== id) ?? prev);
+    try { await api.apiDeleteCanvas(id); } catch (e) { setError(e instanceof Error ? e.message : "Delete failed."); }
+  }
 
   async function create() {
     setCreating(true);
@@ -58,13 +69,21 @@ export function CanvasList({ surface, basePath }: { surface: Surface; basePath: 
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {canvases.map((c) => (
-            <Link key={c.id} href={`${basePath}/${c.id}`} className="rounded-xl border border-border bg-card p-4 transition hover:border-accent/50">
-              <div className="flex items-center justify-between gap-2">
-                <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{STATUS_LABEL[c.status] ?? c.status}</span>
-                <span className="font-mono text-[10px] text-muted-foreground">{new Date(c.updated_at).toLocaleDateString()}</span>
-              </div>
-              <div className="mt-2 font-medium">{c.title}</div>
-            </Link>
+            <div key={c.id} className="group relative rounded-xl border border-border bg-card transition hover:border-accent/50">
+              <Link href={`${basePath}/${c.id}`} className="block p-4">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{STATUS_LABEL[c.status] ?? c.status}</span>
+                  <span className="font-mono text-[10px] text-muted-foreground">{new Date(c.updated_at).toLocaleDateString()}</span>
+                </div>
+                <div className="mt-2 font-medium">{c.title}</div>
+              </Link>
+              {isSuper && (
+                <button type="button" onClick={() => del(c.id)} title="Delete canvas" aria-label="Delete canvas"
+                  className="absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-md bg-card/80 text-muted-foreground opacity-0 transition hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100">
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
           ))}
         </div>
       )}

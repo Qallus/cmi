@@ -33,8 +33,12 @@ const nav: NavItem[] = [
   { href: "/dashboard/contacts",       label: "Contacts",       icon: Users,          roles: ["super_admin", "admin", "project_manager", "estimator"] },
   { href: "/dashboard/project-manager",label: "Projects",       icon: FolderKanban,   roles: ["super_admin", "admin", "project_manager", "designer", "estimator", "superintendent", "subcontractor", "client"] },
   { href: "/dashboard/selections",     label: "Selections",     icon: Package,        roles: ["super_admin", "admin", "project_manager", "designer", "client"] },
-  { href: "/dashboard/canvas",          label: "Project Canvas", icon: SquarePen,      roles: ["super_admin", "admin", "project_manager", "designer", "estimator", "superintendent"], flag: "project_canvas" },
-  { href: "/dashboard/canvas-briefs",   label: "Canvas Briefs",  icon: Inbox,          roles: ["super_admin", "admin", "project_manager", "designer", "estimator", "superintendent"], flag: "project_canvas" },
+  {
+    href: "/dashboard/canvas",          label: "Project Canvas", icon: SquarePen,      roles: ["super_admin", "admin", "project_manager", "designer", "estimator", "superintendent"], flag: "project_canvas",
+    children: [
+      { href: "/dashboard/canvas-briefs", label: "Canvas Briefs", icon: Inbox, roles: ["super_admin", "admin", "project_manager", "designer", "estimator", "superintendent"], flag: "project_canvas" },
+    ],
+  },
   { href: "/dashboard/sales",          label: "Pre-Con",        icon: BriefcaseBusiness, roles: ["super_admin", "admin", "project_manager", "estimator"] },
   {
     href: "/dashboard/jobs",           label: "Jobs",           icon: HardHat,        roles: ["super_admin", "admin", "project_manager", "estimator", "superintendent", "designer"],
