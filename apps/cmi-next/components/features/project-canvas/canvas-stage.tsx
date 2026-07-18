@@ -48,6 +48,16 @@ export function CanvasStage({ store }: { store: CanvasStore }) {
     setShapePts([]); setHoverPt(null); setDraftStroke(null); setSelected(null); setCardPin(null);
   }, [tool, activeScene?.id]);
 
+  // Escape cancels an unfinished shape/stroke and closes any open card/selection.
+  React.useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== "Escape") return;
+      setShapePts([]); setHoverPt(null); setDraftStroke(null); setSelected(null); setCardPin(null);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   React.useEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
@@ -164,8 +174,8 @@ export function CanvasStage({ store }: { store: CanvasStore }) {
   // ── Selection-mode drag (pins + stamps) ──
   function startDrag(e: React.PointerEvent, kind: "pin" | "stamp", id: string) {
     if (tool !== "select") return;
+    e.stopPropagation(); // keep the empty-area deselect from firing
     if (readOnly) { if (kind === "pin") setCardPin(id); return; } // view-only tap
-    e.stopPropagation();
     (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
     dragRef.current = { kind, id, moved: false };
     setSelected({ kind, id });
@@ -222,7 +232,8 @@ export function CanvasStage({ store }: { store: CanvasStore }) {
   const selectedStamp = selected?.kind === "stamp" ? stamps.find((s) => s.id === selected.id) ?? null : null;
 
   return (
-    <div ref={wrapRef} className="relative flex-1 overflow-hidden bg-[#20261f]" style={{ minHeight: 0 }}>
+    <div ref={wrapRef} className="relative flex-1 overflow-hidden bg-[#20261f]" style={{ minHeight: 0 }}
+      onPointerDown={() => { if (tool === "select") { setSelected(null); setCardPin(null); } }}>
       {mediaPath && !mediaUrl && <div className="absolute inset-0 flex items-center justify-center text-white/70"><Loader2 className="h-5 w-5 animate-spin" /></div>}
       {mediaUrl && (
         // eslint-disable-next-line @next/next/no-img-element
@@ -276,6 +287,7 @@ export function CanvasStage({ store }: { store: CanvasStore }) {
       {/* Note-pin card */}
       {cardPinObj && (
         <div className="absolute z-20 w-60 -translate-x-1/2 rounded-lg border border-border bg-card p-3 shadow-xl"
+          onPointerDown={(e) => e.stopPropagation()}
           style={{ left: `${box.left + cardPinObj.x * box.width}px`, top: `${box.top + cardPinObj.y * box.height + 12}px` }}>
           <div className="mb-1 flex items-center justify-between">
             <span className="text-[10px] font-bold uppercase tracking-wide text-[#c87f3a]">{cardPinObj.kind === "voice" ? "Voice note" : `Pin ${cardPinObj.number ?? ""}`}</span>
@@ -296,6 +308,7 @@ export function CanvasStage({ store }: { store: CanvasStore }) {
       {/* Selected-stamp controls */}
       {selectedStamp && !readOnly && tool === "select" && (
         <div className="absolute z-20 flex -translate-x-1/2 items-center gap-1 rounded-lg border border-border bg-card px-1.5 py-1 shadow-xl"
+          onPointerDown={(e) => e.stopPropagation()}
           style={{ left: `${box.left + selectedStamp.x * box.width}px`, top: `${box.top + selectedStamp.y * box.height - 46}px` }}>
           <Ctrl onClick={() => updateStamp(selectedStamp.id, { rotation: selectedStamp.rotation - 15 })}><RotateCcw className="h-3.5 w-3.5" /></Ctrl>
           <Ctrl onClick={() => updateStamp(selectedStamp.id, { rotation: selectedStamp.rotation + 15 })}><RotateCw className="h-3.5 w-3.5" /></Ctrl>

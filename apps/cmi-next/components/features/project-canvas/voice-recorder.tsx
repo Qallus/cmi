@@ -76,7 +76,7 @@ export function VoiceRecorder({ onDone, onCancel }: { onDone: (blob: Blob) => vo
         ) : (
           <>
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#2e7d5b]/15 text-[#2e7d5b]">
-              <Mic className="h-6 w-6 animate-pulse" />
+              <Mic className="h-6 w-6 motion-safe:animate-pulse" />
             </div>
             <div className="mt-3 font-mono text-lg">{mm}:{ss}</div>
             <p className="mt-1 text-xs text-muted-foreground">Recording your voice note…</p>

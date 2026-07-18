@@ -34,6 +34,42 @@ export function SceneStrip({ store }: { store: CanvasStore }) {
     void store.reorder(order);
   }
 
+  // Drag-to-reorder (mouse). Touch uses the ‹ › controls so it never fights the
+  // horizontal scroll gesture.
+  const dragRef = React.useRef<{ id: string; x: number; y: number; moved: boolean } | null>(null);
+  const suppressClick = React.useRef(false);
+  const [dragId, setDragId] = React.useState<string | null>(null);
+
+  function dragDown(e: React.PointerEvent, id: string) {
+    if (readOnly || e.pointerType !== "mouse") return;
+    dragRef.current = { id, x: e.clientX, y: e.clientY, moved: false };
+  }
+  function dragMove(e: React.PointerEvent) {
+    const d = dragRef.current;
+    if (!d) return;
+    if (!d.moved && Math.hypot(e.clientX - d.x, e.clientY - d.y) > 6) {
+      d.moved = true;
+      setDragId(d.id);
+      (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+    }
+  }
+  function dragUp(e: React.PointerEvent) {
+    const d = dragRef.current;
+    dragRef.current = null;
+    setDragId(null);
+    if (!d?.moved) return;
+    suppressClick.current = true;
+    setTimeout(() => { suppressClick.current = false; }, 0);
+    const el = document.elementFromPoint(e.clientX, e.clientY) as Element | null;
+    const targetId = el?.closest("[data-scene-id]")?.getAttribute("data-scene-id");
+    if (!targetId || targetId === d.id) return;
+    const order = scenes.map((s) => s.id);
+    const from = order.indexOf(d.id), to = order.indexOf(targetId);
+    if (from < 0 || to < 0) return;
+    order.splice(to, 0, order.splice(from, 1)[0]);
+    void store.reorder(order);
+  }
+
   return (
     <div className="flex items-center gap-3 rounded-b-xl border border-t-0 border-border bg-card px-3 py-3 shadow-sm">
       <div className="hidden shrink-0 text-[10px] font-bold uppercase tracking-[0.13em] text-muted-foreground sm:block">Scenes</div>
@@ -43,8 +79,10 @@ export function SceneStrip({ store }: { store: CanvasStore }) {
           const on = s.id === activeSceneId;
           const url = s.media_path ? mediaUrls[s.media_path] : null;
           return (
-            <div key={s.id} className={`group relative h-14 w-[88px] shrink-0 overflow-hidden rounded-lg border-2 ${on ? "border-accent" : "border-transparent"}`}>
-              <button type="button" onClick={() => store.setActiveScene(s.id)} className="h-full w-full bg-muted">
+            <div key={s.id} data-scene-id={s.id}
+              onPointerDown={(e) => dragDown(e, s.id)} onPointerMove={dragMove} onPointerUp={dragUp}
+              className={`group relative h-14 w-[88px] shrink-0 overflow-hidden rounded-lg border-2 ${on ? "border-accent" : "border-transparent"} ${dragId === s.id ? "opacity-50" : ""} ${!readOnly ? "md:cursor-grab" : ""}`}>
+              <button type="button" onClick={() => { if (suppressClick.current) return; store.setActiveScene(s.id); }} className="h-full w-full bg-muted">
                 {url ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={url} alt={`Scene ${i + 1}`} className="h-full w-full object-cover" />
