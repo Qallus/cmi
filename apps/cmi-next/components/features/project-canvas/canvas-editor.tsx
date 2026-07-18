@@ -2,8 +2,9 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowLeft, Check, Cloud, Loader2, Sparkles, X } from "lucide-react";
+import { ArrowLeft, Check, Cloud, Loader2, Send, Sparkles, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import { BoltPanel } from "./bolt-panel";
 import { CanvasStage } from "./canvas-stage";
 import { SceneStrip } from "./scene-strip";
@@ -13,6 +14,17 @@ import { useCanvasStore, type Surface } from "./use-canvas-store";
 export function CanvasEditor({ canvasId, surface, backHref }: { canvasId: string; surface: Surface; backHref: string }) {
   const store = useCanvasStore(canvasId, surface);
   const [boltOpen, setBoltOpen] = React.useState(false);
+  const [sent, setSent] = React.useState(false);
+
+  const status = store.canvas?.status ?? "draft";
+  const canSubmit = status === "draft" && !store.readOnly && store.scenes.some((s) => s.media_path);
+
+  async function handleSubmit() {
+    if (!canSubmit || store.busy) return;
+    if (!window.confirm("Send this canvas to the CMI team? You won't be able to edit it afterward.")) return;
+    const ok = await store.submitBrief();
+    if (ok) setSent(true);
+  }
 
   if (store.loading) {
     return <div className="flex h-[60vh] items-center justify-center text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" /></div>;
@@ -44,8 +56,24 @@ export function CanvasEditor({ canvasId, surface, backHref }: { canvasId: string
           />
           <div className="mt-0.5 text-xs text-muted-foreground">{store.scenes.length} scene{store.scenes.length === 1 ? "" : "s"}</div>
         </div>
-        <SavePill status={store.saveStatus} readOnly={store.readOnly} />
+        <div className="flex shrink-0 items-center gap-2">
+          <SavePill status={store.saveStatus} readOnly={store.readOnly} />
+          {status === "draft" ? (
+            <Button variant="accent" onClick={handleSubmit} disabled={!canSubmit || store.busy} title={canSubmit ? "" : "Add at least one photo scene first"}>
+              {store.busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              <span className="hidden sm:inline">Send to CMI team</span>
+            </Button>
+          ) : (
+            <span className="rounded-full bg-[#2e7d5b]/12 px-3 py-1.5 text-xs font-semibold capitalize text-[#2e7d5b]">{status.replace("_", " ")}</span>
+          )}
+        </div>
       </div>
+
+      {sent && (
+        <div className="mb-3 flex items-center gap-2 rounded-lg border border-[#2e7d5b]/40 bg-[#2e7d5b]/10 px-4 py-2.5 text-sm text-[#2e7d5b]">
+          <Check className="h-4 w-4" /> Sent to the CMI team — they&apos;ll follow up soon. You can still view this canvas anytime.
+        </div>
+      )}
 
       {/* Workspace */}
       <div className="flex min-h-0 flex-1 gap-4">

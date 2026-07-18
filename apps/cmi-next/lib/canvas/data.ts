@@ -6,7 +6,7 @@ import type { CanvasActor } from "./actor";
 import { removeCanvasMedia } from "./storage";
 import {
   CANVAS_ANNOTATIONS_VERSION, EMPTY_ANNOTATIONS,
-  type CanvasPin, type CanvasProject, type CanvasScene, type CanvasStatus, type SceneAnnotations,
+  type CanvasComment, type CanvasPin, type CanvasProject, type CanvasScene, type CanvasStatus, type SceneAnnotations,
 } from "./types";
 
 export class CanvasError extends Error {
@@ -213,4 +213,40 @@ export async function listScenePins(sceneId: string): Promise<CanvasPin[]> {
   const { data, error } = await getSupabaseAdmin().from("canvas_pins").select("*").eq("scene_id", sceneId).order("created_at", { ascending: true });
   if (error) throw new CanvasError(error.message, 500);
   return (data ?? []) as CanvasPin[];
+}
+
+// ── Submission + team review ────────────────────────────────────────
+export async function submitCanvas(actor: CanvasActor, id: string, input: { bolt_summary?: unknown } = {}): Promise<CanvasProject> {
+  const canvas = await getCanvas(id);
+  if (!canvas) throw new CanvasError("Canvas not found.", 404);
+  // canActorWrite requires a client's canvas to still be a draft — blocks double submit.
+  if (!canActorWrite(actor, canvas)) throw new CanvasError("This canvas can't be submitted.", 403);
+  const updates: Record<string, unknown> = { status: "submitted", submitted_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+  if (input.bolt_summary !== undefined) updates.bolt_summary = input.bolt_summary;
+  const { data, error } = await getSupabaseAdmin().from("canvas_projects").update(updates).eq("id", id).select("*").single();
+  if (error) throw new CanvasError(error.message, 500);
+  return data as CanvasProject;
+}
+
+export async function listComments(actor: CanvasActor, canvasId: string): Promise<CanvasComment[]> {
+  const canvas = await getCanvas(canvasId);
+  if (!canvas) throw new CanvasError("Canvas not found.", 404);
+  if (!canActorAccess(actor, canvas)) throw new CanvasError("No access.", 403);
+  const { data, error } = await getSupabaseAdmin().from("canvas_comments").select("*").eq("canvas_id", canvasId).order("created_at", { ascending: true });
+  if (error) throw new CanvasError(error.message, 500);
+  return (data ?? []) as CanvasComment[];
+}
+
+export async function addComment(actor: CanvasActor, canvasId: string, body: string): Promise<CanvasComment> {
+  if (actor.kind !== "staff") throw new CanvasError("Only staff can comment on briefs.", 403);
+  const text = body.trim();
+  if (!text) throw new CanvasError("Comment can't be empty.", 400);
+  const canvas = await getCanvas(canvasId);
+  if (!canvas) throw new CanvasError("Canvas not found.", 404);
+  const sb = getSupabaseAdmin();
+  const { data: staff } = await sb.from("staff_users").select("display_name, email").eq("id", actor.staffId).maybeSingle();
+  const author_name = staff?.display_name || staff?.email || "Staff";
+  const { data, error } = await sb.from("canvas_comments").insert({ canvas_id: canvasId, author_staff_id: actor.staffId, author_name, body: text }).select("*").single();
+  if (error) throw new CanvasError(error.message, 500);
+  return data as CanvasComment;
 }

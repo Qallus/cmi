@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { Tooltip } from "@/components/ui/tooltip";
 import {
   ArrowLeft, BookOpen, BriefcaseBusiness, CalendarRange,
-  CreditCard, FileText, FolderKanban, HardHat, Home, IdCard, LayoutGrid,
+  CreditCard, FileText, FolderKanban, HardHat, Home, IdCard, Inbox, LayoutGrid,
   MessageCircle, MessagesSquare, Mic, Minus, Newspaper, Package, Plus, Settings, ShieldCheck,
   Sparkles, SquarePen, User, UserRoundCog, Users,
 } from "lucide-react";
@@ -34,6 +34,7 @@ const nav: NavItem[] = [
   { href: "/dashboard/project-manager",label: "Projects",       icon: FolderKanban,   roles: ["super_admin", "admin", "project_manager", "designer", "estimator", "superintendent", "subcontractor", "client"] },
   { href: "/dashboard/selections",     label: "Selections",     icon: Package,        roles: ["super_admin", "admin", "project_manager", "designer", "client"] },
   { href: "/dashboard/canvas",          label: "Project Canvas", icon: SquarePen,      roles: ["super_admin", "admin", "project_manager", "designer", "estimator", "superintendent"], flag: "project_canvas" },
+  { href: "/dashboard/canvas-briefs",   label: "Canvas Briefs",  icon: Inbox,          roles: ["super_admin", "admin", "project_manager", "designer", "estimator", "superintendent"], flag: "project_canvas" },
   { href: "/dashboard/sales",          label: "Pre-Con",        icon: BriefcaseBusiness, roles: ["super_admin", "admin", "project_manager", "estimator"] },
   {
     href: "/dashboard/jobs",           label: "Jobs",           icon: HardHat,        roles: ["super_admin", "admin", "project_manager", "estimator", "superintendent", "designer"],

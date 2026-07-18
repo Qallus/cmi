@@ -3,7 +3,7 @@
 // Thin client-side fetch helpers over the unified /api/canvas routes. The same
 // routes serve both surfaces (client portal + staff dashboard); the session
 // cookie decides the actor, so these helpers are surface-agnostic.
-import type { CanvasProject, CanvasScene, CanvasStatus, SceneAnnotations } from "@/lib/canvas/types";
+import type { CanvasComment, CanvasProject, CanvasScene, CanvasStatus, SceneAnnotations } from "@/lib/canvas/types";
 
 async function json<T>(res: Response): Promise<T> {
   const data = (await res.json().catch(() => ({}))) as T & { error?: string };
@@ -43,7 +43,7 @@ export async function apiAddScene(canvasId: string, input: { media_path?: string
   return (await json<{ scene: CanvasScene }>(res)).scene;
 }
 
-export async function apiUpdateScene(canvasId: string, sceneId: string, patch: { annotations?: SceneAnnotations; media_path?: string | null; source_video_path?: string | null; position?: number }): Promise<CanvasScene> {
+export async function apiUpdateScene(canvasId: string, sceneId: string, patch: { annotations?: SceneAnnotations; media_path?: string | null; source_video_path?: string | null; flattened_path?: string | null; position?: number }): Promise<CanvasScene> {
   const res = await fetch(`/api/canvas/${canvasId}/scenes/${sceneId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
   return (await json<{ scene: CanvasScene }>(res)).scene;
 }
@@ -72,6 +72,21 @@ export async function apiBolt(body: {
 export async function apiMediaUrl(path: string): Promise<string> {
   const res = await fetch("/api/canvas/media-url", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path }) });
   return (await json<{ url: string }>(res)).url;
+}
+
+export async function apiSubmitCanvas(canvasId: string, bolt_summary?: unknown): Promise<CanvasProject> {
+  const res = await fetch(`/api/canvas/${canvasId}/submit`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ bolt_summary }) });
+  return (await json<{ canvas: CanvasProject }>(res)).canvas;
+}
+
+export async function apiListComments(canvasId: string): Promise<CanvasComment[]> {
+  const res = await fetch(`/api/canvas/${canvasId}/comments`, { cache: "no-store" });
+  return (await json<{ comments: CanvasComment[] }>(res)).comments;
+}
+
+export async function apiAddComment(canvasId: string, body: string): Promise<CanvasComment> {
+  const res = await fetch(`/api/canvas/${canvasId}/comments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ body }) });
+  return (await json<{ comment: CanvasComment }>(res)).comment;
 }
 
 export async function apiCreateVoicePin(canvasId: string, sceneId: string, input: { client_key: string; audio_path: string }): Promise<void> {

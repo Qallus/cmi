@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import * as api from "./canvas-api";
+import { flattenScene } from "@/lib/canvas/flatten";
 import { CANVAS_COLORS, type CanvasColor, type CanvasProject, type CanvasScene, type SceneAnnotations } from "@/lib/canvas/types";
 
 export type Tool = "select" | "draw" | "shape" | "pin" | "voice" | "stamp";
@@ -33,6 +34,7 @@ export type CanvasStore = {
   reorder: (orderedIds: string[]) => Promise<void>;
   ensureMediaUrl: (path: string | null | undefined) => void;
   uploadVoiceNote: (clientKey: string, blob: Blob) => Promise<string | null>;
+  submitBrief: (boltSummary?: unknown) => Promise<boolean>;
   refresh: () => Promise<void>;
 };
 
@@ -193,11 +195,35 @@ export function useCanvasStore(canvasId: string, surface: Surface): CanvasStore 
     }
   }, [activeSceneId, canvasId]);
 
+  // Flatten every scene with media into a snapshot, then flip status to
+  // submitted (which notifies the team server-side).
+  const submitBrief = React.useCallback(async (boltSummary?: unknown): Promise<boolean> => {
+    setBusy(true);
+    setError(null);
+    try {
+      for (const s of scenes) {
+        if (!s.media_path) continue;
+        const url = mediaUrls[s.media_path] ?? await api.apiMediaUrl(s.media_path);
+        const blob = await flattenScene(url, s.annotations);
+        const path = await api.apiUploadMedia(canvasId, s.id, blob, "flattened.jpg", "flat");
+        await api.apiUpdateScene(canvasId, s.id, { flattened_path: path });
+      }
+      const updated = await api.apiSubmitCanvas(canvasId, boltSummary);
+      setCanvas(updated);
+      return true;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not submit your canvas.");
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }, [scenes, mediaUrls, canvasId]);
+
   const activeScene = scenes.find((s) => s.id === activeSceneId) ?? null;
 
   return {
     canvas, scenes, activeSceneId, activeScene, tool, color, saveStatus, loading, error, busy, readOnly, mediaUrls,
     setTool, setColor, setActiveScene: setActiveSceneId, rename, mutateActiveAnnotations,
-    addSceneFromUpload, deleteScene, reorder, ensureMediaUrl, uploadVoiceNote, refresh,
+    addSceneFromUpload, deleteScene, reorder, ensureMediaUrl, uploadVoiceNote, submitBrief, refresh,
   };
 }

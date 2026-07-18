@@ -50,6 +50,7 @@ export type CanvasProject = {
   title: string;
   status: CanvasStatus;
   bolt_summary: unknown | null;
+  submitted_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -73,6 +74,15 @@ export type CanvasPin = {
   audio_path: string | null;
   transcript: string | null;
   transcript_status: "pending" | "done" | "failed" | null;
+  created_at: string;
+};
+
+export type CanvasComment = {
+  id: string;
+  canvas_id: string;
+  author_staff_id: string | null;
+  author_name: string | null;
+  body: string;
   created_at: string;
 };
 

@@ -15,11 +15,14 @@ import {
   Mail,
   Menu,
   Newspaper,
+  SquarePen,
   Users,
   X,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/dashboard/theme-toggle";
 import { cn } from "@/lib/utils";
+
+type NavLink = { label: string; href: string; description: string; icon: React.ComponentType<{ className?: string; strokeWidth?: number }>; flag?: string };
 
 const SERVICES = [
   { label: "Residential", href: "/services/residential", description: "Custom homes built with precision and care.", icon: Home },
@@ -30,10 +33,11 @@ const SERVICES = [
   { label: "New Construction", href: "/services/new-construction", description: "Ground-up builds, start to finish.", icon: Building2 },
 ];
 
-const DISCOVER = [
+const DISCOVER: NavLink[] = [
   { label: "About Us", href: "/about", description: "Meet the CMI story and approach.", icon: Info },
   { label: "Our Team", href: "/team", description: "Builders, designers, and project leads.", icon: Users },
   { label: "Resources", href: "/resources", description: "Guides, project notes, and construction insight.", icon: BookOpen },
+  { label: "Project Canvas", href: "/project-canvas", description: "Sketch your project right on photos of your space.", icon: SquarePen, flag: "project_canvas" },
   { label: "Blog", href: "/blog", description: "Fresh updates from the CMI team.", icon: Newspaper },
   { label: "Contact", href: "/contact", description: "Start a conversation with the team.", icon: Mail },
 ];
@@ -42,6 +46,12 @@ export function SiteHeader() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const [openDropdown, setOpenDropdown] = React.useState<string | null>(null);
+  const [flags, setFlags] = React.useState<Record<string, boolean>>({});
+
+  React.useEffect(() => {
+    fetch("/api/flags").then((r) => r.json()).then((d: { flags?: Record<string, boolean> }) => setFlags(d.flags ?? {})).catch(() => {});
+  }, []);
+  const discover = DISCOVER.filter((i) => !i.flag || flags[i.flag] === true);
 
   // Close on route change
   React.useEffect(() => { setMobileOpen(false); setOpenDropdown(null); }, [pathname]);
@@ -66,7 +76,7 @@ export function SiteHeader() {
             </button>
             {openDropdown === "discover" && (
               <div className="absolute left-0 top-full mt-0 w-80 rounded-xl border border-border bg-card p-3 shadow-2xl">
-                {DISCOVER.map((item) => (
+                {discover.map((item) => (
                   <Link key={item.href} href={item.href} className={cn("flex gap-3 rounded-lg px-3 py-3 transition hover:bg-muted", isActive(item.href) ? "text-accent" : "text-muted-foreground hover:text-foreground")}>
                     <item.icon className="mt-0.5 h-4 w-4 shrink-0 text-accent" strokeWidth={1.6} />
                     <span>
@@ -128,7 +138,7 @@ export function SiteHeader() {
       {mobileOpen && (
         <div className="border-t border-border bg-card lg:hidden">
           <div className="mx-auto max-w-7xl space-y-1 px-5 py-4">
-            <MobileSection label="Discover" items={DISCOVER} />
+            <MobileSection label="Discover" items={discover} />
             <MobileSection label="Services" items={[{ label: "All Services", href: "/services" }, ...SERVICES]} />
             <Link href="/portfolio" className="block rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground">Portfolio</Link>
             <Link href="/contact" className="block rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground">Contact</Link>
