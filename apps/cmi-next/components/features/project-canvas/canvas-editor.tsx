@@ -2,8 +2,9 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowLeft, Check, Cloud, Loader2, Send, Sparkles } from "lucide-react";
+import { ArrowLeft, Check, Cloud, Loader2, Sparkles, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { BoltPanel } from "./bolt-panel";
 import { CanvasStage } from "./canvas-stage";
 import { SceneStrip } from "./scene-strip";
 import { Toolbar } from "./toolbar";
@@ -11,6 +12,7 @@ import { useCanvasStore, type Surface } from "./use-canvas-store";
 
 export function CanvasEditor({ canvasId, surface, backHref }: { canvasId: string; surface: Surface; backHref: string }) {
   const store = useCanvasStore(canvasId, surface);
+  const [boltOpen, setBoltOpen] = React.useState(false);
 
   if (store.loading) {
     return <div className="flex h-[60vh] items-center justify-center text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" /></div>;
@@ -56,20 +58,28 @@ export function CanvasEditor({ canvasId, surface, backHref }: { canvasId: string
           {store.error && <div className="mt-2 text-xs text-destructive">{store.error}</div>}
         </div>
 
-        {/* Bolt panel — placeholder until Phase 4 */}
-        <aside className="hidden w-[300px] shrink-0 flex-col rounded-xl border border-border bg-card p-5 xl:flex">
-          <div className="flex items-center gap-2">
-            <span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-accent to-amber-400 text-white"><Sparkles className="h-4 w-4" /></span>
-            <div>
-              <div className="text-sm font-semibold">Bolt · Design Assistant</div>
-              <div className="text-[11px] text-muted-foreground">Watching your canvas</div>
-            </div>
-          </div>
-          <div className="mt-4 rounded-lg border border-dashed border-border p-4 text-center text-xs text-muted-foreground">
-            Bolt joins your canvas in an upcoming update — ask questions, get pin suggestions, and a plain-language read-back of your project.
-          </div>
+        {/* Bolt panel — desktop right column */}
+        <aside className="hidden w-[320px] shrink-0 overflow-hidden rounded-xl border border-border bg-card xl:flex">
+          <BoltPanel store={store} className="w-full" />
         </aside>
       </div>
+
+      {/* Bolt — mobile floating button + bottom sheet */}
+      <button type="button" onClick={() => setBoltOpen(true)} aria-label="Ask Bolt"
+        className="fixed bottom-5 right-5 z-40 grid h-14 w-14 place-items-center rounded-full bg-gradient-to-br from-accent to-amber-400 text-white shadow-lg xl:hidden">
+        <Sparkles className="h-5 w-5" />
+      </button>
+      {boltOpen && (
+        <div className="fixed inset-0 z-50 flex flex-col justify-end xl:hidden">
+          <div className="absolute inset-0 bg-background/60 backdrop-blur-sm" onClick={() => setBoltOpen(false)} />
+          <div className="relative z-10 flex h-[82vh] flex-col overflow-hidden rounded-t-2xl border border-border bg-card shadow-2xl">
+            <div className="flex items-center justify-end px-2 pt-2">
+              <button type="button" onClick={() => setBoltOpen(false)} className="rounded p-1.5 text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+            </div>
+            <BoltPanel store={store} className="min-h-0 flex-1" />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

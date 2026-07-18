@@ -56,6 +56,19 @@ export async function apiReorderScenes(canvasId: string, order: string[]): Promi
   await json(await fetch(`/api/canvas/${canvasId}/scenes`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ order }) }));
 }
 
+export type BoltReadback = { headline: string; narrative: string; chips: string[] };
+export type BoltSuggestion = { label: string; note: string };
+
+export async function apiBolt(body: {
+  canvasId: string;
+  mode: "chat" | "suggest_pins" | "read_back";
+  message?: string;
+  history?: { role: "user" | "assistant"; content: string }[];
+}): Promise<{ reply?: string; suggestions?: BoltSuggestion[]; readback?: BoltReadback }> {
+  const res = await fetch("/api/canvas/bolt", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  return json(res);
+}
+
 export async function apiMediaUrl(path: string): Promise<string> {
   const res = await fetch("/api/canvas/media-url", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path }) });
   return (await json<{ url: string }>(res)).url;
