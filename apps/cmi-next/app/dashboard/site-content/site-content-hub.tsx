@@ -3,8 +3,9 @@
 import * as React from "react";
 import Link from "next/link";
 import {
-  BookOpen, ChevronDown, ClipboardList, ExternalLink, LayoutGrid, List, Loader2, Monitor,
-  MonitorSmartphone, RefreshCw, Sparkles, Table as TableIcon, Trash2, X,
+  BookOpen, CalendarDays, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ClipboardList,
+  Columns3, ExternalLink, LayoutGrid, List, Loader2, Monitor,
+  MonitorSmartphone, RefreshCw, Sparkles, Table as TableIcon, Trash2, User, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -16,7 +17,8 @@ import { SESSION_STATUSES, SESSION_STATUS_LABELS, type SessionStatus, type Sessi
 import { NOTE_STATUSES, NOTE_STATUS_LABELS, NOTE_TYPE_LABELS, type DashboardNote, type DashboardNoteStatus } from "@/lib/dashboard-notes/types";
 
 type Surface = "frontend" | "backend";
-type View = "cards" | "list" | "table";
+type Tab = Surface | "resolved";
+type View = "cards" | "list" | "table" | "kanban" | "calendar";
 
 // A request normalized across the two systems (Live Page Editor + dashboard FAB).
 type Req = {
@@ -28,6 +30,8 @@ type Req = {
   statusLabel: string;
   priority: string | null;
   meta: string;        // "3 notes" | note type
+  requester: string | null;  // who asked for the change
+  created: string;           // when the request was made
   updated: string;
   openHref: string;
   screenshot: string | null;
@@ -49,6 +53,14 @@ const isProgress = (s: string) => s === "in_progress";
 function fmt(iso: string) {
   try { return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" }); } catch { return iso; }
 }
+function fmtDateTime(iso: string) {
+  try { return new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); } catch { return iso; }
+}
+/** Show the requester's first name to keep the row compact. */
+function firstName(name: string | null): string | null {
+  if (!name) return null;
+  return name.trim().split(/\s+/)[0] || name;
+}
 
 export function SiteContentHub({ initialBlocks }: { initialBlocks: ContentBlock[] }) {
   const [role, setRole] = React.useState<string | null>(null);
@@ -57,8 +69,10 @@ export function SiteContentHub({ initialBlocks }: { initialBlocks: ContentBlock[
   const [sessions, setSessions] = React.useState<SessionSummary[]>([]);
   const [notes, setNotes] = React.useState<DashboardNote[]>([]);
   const [loading, setLoading] = React.useState(false);
-  const [surface, setSurface] = React.useState<Surface>("frontend");
+  const [tab, setTab] = React.useState<Tab>("frontend");
   const [view, setView] = React.useState<View>("cards");
+  // Resolved starts on its list view; the two active tabs default to cards.
+  const [resolvedView, setResolvedView] = React.useState<View>("list");
   const [blocksOpen, setBlocksOpen] = React.useState(false);
   const [detailId, setDetailId] = React.useState<string | null>(null);
   const [confirmDel, setConfirmDel] = React.useState<Req | null>(null);
@@ -88,6 +102,7 @@ export function SiteContentHub({ initialBlocks }: { initialBlocks: ContentBlock[
     subtitle: s.session.page_url ?? s.session.page_slug,
     status: s.session.status, statusLabel: SESSION_STATUS_LABELS[(s.session.status as SessionStatus)] ?? s.session.status,
     priority: s.top_priority, meta: `${s.note_count} note${s.note_count !== 1 ? "s" : ""}`,
+    requester: s.session.requester_name, created: s.session.created_at,
     updated: s.last_activity, openHref: `/dashboard/site-content/live-editor?page=${encodeURIComponent(s.session.page_slug)}`,
     screenshot: null,
   })), [sessions]);
@@ -97,9 +112,18 @@ export function SiteContentHub({ initialBlocks }: { initialBlocks: ContentBlock[
     title: n.page_title ?? "Dashboard", subtitle: n.note,
     status: n.status, statusLabel: NOTE_STATUS_LABELS[(n.status as DashboardNoteStatus)] ?? n.status,
     priority: n.priority, meta: NOTE_TYPE_LABELS[n.type] ?? n.type,
+    requester: n.created_by_name, created: n.created_at,
     updated: n.updated_at, openHref: n.route ?? "/dashboard/overview",
     screenshot: n.screenshot_url,
   })), [notes]);
+
+  // Resolved/completed requests move out of their source tab and into Resolved.
+  const activeFrontend = React.useMemo(() => frontendReqs.filter((r) => !isDone(r.status)), [frontendReqs]);
+  const activeBackend = React.useMemo(() => backendReqs.filter((r) => !isDone(r.status)), [backendReqs]);
+  const resolvedReqs = React.useMemo(
+    () => [...frontendReqs, ...backendReqs].filter((r) => isDone(r.status)).sort((a, b) => (a.updated < b.updated ? 1 : -1)),
+    [frontendReqs, backendReqs],
+  );
 
   const all = React.useMemo(() => [...frontendReqs, ...backendReqs], [frontendReqs, backendReqs]);
   const stats = React.useMemo(() => ({
@@ -108,11 +132,14 @@ export function SiteContentHub({ initialBlocks }: { initialBlocks: ContentBlock[
     progress: all.filter((r) => isProgress(r.status)).length,
     done: all.filter((r) => isDone(r.status)).length,
     urgent: all.filter((r) => r.priority === "urgent").length,
-    frontend: frontendReqs.length,
-    backend: backendReqs.length,
-  }), [all, frontendReqs, backendReqs]);
+    frontend: activeFrontend.length,
+    backend: activeBackend.length,
+    resolved: resolvedReqs.length,
+  }), [all, activeFrontend, activeBackend, resolvedReqs]);
 
-  const shown = surface === "frontend" ? frontendReqs : backendReqs;
+  const shown = tab === "frontend" ? activeFrontend : tab === "backend" ? activeBackend : resolvedReqs;
+  const activeView = tab === "resolved" ? resolvedView : view;
+  const setActiveView = tab === "resolved" ? setResolvedView : setView;
 
   async function hardDelete(r: Req) {
     if (r.surface === "frontend") {
@@ -173,15 +200,19 @@ export function SiteContentHub({ initialBlocks }: { initialBlocks: ContentBlock[
             <div className="flex items-center gap-2">
               <ClipboardList className="h-4 w-4 text-accent" />
               <h2 className="text-sm font-semibold">Requests</h2>
-              <div className="ml-2 inline-flex rounded-md border border-border p-0.5">
-                <TabBtn active={surface === "frontend"} onClick={() => setSurface("frontend")} icon={<Monitor className="h-3.5 w-3.5" />} label={`Frontend (${stats.frontend})`} />
-                <TabBtn active={surface === "backend"} onClick={() => setSurface("backend")} icon={<LayoutGrid className="h-3.5 w-3.5" />} label={`Dashboard (${stats.backend})`} />
+              <div className="ml-2 inline-flex flex-wrap rounded-md border border-border p-0.5">
+                <TabBtn active={tab === "frontend"} onClick={() => setTab("frontend")} icon={<Monitor className="h-3.5 w-3.5" />} label={`Frontend (${stats.frontend})`} />
+                <TabBtn active={tab === "backend"} onClick={() => setTab("backend")} icon={<LayoutGrid className="h-3.5 w-3.5" />} label={`Dashboard (${stats.backend})`} />
+                <TabBtn active={tab === "resolved"} onClick={() => setTab("resolved")} icon={<CheckCircle2 className="h-3.5 w-3.5" />} label={`Resolved (${stats.resolved})`} />
               </div>
             </div>
             <div className="flex items-center gap-2">
               <div className="inline-flex rounded-md border border-border p-0.5">
-                {([["cards", LayoutGrid], ["list", List], ["table", TableIcon]] as const).map(([v, Icon]) => (
-                  <button key={v} type="button" title={v} onClick={() => setView(v)} className={cn("inline-flex h-7 w-7 items-center justify-center rounded", view === v ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground")}><Icon className="h-3.5 w-3.5" /></button>
+                {(tab === "resolved"
+                  ? ([["list", List], ["table", TableIcon], ["kanban", Columns3], ["calendar", CalendarDays]] as const)
+                  : ([["cards", LayoutGrid], ["list", List], ["table", TableIcon]] as const)
+                ).map(([v, Icon]) => (
+                  <button key={v} type="button" title={v} onClick={() => setActiveView(v)} className={cn("inline-flex h-7 w-7 items-center justify-center rounded", activeView === v ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground")}><Icon className="h-3.5 w-3.5" /></button>
                 ))}
               </div>
               <Button size="sm" variant="outline" onClick={() => void loadRequests()}><RefreshCw className="h-3.5 w-3.5" /></Button>
@@ -193,16 +224,22 @@ export function SiteContentHub({ initialBlocks }: { initialBlocks: ContentBlock[
               <div className="flex justify-center py-14"><Loader2 className="h-6 w-6 animate-spin text-accent" /></div>
             ) : shown.length === 0 ? (
               <div className="rounded-lg border border-dashed border-border py-14 text-center text-sm text-muted-foreground">
-                {surface === "frontend"
-                  ? <>No frontend requests yet. Open the <Link href="/dashboard/site-content/live-editor" className="font-medium text-accent">Live Page Editor</Link> to add some.</>
-                  : <>No dashboard requests yet. Use the review button (bottom-right of any page) to capture one.</>}
+                {tab === "frontend"
+                  ? <>No open frontend requests. Open the <Link href="/dashboard/site-content/live-editor" className="font-medium text-accent">Live Page Editor</Link> to add some.</>
+                  : tab === "backend"
+                  ? <>No open dashboard requests. Use the review button (bottom-right of any page) to capture one.</>
+                  : <>Nothing resolved yet. Requests land here once you mark them Complete or Done.</>}
               </div>
-            ) : view === "cards" ? (
+            ) : activeView === "cards" ? (
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{shown.map((r) => <ReqCard key={r.id} r={r} onStatus={setStatus} onOpen={setDetailId} onDelete={setConfirmDel} />)}</div>
-            ) : view === "list" ? (
+            ) : activeView === "list" ? (
               <div className="space-y-2">{shown.map((r) => <ReqRow key={r.id} r={r} onStatus={setStatus} onOpen={setDetailId} onDelete={setConfirmDel} />)}</div>
-            ) : (
+            ) : activeView === "table" ? (
               <ReqTable reqs={shown} onStatus={setStatus} onOpen={setDetailId} onDelete={setConfirmDel} />
+            ) : activeView === "kanban" ? (
+              <KanbanView reqs={shown} onStatus={setStatus} onOpen={setDetailId} onDelete={setConfirmDel} />
+            ) : (
+              <CalendarView reqs={shown} onOpen={setDetailId} />
             )}
           </div>
         </div>
@@ -291,7 +328,11 @@ function ReqCard({ r, onStatus, onOpen, onDelete }: { r: Req; onStatus: (r: Req,
         <div className="min-w-0"><div className="truncate text-sm font-medium">{r.title}</div><div className="truncate text-[11px] text-muted-foreground">{r.subtitle}</div></div>
         {r.priority && <span className={cn("shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase", PRIORITY_TONE[r.priority])}>{r.priority}</span>}
       </div>
-      <div className="flex items-center gap-2 text-[11px] text-muted-foreground"><span>{r.meta}</span><span>· {fmt(r.updated)}</span></div>
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
+        <span>{r.meta}</span>
+        {r.requester && <span className="inline-flex items-center gap-1"><User className="h-3 w-3" />{firstName(r.requester)}</span>}
+        <span title={`Requested ${fmtDateTime(r.created)}`}>· {fmtDateTime(r.created)}</span>
+      </div>
       <div className="flex items-center gap-2">
         <OpenBtn r={r} onOpen={onOpen} />
         <StatusPicker r={r} onStatus={onStatus} />
@@ -307,6 +348,8 @@ function ReqRow({ r, onStatus, onOpen, onDelete }: { r: Req; onStatus: (r: Req, 
       {r.screenshot && <ScreenshotThumb src={r.screenshot} wrapClass="shrink-0" imgClass="h-10 w-16 rounded border border-border object-cover object-top" />}
       <div className="min-w-[160px] flex-1"><div className="text-sm font-medium">{r.title}</div><div className="truncate text-[11px] text-muted-foreground">{r.subtitle}</div></div>
       {r.priority && <span className={cn("rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase", PRIORITY_TONE[r.priority])}>{r.priority}</span>}
+      {r.requester && <span className="hidden items-center gap-1 text-[11px] text-muted-foreground sm:inline-flex"><User className="h-3 w-3" />{firstName(r.requester)}</span>}
+      <span className="hidden text-[11px] text-muted-foreground md:inline" title={`Requested ${fmtDateTime(r.created)}`}>{fmtDateTime(r.created)}</span>
       <span className="text-[11px] text-muted-foreground">{r.meta}</span>
       <OpenBtn r={r} onOpen={onOpen} />
       <StatusPicker r={r} onStatus={onStatus} />
@@ -318,8 +361,8 @@ function ReqRow({ r, onStatus, onOpen, onDelete }: { r: Req; onStatus: (r: Req, 
 function ReqTable({ reqs, onStatus, onOpen, onDelete }: { reqs: Req[]; onStatus: (r: Req, s: string) => void; onOpen: (id: string) => void; onDelete: (r: Req) => void }) {
   return (
     <div className="overflow-x-auto rounded-lg border border-border">
-      <table className="w-full min-w-[640px] border-collapse text-sm">
-        <thead><tr className="border-b border-border bg-muted/40 text-left">{["Request", "Detail", "Priority", "Status", "Updated", ""].map((h) => <th key={h} className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">{h}</th>)}</tr></thead>
+      <table className="w-full min-w-[860px] border-collapse text-sm">
+        <thead><tr className="border-b border-border bg-muted/40 text-left">{["Request", "Detail", "Requested by", "Requested", "Priority", "Status", "Updated", ""].map((h) => <th key={h} className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">{h}</th>)}</tr></thead>
         <tbody>
           {reqs.map((r) => (
             <tr key={r.id} className="border-b border-border last:border-0">
@@ -330,6 +373,8 @@ function ReqTable({ reqs, onStatus, onOpen, onDelete }: { reqs: Req[]; onStatus:
                 </div>
               </td>
               <td className="px-4 py-2.5 text-xs text-muted-foreground"><div className="max-w-[240px] truncate">{r.subtitle}</div><div className="text-[11px]">{r.meta}</div></td>
+              <td className="px-4 py-2.5 text-xs text-muted-foreground">{r.requester ?? "—"}</td>
+              <td className="px-4 py-2.5 text-xs text-muted-foreground" title={fmtDateTime(r.created)}>{fmtDateTime(r.created)}</td>
               <td className="px-4 py-2.5">{r.priority && <span className={cn("rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase", PRIORITY_TONE[r.priority])}>{r.priority}</span>}</td>
               <td className="px-4 py-2.5"><StatusPicker r={r} onStatus={onStatus} /></td>
               <td className="px-4 py-2.5 text-xs text-muted-foreground">{fmt(r.updated)}</td>
@@ -345,6 +390,103 @@ function ReqTable({ reqs, onStatus, onOpen, onDelete }: { reqs: Req[]; onStatus:
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+// ── Kanban (Resolved tab) — columns by priority ──
+const PRIORITY_ORDER: { key: string; label: string }[] = [
+  { key: "urgent", label: "Urgent" },
+  { key: "high", label: "High" },
+  { key: "medium", label: "Medium" },
+  { key: "low", label: "Low" },
+  { key: "none", label: "No priority" },
+];
+
+function KanbanView({ reqs, onStatus, onOpen, onDelete }: { reqs: Req[]; onStatus: (r: Req, s: string) => void; onOpen: (id: string) => void; onDelete: (r: Req) => void }) {
+  const columns = PRIORITY_ORDER.map((col) => ({
+    ...col,
+    items: reqs.filter((r) => (r.priority ?? "none") === col.key),
+  })).filter((col) => col.items.length > 0);
+
+  return (
+    <div className="flex gap-3 overflow-x-auto pb-2">
+      {columns.map((col) => (
+        <div key={col.key} className="flex w-72 shrink-0 flex-col rounded-lg border border-border bg-muted/30">
+          <div className="flex items-center justify-between border-b border-border px-3 py-2">
+            <span className="text-xs font-semibold">{col.label}</span>
+            <span className="rounded-full bg-background px-2 py-0.5 text-[10px] font-medium text-muted-foreground">{col.items.length}</span>
+          </div>
+          <div className="space-y-2 p-2">
+            {col.items.map((r) => <ReqCard key={r.id} r={r} onStatus={onStatus} onOpen={onOpen} onDelete={onDelete} />)}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Calendar (Resolved tab) — placed on the day each request was resolved ──
+function CalendarView({ reqs, onOpen }: { reqs: Req[]; onOpen: (id: string) => void }) {
+  const [cursor, setCursor] = React.useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
+
+  const key = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+  const byDay = React.useMemo(() => {
+    const map = new Map<string, Req[]>();
+    for (const r of reqs) {
+      const d = new Date(r.updated);
+      if (Number.isNaN(d.getTime())) continue;
+      const k = key(d);
+      (map.get(k) ?? map.set(k, []).get(k)!).push(r);
+    }
+    return map;
+  }, [reqs]);
+
+  const first = new Date(cursor.y, cursor.m, 1);
+  const daysInMonth = new Date(cursor.y, cursor.m + 1, 0).getDate();
+  const leadBlanks = first.getDay();
+  const monthLabel = first.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  const today = new Date();
+  const cells: (number | null)[] = [...Array(leadBlanks).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
+
+  const step = (delta: number) => setCursor((c) => {
+    const m = c.m + delta;
+    return { y: c.y + Math.floor(m / 12), m: ((m % 12) + 12) % 12 };
+  });
+
+  return (
+    <div>
+      <div className="mb-3 flex items-center justify-between">
+        <div className="text-sm font-semibold">{monthLabel}</div>
+        <div className="flex items-center gap-1">
+          <button type="button" onClick={() => step(-1)} aria-label="Previous month" className="grid h-7 w-7 place-items-center rounded-md border border-border text-muted-foreground hover:text-foreground"><ChevronLeft className="h-4 w-4" /></button>
+          <button type="button" onClick={() => setCursor(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; })} className="rounded-md border border-border px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground">Today</button>
+          <button type="button" onClick={() => step(1)} aria-label="Next month" className="grid h-7 w-7 place-items-center rounded-md border border-border text-muted-foreground hover:text-foreground"><ChevronRight className="h-4 w-4" /></button>
+        </div>
+      </div>
+      <div className="grid grid-cols-7 gap-px overflow-hidden rounded-lg border border-border bg-border text-xs">
+        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+          <div key={d} className="bg-muted/50 px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{d}</div>
+        ))}
+        {cells.map((day, i) => {
+          if (day === null) return <div key={`b${i}`} className="min-h-24 bg-background" />;
+          const items = byDay.get(`${cursor.y}-${cursor.m}-${day}`) ?? [];
+          const isToday = today.getFullYear() === cursor.y && today.getMonth() === cursor.m && today.getDate() === day;
+          return (
+            <div key={day} className="min-h-24 bg-background p-1.5">
+              <div className={cn("mb-1 text-[11px] font-medium", isToday ? "text-accent" : "text-muted-foreground")}>{day}</div>
+              <div className="space-y-1">
+                {items.slice(0, 4).map((r) => (
+                  r.surface === "backend"
+                    ? <button key={r.id} type="button" onClick={() => onOpen(r.id)} title={r.title} className="block w-full truncate rounded bg-success/10 px-1.5 py-0.5 text-left text-[10px] text-success hover:bg-success/20">{r.title}</button>
+                    : <a key={r.id} href={r.openHref} title={r.title} className="block truncate rounded bg-success/10 px-1.5 py-0.5 text-[10px] text-success hover:bg-success/20">{r.title}</a>
+                ))}
+                {items.length > 4 && <div className="px-1.5 text-[10px] text-muted-foreground">+{items.length - 4} more</div>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
