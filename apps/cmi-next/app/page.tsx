@@ -12,6 +12,7 @@ import {
   Home,
   MonitorCog,
   Package,
+  Phone,
   Star,
   Waves,
 } from "lucide-react";
@@ -252,6 +253,9 @@ export default function HomePage() {
               <Link href="/portfolio" className="inline-flex items-center gap-2 rounded-lg border border-white/30 bg-white/10 px-6 py-3 text-sm font-semibold text-white backdrop-blur transition hover:bg-white/20">
                 View Our Work <ArrowRight className="h-4 w-4" />
               </Link>
+              <a href="tel:+14806284458" className="inline-flex items-center gap-2 rounded-lg bg-accent px-6 py-3 text-sm font-semibold text-white transition hover:bg-accent/90">
+                <Phone className="h-4 w-4" /> Call Us
+              </a>
             </div>
           </div>
         </section>

@@ -3,13 +3,19 @@ import { Facebook, Instagram, Linkedin, Mail, MapPin, Phone } from "lucide-react
 import { ContactFab } from "./contact-fab";
 
 const SERVICES_LINKS = [
-  { label: "Residential",                        href: "/services/residential" },
-  { label: "Commercial",                          href: "/services/commercial" },
-  { label: "ADU",                                 href: "/services/adu" },
-  { label: "Renovations & Additions",             href: "/services/renovations-additions" },
-  { label: "Architectural & Design Coordination", href: "/services/architectural-design" },
-  { label: "New Construction",                    href: "/services/new-construction" },
+  { label: "Residential",             href: "/services/residential" },
+  { label: "Commercial",              href: "/services/commercial" },
+  { label: "ADU",                     href: "/services/adu" },
+  { label: "Renovations & Additions", href: "/services/renovations-additions" },
+  { label: "Architectural & Design",  href: "/services/architectural-design" },
+  { label: "Pools & Landscaping",     href: "/services" },
 ];
+
+const GOOGLE_MAPS_DIRECTIONS =
+  "https://www.google.com/maps/dir//Constructed+Matter,+Inc,+7314+E+Osborn+Dr+Ste+A,+Scottsdale,+AZ+85251/@33.4837392,-111.9164779,15z/data=!4m8!4m7!1m0!1m5!1m1!1s0x4df60e56031f726f:0xcfc958dfa22a341f!2m2!1d-111.924356!2d33.4870402";
+
+const APPLE_MAPS_DIRECTIONS =
+  "https://maps.apple.com/place?place-id=I35F7B895019B0E6B&address=7314+E+Osborn+Dr%2C+Scottsdale%2C+AZ++85251%2C+United+States&coordinate=33.487028%2C-111.924287&name=Constructed+Matter%2C+Inc.&_provider=9902";
 
 const COMPANY_LINKS = [
   { label: "About Us",   href: "/about" },
@@ -93,11 +99,20 @@ export function SiteFooter() {
                 </a>
               </li>
               <li>
-                <a href="https://www.google.com/maps/dir//Constructed+Matter,+Inc,+7314+E+Osborn+Dr+Ste+A,+Scottsdale,+AZ+85251/@33.4837392,-111.9164779,15z/data=!4m8!4m7!1m0!1m5!1m1!1s0x4df60e56031f726f:0xcfc958dfa22a341f!2m2!1d-111.924356!2d33.4870402" target="_blank" rel="noreferrer"
+                <a href={GOOGLE_MAPS_DIRECTIONS} target="_blank" rel="noreferrer"
                   className="flex items-start gap-2.5 text-sm text-white/60 transition hover:text-white">
                   <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
                   <span>7314 E Osborn Dr Suite A<br />Scottsdale, AZ 85251</span>
                 </a>
+                <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 pl-[26px] text-xs">
+                  <a href={GOOGLE_MAPS_DIRECTIONS} target="_blank" rel="noreferrer" className="text-accent transition hover:text-white">
+                    Google Maps &rarr;
+                  </a>
+                  <span aria-hidden="true" className="text-white/20">|</span>
+                  <a href={APPLE_MAPS_DIRECTIONS} target="_blank" rel="noreferrer" className="text-accent transition hover:text-white">
+                    Apple Maps &rarr;
+                  </a>
+                </div>
               </li>
             </ul>
           </div>

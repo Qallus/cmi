@@ -31,7 +31,7 @@ export function ServicesHero() {
           reads the same in light and dark without swapping assets. */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 opacity-[0.055] dark:opacity-[0.09]"
+        className="pointer-events-none absolute inset-0 opacity-[0.025] dark:opacity-[0.035]"
         style={{
           backgroundImage:
             "linear-gradient(var(--foreground) 1px, transparent 1px), linear-gradient(90deg, var(--foreground) 1px, transparent 1px)",
@@ -88,16 +88,9 @@ export function ServicesHero() {
 
           {/* ── Animated icon stage ── */}
           <div className="relative">
-            <div className="relative mx-auto flex aspect-square w-full max-w-[440px] items-center justify-center rounded-3xl border border-border bg-card/70 shadow-sm backdrop-blur-sm">
-              <div
-                aria-hidden="true"
-                className="absolute inset-0 rounded-3xl opacity-[0.07]"
-                style={{
-                  backgroundImage:
-                    "linear-gradient(var(--accent) 1px, transparent 1px), linear-gradient(90deg, var(--accent) 1px, transparent 1px)",
-                  backgroundSize: "28px 28px",
-                }}
-              />
+            {/* No frame and no grid here — the icon sits directly on the hero
+                so it reads as part of the section rather than a widget. */}
+            <div className="relative mx-auto flex aspect-square w-full max-w-[440px] items-center justify-center">
               {/* key remounts the node so the stroke animation replays each cycle */}
               <ServiceIcon
                 key={`icon-${active}`}

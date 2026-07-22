@@ -9,7 +9,6 @@ import {
   Info,
   Mail,
   Menu,
-  Newspaper,
   SquarePen,
   Users,
   X,
@@ -24,7 +23,6 @@ const DISCOVER: NavLink[] = [
   { label: "Our Team", href: "/team", description: "Builders, designers, and project leads.", icon: Users },
   { label: "Resources", href: "/resources", description: "Guides, project notes, and construction insight.", icon: BookOpen },
   { label: "Project Canvas", href: "/project-canvas", description: "Sketch your project right on photos of your space.", icon: SquarePen, flag: "project_canvas" },
-  { label: "Blog", href: "/blog", description: "Fresh updates from the CMI team.", icon: Newspaper },
   { label: "Contact", href: "/contact", description: "Start a conversation with the team.", icon: Mail },
 ];
 
@@ -60,17 +58,21 @@ export function SiteHeader() {
             <button type="button" aria-expanded={openDropdown === "discover"} aria-haspopup="true" className={cn("flex items-center gap-1 border-b border-transparent px-3 py-6 text-sm font-semibold uppercase tracking-wide transition hover:text-accent", openDropdown === "discover" ? "border-accent text-accent" : "text-foreground/75")}>
               Discover <ChevronDown aria-hidden="true" className={cn("h-3.5 w-3.5 transition-transform", openDropdown === "discover" && "rotate-180")} />
             </button>
+            {/* Two-column mega menu: grid-rows-3 + column flow fills three
+                items down the first column before starting the second. */}
             {openDropdown === "discover" && (
-              <div className="absolute left-0 top-full mt-0 w-80 rounded-xl border border-border bg-card p-3 shadow-2xl">
-                {discover.map((item) => (
-                  <Link key={item.href} href={item.href} className={cn("flex gap-3 rounded-lg px-3 py-3 transition hover:bg-muted", isActive(item.href) ? "text-accent" : "text-muted-foreground hover:text-foreground")}>
-                    <item.icon className="mt-0.5 h-4 w-4 shrink-0 text-accent" strokeWidth={1.6} />
-                    <span>
-                      <span className="block text-sm font-semibold text-foreground">{item.label}</span>
-                      <span className="mt-1 block text-xs leading-5 text-muted-foreground">{item.description}</span>
-                    </span>
-                  </Link>
-                ))}
+              <div className="absolute left-0 top-full mt-0 w-[620px] rounded-xl border border-border bg-card p-4 shadow-2xl">
+                <div className="grid grid-flow-col grid-rows-3 gap-x-3 gap-y-1">
+                  {discover.map((item) => (
+                    <Link key={item.href} href={item.href} className={cn("flex gap-3 rounded-lg px-3 py-3 transition hover:bg-muted", isActive(item.href) ? "text-accent" : "text-muted-foreground hover:text-foreground")}>
+                      <item.icon className="mt-0.5 h-4 w-4 shrink-0 text-accent" strokeWidth={1.6} />
+                      <span>
+                        <span className="block text-sm font-semibold text-foreground">{item.label}</span>
+                        <span className="mt-1 block text-xs leading-5 text-muted-foreground">{item.description}</span>
+                      </span>
+                    </Link>
+                  ))}
+                </div>
               </div>
             )}
           </div>

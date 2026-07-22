@@ -35,8 +35,10 @@ export function HomeFeaturedProjects({ projects }: { projects: FeaturedProject[]
       <section
         className="border-b border-border bg-card/40 py-20"
         style={{
+          // Kept intentionally faint so the grid reads as texture, not structure,
+          // in both light and dark.
           backgroundImage:
-            "linear-gradient(color-mix(in oklch, var(--border) 48%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in oklch, var(--border) 48%, transparent) 1px, transparent 1px)",
+            "linear-gradient(color-mix(in oklch, var(--border) 20%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in oklch, var(--border) 20%, transparent) 1px, transparent 1px)",
           backgroundSize: "40px 40px",
         }}
       >
