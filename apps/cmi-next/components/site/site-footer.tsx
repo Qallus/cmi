@@ -139,8 +139,10 @@ export function SiteFooter() {
             © 2026 Constructed Matter Inc. All rights reserved. &nbsp;·&nbsp; ROC License KB1 - 343120
           </div>
           <div className="flex items-center gap-4 text-xs text-white/40">
-            <Link href="/privacy" className="transition hover:text-white/70">Privacy Policy</Link>
-            <Link href="/terms" className="transition hover:text-white/70">Terms of Service</Link>
+            <Link href="/privacy-policy" className="transition hover:text-white/70">Privacy Policy</Link>
+            <Link href="/terms-of-service" className="transition hover:text-white/70">Terms of Service</Link>
+            <Link href="/sms-opt-out" className="transition hover:text-white/70">SMS Opt-Out</Link>
+            <Link href="/email-opt-out" className="transition hover:text-white/70">Email Opt-Out</Link>
           </div>
         </div>
       </div>

@@ -42,6 +42,16 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+
+  async redirects() {
+    return [
+      // The legal pages moved to the URLs published in the compliance package
+      // and submitted to Twilio. Permanent redirects keep the previously
+      // published /privacy and /terms links working.
+      { source: "/privacy", destination: "/privacy-policy", permanent: true },
+      { source: "/terms", destination: "/terms-of-service", permanent: true },
+    ];
+  },
 };
 
 export default nextConfig;
