@@ -83,6 +83,9 @@ export function LegalCrossLinks({ currentHref }: { currentHref: string }) {
       <h2 className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
         Related pages
       </h2>
+      {/* Links only — every page's own body already ends with a Contact
+          section carried over from its source document, so repeating the
+          address here duplicated it. */}
       <ul className="mt-4 flex flex-wrap gap-x-6 gap-y-2">
         {others.map((item) => (
           <li key={item.href}>
@@ -92,23 +95,6 @@ export function LegalCrossLinks({ currentHref }: { currentHref: string }) {
           </li>
         ))}
       </ul>
-      <address className="mt-8 text-sm not-italic leading-7 text-muted-foreground">
-        <strong className="font-semibold text-foreground">{CMI_CONTACT.legalName}</strong>
-        <br />
-        {CMI_CONTACT.addressLine}
-        <br />
-        {CMI_CONTACT.addressCityStateZip}
-        <br />
-        Phone:{" "}
-        <a href={CMI_CONTACT.phoneHref} className="text-accent underline-offset-4 hover:underline">
-          {CMI_CONTACT.phone}
-        </a>
-        <br />
-        Email:{" "}
-        <a href={`mailto:${CMI_CONTACT.email}`} className="text-accent underline-offset-4 hover:underline">
-          {CMI_CONTACT.email}
-        </a>
-      </address>
     </nav>
   );
 }

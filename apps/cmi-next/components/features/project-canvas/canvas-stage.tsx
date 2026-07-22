@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ImagePlus, Loader2, Mic, RotateCcw, RotateCw, Trash2, ZoomIn, ZoomOut } from "lucide-react";
+import { Camera, ImagePlus, Loader2, Mic, Paperclip, RotateCcw, RotateCw, Trash2, X, ZoomIn, ZoomOut } from "lucide-react";
 import { drawAnnotations, drawNode } from "@/lib/canvas/render";
 import type { CanvasColor, Point } from "@/lib/canvas/types";
 import { StampTray } from "./stamp-tray";
@@ -21,6 +21,12 @@ function containRect(cw: number, ch: number, nw: number, nh: number) {
 
 export function CanvasStage({ store }: { store: CanvasStore }) {
   const { activeScene, mediaUrls, ensureMediaUrl, tool, color, readOnly } = store;
+  // Resolve signed URLs for any pin-attached images so thumbnails render.
+  React.useEffect(() => {
+    for (const p of activeScene?.annotations.pins ?? []) {
+      for (const a of p.attachments ?? []) if (a.kind === "image" && a.path) ensureMediaUrl(a.path);
+    }
+  }, [activeScene, ensureMediaUrl]);
   const wrapRef = React.useRef<HTMLDivElement>(null);
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
   const [natural, setNatural] = React.useState<{ w: number; h: number } | null>(null);
@@ -35,6 +41,13 @@ export function CanvasStage({ store }: { store: CanvasStore }) {
   const [voiceTarget, setVoiceTarget] = React.useState<string | null>(null);
   const [transcribing, setTranscribing] = React.useState<Set<string>>(new Set());
   const dragRef = React.useRef<{ kind: "pin" | "stamp"; id: string; moved: boolean } | null>(null);
+
+  // Pin attachments (photo / upload / voice)
+  const [attachVoiceFor, setAttachVoiceFor] = React.useState<string | null>(null);
+  const [attachBusy, setAttachBusy] = React.useState(false);
+  const attachTargetRef = React.useRef<string | null>(null);
+  const pinCameraRef = React.useRef<HTMLInputElement>(null);
+  const pinUploadRef = React.useRef<HTMLInputElement>(null);
 
   const mediaPath = activeScene?.media_path ?? null;
   const mediaUrl = mediaPath ? mediaUrls[mediaPath] : null;
@@ -216,6 +229,69 @@ export function CanvasStage({ store }: { store: CanvasStore }) {
     setVoiceTarget(null);
   }
 
+  // ── Pin attachments ──
+  function addAttachment(pinId: string, att: NonNullable<typeof pins[number]["attachments"]>[number]) {
+    mutate((a) => ({
+      ...a,
+      pins: a.pins.map((p) => (p.id === pinId ? { ...p, attachments: [...(p.attachments ?? []), att] } : p)),
+    }));
+  }
+  function patchAttachment(pinId: string, attId: string, patch: Partial<{ transcript: string }>) {
+    mutate((a) => ({
+      ...a,
+      pins: a.pins.map((p) =>
+        p.id === pinId
+          ? { ...p, attachments: (p.attachments ?? []).map((x) => (x.id === attId ? { ...x, ...patch } : x)) }
+          : p,
+      ),
+    }));
+  }
+  function removeAttachment(pinId: string, attId: string) {
+    mutate((a) => ({
+      ...a,
+      pins: a.pins.map((p) => (p.id === pinId ? { ...p, attachments: (p.attachments ?? []).filter((x) => x.id !== attId) } : p)),
+    }));
+  }
+
+  // Shared by the camera and the multi-file upload input.
+  async function onPinFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const pinId = attachTargetRef.current;
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = ""; // let the same file be picked again later
+    if (!pinId || files.length === 0) return;
+    setAttachBusy(true);
+    for (const file of files) {
+      const attId = uid();
+      const res = await store.uploadPinAttachment(attId, file, file.name || "photo.jpg", "image");
+      if (res) addAttachment(pinId, { id: attId, kind: "image", path: res.path, name: file.name || "Photo" });
+    }
+    setAttachBusy(false);
+  }
+
+  async function onAttachVoiceDone(blob: Blob) {
+    const pinId = attachVoiceFor;
+    setAttachVoiceFor(null);
+    if (!pinId) return;
+    const attId = uid();
+    setAttachBusy(true);
+    addAttachment(pinId, { id: attId, kind: "audio", path: "", name: "Voice note" });
+    const res = await store.uploadPinAttachment(attId, blob, "pin-voice.webm", "audio");
+    if (res) {
+      mutate((a) => ({
+        ...a,
+        pins: a.pins.map((p) =>
+          p.id === pinId
+            ? { ...p, attachments: (p.attachments ?? []).map((x) => (x.id === attId ? { ...x, path: res.path } : x)) }
+            : p,
+        ),
+      }));
+      if (res.transcript) patchAttachment(pinId, attId, { transcript: res.transcript });
+    } else {
+      removeAttachment(pinId, attId);
+    }
+    setAttachBusy(false);
+  }
+
   if (!activeScene) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-3 bg-[#20261f] text-center text-white/80">
@@ -286,12 +362,12 @@ export function CanvasStage({ store }: { store: CanvasStore }) {
 
       {/* Note-pin card */}
       {cardPinObj && (
-        <div className="absolute z-20 w-60 -translate-x-1/2 rounded-lg border border-border bg-card p-3 shadow-xl"
+        <div className="absolute z-20 w-72 -translate-x-1/2 rounded-lg border border-border bg-card p-3 shadow-xl"
           onPointerDown={(e) => e.stopPropagation()}
           style={{ left: `${box.left + cardPinObj.x * box.width}px`, top: `${box.top + cardPinObj.y * box.height + 12}px` }}>
           <div className="mb-1 flex items-center justify-between">
             <span className="text-[10px] font-bold uppercase tracking-wide text-[#c87f3a]">{cardPinObj.kind === "voice" ? "Voice note" : `Pin ${cardPinObj.number ?? ""}`}</span>
-            {!readOnly && <button type="button" onClick={() => removePin(cardPinObj.id)} className="text-muted-foreground hover:text-destructive"><Trash2 className="h-3.5 w-3.5" /></button>}
+            {!readOnly && <button type="button" onClick={() => removePin(cardPinObj.id)} className="text-muted-foreground hover:text-destructive" aria-label="Delete pin"><Trash2 className="h-3.5 w-3.5" /></button>}
           </div>
           <textarea
             autoFocus={!readOnly}
@@ -301,9 +377,61 @@ export function CanvasStage({ store }: { store: CanvasStore }) {
             onChange={(e) => updatePinText(cardPinObj.id, e.target.value)}
             className="h-20 w-full resize-none rounded-md border border-border bg-background px-2 py-1.5 text-xs outline-none focus:border-accent"
           />
-          <div className="mt-1 text-right"><button type="button" onClick={() => setCardPin(null)} className="text-[11px] font-semibold text-accent">Done</button></div>
+
+          {/* Attach: voice, camera, image upload */}
+          {!readOnly && (
+            <div className="mt-2 flex items-center gap-1">
+              <AttachBtn label="Record a voice note" onClick={() => setAttachVoiceFor(cardPinObj.id)} disabled={attachBusy}>
+                <Mic className="h-3.5 w-3.5" />
+              </AttachBtn>
+              <AttachBtn label="Take a photo" onClick={() => { attachTargetRef.current = cardPinObj.id; pinCameraRef.current?.click(); }} disabled={attachBusy}>
+                <Camera className="h-3.5 w-3.5" />
+              </AttachBtn>
+              <AttachBtn label="Upload images" onClick={() => { attachTargetRef.current = cardPinObj.id; pinUploadRef.current?.click(); }} disabled={attachBusy}>
+                <Paperclip className="h-3.5 w-3.5" />
+              </AttachBtn>
+              {attachBusy && <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin text-muted-foreground" aria-label="Uploading" />}
+            </div>
+          )}
+
+          {/* Attachment list */}
+          {!!cardPinObj.attachments?.length && (
+            <ul className="mt-2 space-y-1.5">
+              {cardPinObj.attachments.map((att) => (
+                <li key={att.id} className="flex items-start gap-2 rounded-md border border-border bg-background p-1.5">
+                  {att.kind === "image" ? (
+                    mediaUrls[att.path] ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={mediaUrls[att.path]} alt={att.name || "Attached photo"} className="h-10 w-10 shrink-0 rounded object-cover" />
+                    ) : (
+                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded bg-muted"><Loader2 className="h-3 w-3 animate-spin text-muted-foreground" /></span>
+                    )
+                  ) : (
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded bg-[#2e7d5b]/15 text-[#2e7d5b]"><Mic className="h-4 w-4" /></span>
+                  )}
+                  <span className="min-w-0 flex-1 text-[10.5px] leading-4 text-muted-foreground">
+                    <span className="block truncate font-medium text-foreground">{att.name || (att.kind === "audio" ? "Voice note" : "Photo")}</span>
+                    {att.kind === "audio" && <span className="line-clamp-2">{att.transcript || "Transcribing…"}</span>}
+                  </span>
+                  {!readOnly && (
+                    <button type="button" onClick={() => removeAttachment(cardPinObj.id, att.id)} aria-label="Remove attachment"
+                      className="shrink-0 text-muted-foreground transition hover:text-destructive">
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <div className="mt-1.5 text-right"><button type="button" onClick={() => setCardPin(null)} className="text-[11px] font-semibold text-accent">Done</button></div>
         </div>
       )}
+
+      {/* Hidden pickers. `capture` opens the camera directly on mobile; on
+          desktop the browser falls back to a normal file dialog. */}
+      <input ref={pinCameraRef} type="file" accept="image/*" capture="environment" hidden onChange={onPinFiles} />
+      <input ref={pinUploadRef} type="file" accept="image/*" multiple hidden onChange={onPinFiles} />
 
       {/* Selected-stamp controls */}
       {selectedStamp && !readOnly && tool === "select" && (
@@ -321,12 +449,28 @@ export function CanvasStage({ store }: { store: CanvasStore }) {
       {/* Stamp tray */}
       {tool === "stamp" && !readOnly && <StampTray onAdd={addStamp} />}
 
-      {/* Voice recorder */}
+      {/* Voice recorder — standalone voice pin, or a clip attached to a note pin */}
       {voiceTarget && <VoiceRecorder onDone={onVoiceDone} onCancel={onVoiceCancel} />}
+      {attachVoiceFor && <VoiceRecorder onDone={onAttachVoiceDone} onCancel={() => setAttachVoiceFor(null)} />}
     </div>
   );
 }
 
 function Ctrl({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
   return <button type="button" onClick={onClick} className="grid h-7 w-7 place-items-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground">{children}</button>;
+}
+
+function AttachBtn({ children, label, onClick, disabled }: { children: React.ReactNode; label: string; onClick: () => void; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={label}
+      aria-label={label}
+      className="grid h-7 w-7 place-items-center rounded-md border border-border text-muted-foreground transition hover:border-accent/50 hover:bg-accent/10 hover:text-accent disabled:opacity-50"
+    >
+      {children}
+    </button>
+  );
 }

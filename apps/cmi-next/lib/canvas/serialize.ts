@@ -5,11 +5,11 @@ import { COLOR_MEANING, type CanvasProject, type CanvasScene } from "./types";
 
 export type CanvasContext = {
   summary: string;
-  counts: { scenes: number; pins: number; voiceNotes: number; strokes: number; shapes: number; stamps: number };
+  counts: { scenes: number; pins: number; voiceNotes: number; strokes: number; shapes: number; stamps: number; photos: number };
 };
 
 export function buildCanvasContext(canvas: CanvasProject, scenes: CanvasScene[]): CanvasContext {
-  const counts = { scenes: scenes.length, pins: 0, voiceNotes: 0, strokes: 0, shapes: 0, stamps: 0 };
+  const counts = { scenes: scenes.length, pins: 0, voiceNotes: 0, strokes: 0, shapes: 0, stamps: 0, photos: 0 };
   const lines: string[] = [`Canvas: "${canvas.title}" (status: ${canvas.status}). ${scenes.length} scene(s).`];
 
   scenes.forEach((s, i) => {
@@ -37,7 +37,21 @@ export function buildCanvasContext(canvas: CanvasProject, scenes: CanvasScene[])
     for (const p of a.pins) {
       const label = p.kind === "voice" ? "voice note" : `note ${p.number ?? ""}`.trim();
       const text = (p.text ?? "").trim();
-      parts.push(text ? `${label}: "${text}"` : `${label}: (empty)`);
+
+      // Attachments are how a client shows rather than describes what they want,
+      // so they belong in the brief alongside the note text.
+      const atts = p.attachments ?? [];
+      const photos = atts.filter((x) => x.kind === "image").length;
+      counts.photos += photos;
+      const extras: string[] = [];
+      if (photos) extras.push(`${photos} reference photo${photos > 1 ? "s" : ""} attached`);
+      for (const audio of atts.filter((x) => x.kind === "audio")) {
+        const t = (audio.transcript ?? "").trim();
+        extras.push(t ? `voice attachment: "${t}"` : "voice attachment (not yet transcribed)");
+      }
+
+      const base = text ? `${label}: "${text}"` : `${label}: (empty)`;
+      parts.push(extras.length ? `${base} [${extras.join("; ")}]` : base);
     }
     lines.push(`Scene ${i + 1}${s.media_path ? "" : " (no media yet)"}: ${parts.length ? parts.join("; ") : "no annotations yet"}.`);
   });

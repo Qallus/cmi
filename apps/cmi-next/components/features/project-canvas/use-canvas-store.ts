@@ -34,6 +34,12 @@ export type CanvasStore = {
   reorder: (orderedIds: string[]) => Promise<void>;
   ensureMediaUrl: (path: string | null | undefined) => void;
   uploadVoiceNote: (clientKey: string, blob: Blob) => Promise<string | null>;
+  uploadPinAttachment: (
+    attachmentId: string,
+    file: Blob,
+    filename: string,
+    kind: "image" | "audio",
+  ) => Promise<{ path: string; transcript: string | null } | null>;
   submitBrief: (boltSummary?: unknown) => Promise<boolean>;
   refresh: () => Promise<void>;
 };
@@ -195,6 +201,31 @@ export function useCanvasStore(canvasId: string, surface: Surface): CanvasStore 
     }
   }, [activeSceneId, canvasId]);
 
+  // Upload a photo or voice clip attached to a note pin. Audio reuses the voice
+  // pin pipeline (row + transcription) keyed on the attachment id, so a spoken
+  // attachment is transcribed into the brief just like a standalone voice pin.
+  const uploadPinAttachment = React.useCallback(async (
+    attachmentId: string,
+    file: Blob,
+    filename: string,
+    kind: "image" | "audio",
+  ): Promise<{ path: string; transcript: string | null } | null> => {
+    const sceneId = activeSceneId;
+    if (!sceneId) return null;
+    try {
+      const path = await api.apiUploadMedia(canvasId, sceneId, file, filename, kind === "audio" ? "audio" : "pin");
+      let transcript: string | null = null;
+      if (kind === "audio") {
+        await api.apiCreateVoicePin(canvasId, sceneId, { client_key: attachmentId, audio_path: path }).catch(() => {});
+        transcript = (await api.apiTranscribe(path, attachmentId).catch(() => "")) || null;
+      }
+      ensureMediaUrl(path);
+      return { path, transcript };
+    } catch {
+      return null;
+    }
+  }, [activeSceneId, canvasId, ensureMediaUrl]);
+
   // Flatten every scene with media into a snapshot, then flip status to
   // submitted (which notifies the team server-side).
   const submitBrief = React.useCallback(async (boltSummary?: unknown): Promise<boolean> => {
@@ -224,6 +255,6 @@ export function useCanvasStore(canvasId: string, surface: Surface): CanvasStore 
   return {
     canvas, scenes, activeSceneId, activeScene, tool, color, saveStatus, loading, error, busy, readOnly, mediaUrls,
     setTool, setColor, setActiveScene: setActiveSceneId, rename, mutateActiveAnnotations,
-    addSceneFromUpload, deleteScene, reorder, ensureMediaUrl, uploadVoiceNote, submitBrief, refresh,
+    addSceneFromUpload, deleteScene, reorder, ensureMediaUrl, uploadVoiceNote, uploadPinAttachment, submitBrief, refresh,
   };
 }
