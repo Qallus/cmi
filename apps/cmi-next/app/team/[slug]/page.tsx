@@ -191,12 +191,9 @@ export default async function TeamMemberPage({ params }: Props) {
                 ) : null}
 
                 <div className="flex flex-wrap gap-3 pt-2">
-                  <Link href="/book" className="inline-flex items-center justify-center gap-2 rounded-lg bg-accent px-6 py-3 text-sm font-semibold text-white transition hover:bg-accent/90">
-                    Schedule With CMI
-                    <ArrowRight className="h-4 w-4" />
-                  </Link>
-                  <Link href="/contact" className="inline-flex items-center justify-center rounded-lg border border-border px-6 py-3 text-sm font-semibold transition hover:border-accent hover:text-accent">
+                  <Link href="/contact" className="inline-flex items-center justify-center gap-2 rounded-lg bg-accent px-6 py-3 text-sm font-semibold text-white transition hover:bg-accent/90">
                     Contact the Team
+                    <ArrowRight className="h-4 w-4" />
                   </Link>
                 </div>
               </div>

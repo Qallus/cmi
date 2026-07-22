@@ -67,7 +67,7 @@ export default async function PortfolioDetailPage({ params }: { params: Promise<
           <DetailField label="Square Footage" value={item.square_feet ? `${item.square_feet.toLocaleString()} sq ft` : null} />
           {attributes.map(attribute => <DetailField key={`${attribute.label}-${attribute.value}`} label={attribute.label} value={attribute.value} />)}
           <div className="mt-7 border-t border-border pt-6">
-            <Link href="/book" className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-accent px-4 py-3 text-sm font-semibold text-accent-foreground">
+            <Link href="/contact" className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-accent px-4 py-3 text-sm font-semibold text-accent-foreground">
               Start Your Project
               <ArrowRight className="h-4 w-4" />
             </Link>

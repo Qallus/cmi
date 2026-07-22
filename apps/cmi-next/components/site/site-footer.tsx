@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { Facebook, Instagram, Linkedin, Mail, MapPin, Phone } from "lucide-react";
 import { ContactFab } from "./contact-fab";
-import { InstallAppButton } from "@/components/pwa/install-app-button";
 
 const SERVICES_LINKS = [
   { label: "Residential",                        href: "/services/residential" },
@@ -51,7 +50,6 @@ export function SiteFooter() {
                 <Linkedin aria-hidden="true" className="h-4 w-4" />
               </a>
             </div>
-            <InstallAppButton variant="accent" className="h-auto rounded-lg px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90" />
           </div>
 
           {/* Services col */}
@@ -95,7 +93,7 @@ export function SiteFooter() {
                 </a>
               </li>
               <li>
-                <a href="https://www.google.com/maps/place/Constructed+Matter,+Inc/@33.4870402,-111.924356,17z" target="_blank" rel="noreferrer"
+                <a href="https://www.google.com/maps/dir//Constructed+Matter,+Inc,+7314+E+Osborn+Dr+Ste+A,+Scottsdale,+AZ+85251/@33.4837392,-111.9164779,15z/data=!4m8!4m7!1m0!1m5!1m1!1s0x4df60e56031f726f:0xcfc958dfa22a341f!2m2!1d-111.924356!2d33.4870402" target="_blank" rel="noreferrer"
                   className="flex items-start gap-2.5 text-sm text-white/60 transition hover:text-white">
                   <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
                   <span>7314 E Osborn Dr Suite A<br />Scottsdale, AZ 85251</span>

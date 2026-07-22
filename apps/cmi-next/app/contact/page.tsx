@@ -4,6 +4,12 @@ import { ContactForm } from "./contact-form";
 
 export const metadata = { title: "Contact Us — Constructed Matter" };
 
+const GOOGLE_MAPS_DIRECTIONS =
+  "https://www.google.com/maps/dir//Constructed+Matter,+Inc,+7314+E+Osborn+Dr+Ste+A,+Scottsdale,+AZ+85251/@33.4837392,-111.9164779,15z/data=!4m8!4m7!1m0!1m5!1m1!1s0x4df60e56031f726f:0xcfc958dfa22a341f!2m2!1d-111.924356!2d33.4870402";
+
+const APPLE_MAPS_DIRECTIONS =
+  "https://maps.apple.com/place?place-id=I35F7B895019B0E6B&address=7314+E+Osborn+Dr%2C+Scottsdale%2C+AZ++85251%2C+United+States&coordinate=33.487028%2C-111.924287&name=Constructed+Matter%2C+Inc.&_provider=9902";
+
 export default function ContactPage() {
   return (
     <>
@@ -44,14 +50,25 @@ export default function ContactPage() {
                       <div>
                         <p className="mb-0.5 font-medium text-foreground">7314 E Osborn Dr Suite A</p>
                         <p>Scottsdale, AZ 85251</p>
-                        <a
-                          href="https://www.google.com/maps/place/Constructed+Matter,+Inc/@33.4870402,-111.924356,17z"
-                          target="_blank"
-                          rel="noreferrer"
-                          className="mt-1 inline-block text-xs text-accent hover:underline"
-                        >
-                          Get Directions &rarr;
-                        </a>
+                        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                          <a
+                            href={GOOGLE_MAPS_DIRECTIONS}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-block text-accent hover:underline"
+                          >
+                            Google Maps &rarr;
+                          </a>
+                          <span aria-hidden="true" className="text-border">|</span>
+                          <a
+                            href={APPLE_MAPS_DIRECTIONS}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-block text-accent hover:underline"
+                          >
+                            Apple Maps &rarr;
+                          </a>
+                        </div>
                       </div>
                     </li>
                     <li className="flex items-start gap-3">
@@ -80,31 +97,9 @@ export default function ContactPage() {
                       <div>
                         <p className="mb-0.5 font-medium text-foreground">Office Hours</p>
                         <p>Mon – Fri: 8:00 AM – 5:00 PM</p>
-                        <p>Sat: By Appointment</p>
                       </div>
                     </li>
                   </ul>
-                </div>
-
-                {/* Book Consultation CTA */}
-                <div className="rounded-2xl bg-accent p-8 text-white">
-                  <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-white/20">
-                    <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                      <rect x="3" y="4" width="18" height="18" rx="2" />
-                      <path d="M16 2v4M8 2v4M3 10h18" />
-                    </svg>
-                  </div>
-                  <h3 className="mb-2 font-display text-xl font-semibold">Book a Consultation</h3>
-                  <p className="mb-5 text-sm leading-relaxed text-white/80">
-                    Prefer to meet in person or over a call? Schedule a free 30-minute consultation with our team.
-                  </p>
-                  <a
-                    href="/book"
-                    className="inline-flex items-center gap-2 rounded-lg bg-white px-5 py-2.5 text-[13px] font-semibold text-accent transition hover:opacity-90"
-                  >
-                    Schedule Now
-                    <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path d="M5 12h14m-7-7l7 7-7 7" /></svg>
-                  </a>
                 </div>
 
                 {/* License Badge */}

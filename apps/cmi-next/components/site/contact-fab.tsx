@@ -1,8 +1,7 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
-import { CalendarDays, Headphones, Mail, Phone, Sparkles, X } from "lucide-react";
+import { Headphones, Mail, Phone, Sparkles, X } from "lucide-react";
 import { BoltVoiceModal } from "./bolt-voice-modal";
 
 export function ContactFab() {
@@ -26,10 +25,6 @@ export function ContactFab() {
               <Mail className="h-4 w-4 text-accent" strokeWidth={1.6} />
               hello@constructedmatter.com
             </a>
-            <Link href="/book" className="flex items-center gap-3 px-4 py-3 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground">
-              <CalendarDays className="h-4 w-4 text-accent" strokeWidth={1.6} />
-              Book Appointment
-            </Link>
             <button
               type="button"
               onClick={() => { setVoiceOpen(true); setOpen(false); }}

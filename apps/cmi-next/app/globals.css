@@ -29,7 +29,7 @@
     --secondary-foreground: oklch(0.22 0.012 60);
     --muted: oklch(0.96 0.005 75);
     --muted-foreground: oklch(0.52 0.012 65);
-    --accent: oklch(0.66 0.135 52);
+    --accent: #9e6f2e;
     --accent-foreground: oklch(0.99 0.003 75);
     --destructive: oklch(0.58 0.215 28);
     --success: oklch(0.55 0.13 155);
@@ -37,7 +37,7 @@
     --info: oklch(0.55 0.12 235);
     --border: oklch(0.91 0.005 70);
     --input: oklch(0.93 0.005 70);
-    --ring: oklch(0.66 0.135 52 / 0.45);
+    --ring: rgb(158 111 46 / 0.45);
   }
 
   .dark,
@@ -52,7 +52,7 @@
     --secondary-foreground: oklch(0.94 0.005 75);
     --muted: oklch(0.21 0.008 60);
     --muted-foreground: oklch(0.66 0.012 70);
-    --accent: oklch(0.72 0.135 55);
+    --accent: #c9a46e;
     --accent-foreground: oklch(0.16 0.02 55);
     --destructive: oklch(0.66 0.21 28);
     --success: oklch(0.66 0.13 155);
@@ -60,18 +60,6 @@
     --info: oklch(0.66 0.13 235);
     --border: oklch(0.235 0.008 60);
     --input: oklch(0.235 0.008 60);
-    --ring: oklch(0.72 0.135 55 / 0.55);
-  }
-
-  .home-color-test {
-    --accent: #9e6f2e;
-    --ring: rgb(158 111 46 / 0.45);
-  }
-
-  .dark .home-color-test,
-  [data-theme="dark"] .home-color-test {
-    --accent: #c9a46e;
-    --accent-foreground: oklch(0.16 0.02 55);
     --ring: rgb(201 164 110 / 0.55);
   }
 
@@ -161,6 +149,81 @@
 @layer utilities {
   .cmi-form-control {
     caret-color: var(--accent);
+  }
+
+  /* ── Services hero: line icons that draw themselves 0% → 100%, then the
+     copy flows in once the stroke has finished. Every path in these icons
+     carries pathLength="1" so the dash math is exact regardless of geometry. */
+  @keyframes cmi-draw-stroke {
+    from {
+      stroke-dashoffset: 1;
+    }
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+
+  @keyframes cmi-flow-in {
+    from {
+      opacity: 0;
+      transform: translateY(14px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes cmi-fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  .cmi-draw-icon :is(path, circle, rect, line, polyline, polygon, ellipse) {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    animation: cmi-draw-stroke var(--cmi-draw-duration, 900ms) cubic-bezier(0.65, 0, 0.35, 1) forwards;
+  }
+
+  .cmi-draw-icon :is(path, circle, rect, line, polyline, polygon, ellipse):nth-child(2) {
+    animation-delay: 110ms;
+  }
+  .cmi-draw-icon :is(path, circle, rect, line, polyline, polygon, ellipse):nth-child(3) {
+    animation-delay: 220ms;
+  }
+  .cmi-draw-icon :is(path, circle, rect, line, polyline, polygon, ellipse):nth-child(4) {
+    animation-delay: 330ms;
+  }
+  .cmi-draw-icon :is(path, circle, rect, line, polyline, polygon, ellipse):nth-child(5) {
+    animation-delay: 440ms;
+  }
+
+  /* Copy enters only after the last stroke has finished drawing (900 + 440). */
+  .cmi-flow-in {
+    opacity: 0;
+    animation: cmi-flow-in 620ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    animation-delay: var(--cmi-flow-delay, 1400ms);
+  }
+
+  .cmi-fade-in {
+    opacity: 0;
+    animation: cmi-fade-in 700ms ease-out forwards;
+    animation-delay: var(--cmi-flow-delay, 1400ms);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cmi-draw-icon :is(path, circle, rect, line, polyline, polygon, ellipse),
+    .cmi-flow-in,
+    .cmi-fade-in {
+      animation: none;
+      opacity: 1;
+      stroke-dashoffset: 0;
+      transform: none;
+    }
   }
 
   .gantt-grid-bg {

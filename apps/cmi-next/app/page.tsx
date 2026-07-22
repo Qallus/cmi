@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { InstallAppButton } from "@/components/pwa/install-app-button";
 import {
   ArrowRight,
   Brain,
@@ -14,6 +13,7 @@ import {
   MonitorCog,
   Package,
   Star,
+  Waves,
 } from "lucide-react";
 import { SiteHeader } from "@/components/site/site-header";
 import { SiteFooter } from "@/components/site/site-footer";
@@ -68,42 +68,43 @@ const SERVICES = [
   },
 ];
 
+// Every card on the home grid routes to the Services overview page.
 const SERVICE_CARDS = [
   {
     title: "Custom Homes and Casitas",
     body: "Custom homes, guest houses, and casitas designed around your lifestyle and built with enduring materials.",
-    href: "/services/residential",
+    href: "/services",
     icon: Home,
   },
   {
     title: "Boutique Commercial",
     body: "Functional, modern commercial spaces that elevate your brand and support the way your team works.",
-    href: "/services/commercial",
+    href: "/services",
     icon: Building2,
   },
   {
     title: "ADU",
     body: "Accessory dwelling units that maximize your property's potential with turnkey permitting and design.",
-    href: "/services/adu",
+    href: "/services",
     icon: BriefcaseBusiness,
   },
   {
     title: "Renovations and Additions",
     body: "Thoughtful updates, expansions, and additions planned around the structure, schedule, and daily life of the space.",
-    href: "/services/renovations-additions",
+    href: "/services",
     icon: ClipboardList,
   },
   {
     title: "Architectural and Design Coordination",
     body: "Coordinated plans, selections, and construction details that keep the design intent aligned from concept through build.",
-    href: "/services/architectural-design",
+    href: "/services",
     icon: DraftingCompass,
   },
   {
-    title: "New Construction",
-    body: "Ground-up builds from foundation to finish, handled through every phase with uncompromising standards.",
-    href: "/services/new-construction",
-    icon: Building2,
+    title: "Pools and Landscaping",
+    body: "Pools, spas, hardscape, and desert landscaping designed as one continuous extension of the home and how you use it.",
+    href: "/services",
+    icon: Waves,
   },
 ];
 
@@ -226,7 +227,7 @@ const REVIEWS = [
 
 export default function HomePage() {
   return (
-    <div className="home-color-test">
+    <>
       <SiteHeader />
       <main id="main-content" tabIndex={-1}>
         {/* ── Hero ────────────────────────────────────────────── */}
@@ -251,7 +252,6 @@ export default function HomePage() {
               <Link href="/portfolio" className="inline-flex items-center gap-2 rounded-lg border border-white/30 bg-white/10 px-6 py-3 text-sm font-semibold text-white backdrop-blur transition hover:bg-white/20">
                 View Our Work <ArrowRight className="h-4 w-4" />
               </Link>
-              <InstallAppButton variant="accent" className="h-auto rounded-lg px-6 py-3 text-sm font-semibold text-white hover:opacity-90" />
             </div>
           </div>
         </section>
@@ -263,13 +263,10 @@ export default function HomePage() {
             <h2 className="mt-4 font-display text-4xl font-semibold tracking-tight">Services Built on Expertise</h2>
             <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {SERVICE_CARDS.map((s) => (
-                <Link key={s.href} href={s.href} className="group rounded-xl border border-border bg-card p-6 transition hover:border-accent/40 hover:shadow-md">
+                <Link key={s.title} href={s.href} className="group block rounded-xl border border-border bg-card p-6 transition hover:border-accent/40 hover:shadow-md">
                   <s.icon className="mb-8 h-6 w-6 text-accent" strokeWidth={1.5} />
-                  <h3 className="font-semibold">{s.title}</h3>
+                  <h3 className="font-semibold transition group-hover:text-accent">{s.title}</h3>
                   <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{s.body}</p>
-                  <div className="mt-4 flex items-center gap-1 text-xs font-medium text-accent">
-                    Learn More <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
-                  </div>
                 </Link>
               ))}
             </div>
@@ -329,7 +326,7 @@ export default function HomePage() {
               </div>
               <div>
                 <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-accent">Who We Are</div>
-                <h2 className="mt-4 font-display text-4xl font-semibold tracking-tight">A Full-Service Construction & Design Firm Rooted in Arizona</h2>
+                <h2 className="mt-4 font-display text-4xl font-semibold tracking-tight">A Turnkey Construction Firm Driven by Design</h2>
                 <p className="mt-6 leading-7 text-muted-foreground">
                   Constructed Matter Inc. was founded on a simple belief: every project is a partnership. Whether you're building your dream home, expanding your business, or investing in your property, you deserve a team that listens, communicates openly, and delivers without compromise.
                 </p>
@@ -425,8 +422,8 @@ export default function HomePage() {
           <div className="absolute inset-0 overflow-hidden">
             <HomeVideoBackground />
           </div>
-          <div className="absolute inset-0 bg-black/78" />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/45 via-black/45 to-black/80" />
+          <div className="absolute inset-0 bg-black/88" />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/60 to-black/90" />
           <div className="relative z-10 mx-auto max-w-2xl px-5">
             <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-accent">Start Your Project</div>
             <h2 className="mt-4 font-display text-4xl font-semibold leading-tight tracking-tight lg:text-5xl">Ready to Build Something Extraordinary?</h2>
@@ -436,9 +433,6 @@ export default function HomePage() {
             <div className="mt-8 flex flex-wrap justify-center gap-4">
               <Link href="/contact" className="inline-flex items-center gap-2 rounded-lg bg-accent px-6 py-3 text-sm font-semibold text-white transition hover:bg-accent/90">
                 Let's Build Together <ChevronRight className="h-4 w-4" />
-              </Link>
-              <Link href="/book" className="inline-flex items-center gap-2 rounded-lg border border-white/30 bg-white/10 px-6 py-3 text-sm font-semibold text-white backdrop-blur transition hover:bg-white/20">
-                Book Appointment
               </Link>
             </div>
           </div>
@@ -467,6 +461,6 @@ export default function HomePage() {
         </section>
       </main>
       <SiteFooter />
-    </div>
+    </>
   );
 }

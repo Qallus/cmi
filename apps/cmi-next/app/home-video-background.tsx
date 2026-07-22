@@ -3,7 +3,7 @@
 import * as React from "react";
 
 const PLAYBACK_RATE = 0.75;
-const VIDEO_STOP_SECONDS = 40;
+const VIDEO_STOP_SECONDS = 30;
 
 export function HomeVideoBackground() {
   const iframeRef = React.useRef<HTMLIFrameElement | null>(null);
@@ -38,7 +38,7 @@ export function HomeVideoBackground() {
   return (
     <iframe
       ref={iframeRef}
-      src="https://www.youtube.com/embed/fyprwuHlCg8?autoplay=1&mute=1&controls=0&disablekb=1&modestbranding=1&playsinline=1&rel=0&start=0&end=40&enablejsapi=1"
+      src="https://www.youtube.com/embed/fyprwuHlCg8?autoplay=1&mute=1&controls=0&disablekb=1&modestbranding=1&playsinline=1&rel=0&start=0&end=30&enablejsapi=1"
       allow="autoplay; encrypted-media"
       onLoad={setPlaybackSpeed}
       className="absolute left-1/2 top-1/2 h-[100vh] min-h-full w-[177.78vh] min-w-full -translate-x-1/2 -translate-y-1/2 border-0"

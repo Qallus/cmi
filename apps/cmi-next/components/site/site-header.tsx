@@ -5,12 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BookOpen,
-  BriefcaseBusiness,
-  Building2,
   ChevronDown,
-  ClipboardList,
-  DraftingCompass,
-  Home,
   Info,
   Mail,
   Menu,
@@ -23,15 +18,6 @@ import { ThemeToggle } from "@/components/dashboard/theme-toggle";
 import { cn } from "@/lib/utils";
 
 type NavLink = { label: string; href: string; description: string; icon: React.ComponentType<{ className?: string; strokeWidth?: number }>; flag?: string };
-
-const SERVICES = [
-  { label: "Residential", href: "/services/residential", description: "Custom homes built with precision and care.", icon: Home },
-  { label: "Commercial", href: "/services/commercial", description: "Functional spaces for modern business.", icon: Building2 },
-  { label: "ADU", href: "/services/adu", description: "Accessory dwelling units, turnkey solutions.", icon: BriefcaseBusiness },
-  { label: "Renovations and Additions", href: "/services/renovations-additions", description: "End-to-end oversight and coordination.", icon: ClipboardList },
-  { label: "Architectural and Design Coordination", href: "/services/architectural-design", description: "Curated interiors that inspire.", icon: DraftingCompass },
-  { label: "New Construction", href: "/services/new-construction", description: "Ground-up builds, start to finish.", icon: Building2 },
-];
 
 const DISCOVER: NavLink[] = [
   { label: "About Us", href: "/about", description: "Meet the CMI story and approach.", icon: Info },
@@ -89,31 +75,9 @@ export function SiteHeader() {
             )}
           </div>
 
-          <div className="relative" onMouseEnter={() => setOpenDropdown("services")} onMouseLeave={() => setOpenDropdown(null)}>
-            <button type="button" aria-expanded={openDropdown === "services"} aria-haspopup="true" className={cn("flex items-center gap-1 border-b border-transparent px-3 py-6 text-sm font-semibold uppercase tracking-wide transition hover:text-accent", openDropdown === "services" || isActive("/services") ? "border-accent text-accent" : "text-foreground/75")}>
-              Services <ChevronDown aria-hidden="true" className={cn("h-3.5 w-3.5 transition-transform", openDropdown === "services" && "rotate-180")} />
-            </button>
-            {openDropdown === "services" && (
-              <div className="absolute left-1/2 top-full mt-0 w-[720px] -translate-x-1/2 rounded-xl border border-border bg-card p-7 shadow-2xl">
-                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Our Services</div>
-                <div className="mt-7 grid grid-cols-3 gap-x-8 gap-y-10">
-                  {SERVICES.map((item) => (
-                    <Link key={item.href} href={item.href} className={cn("group flex gap-3", isActive(item.href) ? "text-accent" : "text-foreground")}>
-                      <item.icon className="mt-1 h-4 w-4 shrink-0 text-accent" strokeWidth={1.5} />
-                      <span>
-                        <span className="block text-base font-semibold leading-snug transition group-hover:text-accent">{item.label}</span>
-                        <span className="mt-2 block text-sm leading-6 text-muted-foreground">{item.description}</span>
-                      </span>
-                    </Link>
-                  ))}
-                </div>
-                <div className="mt-8 flex items-center justify-between border-t border-border pt-5">
-                  <span className="text-sm text-muted-foreground">Not sure where to start?</span>
-                  <Link href="/contact" className="text-sm font-semibold text-accent transition hover:text-accent/80">Let's Build Together -&gt;</Link>
-                </div>
-              </div>
-            )}
-          </div>
+          <Link href="/services" className={cn("border-b border-transparent px-3 py-6 text-sm font-semibold uppercase tracking-wide transition hover:text-accent", isActive("/services") ? "border-accent text-accent" : "text-foreground/75")}>
+            Services
+          </Link>
 
           <Link href="/portfolio" className={cn("border-b border-transparent px-3 py-6 text-sm font-semibold uppercase tracking-wide transition hover:text-accent", isActive("/portfolio") ? "border-accent text-accent" : "text-foreground/75")}>
             Portfolio
@@ -139,7 +103,7 @@ export function SiteHeader() {
         <div className="border-t border-border bg-card lg:hidden">
           <div className="mx-auto max-w-7xl space-y-1 px-5 py-4">
             <MobileSection label="Discover" items={discover} />
-            <MobileSection label="Services" items={[{ label: "All Services", href: "/services" }, ...SERVICES]} />
+            <Link href="/services" className="block rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground">Services</Link>
             <Link href="/portfolio" className="block rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground">Portfolio</Link>
             <Link href="/contact" className="block rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground">Contact</Link>
             <div className="pt-3">
