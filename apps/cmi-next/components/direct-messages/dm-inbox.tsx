@@ -264,13 +264,15 @@ export function DmInbox({ canStart = true, className, jobId }: { canStart?: bool
               )}
               <input ref={fileRef} type="file" multiple className="sr-only" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt" onChange={(e) => { if (e.target.files?.length) uploadFiles(e.target.files); e.target.value = ""; }} />
               <input ref={cameraRef} type="file" className="sr-only" accept="image/*" capture="environment" onChange={(e) => { if (e.target.files?.length) uploadFiles(e.target.files); e.target.value = ""; }} />
-              <div className="flex items-center gap-2">
+              {/* pr on the right keeps the Send button clear of the global
+                  review FAB (fixed bottom-right) on the dashboard DM pages. */}
+              <div className="flex items-center gap-2 sm:pr-16">
                 <button type="button" title="Photo" onClick={() => cameraRef.current?.click()} className="text-muted-foreground transition hover:text-foreground"><Camera className="h-5 w-5" /></button>
                 <button type="button" title="Attach file" onClick={() => fileRef.current?.click()} className="text-muted-foreground transition hover:text-foreground"><Paperclip className="h-5 w-5" /></button>
                 <button type="button" title={recording ? "Stop recording" : "Voice note"} onClick={toggleRecording} className={cn("transition", recording ? "text-destructive" : "text-muted-foreground hover:text-foreground")}>{recording ? <StopCircle className="h-5 w-5 animate-pulse" /> : <Mic className="h-5 w-5" />}</button>
                 <div className="relative shrink-0">
                   <CircleDot className={cn("pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2", importance === "urgent" ? "text-destructive" : importance === "important" ? "text-accent" : "text-muted-foreground")} />
-                  <Select className="h-9 w-[130px] pl-7 text-xs" value={importance} onChange={(e) => setImportance(e.target.value as Importance)}>
+                  <Select menuPlacement="up" className="h-9 w-[130px] pl-7 text-xs" value={importance} onChange={(e) => setImportance(e.target.value as Importance)}>
                     <option value="normal">Normal</option>
                     <option value="important">Important</option>
                     <option value="urgent">Urgent</option>

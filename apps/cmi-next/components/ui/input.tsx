@@ -469,8 +469,14 @@ export function Select({
   disabled,
   name,
   id,
+  menuPlacement = "auto",
   ..._props
-}: React.SelectHTMLAttributes<HTMLSelectElement>) {
+}: React.SelectHTMLAttributes<HTMLSelectElement> & {
+  /** Force the menu direction. "auto" (default) opens down unless there is no
+   *  room. Use "up" for controls pinned to the bottom of a bounded panel (e.g.
+   *  a chat composer) where the viewport has room below but the panel clips. */
+  menuPlacement?: "auto" | "up" | "down";
+}) {
   const options = React.useMemo(() => selectOptionsFromChildren(children), [children]);
   const generatedId = React.useId();
   const controlId = id || generatedId;
@@ -495,12 +501,15 @@ export function Select({
     if (rect) {
       const spaceBelow = window.innerHeight - rect.bottom - MARGIN;
       const spaceAbove = rect.top - MARGIN;
-      const dropUp = spaceBelow < Math.min(DESIRED_MAX, options.length * 36 + 8) && spaceAbove > spaceBelow;
+      const dropUp =
+        menuPlacement === "up" ? true
+        : menuPlacement === "down" ? false
+        : spaceBelow < Math.min(DESIRED_MAX, options.length * 36 + 8) && spaceAbove > spaceBelow;
       const maxHeight = Math.max(120, Math.min(DESIRED_MAX, dropUp ? spaceAbove : spaceBelow));
       setPlacement({ dropUp, maxHeight });
     }
     setOpen(true);
-  }, [options.length]);
+  }, [options.length, menuPlacement]);
 
   React.useEffect(() => {
     function closeOnOutsideClick(event: MouseEvent) {
