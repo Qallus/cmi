@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Check, ChevronRight } from "lucide-react";
+import { Check, ChevronRight } from "lucide-react";
 import { SiteHeader } from "@/components/site/site-header";
 import { SiteFooter } from "@/components/site/site-footer";
 import { ServicesHero } from "./services-hero";
@@ -45,18 +45,17 @@ export default function ServicesPage() {
             </div>
 
             <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {/* Not linked: the individual service pages stay live but are held
+                  back from the site until their content has been reviewed. */}
               {SERVICES.map((service) => (
-                <Link
+                <article
                   key={service.key}
-                  href={service.href}
-                  className="group flex flex-col rounded-2xl border border-border bg-card p-7 transition hover:border-accent/45 hover:shadow-md"
+                  className="flex flex-col rounded-2xl border border-border bg-card p-7"
                 >
-                  <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-background transition group-hover:border-accent/40">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-background">
                     <ServiceIcon service={service} className="h-5 w-5 text-accent" strokeWidth={1.4} />
                   </div>
-                  <h3 className="mt-6 font-display text-xl font-semibold leading-snug transition group-hover:text-accent">
-                    {service.title}
-                  </h3>
+                  <h3 className="mt-6 font-display text-xl font-semibold leading-snug">{service.title}</h3>
                   <p className="mt-3 text-sm leading-7 text-muted-foreground">{service.body}</p>
                   <ul className="mt-5 space-y-2">
                     {service.points.map((point) => (
@@ -66,10 +65,7 @@ export default function ServicesPage() {
                       </li>
                     ))}
                   </ul>
-                  <span className="mt-auto inline-flex items-center gap-1.5 pt-7 text-sm font-semibold text-accent transition-all group-hover:gap-3">
-                    {service.linkLabel} <ArrowRight className="h-4 w-4" />
-                  </span>
-                </Link>
+                </article>
               ))}
             </div>
           </div>

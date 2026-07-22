@@ -8,8 +8,11 @@ export type Service = {
   /** Longer card copy used by the services grid. */
   body: string;
   points: string[];
+  /**
+   * Kept but currently unrendered: the individual service pages are still live,
+   * but nothing on the site links to them until their content is reviewed.
+   */
   href: string;
-  /** Label for the card's link affordance. */
   linkLabel: string;
   /**
    * Icon geometry only — the wrapping <svg> is supplied by the consumer so the

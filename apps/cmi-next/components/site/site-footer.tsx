@@ -1,15 +1,18 @@
 import Link from "next/link";
 import { Facebook, Instagram, Linkedin, Mail, MapPin, Phone } from "lucide-react";
 import { ContactFab } from "./contact-fab";
+import { FooterFlagLink } from "./footer-flag-link";
 
+// Every service link points at the Services overview. The individual service
+// pages stay live but are not linked from anywhere on the site yet.
 const SERVICES_LINKS = [
-  { label: "Residential",             href: "/services/residential" },
-  { label: "Commercial",              href: "/services/commercial" },
-  { label: "ADU",                     href: "/services/adu" },
-  { label: "Renovations & Additions", href: "/services/renovations-additions" },
-  { label: "Architectural & Design",  href: "/services/architectural-design" },
-  { label: "Pools & Landscaping",     href: "/services" },
-];
+  "Residential",
+  "Commercial",
+  "ADU",
+  "Renovations & Additions",
+  "Architectural & Design",
+  "Pools & Landscaping",
+].map((label) => ({ label, href: "/services" }));
 
 const GOOGLE_MAPS_DIRECTIONS =
   "https://www.google.com/maps/dir//Constructed+Matter,+Inc,+7314+E+Osborn+Dr+Ste+A,+Scottsdale,+AZ+85251/@33.4837392,-111.9164779,15z/data=!4m8!4m7!1m0!1m5!1m1!1s0x4df60e56031f726f:0xcfc958dfa22a341f!2m2!1d-111.924356!2d33.4870402";
@@ -17,11 +20,16 @@ const GOOGLE_MAPS_DIRECTIONS =
 const APPLE_MAPS_DIRECTIONS =
   "https://maps.apple.com/place?place-id=I35F7B895019B0E6B&address=7314+E+Osborn+Dr%2C+Scottsdale%2C+AZ++85251%2C+United+States&coordinate=33.487028%2C-111.924287&name=Constructed+Matter%2C+Inc.&_provider=9902";
 
-const COMPANY_LINKS = [
+// Project Canvas is injected between Resources and Contact by FooterFlagLink,
+// which gates it on the same feature flag the header uses.
+const COMPANY_LINKS_BEFORE_CANVAS = [
   { label: "About Us",   href: "/about" },
   { label: "Our Team",   href: "/team" },
   { label: "Portfolio",  href: "/portfolio" },
   { label: "Resources",  href: "/resources" },
+];
+
+const COMPANY_LINKS_AFTER_CANVAS = [
   { label: "Contact",    href: "/contact" },
 ];
 
@@ -60,10 +68,10 @@ export function SiteFooter() {
 
           {/* Services col */}
           <div>
-            <div className="mb-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/40">Services</div>
+            <Link href="/services" className="mb-4 block text-[11px] font-semibold uppercase tracking-[0.18em] text-white/40 transition hover:text-white/70">Services</Link>
             <ul className="space-y-2.5">
               {SERVICES_LINKS.map((item) => (
-                <li key={item.href}>
+                <li key={item.label}>
                   <Link href={item.href} className="text-sm text-white/60 transition hover:text-white">{item.label}</Link>
                 </li>
               ))}
@@ -74,7 +82,13 @@ export function SiteFooter() {
           <div>
             <div className="mb-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/40">Company</div>
             <ul className="space-y-2.5">
-              {COMPANY_LINKS.map((item) => (
+              {COMPANY_LINKS_BEFORE_CANVAS.map((item) => (
+                <li key={item.href}>
+                  <Link href={item.href} className="text-sm text-white/60 transition hover:text-white">{item.label}</Link>
+                </li>
+              ))}
+              <FooterFlagLink flag="project_canvas" href="/project-canvas" label="Project Canvas" />
+              {COMPANY_LINKS_AFTER_CANVAS.map((item) => (
                 <li key={item.href}>
                   <Link href={item.href} className="text-sm text-white/60 transition hover:text-white">{item.label}</Link>
                 </li>
@@ -104,15 +118,16 @@ export function SiteFooter() {
                   <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
                   <span>7314 E Osborn Dr Suite A<br />Scottsdale, AZ 85251</span>
                 </a>
-                <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 pl-[26px] text-xs">
-                  <a href={GOOGLE_MAPS_DIRECTIONS} target="_blank" rel="noreferrer" className="text-accent transition hover:text-white">
-                    Google Maps &rarr;
-                  </a>
-                  <span aria-hidden="true" className="text-white/20">|</span>
-                  <a href={APPLE_MAPS_DIRECTIONS} target="_blank" rel="noreferrer" className="text-accent transition hover:text-white">
-                    Apple Maps &rarr;
-                  </a>
-                </div>
+              </li>
+              <li>
+                <a href={GOOGLE_MAPS_DIRECTIONS} target="_blank" rel="noreferrer" className="block pl-[26px] text-sm text-accent transition hover:text-white">
+                  Google Maps &rarr;
+                </a>
+              </li>
+              <li>
+                <a href={APPLE_MAPS_DIRECTIONS} target="_blank" rel="noreferrer" className="block pl-[26px] text-sm text-accent transition hover:text-white">
+                  Apple Maps &rarr;
+                </a>
               </li>
             </ul>
           </div>
