@@ -2,12 +2,13 @@
 
 import type { ReactNode } from "react";
 import * as React from "react";
-import { ArrowLeft, PanelLeftClose, PanelLeftOpen, Search } from "lucide-react";
+import { ArrowLeft, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { ThemeToggle } from "@/components/dashboard/theme-toggle";
 import { DashboardNav, type UserRole } from "@/components/dashboard/nav";
 import { NotificationBell } from "@/components/dashboard/notification-bell";
 import { ReviewFab } from "@/components/dashboard/review-fab";
+import { GlobalSearch } from "@/components/dashboard/global-search";
 import { InstallAppButton } from "@/components/pwa/install-app-button";
 import { cn } from "@/lib/utils";
 
@@ -23,7 +24,6 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = React.useState(false);
-  const [dashboardSearch, setDashboardSearch] = React.useState("");
   const [sessionUser, setSessionUser] = React.useState<SessionUser | null>(null);
 
   React.useEffect(() => {
@@ -38,15 +38,10 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     router.push("/login");
   }
 
+  // Clear any in-place list filter (e.g. Contacts) when navigating between pages.
   React.useEffect(() => {
-    setDashboardSearch("");
     window.dispatchEvent(new CustomEvent("cmi-dashboard-search", { detail: { value: "" } }));
   }, [pathname]);
-
-  function updateDashboardSearch(value: string) {
-    setDashboardSearch(value);
-    window.dispatchEvent(new CustomEvent("cmi-dashboard-search", { detail: { value } }));
-  }
 
   return (
     <div className={cn("min-h-screen bg-background text-foreground lg:grid print:!block", collapsed ? "lg:grid-cols-[76px_1fr]" : "lg:grid-cols-[232px_1fr]")}>
@@ -86,15 +81,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-background/92 px-5 backdrop-blur print:hidden">
           <div className="text-sm font-semibold">CMI Dashboard</div>
           <div className="flex items-center gap-2">
-            <label className="hidden h-8 w-56 items-center gap-2 rounded-md border border-border bg-card px-3 text-xs text-muted-foreground md:flex">
-              <Search className="h-3.5 w-3.5" />
-              <input
-                value={dashboardSearch}
-                onChange={event => updateDashboardSearch(event.target.value)}
-                placeholder="Search"
-                className="h-full min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
-              />
-            </label>
+            <GlobalSearch />
             <InstallAppButton variant="outline" size="sm" label="Get the App" className="hidden sm:inline-flex" />
             <ThemeToggle />
             <NotificationBell />
