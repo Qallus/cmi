@@ -56,15 +56,15 @@ export function LegalPageLayout({
       <SiteHeader />
       <main id="main-content" tabIndex={-1} className="bg-background">
         <section className="border-b border-border bg-card/40">
-          <div className="mx-auto max-w-3xl px-5 py-14 lg:px-8 lg:py-16">
+          <div className="mx-auto max-w-7xl px-5 py-14 lg:px-8 lg:py-16">
             <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-accent">Legal</div>
             <h1 className="mt-4 font-display text-4xl font-semibold tracking-tight lg:text-5xl">{title}</h1>
             <p className="mt-4 text-sm text-muted-foreground">Effective date: {effectiveDate}</p>
-            {intro ? <p className="mt-4 max-w-2xl text-base leading-8 text-muted-foreground">{intro}</p> : null}
+            {intro ? <p className="mt-4 max-w-4xl text-base leading-8 text-muted-foreground">{intro}</p> : null}
           </div>
         </section>
 
-        <div className="mx-auto max-w-3xl px-5 py-14 lg:px-8 lg:py-20">
+        <div className="mx-auto max-w-7xl px-5 py-14 lg:px-8 lg:py-20">
           <article className="cmi-legal">{children}</article>
 
           <LegalCrossLinks currentHref={currentHref} />

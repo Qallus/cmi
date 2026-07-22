@@ -36,7 +36,7 @@ The old `app/privacy/` and `app/terms/` page files were deleted.
 > **Domain note.** `docs/legal/README.md` lists some URLs on
 > `constructedmatter.com` and others on `my.constructedmatter.com`. This app
 > serves `my.constructedmatter.com`. All six pages are live there. If the
-> apex domain is a separate WordPress site, the same six paths must either be
+> apex domain is served by a separate system, the same six paths must either be
 > mirrored or redirected there before the URLs are submitted to Twilio.
 
 ---
@@ -153,10 +153,21 @@ Already enforcing suppression (unchanged): `/api/communications/send`, invoice
 send, agent tool registry, business-card notifications, canvas notifications,
 client-portal notifications, project-manager notifications.
 
-> **Gap to close.** There is no marketing-campaign sender inside this codebase
-> today — broadcasts are in-app + web push only, and marketing email appears to
-> go out through FluentCRM. Nothing outside this app currently reads
-> `marketing_opted_out`. See §7.
+### Inbound STOP / START
+
+`app/api/webhooks/twilio/sms/route.ts` already routes carrier keywords into the
+same suppression table:
+
+- **STOP** (also STOPALL, UNSUBSCRIBE, CANCEL, END, QUIT, OPTOUT, REVOKE) →
+  full opt-out on both categories, `opt_out_method: sms_keyword:<KEYWORD>`.
+- **START** (also YES, UNSTOP) → opts back in to **service only**. A one-word
+  reply never restores marketing consent; that requires the documented opt-in
+  flow.
+
+> **Gap to close.** There is no marketing-campaign sender in the app yet —
+> broadcasts are in-app + web push only. When one is built (Resend for email,
+> Twilio for SMS), it must call `isSuppressed(channel, address, "marketing")`
+> or `isMarketingSuppressed()`. Nothing reads `marketing_opted_out` today.
 
 ---
 
@@ -195,21 +206,19 @@ These are outside what code can decide.
    liability, call-recording, and AI-voice sections before publication.
 3. **Mirror or redirect the apex domain** if `constructedmatter.com` is a
    separate site (see §1).
-4. **Wire FluentCRM / the ESP to the suppression table.** Nothing outside this
-   app reads `marketing_opted_out` yet. Until that sync exists, a marketing
-   opt-out captured here will not stop a FluentCRM campaign. This is the single
-   most important remaining item for CAN-SPAM compliance.
-5. **Twilio STOP/HELP webhook → `applyConsent`.** Inbound STOP keywords should
-   call `applyConsent({ action: "opt_out", categories: ["service","marketing"],
-   optOutMethod: "sms_keyword" })` so carrier-level opt-outs land in the same
-   suppression table. The opt-out page lists STOP, STOPALL, UNSUBSCRIBE, CANCEL,
-   END, QUIT, OPTOUT, REVOKE.
+4. **Marketing campaign sender must honour `marketing_opted_out`.** There is no
+   marketing campaign sender in the app yet. Whenever one is built, it must
+   check `isMarketingSuppressed(channel, address)` — a plain `isSuppressed()`
+   call defaults to the transactional rule and will happily send marketing to
+   someone who opted out of marketing only. This is the main open CAN-SPAM item.
+5. **HELP keyword auto-reply.** STOP/START are handled; confirm Twilio's
+   default HELP response names "Constructed Matter" and points at support.
 6. **Email-topic segmentation.** The Email Opt-Out page offers the four choices
    from the source document (all / newsletters / events / offers), but CMI has
    no topic segmentation, so **any** selection is applied as a full
    marketing-email opt-out. That over-suppresses in the recipient's favour,
    which is safe — but if topic-level granularity is wanted, add the topics to
-   the ESP and split them into distinct categories.
+   the sending system and split them into distinct categories.
 7. **Add consent checkboxes to the other public forms.** The contact and booking
    forms do not yet capture SMS consent. The README requires SMS consent to be
    separate, optional, and unchecked wherever it is offered.

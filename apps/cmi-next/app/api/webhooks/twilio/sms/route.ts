@@ -4,7 +4,8 @@ import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { normalizePhone, publicAppUrl, shouldValidateWebhook } from "@/lib/twilio";
 import { applyConsent } from "@/lib/messaging/consent";
 
-const STOP_WORDS = ["STOP", "STOPALL", "UNSUBSCRIBE", "CANCEL", "END", "QUIT", "REVOKE"];
+// Must stay in sync with the keyword list published on /sms-opt-out.
+const STOP_WORDS = ["STOP", "STOPALL", "UNSUBSCRIBE", "CANCEL", "END", "QUIT", "OPTOUT", "REVOKE"];
 const START_WORDS = ["START", "YES", "UNSTOP"];
 
 function xml(status = 200): Response {
@@ -40,9 +41,25 @@ export async function POST(request: Request) {
   // Honor STOP/START keywords (A2P 10DLC compliance).
   const keyword = body.trim().toUpperCase();
   if (from && STOP_WORDS.includes(keyword)) {
-    await applyConsent({ channel: "sms", action: "opt_out", address: from, source: "sms_keyword" }).catch(() => {});
+    // STOP stops everything on the channel.
+    await applyConsent({
+      channel: "sms",
+      action: "opt_out",
+      address: from,
+      categories: ["service", "marketing"],
+      source: "sms_keyword",
+      optOutMethod: `sms_keyword:${keyword}`,
+    }).catch(() => {});
   } else if (from && START_WORDS.includes(keyword)) {
-    await applyConsent({ channel: "sms", action: "opt_in", address: from, source: "sms_keyword" }).catch(() => {});
+    // START resumes transactional messaging only. Marketing consent is never
+    // granted by a one-word reply — it requires the documented opt-in flow.
+    await applyConsent({
+      channel: "sms",
+      action: "opt_in",
+      address: from,
+      categories: ["service"],
+      source: "sms_keyword",
+    }).catch(() => {});
   }
 
   try {
