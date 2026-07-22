@@ -15,7 +15,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { listConversations } from "@/lib/direct-messages/data";
 import { markBroadcastRead, unreadBroadcastsForStaff } from "@/lib/broadcasts/data";
 
-export type StaffNotificationKind = "submission" | "message" | "lead" | "note" | "booking" | "dm" | "broadcast";
+export type StaffNotificationKind = "submission" | "message" | "lead" | "note" | "booking" | "dm" | "broadcast" | "note_link";
 
 export type StaffNotification = {
   id: string;
@@ -36,6 +36,7 @@ const HREF: Record<StaffNotificationKind, string> = {
   booking: "/dashboard/bookings",
   dm: "/dashboard/direct-messages",
   broadcast: "/dashboard/overview",
+  note_link: "/dashboard/documents",
 };
 
 function bookingWhen(iso: string | null): string {
@@ -72,7 +73,7 @@ export async function loadStaffNotifications(ctx: Ctx): Promise<StaffNotificatio
     .limit(50);
   if (!ctx.isAdmin) leadsQuery = leadsQuery.eq("owner_staff_id", ctx.staffId);
 
-  const [submissionsRes, messagesRes, leadsRes, notesRes, bookingsRes] = await Promise.all([
+  const [submissionsRes, messagesRes, leadsRes, notesRes, bookingsRes, noteLinksRes] = await Promise.all([
     supabase
       .from("contact_submissions")
       .select("id, first_name, last_name, subject, message, submitted_at, created_at")
@@ -102,6 +103,14 @@ export async function loadStaffNotifications(ctx: Ctx): Promise<StaffNotificatio
       .select("id, title, customer_first_name, customer_last_name, customer_email, start_time, status, created_at")
       .is("notification_read_at", null)
       .neq("status", "canceled")
+      .order("created_at", { ascending: false })
+      .limit(50),
+    // Notes this staff member was linked to and hasn't opened yet.
+    supabase
+      .from("staff_notes")
+      .select("id, title, author_name, author_staff_id, linked_staff_ids, read_by, created_at")
+      .contains("linked_staff_ids", [ctx.staffId])
+      .neq("status", "archived")
       .order("created_at", { ascending: false })
       .limit(50),
   ]);
@@ -194,6 +203,21 @@ export async function loadStaffNotifications(ctx: Ctx): Promise<StaffNotificatio
     }
   } catch { /* best-effort */ }
 
+  // Notes this staff member was linked to and hasn't opened. Skip self-authored.
+  for (const n of (noteLinksRes.data ?? []) as Record<string, unknown>[]) {
+    const readBy = (n.read_by as string[] | null) ?? [];
+    if (readBy.includes(ctx.staffId)) continue;
+    if (n.author_staff_id === ctx.staffId) continue;
+    items.push({
+      id: String(n.id),
+      kind: "note_link",
+      title: `${(n.author_name as string) ?? "A teammate"} linked you on a note`,
+      subtitle: snippet((n.title as string) || "Untitled note"),
+      time: String(n.created_at),
+      href: HREF.note_link,
+    });
+  }
+
   items.sort((a, b) => (a.time < b.time ? 1 : a.time > b.time ? -1 : 0));
   return items;
 }
@@ -230,6 +254,12 @@ export async function markStaffNotificationRead(
       await supabase.from("dm_participants").update({ last_read_at: nowExpr }).eq("conversation_id", id).eq("user_id", ctx.staffId);
     } else if (kind === "broadcast") {
       await markBroadcastRead("staff", ctx.staffId, id);
+    } else if (kind === "note_link") {
+      const { data } = await supabase.from("staff_notes").select("read_by").eq("id", id).maybeSingle();
+      const readBy = (data?.read_by as string[] | null) ?? [];
+      if (!readBy.includes(ctx.staffId)) {
+        await supabase.from("staff_notes").update({ read_by: [...readBy, ctx.staffId] }).eq("id", id);
+      }
     }
     return true;
   } catch {

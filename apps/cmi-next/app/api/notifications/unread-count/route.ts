@@ -51,9 +51,18 @@ export async function GET(request: Request) {
     const unreadShared = ((sharedNotesRes.data as { read_by: string[] }[] | null) ?? [])
       .filter((r) => !(r.read_by ?? []).map((e) => e.toLowerCase()).includes(email.toLowerCase())).length;
 
+    // Notes this staff member was linked to and hasn't opened (excludes own).
+    const { data: noteLinks } = await supabase
+      .from("staff_notes")
+      .select("read_by, author_staff_id")
+      .contains("linked_staff_ids", [staff.id])
+      .neq("status", "archived");
+    const noteLinkUnread = (noteLinks ?? [])
+      .filter((n) => n.author_staff_id !== staff.id && !((n.read_by as string[] | null) ?? []).includes(staff.id)).length;
+
     const dmUnread = await getDmUnreadCount(staff.id).catch(() => 0);
     const broadcastUnread = await unreadBroadcastsForStaff(staff.id, staff.role_slug).then((b) => b.length).catch(() => 0);
-    const count = (submissionsRes.count ?? 0) + (messagesRes.count ?? 0) + (leadsRes.count ?? 0) + unreadShared + (bookingsRes.count ?? 0) + dmUnread + broadcastUnread;
+    const count = (submissionsRes.count ?? 0) + (messagesRes.count ?? 0) + (leadsRes.count ?? 0) + unreadShared + (bookingsRes.count ?? 0) + noteLinkUnread + dmUnread + broadcastUnread;
     return NextResponse.json({ count });
   } catch (error) {
     if (error instanceof AuthError) return NextResponse.json({ count: 0 }, { status: error.status });

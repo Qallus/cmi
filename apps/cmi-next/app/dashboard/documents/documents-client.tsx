@@ -1,11 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { FileText, Plus, Search, X } from "lucide-react";
+import { FileText, Plus, Search, StickyNote, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { NotesPanel } from "@/components/notes/notes-panel";
 import type { Document } from "./page";
 
 const DOC_STATUSES = ["Draft", "Sent", "Signed", "Completed", "Void"];
@@ -56,7 +57,7 @@ const BASE_DRAFT: Omit<Document, "id" | "created_at" | "updated_at"> = {
   notes: "",
 };
 
-type DocTab = "all" | "contract" | "sow";
+type DocTab = "all" | "contract" | "sow" | "notes";
 
 export function DocumentsClient({ initialDocs }: { initialDocs: Document[] }) {
   const [docs, setDocs] = React.useState<Document[]>(initialDocs);
@@ -66,6 +67,8 @@ export function DocumentsClient({ initialDocs }: { initialDocs: Document[] }) {
   const [draft, setDraft] = React.useState<Omit<Document, "id" | "created_at" | "updated_at">>(BASE_DRAFT);
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  // Bumped by the header "Add Note" button to open the note editor in NotesPanel.
+  const [notesAddNonce, setNotesAddNonce] = React.useState(0);
 
   const counts = React.useMemo(() => ({
     all: docs.length,
@@ -128,31 +131,47 @@ export function DocumentsClient({ initialDocs }: { initialDocs: Document[] }) {
             <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight">Documents</h1>
           </div>
           <div className="flex gap-2">
-            <Button size="sm" variant="outline" onClick={() => openNew("sow")}>+ New SOW</Button>
-            <Button size="sm" variant="accent" onClick={() => openNew("contract")}><Plus className="h-3.5 w-3.5" /> New Contract</Button>
+            {tab === "notes" ? (
+              <Button size="sm" variant="accent" onClick={() => setNotesAddNonce((n) => n + 1)}><Plus className="h-3.5 w-3.5" /> Add Note</Button>
+            ) : (
+              <>
+                <Button size="sm" variant="outline" onClick={() => openNew("sow")}>+ New SOW</Button>
+                <Button size="sm" variant="outline" onClick={() => setTab("notes")}><StickyNote className="h-3.5 w-3.5" /> Add Note</Button>
+                <Button size="sm" variant="accent" onClick={() => openNew("contract")}><Plus className="h-3.5 w-3.5" /> New Contract</Button>
+              </>
+            )}
           </div>
         </div>
 
-        {/* Stats */}
-        <div className="mt-3 flex gap-3">
-          {([["all", "Total"], ["contract", "Contracts"], ["sow", "SOWs"]] as [DocTab, string][]).map(([key, label]) => (
+        {/* Tabs */}
+        <div className="mt-3 flex flex-wrap gap-3">
+          {([["all", "Total"], ["contract", "Contracts"], ["sow", "SOWs"], ["notes", "Notes"]] as [DocTab, string][]).map(([key, label]) => (
             <button
               key={key}
               type="button"
               onClick={() => setTab(key)}
               className={cn("flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition", tab === key ? "border-accent bg-accent/15 text-accent" : "border-border text-muted-foreground hover:border-accent/40")}
             >
-              {label} <span className={cn("rounded-full px-1.5 py-0.5 text-[10px]", tab === key ? "bg-accent/20" : "bg-muted")}>{counts[key]}</span>
+              {label}
+              {key !== "notes" && <span className={cn("rounded-full px-1.5 py-0.5 text-[10px]", tab === key ? "bg-accent/20" : "bg-muted")}>{counts[key as "all" | "contract" | "sow"]}</span>}
             </button>
           ))}
         </div>
 
-        <div className="relative mt-3 max-w-xs">
-          <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <input type="text" placeholder="Search documents…" value={search} onChange={(e) => setSearch(e.target.value)} className="h-8 w-full rounded-md border border-border bg-background pl-8 pr-3 text-sm outline-none focus:border-accent" />
-        </div>
+        {tab !== "notes" && (
+          <div className="relative mt-3 max-w-xs">
+            <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <input type="text" placeholder="Search documents…" value={search} onChange={(e) => setSearch(e.target.value)} className="h-8 w-full rounded-md border border-border bg-background pl-8 pr-3 text-sm outline-none focus:border-accent" />
+          </div>
+        )}
       </div>
 
+      {tab === "notes" ? (
+        <div className="flex-1 overflow-hidden">
+          <NotesPanel addNonce={notesAddNonce} />
+        </div>
+      ) : (
+      <>
       {/* Table */}
       <div className="flex-1 overflow-auto">
         <table className="w-full min-w-[500px] border-collapse text-sm">
@@ -186,6 +205,8 @@ export function DocumentsClient({ initialDocs }: { initialDocs: Document[] }) {
           </tbody>
         </table>
       </div>
+      </>
+      )}
 
       {/* View modal */}
       {modal?.mode === "view" && viewDoc && (
