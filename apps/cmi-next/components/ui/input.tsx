@@ -476,10 +476,31 @@ export function Select({
   const controlId = id || generatedId;
   const isControlled = value !== undefined;
   const [open, setOpen] = React.useState(false);
+  // Which way the menu opens, and how tall it may be. Decided when opening so a
+  // control near the bottom of the viewport (or inside an `overflow-hidden`
+  // panel, like the fullscreen DM composer) flips its menu upward instead of
+  // rendering it off-screen where it would be clipped.
+  const [placement, setPlacement] = React.useState<{ dropUp: boolean; maxHeight: number }>({ dropUp: false, maxHeight: 256 });
   const [internalValue, setInternalValue] = React.useState(String(defaultValue ?? options[0]?.value ?? ""));
   const selectedValue = String(isControlled ? value : internalValue);
   const selected = options.find(option => option.value === selectedValue) || options[0];
   const wrapperRef = React.useRef<HTMLDivElement>(null);
+  const buttonRef = React.useRef<HTMLButtonElement>(null);
+
+  const DESIRED_MAX = 256; // matches the old max-h-64
+  const MARGIN = 8;
+
+  const openMenu = React.useCallback(() => {
+    const rect = buttonRef.current?.getBoundingClientRect();
+    if (rect) {
+      const spaceBelow = window.innerHeight - rect.bottom - MARGIN;
+      const spaceAbove = rect.top - MARGIN;
+      const dropUp = spaceBelow < Math.min(DESIRED_MAX, options.length * 36 + 8) && spaceAbove > spaceBelow;
+      const maxHeight = Math.max(120, Math.min(DESIRED_MAX, dropUp ? spaceAbove : spaceBelow));
+      setPlacement({ dropUp, maxHeight });
+    }
+    setOpen(true);
+  }, [options.length]);
 
   React.useEffect(() => {
     function closeOnOutsideClick(event: MouseEvent) {
@@ -507,18 +528,19 @@ export function Select({
     <div ref={wrapperRef} className={cn("relative w-full", className)}>
       {name ? <input type="hidden" name={name} value={selectedValue} /> : null}
       <button
+        ref={buttonRef}
         id={controlId}
         type="button"
         disabled={disabled}
         className="cmi-form-control flex h-9 w-full items-center justify-between gap-2 rounded-md border border-input bg-card px-3 text-left text-sm text-foreground outline-none transition hover:border-accent focus:border-accent focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
         aria-haspopup="listbox"
         aria-expanded={open}
-        onClick={() => setOpen(current => !current)}
+        onClick={() => (open ? setOpen(false) : openMenu())}
         onKeyDown={event => {
           if (event.key === "Escape") setOpen(false);
           if (event.key === "ArrowDown" || event.key === "Enter" || event.key === " ") {
             event.preventDefault();
-            setOpen(true);
+            openMenu();
           }
         }}
       >
@@ -529,7 +551,11 @@ export function Select({
         <div
           role="listbox"
           aria-labelledby={controlId}
-          className="absolute left-0 right-0 top-[calc(100%+4px)] z-50 max-h-64 overflow-auto rounded-md border border-border bg-card p-1 text-card-foreground shadow-lg"
+          style={{ maxHeight: placement.maxHeight }}
+          className={cn(
+            "absolute left-0 right-0 z-50 overflow-auto rounded-md border border-border bg-card p-1 text-card-foreground shadow-lg",
+            placement.dropUp ? "bottom-[calc(100%+4px)]" : "top-[calc(100%+4px)]",
+          )}
         >
           {options.map(option => (
             <button
