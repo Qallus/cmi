@@ -111,19 +111,73 @@ export function InvoicesClient({ jobId, jobName, initial, hasClientEmail }: { jo
             </div>
 
             <div>
-              <div className="mb-1 flex items-center justify-between"><span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Line Items</span><button type="button" onClick={() => setItems((it) => [...it, { description: "", quantity: 1, unit_price: 0 }])} className="text-xs text-accent hover:underline">+ Add line</button></div>
-              <div className="space-y-2">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Line Items</span>
+                <button type="button" onClick={() => setItems((it) => [...it, { description: "", quantity: 1, unit_price: 0 }])} className="text-xs text-accent hover:underline">+ Add line</button>
+              </div>
+
+              {/* Column headers — labels above each field for reference. Hidden on
+                  narrow screens where each row stacks with its own inline labels. */}
+              <div className="mb-1 hidden gap-2 px-0 sm:grid sm:grid-cols-[1fr_7rem_5rem_6rem_1.5rem] sm:items-end">
+                <span className="text-[11px] font-medium text-muted-foreground">Item Name / Product</span>
+                <span className="text-[11px] font-medium text-muted-foreground">Cost ($)</span>
+                <span className="text-[11px] font-medium text-muted-foreground">Qty</span>
+                <span className="text-right text-[11px] font-medium text-muted-foreground">Amount</span>
+                <span />
+              </div>
+
+              <div className="space-y-3 sm:space-y-2">
                 {items.map((it, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <input className={`${inputCls} flex-1`} placeholder="Description" value={it.description} onChange={(e) => setItem(i, { description: e.target.value })} />
-                    <input type="number" className={`${inputCls} w-16`} placeholder="Qty" value={it.quantity} onChange={(e) => setItem(i, { quantity: Number(e.target.value) })} />
-                    <input type="number" className={`${inputCls} w-24`} placeholder="Unit $" value={it.unit_price} onChange={(e) => setItem(i, { unit_price: Number(e.target.value) })} />
-                    <span className="w-24 text-right text-sm">{money(it.quantity * it.unit_price)}</span>
-                    <button type="button" onClick={() => setItems((x) => x.filter((_, idx) => idx !== i))} className="text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></button>
+                  <div key={i} className="grid grid-cols-2 gap-2 sm:grid-cols-[1fr_7rem_5rem_6rem_1.5rem] sm:items-center">
+                    {/* Item name — the widest field, text. min-w-0 keeps it from
+                        collapsing inside the grid. */}
+                    <label className="col-span-2 sm:col-span-1">
+                      <span className="mb-1 block text-[11px] font-medium text-muted-foreground sm:hidden">Item Name / Product</span>
+                      <input
+                        className={`${inputCls} min-w-0`}
+                        placeholder="e.g. Framing labor, Cabinet package"
+                        value={it.description}
+                        onChange={(e) => setItem(i, { description: e.target.value })}
+                        aria-label="Item name or product"
+                      />
+                    </label>
+
+                    <label>
+                      <span className="mb-1 block text-[11px] font-medium text-muted-foreground sm:hidden">Cost ($)</span>
+                      <input
+                        type="number" inputMode="decimal" min={0} step="0.01"
+                        className={`${inputCls} min-w-0`}
+                        placeholder="0.00"
+                        value={it.unit_price}
+                        onChange={(e) => setItem(i, { unit_price: Number(e.target.value) })}
+                        aria-label="Cost per unit in dollars"
+                      />
+                    </label>
+
+                    <label>
+                      <span className="mb-1 block text-[11px] font-medium text-muted-foreground sm:hidden">Qty</span>
+                      <input
+                        type="number" inputMode="numeric" min={0} step="1"
+                        className={`${inputCls} min-w-0`}
+                        placeholder="1"
+                        value={it.quantity}
+                        onChange={(e) => setItem(i, { quantity: Number(e.target.value) })}
+                        aria-label="Quantity"
+                      />
+                    </label>
+
+                    <div className="flex items-center justify-between sm:justify-end">
+                      <span className="text-[11px] font-medium text-muted-foreground sm:hidden">Amount</span>
+                      <span className="text-sm font-medium tabular-nums">{money(Number(it.quantity || 0) * Number(it.unit_price || 0))}</span>
+                    </div>
+
+                    <button type="button" onClick={() => setItems((x) => x.filter((_, idx) => idx !== i))} aria-label="Remove line item" className="justify-self-end text-muted-foreground hover:text-destructive">
+                      <Trash2 className="h-4 w-4" />
+                    </button>
                   </div>
                 ))}
               </div>
-              <div className="mt-2 text-right text-sm font-semibold">Total: {money(computed)}</div>
+              <div className="mt-3 border-t border-border pt-2 text-right text-sm font-semibold">Total: {money(computed)}</div>
             </div>
 
             <Field label="Notes"><Textarea value={head.notes} onChange={(e) => setHead({ ...head, notes: e.target.value })} /></Field>
