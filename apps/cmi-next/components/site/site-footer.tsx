@@ -87,7 +87,7 @@ export function SiteFooter() {
                   <Link href={item.href} className="text-sm text-white/60 transition hover:text-white">{item.label}</Link>
                 </li>
               ))}
-              <FooterFlagLink flag="project_canvas" href="/project-canvas" label="Project Canvas" />
+              <FooterFlagLink flag="project_canvas_public" href="/project-canvas" label="Project Canvas" />
               {COMPANY_LINKS_AFTER_CANVAS.map((item) => (
                 <li key={item.href}>
                   <Link href={item.href} className="text-sm text-white/60 transition hover:text-white">{item.label}</Link>

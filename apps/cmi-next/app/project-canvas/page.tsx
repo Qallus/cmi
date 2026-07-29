@@ -4,7 +4,7 @@ import { ArrowRight, Camera, Check, MapPin, Mic, PenTool, Pencil, Send, Shapes, 
 import { SiteHeader } from "@/components/site/site-header";
 import { SiteFooter } from "@/components/site/site-footer";
 import { isFeatureEnabled } from "@/lib/flags";
-import { FEATURE_PROJECT_CANVAS } from "@/lib/canvas/types";
+import { FEATURE_PROJECT_CANVAS_PUBLIC } from "@/lib/canvas/types";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
@@ -28,7 +28,7 @@ const TOOLS = [
 ];
 
 export default async function ProjectCanvasMarketingPage() {
-  if (!(await isFeatureEnabled(FEATURE_PROJECT_CANVAS))) notFound();
+  if (!(await isFeatureEnabled(FEATURE_PROJECT_CANVAS_PUBLIC))) notFound();
 
   return (
     <div className="min-h-screen bg-background text-foreground">

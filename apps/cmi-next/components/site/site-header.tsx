@@ -22,7 +22,7 @@ const DISCOVER: NavLink[] = [
   { label: "About Us", href: "/about", description: "Meet the CMI story and approach.", icon: Info },
   { label: "Our Team", href: "/team", description: "Builders, designers, and project leads.", icon: Users },
   { label: "Resources", href: "/resources", description: "Guides, project notes, and construction insight.", icon: BookOpen },
-  { label: "Project Canvas", href: "/project-canvas", description: "Sketch your project right on photos of your space.", icon: SquarePen, flag: "project_canvas" },
+  { label: "Project Canvas", href: "/project-canvas", description: "Sketch your project right on photos of your space.", icon: SquarePen, flag: "project_canvas_public" },
   { label: "Contact", href: "/contact", description: "Start a conversation with the team.", icon: Mail },
 ];
 

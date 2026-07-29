@@ -319,7 +319,7 @@ export default function HomePage() {
             <div className="grid items-center gap-12 lg:grid-cols-2">
               <div className="relative">
                 <img
-                  src="https://wp-constructedmatter-com-985548.hostingersite.com/wp-content/uploads/2026/03/Brandon_Joe.png"
+                  src="/team/brandon-and-joe.png"
                   alt="Brandon Fadden and Joseph Ballard — Managing Partners"
                   className="w-full rounded-2xl object-cover"
                 />

@@ -221,4 +221,9 @@ export const STAMP_CATEGORIES: StampCategory[] = CATEGORY_SOURCE.map((c) => ({
 export const STAMP_LIBRARY: StampItem[] = STAMP_CATEGORIES.flatMap((c) => c.items);
 
 export const CANVAS_MEDIA_BUCKET = "canvas-media";
+// Gates the dashboard + client-portal Project Canvas feature.
 export const FEATURE_PROJECT_CANVAS = "project_canvas";
+// Separately gates the PUBLIC/marketing surfaces (site nav, footer, and the
+// /project-canvas landing page). Kept off until the feature is ready to go
+// live on the frontend, while FEATURE_PROJECT_CANVAS stays on for staff/clients.
+export const FEATURE_PROJECT_CANVAS_PUBLIC = "project_canvas_public";
