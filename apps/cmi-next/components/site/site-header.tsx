@@ -36,6 +36,9 @@ export function SiteHeader() {
     fetch("/api/flags").then((r) => r.json()).then((d: { flags?: Record<string, boolean> }) => setFlags(d.flags ?? {})).catch(() => {});
   }, []);
   const discover = DISCOVER.filter((i) => !i.flag || flags[i.flag] === true);
+  // Split the mega menu into two balanced columns regardless of how many items
+  // are visible (flags can hide some), so it never ends up lopsided (e.g. 3/1).
+  const discoverRows = Math.max(1, Math.ceil(discover.length / 2));
 
   // Close on route change
   React.useEffect(() => { setMobileOpen(false); setOpenDropdown(null); }, [pathname]);
@@ -58,11 +61,12 @@ export function SiteHeader() {
             <button type="button" aria-expanded={openDropdown === "discover"} aria-haspopup="true" className={cn("flex items-center gap-1 border-b border-transparent px-3 py-6 text-sm font-semibold uppercase tracking-wide transition hover:text-accent", openDropdown === "discover" ? "border-accent text-accent" : "text-foreground/75")}>
               Discover <ChevronDown aria-hidden="true" className={cn("h-3.5 w-3.5 transition-transform", openDropdown === "discover" && "rotate-180")} />
             </button>
-            {/* Two-column mega menu: grid-rows-3 + column flow fills three
-                items down the first column before starting the second. */}
+            {/* Two-column mega menu. Rows = half the visible items (rounded up)
+                and column flow fills the first column before the second, so the
+                two columns stay balanced no matter how many items are shown. */}
             {openDropdown === "discover" && (
               <div className="absolute left-0 top-full mt-0 w-[620px] rounded-xl border border-border bg-card p-4 shadow-2xl">
-                <div className="grid grid-flow-col grid-rows-3 gap-x-3 gap-y-1">
+                <div className="grid grid-flow-col gap-x-3 gap-y-1" style={{ gridTemplateRows: `repeat(${discoverRows}, minmax(0, auto))` }}>
                   {discover.map((item) => (
                     <Link key={item.href} href={item.href} className={cn("flex gap-3 rounded-lg px-3 py-3 transition hover:bg-muted", isActive(item.href) ? "text-accent" : "text-muted-foreground hover:text-foreground")}>
                       <item.icon className="mt-0.5 h-4 w-4 shrink-0 text-accent" strokeWidth={1.6} />
