@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ArrowRight, BriefcaseBusiness, CalendarDays, Clock3, Linkedin, Mail, Phone, Users } from "lucide-react";
+import { ArrowLeft, ArrowRight, BriefcaseBusiness, CalendarDays, Linkedin, Mail, Phone, Users } from "lucide-react";
 import { SiteHeader } from "@/components/site/site-header";
 import { SiteFooter } from "@/components/site/site-footer";
 import { fallbackTeamMembers, slugForTeamMember } from "@/lib/team/fallback";
@@ -55,14 +55,10 @@ export default async function TeamMemberPage({ params }: Props) {
   if (!profile) notFound();
 
   const { member, attributeDetails } = profile;
-  const photo = member.profile_photo || "https://wp-constructedmatter-com-985548.hostingersite.com/wp-content/uploads/2026/03/Brandon_Joe.png";
+  const photo = member.profile_photo || "/team/brandon-and-joe.png";
   const chips = member.attributes ?? [];
   const phoneHref = member.phone ? `tel:${member.phone.replace(/[^+\d]/g, "")}` : null;
   const bioParagraphs = (member.bio ?? "").split(/\n{2,}/).map(text => text.trim()).filter(Boolean);
-  const availabilityPieces = (member.availability ?? "")
-    .split(/[,|]+/)
-    .map(item => item.trim())
-    .filter(Boolean);
   const iconSet = [BriefcaseBusiness, Users, CalendarDays];
 
   return (
@@ -125,24 +121,6 @@ export default async function TeamMemberPage({ params }: Props) {
                   </div>
                 </div>
 
-                {(availabilityPieces.length || member.department) ? (
-                  <div className="mt-6">
-                    <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Availability</div>
-                    <div className="flex flex-wrap gap-2">
-                      {availabilityPieces.map(item => (
-                        <span key={item} className="inline-flex items-center gap-1 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground">
-                          <Clock3 className="h-3 w-3" />
-                          {item}
-                        </span>
-                      ))}
-                      {member.department ? (
-                        <span className="inline-flex items-center gap-1 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground">
-                          {member.department}
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
-                ) : null}
               </aside>
 
               <div className="space-y-8">
