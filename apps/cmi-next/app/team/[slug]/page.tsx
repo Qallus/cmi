@@ -55,7 +55,7 @@ export default async function TeamMemberPage({ params }: Props) {
   if (!profile) notFound();
 
   const { member, attributeDetails } = profile;
-  const photo = member.profile_photo || "/team/brandon-and-joe.png";
+  const photo = member.profile_photo || "/team/brandon-and-joe-optimized.webp";
   const chips = member.attributes ?? [];
   const phoneHref = member.phone ? `tel:${member.phone.replace(/[^+\d]/g, "")}` : null;
   const bioParagraphs = (member.bio ?? "").split(/\n{2,}/).map(text => text.trim()).filter(Boolean);

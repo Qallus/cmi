@@ -29,7 +29,7 @@ async function getTeamMembers() {
 function TeamCard({ member, detailed = false }: { member: TeamMember; detailed?: boolean }) {
   const slug = slugForTeamMember(member);
   const chips = member.attributes ?? [];
-  const photo = member.profile_photo || "/team/brandon-and-joe.png";
+  const photo = member.profile_photo || "/team/brandon-and-joe-optimized.webp";
 
   return (
     <article className="group relative overflow-hidden rounded-2xl border border-border bg-card transition duration-300 hover:-translate-y-1 hover:shadow-xl">
@@ -128,7 +128,7 @@ export default async function TeamPage() {
                 </div>
               </div>
               <img
-                src="/team/brandon-and-joe.png"
+                src="/team/brandon-and-joe-optimized.webp"
                 alt="Constructed Matter leadership"
                 className="w-full rounded-2xl object-cover object-top"
               />
