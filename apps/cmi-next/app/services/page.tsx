@@ -39,15 +39,16 @@ export default function ServicesPage() {
               <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-accent">Our Capabilities</div>
               <h2 className="mt-4 font-display text-4xl font-semibold tracking-tight">Services Built on Expertise</h2>
               <p className="mt-5 text-base leading-8 text-muted-foreground">
-                Every service below is delivered in-house or through trades we have worked with for years —
-                so scope, schedule, and quality stay under one point of accountability.
+                Every service below is delivered in-house or through trades we have worked with for years,
+                keeping scope, schedule, and quality under one point of accountability.
               </p>
             </div>
 
             <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {/* Not linked: the individual service pages stay live but are held
-                  back from the site until their content has been reviewed. */}
-              {SERVICES.map((service) => (
+                  back from the site until their content has been reviewed.
+                  New Construction is intentionally omitted from this grid. */}
+              {SERVICES.filter((service) => service.key !== "new-construction").map((service) => (
                 <article
                   key={service.key}
                   className="flex flex-col rounded-2xl border border-border bg-card p-7"
