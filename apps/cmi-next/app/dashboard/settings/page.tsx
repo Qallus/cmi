@@ -1,5 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { ProjectCanvasVisibility } from "@/components/dashboard/project-canvas-visibility";
 
 export const metadata = { title: "Settings — CMI Dashboard" };
 
@@ -31,6 +32,13 @@ export default function SettingsPage() {
       </div>
 
       <div className="grid gap-4 max-w-2xl">
+        <Card>
+          <CardHeader><CardTitle>Project Canvas Visibility</CardTitle></CardHeader>
+          <CardContent className="pt-0">
+            <ProjectCanvasVisibility />
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader><CardTitle>Supabase</CardTitle></CardHeader>
           <CardContent className="divide-y divide-border pt-0">
