@@ -5,11 +5,11 @@ import { SiteFooter } from "@/components/site/site-footer";
 
 export const metadata = { title: "About Us — Constructed Matter" };
 
-const STATS = [
-  { value: "200+", label: "Projects Completed" },
-  { value: "50+",  label: "Team Members" },
-  { value: "98%",  label: "Client Satisfaction" },
-  { value: "5★",   label: "Average Rating" },
+const STORY_PARAGRAPHS = [
+  "Constructed Matter began long before it became a full-blown construction company. Founded by Joe Ballard in 2014 while living in Minnesota, Constructed Matter was originally a creative outlet — a place to explore craftsmanship through printmaking, custom furniture, woodworking, metal fabrication, and handcrafted pieces. When Joe later moved to Arizona, the name and the philosophy came with him. At its core, Constructed Matter has always been about creating things with intention, craftsmanship, and pride.",
+  "Joe and Brandon Fadden developed a friendship through church and life outside of work. As they got to know each other, they discovered they shared another passion — construction. With years of experience on different paths within the industry, countless conversations naturally turned toward what they believed the building experience should be. They saw an opportunity to create something different: a company where craftsmanship, communication, honesty, and relationships mattered just as much as the finished product.",
+  "In 2021, that shared vision became reality when Brandon and Joe partnered to transform Constructed Matter into a fully committed general contracting firm. Together, they combined decades of experience with a genuine desire to raise the standard for the client experience — making the construction process more transparent, collaborative, and enjoyable from start to finish.",
+  "Today, Constructed Matter builds custom homes, transformative renovations, commercial spaces, and meaningful places throughout Arizona. While the company has evolved, its foundation remains the same: thoughtful craftsmanship, honest communication, and a commitment to building relationships that last well beyond the final walkthrough. Because at Constructed Matter, we believe the best projects aren't just well built — they're well experienced.",
 ];
 
 const VALUES = [
@@ -60,34 +60,6 @@ const VALUES = [
   },
 ];
 
-const TIMELINE = [
-  {
-    year: "2010",
-    title: "Founded in Chandler, AZ",
-    body: "Started as a residential remodeling company with a 3-person crew and a commitment to quality over quantity.",
-  },
-  {
-    year: "2014",
-    title: "Expanded to Commercial Construction",
-    body: "Landed our first commercial tenant improvement project and grew the team to 15 skilled tradespeople.",
-  },
-  {
-    year: "2018",
-    title: "Launch of Architectural and Design Coordination Division",
-    body: "Added full in-house design capabilities, allowing clients a true design-build experience under one roof.",
-  },
-  {
-    year: "2021",
-    title: "100th Project Milestone",
-    body: "Celebrated 100 completed projects and expanded our ADU division to meet rising demand across the Valley.",
-  },
-  {
-    year: "Today",
-    title: "200+ Projects & Growing",
-    body: "With 50+ team members and over 200 completed projects, we continue to set the standard for construction excellence in Arizona.",
-  },
-];
-
 export default function AboutPage() {
   return (
     <>
@@ -102,20 +74,35 @@ export default function AboutPage() {
                 Built on<br /><span className="text-accent">Trust</span> &<br />Craftsmanship
               </h1>
               <p className="mt-6 max-w-lg text-base leading-relaxed text-white/70 lg:text-lg">
-                For the last 5 years, Constructed Matter has been Arizona's trusted construction and design partner, turning visions into enduring spaces.
+                Constructed Matter began long before it became a construction company — built on intention, craftsmanship, and pride.
               </p>
             </div>
           </div>
         </section>
 
-        {/* ── Mission ── */}
+        {/* ── Our Story ── */}
         <section className="border-b border-border bg-background py-24 lg:py-32">
+          <div className="mx-auto max-w-3xl px-5 lg:px-8">
+            <div className="text-[12px] font-semibold uppercase tracking-[0.2em] text-accent">Our Story</div>
+            <h2 className="mt-4 font-display text-3xl font-semibold leading-snug tracking-tight lg:text-4xl">
+              How Constructed Matter Came to Be
+            </h2>
+            <div className="mt-8 space-y-6">
+              {STORY_PARAGRAPHS.map((paragraph, i) => (
+                <p key={i} className="text-base leading-8 text-muted-foreground">{paragraph}</p>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ── Who We Are ── */}
+        <section className="border-b border-border bg-card/40 py-24 lg:py-32">
           <div className="mx-auto max-w-7xl px-5 lg:px-8">
             <div className="grid items-center gap-16 lg:grid-cols-2 lg:gap-24">
               <div>
                 <div className="text-[12px] font-semibold uppercase tracking-[0.2em] text-accent">Who We Are</div>
                 <h2 className="mt-4 font-display text-3xl font-semibold leading-snug tracking-tight lg:text-4xl">
-                  A Full-Service Construction & Design Firm Rooted in Arizona
+                  A Turnkey Construction Firm Driven by Design
                 </h2>
                 <p className="mt-6 leading-relaxed text-muted-foreground">
                   Constructed Matter Inc. was founded on a simple belief: every project is a partnership. Whether you're building your dream home, expanding your business, or investing in your property, you deserve a team that listens, communicates openly, and delivers without compromise.
@@ -134,7 +121,7 @@ export default function AboutPage() {
               </div>
               <div className="relative">
                 <img
-                  src="https://wp-constructedmatter-com-985548.hostingersite.com/wp-content/uploads/2026/03/Brandon_Joe.png"
+                  src="/team/brandon-and-joe.png"
                   alt="Brandon Fadden and Joseph Ballard — Managing Partners"
                   className="aspect-[4/5] w-full rounded-2xl object-cover object-top"
                 />
@@ -143,20 +130,6 @@ export default function AboutPage() {
                   <p className="mt-1 text-sm opacity-90">Years in Arizona</p>
                 </div>
               </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ── Stats ── */}
-        <section className="bg-black py-20">
-          <div className="mx-auto max-w-7xl px-5 lg:px-8">
-            <div className="grid grid-cols-2 gap-8 lg:grid-cols-4">
-              {STATS.map((s) => (
-                <div key={s.label} className="text-center">
-                  <p className="font-display text-5xl font-semibold text-white">{s.value}</p>
-                  <p className="mt-2 text-sm text-white/50">{s.label}</p>
-                </div>
-              ))}
             </div>
           </div>
         </section>
@@ -180,38 +153,6 @@ export default function AboutPage() {
                   <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{v.body}</p>
                 </div>
               ))}
-            </div>
-          </div>
-        </section>
-
-        {/* ── Timeline ── */}
-        <section className="border-b border-border bg-card/40 py-24 lg:py-32">
-          <div className="mx-auto max-w-7xl px-5 lg:px-8">
-            <div className="grid gap-16 lg:grid-cols-2 lg:gap-24">
-              <div>
-                <div className="text-[12px] font-semibold uppercase tracking-[0.2em] text-accent">Our Journey</div>
-                <h2 className="mt-4 font-display text-3xl font-semibold leading-snug tracking-tight lg:text-4xl">
-                  15+ Years of Building What Matters
-                </h2>
-                <p className="mt-5 leading-relaxed text-muted-foreground">
-                  From a small team with big ambitions to one of Arizona's most trusted construction firms, every year has been defined by growth, learning, and an unwavering commitment to our clients.
-                </p>
-              </div>
-              <div className="space-y-0">
-                {TIMELINE.map((item, i) => (
-                  <div key={item.year} className={`relative pl-10 ${i < TIMELINE.length - 1 ? "pb-10" : ""}`}>
-                    {i < TIMELINE.length - 1 && (
-                      <div className="absolute bottom-0 left-[0.875rem] top-10 w-px bg-border" />
-                    )}
-                    <div className="absolute left-0 top-1 flex h-7 w-7 items-center justify-center rounded-full bg-accent">
-                      <div className="h-2 w-2 rounded-full bg-white" />
-                    </div>
-                    <p className="text-[11px] font-semibold uppercase tracking-widest text-accent">{item.year}</p>
-                    <h4 className="mt-1 font-display text-lg font-semibold">{item.title}</h4>
-                    <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{item.body}</p>
-                  </div>
-                ))}
-              </div>
             </div>
           </div>
         </section>
