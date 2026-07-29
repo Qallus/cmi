@@ -125,10 +125,6 @@ export default function AboutPage() {
                   alt="Brandon Fadden and Joseph Ballard — Managing Partners"
                   className="aspect-[4/5] w-full rounded-2xl object-cover object-top"
                 />
-                <div className="absolute -bottom-6 -right-4 rounded-xl bg-accent px-7 py-5 text-white shadow-xl lg:-right-8">
-                  <p className="font-display text-3xl font-semibold">5+</p>
-                  <p className="mt-1 text-sm opacity-90">Years in Arizona</p>
-                </div>
               </div>
             </div>
           </div>
