@@ -255,7 +255,7 @@ export function AgentClient({ configured }: { configured: boolean }) {
             onKeyDown={handleKeyDown}
             disabled={loading}
           />
-          <Button variant="accent" className="h-auto self-stretch px-4" disabled={loading || !input.trim()} onClick={() => void send(input)}>
+          <Button variant="default" className="h-auto self-stretch px-4" disabled={loading || !input.trim()} onClick={() => void send(input)}>
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
           </Button>
         </div>
