@@ -121,7 +121,7 @@ export default function AboutPage() {
               </div>
               <div className="relative">
                 <img
-                  src="/team/brandon-and-joe.png"
+                  src="/team/brandon-and-joe-optimized.webp"
                   alt="Brandon Fadden and Joseph Ballard — Managing Partners"
                   className="aspect-[4/5] w-full rounded-2xl object-cover object-top"
                 />
