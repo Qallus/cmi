@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireAdmin, AuthError } from "@/lib/auth/require-admin";
 import { buildSystemPrompt } from "@/lib/agent/prompt";
+import { loadTrainingContext } from "@/lib/agent/training";
 import { TOOL_DEFS, dispatchTool } from "@/lib/agent/tools";
 import type { ChatMessage, PendingAction, StaffContext, ToolActivity } from "@/lib/agent/types";
 
@@ -35,10 +36,12 @@ export async function POST(req: NextRequest) {
     isAdmin: ADMIN_ROLES.includes(staff.role_slug),
   };
 
-  // Rebuild the conversation: our trusted system prompt + the user/assistant history.
+  // Rebuild the conversation: our trusted system prompt (plus any staff-uploaded
+  // training knowledge) + the user/assistant history.
+  const trainingContext = await loadTrainingContext().catch(() => "");
   const history = body.messages.filter((m) => m.role === "user" || m.role === "assistant");
   const convo: ChatMessage[] = [
-    { role: "system", content: buildSystemPrompt(ctx, jobContext) },
+    { role: "system", content: buildSystemPrompt(ctx, jobContext) + trainingContext },
     ...history.map((m) => ({ role: m.role as ChatMessage["role"], content: m.content })),
   ];
 
