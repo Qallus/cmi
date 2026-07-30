@@ -4,6 +4,7 @@ import * as React from "react";
 import {
   Archive,
   ArrowRightLeft,
+  Briefcase,
   Building2,
   CalendarDays,
   ChevronDown,
@@ -11,12 +12,17 @@ import {
   ChevronRight,
   CheckCircle2,
   Columns3,
+  DollarSign,
   Eye,
+  Factory,
   FileUp,
+  Globe,
+  Info,
   LayoutGrid,
   LayoutTemplate,
   List,
   Mail,
+  MapPin,
   Maximize2,
   MessageSquare,
   Minimize2,
@@ -31,6 +37,7 @@ import {
   User,
   UserPlus,
   X,
+  type LucideIcon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -43,6 +50,79 @@ const CONTACT_TYPES: ContactType[] = ["Lead", "Client", "Prospect", "Customer", 
 const CONTACT_ONLY_TYPES: ContactType[] = ["Client", "Prospect", "Customer", "Vendor", "Sub Contractor", "Designer", "Other"];
 
 type ContactView = "table" | "list" | "cards" | "kanban" | "calendar";
+
+// Groups the flat imported metadata (e.g. a ZoomInfo/CSV export) into labelled
+// sections so the contact profile reads as tidy cards instead of one long grid.
+// First matching group wins; keys are matched case-insensitively by substring,
+// so header variants ("Revenue" / "Revenue (in 000s USD)") land in one place.
+const METADATA_GROUPS: { title: string; icon: LucideIcon; patterns: string[] }[] = [
+  {
+    title: "Person",
+    icon: User,
+    patterns: [
+      "salutation", "middle name", "suffix", "job title", "job function", "job start",
+      "department", "management level", "highest level of education", "linkedin contact",
+      "notice provided", "contact accuracy", "lead id", "person",
+    ],
+  },
+  {
+    title: "Company",
+    icon: Building2,
+    patterns: [
+      "website", "email domain", "founded", "ownership", "business model", "employee",
+      "number of location", "certified active", "certification date", "company id",
+      "ticker", "hq phone", "fax",
+    ],
+  },
+  {
+    title: "Location",
+    icon: MapPin,
+    patterns: ["address", "city", "state", "zip", "country"],
+  },
+  {
+    title: "Industry",
+    icon: Factory,
+    patterns: ["sic code", "naics", "industry", "sub-industry", "hierarchical"],
+  },
+  {
+    title: "Financials",
+    icon: DollarSign,
+    patterns: ["revenue", "funding", "investor"],
+  },
+  {
+    title: "Online Profiles",
+    icon: Globe,
+    patterns: ["alexa", "profile url", "url"],
+  },
+];
+
+type MetaGroup = { title: string; icon: LucideIcon; entries: [string, string][] };
+
+function groupMetadata(meta: Record<string, string>): MetaGroup[] {
+  const buckets = new Map<string, [string, string][]>();
+  const other: [string, string][] = [];
+
+  for (const [key, raw] of Object.entries(meta)) {
+    const value = String(raw ?? "").trim();
+    if (!value) continue;
+    const norm = key.toLowerCase();
+    const group = METADATA_GROUPS.find((g) => g.patterns.some((p) => norm.includes(p)));
+    if (group) {
+      if (!buckets.has(group.title)) buckets.set(group.title, []);
+      buckets.get(group.title)!.push([key, value]);
+    } else {
+      other.push([key, value]);
+    }
+  }
+
+  const out: MetaGroup[] = [];
+  for (const g of METADATA_GROUPS) {
+    const entries = buckets.get(g.title);
+    if (entries && entries.length) out.push({ title: g.title, icon: g.icon, entries });
+  }
+  if (other.length) out.push({ title: "More Details", icon: Info, entries: other });
+  return out;
+}
 
 type Tab = "all" | ContactType;
 const TABS: { key: Tab; label: string; singular: string }[] = [
@@ -586,23 +666,34 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
               <div className="rounded-lg bg-muted/40 px-4 py-3 text-sm text-muted-foreground whitespace-pre-wrap">{viewContact.notes}</div>
             )}
 
-            {/* Imported / enrichment details (e.g. from a lead CSV) */}
+            {/* Imported / enrichment details (e.g. from a lead CSV), grouped into cards */}
             {viewContact.metadata && Object.keys(viewContact.metadata).length > 0 && (
-              <div>
-                <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Imported Details</div>
-                <div className="grid gap-x-6 gap-y-2 rounded-lg border border-border p-4 text-sm sm:grid-cols-2">
-                  {Object.entries(viewContact.metadata)
-                    .filter(([, v]) => String(v ?? "").trim())
-                    .map(([k, v]) => (
-                      <div key={k} className="min-w-0">
-                        <div className="text-[11px] text-muted-foreground">{k}</div>
-                        <div className="truncate font-medium" title={String(v)}>
-                          {/^https?:\/\//.test(String(v))
-                            ? <a href={String(v)} target="_blank" rel="noreferrer" className="text-accent hover:underline">{String(v)}</a>
-                            : String(v)}
-                        </div>
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  <Briefcase className="h-3.5 w-3.5" /> Imported Details
+                </div>
+                <div className={cn("grid gap-3", modalFull ? "sm:grid-cols-2 xl:grid-cols-3" : "sm:grid-cols-2")}>
+                  {groupMetadata(viewContact.metadata).map((group) => (
+                    <div key={group.title} className="rounded-lg border border-border bg-muted/20 p-4">
+                      <div className="mb-3 flex items-center gap-2 border-b border-border/60 pb-2 text-xs font-semibold text-foreground">
+                        <group.icon className="h-3.5 w-3.5 text-accent" />
+                        {group.title}
+                        <span className="ml-auto text-[10px] font-normal text-muted-foreground">{group.entries.length}</span>
                       </div>
-                    ))}
+                      <dl className="space-y-2.5 text-sm">
+                        {group.entries.map(([k, v]) => (
+                          <div key={k} className="min-w-0">
+                            <dt className="text-[11px] text-muted-foreground">{k}</dt>
+                            <dd className="break-words font-medium" title={v}>
+                              {/^https?:\/\//.test(v)
+                                ? <a href={v} target="_blank" rel="noreferrer" className="break-all text-accent hover:underline">{v}</a>
+                                : v}
+                            </dd>
+                          </div>
+                        ))}
+                      </dl>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
