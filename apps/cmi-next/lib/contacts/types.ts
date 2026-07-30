@@ -1,4 +1,9 @@
-export type ContactType = "Client" | "Lead" | "Vendor" | "Sub Contractor";
+// Matches the contacts_type_check constraint in the database.
+export type ContactType =
+  | "Client" | "Lead" | "Prospect" | "Customer" | "Vendor" | "Sub Contractor" | "Designer" | "Other";
+export const CONTACT_TYPES: ContactType[] = [
+  "Client", "Lead", "Prospect", "Customer", "Vendor", "Sub Contractor", "Designer", "Other",
+];
 export type ContactStatus = "active" | "inactive" | "archived";
 
 export type Contact = {
@@ -19,6 +24,7 @@ export type Contact = {
   tags: string[] | null;
   source: string | null;
   last_activity: string | null;
+  metadata?: Record<string, string> | null;
   created_at: string;
   updated_at: string;
 };

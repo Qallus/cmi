@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import {
+  Archive,
   ArrowRightLeft,
   Building2,
   ChevronDown,
@@ -10,7 +11,11 @@ import {
   FileUp,
   LayoutTemplate,
   Mail,
+  Maximize2,
+  MessageSquare,
+  Minimize2,
   MoreHorizontal,
+  Pencil,
   Phone,
   Plus,
   Search,
@@ -27,8 +32,8 @@ import { Select } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { Contact, ContactDraft, ContactStatus, ContactType } from "@/lib/contacts/types";
 
-const CONTACT_TYPES: ContactType[] = ["Lead", "Client", "Vendor", "Sub Contractor"];
-const CONTACT_ONLY_TYPES: ContactType[] = ["Client", "Vendor", "Sub Contractor"];
+const CONTACT_TYPES: ContactType[] = ["Lead", "Client", "Prospect", "Customer", "Vendor", "Sub Contractor", "Designer", "Other"];
+const CONTACT_ONLY_TYPES: ContactType[] = ["Client", "Prospect", "Customer", "Vendor", "Sub Contractor", "Designer", "Other"];
 const STAFF_ROLES = ["admin", "project_manager", "designer", "estimator", "superintendent", "viewer"] as const;
 type StaffRole = typeof STAFF_ROLES[number];
 const STATUSES: ContactStatus[] = ["active", "inactive", "archived"];
@@ -92,6 +97,11 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
   const [contactAction, setContactAction] = React.useState<{ type: "call" | "sms" | "email"; contact: Contact } | null>(null);
   const [viewMode, setViewMode] = React.useState<"contacts" | "leads">("contacts");
   const [convertLead, setConvertLead] = React.useState<Contact | null>(null);
+  // Bulk selection + expanded-modal state.
+  const [selected, setSelected] = React.useState<Set<string>>(new Set());
+  const [bulkType, setBulkType] = React.useState<ContactType | "">("");
+  const [bulkBusy, setBulkBusy] = React.useState(false);
+  const [modalFull, setModalFull] = React.useState(false);
 
   React.useEffect(() => {
     function handleDashboardSearch(event: Event) {
@@ -130,6 +140,7 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
   }
 
   function openView(c: Contact) {
+    setModalFull(false);
     setModal({ mode: "view", contact: c });
     setError(null);
   }
@@ -208,6 +219,48 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
       setError(err instanceof Error ? err.message : "Delete failed.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  // ── Bulk selection ──
+  function toggleSelect(id: string) {
+    setSelected((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  }
+  function clearSelection() { setSelected(new Set()); }
+
+  async function applyBulk(patch: { type?: ContactType; status?: string }) {
+    const ids = Array.from(selected);
+    if (ids.length === 0) return;
+    setBulkBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/contacts/bulk", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids, patch }),
+      });
+      const json = await res.json() as { updated?: Contact[]; error?: string };
+      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+      const byId = new Map((json.updated ?? []).map((c) => [c.id, c]));
+      setContacts((prev) => prev.map((c) => byId.get(c.id) ?? c));
+      clearSelection();
+      setBulkType("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Bulk update failed.");
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
+  // Single-record update (archive from the modal, etc).
+  async function applyBulkOne(id: string, patch: { type?: ContactType; status?: string }) {
+    try {
+      const res = await fetch(`/api/contacts/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
+      const json = await res.json() as Contact & { error?: string };
+      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+      setContacts((prev) => prev.map((c) => (c.id === json.id ? json : c)));
+      if (modal?.contact?.id === id) setModal({ mode: "view", contact: json });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Update failed.");
     }
   }
 
@@ -320,11 +373,48 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
         </div>
       </div>
 
+      {/* Bulk action bar */}
+      {selected.size > 0 && (
+        <div className="flex flex-wrap items-center gap-3 border-b border-border bg-accent/5 px-4 py-2.5 md:px-6">
+          <span className="text-sm font-medium">{selected.size} selected</span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground">Change type to</span>
+            <Select value={bulkType} onChange={(e) => setBulkType(e.target.value as ContactType)} className="w-40 [&>button]:h-8">
+              <option value="">Select…</option>
+              {CONTACT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+            </Select>
+            <Button size="sm" variant="accent" disabled={!bulkType || bulkBusy} onClick={() => void applyBulk({ type: bulkType as ContactType })}>
+              {bulkBusy ? "Applying…" : "Apply"}
+            </Button>
+          </div>
+          <Button size="sm" variant="outline" disabled={bulkBusy} onClick={() => void applyBulk({ status: "archived" })}>
+            <Archive className="h-3.5 w-3.5" /> Archive
+          </Button>
+          <Button size="sm" variant="ghost" className="ml-auto" onClick={clearSelection}>Clear</Button>
+        </div>
+      )}
+
       {/* Table */}
       <div className="flex-1 overflow-auto">
         <table className="w-full min-w-[640px] border-collapse text-sm">
           <thead className="sticky top-0 z-10 bg-card">
             <tr className="border-b border-border text-left">
+              <th className="w-10 px-4 py-3">
+                <input
+                  type="checkbox"
+                  aria-label="Select all"
+                  className="h-4 w-4 accent-[var(--accent)]"
+                  checked={pageContacts.length > 0 && pageContacts.every((c) => selected.has(c.id))}
+                  onChange={(e) => {
+                    setSelected((prev) => {
+                      const n = new Set(prev);
+                      if (e.target.checked) pageContacts.forEach((c) => n.add(c.id));
+                      else pageContacts.forEach((c) => n.delete(c.id));
+                      return n;
+                    });
+                  }}
+                />
+              </th>
               <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Name</th>
               <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Email</th>
               <th className="hidden px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground md:table-cell">Phone</th>
@@ -337,10 +427,19 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
           </thead>
           <tbody className="divide-y divide-border">
             {pageContacts.length === 0 && (
-              <tr><td colSpan={8} className="px-4 py-12 text-center text-sm text-muted-foreground">No contacts found.</td></tr>
+              <tr><td colSpan={9} className="px-4 py-12 text-center text-sm text-muted-foreground">No contacts found.</td></tr>
             )}
             {pageContacts.map((c) => (
-              <tr key={c.id} className="transition hover:bg-muted/30 cursor-pointer" onClick={() => openView(c)}>
+              <tr key={c.id} className={cn("transition hover:bg-muted/30 cursor-pointer", selected.has(c.id) && "bg-accent/5")} onClick={() => openView(c)}>
+                <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                  <input
+                    type="checkbox"
+                    aria-label={`Select ${fullName(c)}`}
+                    className="h-4 w-4 accent-[var(--accent)]"
+                    checked={selected.has(c.id)}
+                    onChange={() => toggleSelect(c.id)}
+                  />
+                </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2.5">
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent/15 text-xs font-semibold text-accent">{initials(c)}</div>
@@ -365,13 +464,17 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
                   </div>
                 </td>
                 <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                  <button
-                    type="button"
-                    className="rounded p-1 text-muted-foreground hover:text-foreground"
-                    onClick={(e) => { e.stopPropagation(); openEdit(c); }}
-                  >
-                    <MoreHorizontal className="h-4 w-4" />
-                  </button>
+                  <div className="flex items-center justify-end gap-0.5">
+                    {c.phone && (
+                      <>
+                        <QuickIcon label="Call" onClick={() => setContactAction({ type: "call", contact: c })}><Phone className="h-4 w-4" /></QuickIcon>
+                        <QuickIcon label="Text" onClick={() => setContactAction({ type: "sms", contact: c })}><MessageSquare className="h-4 w-4" /></QuickIcon>
+                      </>
+                    )}
+                    <QuickIcon label="Email" onClick={() => setContactAction({ type: "email", contact: c })}><Mail className="h-4 w-4" /></QuickIcon>
+                    <QuickIcon label="Edit" onClick={() => openEdit(c)}><Pencil className="h-4 w-4" /></QuickIcon>
+                    <QuickIcon label="More" onClick={() => openView(c)}><MoreHorizontal className="h-4 w-4" /></QuickIcon>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -393,8 +496,37 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
 
       {/* View Modal */}
       {modal?.mode === "view" && viewContact && (
-        <Modal title={fullName(viewContact)} onClose={closeModal}>
+        <Modal
+          title={fullName(viewContact)}
+          onClose={closeModal}
+          fullscreen={modalFull}
+          headerExtra={
+            <button
+              type="button"
+              title={modalFull ? "Exit full screen" : "Expand to full screen"}
+              aria-label={modalFull ? "Exit full screen" : "Expand to full screen"}
+              onClick={() => setModalFull((v) => !v)}
+              className="rounded p-1 text-muted-foreground hover:text-foreground"
+            >
+              {modalFull ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            </button>
+          }
+        >
           <div className="space-y-4">
+            {/* Quick actions */}
+            <div className="flex flex-wrap gap-1">
+              {viewContact.phone && (
+                <>
+                  <QuickPill icon={Phone} label="Call" onClick={() => setContactAction({ type: "call", contact: viewContact })} />
+                  <QuickPill icon={MessageSquare} label="Text" onClick={() => setContactAction({ type: "sms", contact: viewContact })} />
+                </>
+              )}
+              <QuickPill icon={Mail} label="Email" onClick={() => setContactAction({ type: "email", contact: viewContact })} />
+              <QuickPill icon={Pencil} label="Edit" onClick={() => { closeModal(); setTimeout(() => openEdit(viewContact), 50); }} />
+              <QuickPill icon={Archive} label="Archive" onClick={() => void applyBulkOne(viewContact.id, { status: "archived" })} />
+              <QuickPill icon={Trash2} label="Delete" danger onClick={() => setDeleteConfirm(viewContact.id)} />
+            </div>
+
             <div className="flex items-center gap-3">
               <div className="flex h-14 w-14 items-center justify-center rounded-full bg-accent/15 text-xl font-semibold text-accent">{initials(viewContact)}</div>
               <div>
@@ -425,19 +557,36 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
             {viewContact.notes && (
               <div className="rounded-lg bg-muted/40 px-4 py-3 text-sm text-muted-foreground whitespace-pre-wrap">{viewContact.notes}</div>
             )}
-            <ContactQuickActions contact={viewContact} onAction={(type) => setContactAction({ type, contact: viewContact })} />
-            <div className="flex items-center justify-between gap-2 pt-2">
-              {viewMode === "leads" && (
+
+            {/* Imported / enrichment details (e.g. from a lead CSV) */}
+            {viewContact.metadata && Object.keys(viewContact.metadata).length > 0 && (
+              <div>
+                <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Imported Details</div>
+                <div className="grid gap-x-6 gap-y-2 rounded-lg border border-border p-4 text-sm sm:grid-cols-2">
+                  {Object.entries(viewContact.metadata)
+                    .filter(([, v]) => String(v ?? "").trim())
+                    .map(([k, v]) => (
+                      <div key={k} className="min-w-0">
+                        <div className="text-[11px] text-muted-foreground">{k}</div>
+                        <div className="truncate font-medium" title={String(v)}>
+                          {/^https?:\/\//.test(String(v))
+                            ? <a href={String(v)} target="_blank" rel="noreferrer" className="text-accent hover:underline">{String(v)}</a>
+                            : String(v)}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+
+            {viewMode === "leads" && (
+              <div className="pt-2">
                 <Button size="sm" variant="outline" className="gap-1.5 text-accent border-accent/40 hover:bg-accent/5"
                   onClick={() => { closeModal(); setConvertLead(viewContact); }}>
                   <ArrowRightLeft className="h-3.5 w-3.5" /> Convert Lead
                 </Button>
-              )}
-              <div className="flex gap-2 ml-auto">
-                <Button size="sm" variant="outline" onClick={() => { closeModal(); setTimeout(() => openEdit(viewContact), 50); }}>Edit</Button>
-                <Button size="sm" variant="outline" className="text-destructive hover:border-destructive" onClick={() => setDeleteConfirm(viewContact.id)}>Delete</Button>
               </div>
-            </div>
+            )}
           </div>
         </Modal>
       )}
@@ -589,6 +738,35 @@ function Field({ label, required, className, children }: { label: string; requir
   );
 }
 
+function QuickPill({ icon: Icon, label, onClick, danger }: { icon: React.ElementType; label: string; onClick: () => void; danger?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium transition hover:bg-muted",
+        danger ? "text-destructive hover:border-destructive/50" : "text-foreground hover:border-accent/50 hover:text-accent",
+      )}
+    >
+      <Icon className="h-3.5 w-3.5" /> {label}
+    </button>
+  );
+}
+
+function QuickIcon({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      className="grid h-8 w-8 place-items-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-accent"
+    >
+      {children}
+    </button>
+  );
+}
+
 function InfoRow({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string }) {
   return (
     <div className="flex items-start gap-2">
@@ -596,25 +774,6 @@ function InfoRow({ icon: Icon, label, value }: { icon: React.ElementType; label:
       <div>
         <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
         <div className="text-sm">{value}</div>
-      </div>
-    </div>
-  );
-}
-
-function ContactQuickActions({ contact, onAction }: { contact: Contact; onAction: (type: "call" | "sms" | "email") => void }) {
-  return (
-    <div className="rounded-xl border border-border bg-background p-3">
-      <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Quick Actions</div>
-      <div className="grid grid-cols-3 gap-2">
-        <Button type="button" size="sm" variant="outline" disabled={!contact.phone} onClick={() => onAction("call")}>
-          <Phone className="h-3.5 w-3.5" /> Call
-        </Button>
-        <Button type="button" size="sm" variant="outline" disabled={!contact.phone} onClick={() => onAction("sms")}>
-          <Mail className="h-3.5 w-3.5" /> Text
-        </Button>
-        <Button type="button" size="sm" variant="outline" disabled={!contact.email} onClick={() => onAction("email")}>
-          <Mail className="h-3.5 w-3.5" /> Email
-        </Button>
       </div>
     </div>
   );
@@ -1203,7 +1362,7 @@ function ConvertLeadModal({
   );
 }
 
-function Modal({ title, onClose, wide, children }: { title: string; onClose: () => void; wide?: boolean; children: React.ReactNode }) {
+function Modal({ title, onClose, wide, fullscreen, headerExtra, children }: { title: string; onClose: () => void; wide?: boolean; fullscreen?: boolean; headerExtra?: React.ReactNode; children: React.ReactNode }) {
   React.useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", handler);
@@ -1211,14 +1370,20 @@ function Modal({ title, onClose, wide, children }: { title: string; onClose: () 
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className={cn("fixed inset-0 z-50 flex justify-center", fullscreen ? "p-0 sm:p-4" : "items-center p-4")}>
       <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={onClose} />
-      <div className={cn("relative z-10 max-h-[90vh] w-full overflow-y-auto rounded-xl border border-border bg-card shadow-xl", wide ? "max-w-2xl" : "max-w-lg")}>
-        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+      <div className={cn(
+        "relative z-10 overflow-y-auto border border-border bg-card shadow-xl",
+        fullscreen ? "h-full w-full max-w-none rounded-none sm:h-[92vh] sm:rounded-xl" : cn("max-h-[90vh] w-full rounded-xl", wide ? "max-w-2xl" : "max-w-lg"),
+      )}>
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-card px-5 py-4">
           <h2 className="font-semibold">{title}</h2>
-          <button type="button" className="rounded p-1 text-muted-foreground hover:text-foreground" onClick={onClose}><X className="h-4 w-4" /></button>
+          <div className="flex items-center gap-1">
+            {headerExtra}
+            <button type="button" className="rounded p-1 text-muted-foreground hover:text-foreground" onClick={onClose}><X className="h-4 w-4" /></button>
+          </div>
         </div>
-        <div className="p-5">{children}</div>
+        <div className={cn("p-5", fullscreen && "mx-auto max-w-4xl")}>{children}</div>
       </div>
     </div>
   );
