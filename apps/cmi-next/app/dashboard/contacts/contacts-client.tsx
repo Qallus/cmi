@@ -5,11 +5,17 @@ import {
   Archive,
   ArrowRightLeft,
   Building2,
+  CalendarDays,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   CheckCircle2,
+  Columns3,
   Eye,
   FileUp,
+  LayoutGrid,
   LayoutTemplate,
+  List,
   Mail,
   Maximize2,
   MessageSquare,
@@ -19,6 +25,7 @@ import {
   Phone,
   Plus,
   Search,
+  Table as TableIcon,
   Tag,
   Trash2,
   User,
@@ -34,6 +41,8 @@ import type { Contact, ContactDraft, ContactStatus, ContactType } from "@/lib/co
 
 const CONTACT_TYPES: ContactType[] = ["Lead", "Client", "Prospect", "Customer", "Vendor", "Sub Contractor", "Designer", "Other"];
 const CONTACT_ONLY_TYPES: ContactType[] = ["Client", "Prospect", "Customer", "Vendor", "Sub Contractor", "Designer", "Other"];
+
+type ContactView = "table" | "list" | "cards" | "kanban" | "calendar";
 const STAFF_ROLES = ["admin", "project_manager", "designer", "estimator", "superintendent", "viewer"] as const;
 type StaffRole = typeof STAFF_ROLES[number];
 const STATUSES: ContactStatus[] = ["active", "inactive", "archived"];
@@ -102,6 +111,7 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
   const [bulkType, setBulkType] = React.useState<ContactType | "">("");
   const [bulkBusy, setBulkBusy] = React.useState(false);
   const [modalFull, setModalFull] = React.useState(false);
+  const [contactView, setContactView] = React.useState<ContactView>("table");
 
   React.useEffect(() => {
     function handleDashboardSearch(event: Event) {
@@ -370,6 +380,11 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
           >
             {[25, 50, 100].map((n) => <option key={n} value={n}>{n} / page</option>)}
           </Select>
+          <div className="ml-auto inline-flex rounded-md border border-border p-0.5">
+            {([["table", TableIcon], ["list", List], ["cards", LayoutGrid], ["kanban", Columns3], ["calendar", CalendarDays]] as const).map(([v, Icon]) => (
+              <button key={v} type="button" title={v} onClick={() => setContactView(v)} className={cn("inline-flex h-7 w-7 items-center justify-center rounded", contactView === v ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground")}><Icon className="h-3.5 w-3.5" /></button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -394,7 +409,18 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
         </div>
       )}
 
+      {/* Non-table views */}
+      {contactView !== "table" && (
+        <div className="flex-1 overflow-auto p-4 md:p-6">
+          {contactView === "list" && <ContactListView contacts={pageContacts} selected={selected} onToggle={toggleSelect} onOpen={openView} onEdit={openEdit} onAction={(type, contact) => setContactAction({ type, contact })} />}
+          {contactView === "cards" && <ContactCardsView contacts={pageContacts} selected={selected} onToggle={toggleSelect} onOpen={openView} onEdit={openEdit} onAction={(type, contact) => setContactAction({ type, contact })} />}
+          {contactView === "kanban" && <ContactKanbanView contacts={filtered} onOpen={openView} onAction={(type, contact) => setContactAction({ type, contact })} />}
+          {contactView === "calendar" && <ContactCalendarView contacts={filtered} onOpen={openView} />}
+        </div>
+      )}
+
       {/* Table */}
+      {contactView === "table" && (
       <div className="flex-1 overflow-auto">
         <table className="w-full min-w-[640px] border-collapse text-sm">
           <thead className="sticky top-0 z-10 bg-card">
@@ -481,9 +507,10 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
           </tbody>
         </table>
       </div>
+      )}
 
-      {/* Pagination */}
-      {totalPages > 1 && (
+      {/* Pagination (paginated views only) */}
+      {contactView !== "kanban" && contactView !== "calendar" && totalPages > 1 && (
         <div className="flex items-center justify-between border-t border-border px-4 py-3 text-sm text-muted-foreground">
           <span>{filtered.length} {viewMode === "leads" ? "leads" : "contacts"}</span>
           <div className="flex items-center gap-2">
@@ -1426,6 +1453,172 @@ function ConvertLeadModal({
       </div>
     </Modal>
   );
+}
+
+// --- Alternate views (list / cards / kanban / calendar) ------
+
+type ActionFn = (type: "call" | "sms" | "email", contact: Contact) => void;
+
+function RowQuickIcons({ c, onEdit, onAction }: { c: Contact; onEdit: (c: Contact) => void; onAction: ActionFn }) {
+  return (
+    <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+      {c.phone && (
+        <>
+          <QuickIcon label="Call" onClick={() => onAction("call", c)}><Phone className="h-4 w-4" /></QuickIcon>
+          <QuickIcon label="Text" onClick={() => onAction("sms", c)}><MessageSquare className="h-4 w-4" /></QuickIcon>
+        </>
+      )}
+      <QuickIcon label="Email" onClick={() => onAction("email", c)}><Mail className="h-4 w-4" /></QuickIcon>
+      <QuickIcon label="Edit" onClick={() => onEdit(c)}><Pencil className="h-4 w-4" /></QuickIcon>
+    </div>
+  );
+}
+
+function ContactListView({ contacts, selected, onToggle, onOpen, onEdit, onAction }: {
+  contacts: Contact[]; selected: Set<string>; onToggle: (id: string) => void; onOpen: (c: Contact) => void; onEdit: (c: Contact) => void; onAction: ActionFn;
+}) {
+  if (contacts.length === 0) return <EmptyState />;
+  return (
+    <div className="space-y-2">
+      {contacts.map((c) => (
+        <div key={c.id} className={cn("flex items-center gap-3 rounded-lg border border-border bg-background px-3 py-2.5 transition hover:border-accent/40", selected.has(c.id) && "border-accent/50 bg-accent/5")}>
+          <input type="checkbox" aria-label={`Select ${fullName(c)}`} className="h-4 w-4 accent-[var(--accent)]" checked={selected.has(c.id)} onChange={() => onToggle(c.id)} />
+          <button type="button" onClick={() => onOpen(c)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent/15 text-xs font-semibold text-accent">{initials(c)}</div>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-medium">{fullName(c)}</div>
+              <div className="truncate text-xs text-muted-foreground">{c.email}{c.company ? ` · ${c.company}` : ""}</div>
+            </div>
+            {c.type && <Badge tone={TYPE_TONES[c.type] ?? "default"}>{c.type}</Badge>}
+          </button>
+          <RowQuickIcons c={c} onEdit={onEdit} onAction={onAction} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ContactCardsView({ contacts, selected, onToggle, onOpen, onEdit, onAction }: {
+  contacts: Contact[]; selected: Set<string>; onToggle: (id: string) => void; onOpen: (c: Contact) => void; onEdit: (c: Contact) => void; onAction: ActionFn;
+}) {
+  if (contacts.length === 0) return <EmptyState />;
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      {contacts.map((c) => (
+        <div key={c.id} className={cn("flex flex-col rounded-xl border border-border bg-background p-4 transition hover:border-accent/40", selected.has(c.id) && "border-accent/50 bg-accent/5")}>
+          <div className="flex items-start justify-between">
+            <button type="button" onClick={() => onOpen(c)} className="flex min-w-0 items-center gap-2.5 text-left">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/15 text-sm font-semibold text-accent">{initials(c)}</div>
+              <div className="min-w-0">
+                <div className="truncate text-sm font-medium">{fullName(c)}</div>
+                {c.company && <div className="truncate text-xs text-muted-foreground">{c.company}</div>}
+              </div>
+            </button>
+            <input type="checkbox" aria-label={`Select ${fullName(c)}`} className="mt-1 h-4 w-4 shrink-0 accent-[var(--accent)]" checked={selected.has(c.id)} onChange={() => onToggle(c.id)} />
+          </div>
+          <button type="button" onClick={() => onOpen(c)} className="mt-3 min-w-0 space-y-1 text-left">
+            <div className="truncate text-xs text-muted-foreground">{c.email}</div>
+            {c.phone && <div className="truncate text-xs text-muted-foreground">{c.phone}</div>}
+          </button>
+          <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
+            {c.type ? <Badge tone={TYPE_TONES[c.type] ?? "default"}>{c.type}</Badge> : <span />}
+            <RowQuickIcons c={c} onEdit={onEdit} onAction={onAction} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ContactKanbanView({ contacts, onOpen, onAction }: { contacts: Contact[]; onOpen: (c: Contact) => void; onAction: ActionFn }) {
+  // Columns by type — the primary way leads move through the pipeline.
+  const cols = CONTACT_TYPES.map((t) => ({ type: t, items: contacts.filter((c) => (c.type ?? "Other") === t) })).filter((c) => c.items.length > 0);
+  if (contacts.length === 0) return <EmptyState />;
+  return (
+    <div className="flex gap-3 overflow-x-auto pb-2">
+      {cols.map((col) => (
+        <div key={col.type} className="flex w-72 shrink-0 flex-col rounded-lg border border-border bg-muted/30">
+          <div className="flex items-center justify-between border-b border-border px-3 py-2">
+            <span className="text-xs font-semibold">{col.type}</span>
+            <span className="rounded-full bg-background px-2 py-0.5 text-[10px] font-medium text-muted-foreground">{col.items.length}</span>
+          </div>
+          <div className="space-y-2 p-2">
+            {col.items.map((c) => (
+              <div key={c.id} className="rounded-md border border-border bg-background p-2.5">
+                <button type="button" onClick={() => onOpen(c)} className="flex w-full items-center gap-2 text-left">
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent/15 text-[10px] font-semibold text-accent">{initials(c)}</div>
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium">{fullName(c)}</div>
+                    {c.company && <div className="truncate text-[11px] text-muted-foreground">{c.company}</div>}
+                  </div>
+                </button>
+                <div className="mt-2 flex justify-end"><RowQuickIcons c={c} onEdit={onOpen} onAction={onAction} /></div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ContactCalendarView({ contacts, onOpen }: { contacts: Contact[]; onOpen: (c: Contact) => void }) {
+  const [cursor, setCursor] = React.useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
+  // Place contacts on the day they were added (created_at, fallback last_activity).
+  const byDay = React.useMemo(() => {
+    const map = new Map<string, Contact[]>();
+    for (const c of contacts) {
+      const d = new Date(c.created_at ?? c.last_activity ?? "");
+      if (Number.isNaN(d.getTime())) continue;
+      const k = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      (map.get(k) ?? map.set(k, []).get(k)!).push(c);
+    }
+    return map;
+  }, [contacts]);
+
+  const first = new Date(cursor.y, cursor.m, 1);
+  const daysInMonth = new Date(cursor.y, cursor.m + 1, 0).getDate();
+  const cells: (number | null)[] = [...Array(first.getDay()).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
+  const today = new Date();
+  const step = (delta: number) => setCursor((cur) => { const m = cur.m + delta; return { y: cur.y + Math.floor(m / 12), m: ((m % 12) + 12) % 12 }; });
+
+  return (
+    <div>
+      <div className="mb-3 flex items-center justify-between">
+        <div className="text-sm font-semibold">{first.toLocaleDateString(undefined, { month: "long", year: "numeric" })}</div>
+        <div className="flex items-center gap-1">
+          <button type="button" onClick={() => step(-1)} aria-label="Previous month" className="grid h-7 w-7 place-items-center rounded-md border border-border text-muted-foreground hover:text-foreground"><ChevronLeft className="h-4 w-4" /></button>
+          <button type="button" onClick={() => setCursor(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; })} className="rounded-md border border-border px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground">Today</button>
+          <button type="button" onClick={() => step(1)} aria-label="Next month" className="grid h-7 w-7 place-items-center rounded-md border border-border text-muted-foreground hover:text-foreground"><ChevronRight className="h-4 w-4" /></button>
+        </div>
+      </div>
+      <div className="grid grid-cols-7 gap-px overflow-hidden rounded-lg border border-border bg-border text-xs">
+        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+          <div key={d} className="bg-muted/50 px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{d}</div>
+        ))}
+        {cells.map((day, i) => {
+          if (day === null) return <div key={`b${i}`} className="min-h-24 bg-background" />;
+          const items = byDay.get(`${cursor.y}-${cursor.m}-${day}`) ?? [];
+          const isToday = today.getFullYear() === cursor.y && today.getMonth() === cursor.m && today.getDate() === day;
+          return (
+            <div key={day} className="min-h-24 bg-background p-1.5">
+              <div className={cn("mb-1 text-[11px] font-medium", isToday ? "text-accent" : "text-muted-foreground")}>{day}</div>
+              <div className="space-y-1">
+                {items.slice(0, 4).map((c) => (
+                  <button key={c.id} type="button" onClick={() => onOpen(c)} title={fullName(c)} className="block w-full truncate rounded bg-accent/10 px-1.5 py-0.5 text-left text-[10px] text-accent hover:bg-accent/20">{fullName(c)}</button>
+                ))}
+                {items.length > 4 && <div className="px-1.5 text-[10px] text-muted-foreground">+{items.length - 4} more</div>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function EmptyState() {
+  return <div className="rounded-lg border border-dashed border-border py-16 text-center text-sm text-muted-foreground">No contacts found.</div>;
 }
 
 function Modal({ title, onClose, wide, fullscreen, headerExtra, children }: { title: string; onClose: () => void; wide?: boolean; fullscreen?: boolean; headerExtra?: React.ReactNode; children: React.ReactNode }) {
