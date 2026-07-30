@@ -11,6 +11,7 @@ import {
   type NoteAttachment, type NoteColorKey, type NoteStatus, type StaffNote,
 } from "@/lib/notes/types";
 import { apiNoteMediaUrl, uploadNoteFile, type StaffOption } from "./notes-api";
+import { RichTextEditor } from "./rich-text-editor";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -116,10 +117,8 @@ export function NoteEditor({
           </div>
 
           <div>
-            <label htmlFor="note-body" className="mb-1 block text-xs font-medium text-muted-foreground">Body <span className="text-muted-foreground/70">(Markdown supported)</span></label>
-            <textarea id="note-body" value={body} onChange={(e) => setBody(e.target.value)} rows={6}
-              placeholder="Write your note… links, lists, and **formatting** with Markdown."
-              className="w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent" />
+            <span className="mb-1 block text-xs font-medium text-muted-foreground">Body</span>
+            <RichTextEditor value={body} onChange={setBody} placeholder="Write your note… format text, add links and images." />
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">

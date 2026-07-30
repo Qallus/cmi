@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import {
   NOTE_STATUSES, NOTE_STATUS_LABELS, noteColor, type NoteStatus, type StaffNote,
 } from "@/lib/notes/types";
+import { htmlToText } from "@/lib/notes/html";
 import { apiCreateNote, apiDeleteNote, apiImportNotes, apiListNotes, apiUpdateNote, type StaffOption } from "./notes-api";
 import { NoteEditor, type NoteEditorValue } from "./note-editor";
 
@@ -54,7 +55,7 @@ export function NotesPanel({ addNonce }: { addNonce: number }) {
     if (!q) return notes;
     return notes.filter((n) =>
       n.title.toLowerCase().includes(q) ||
-      n.body.toLowerCase().includes(q) ||
+      htmlToText(n.body).toLowerCase().includes(q) ||
       (n.linked_staff ?? []).some((s) => s.name.toLowerCase().includes(q)) ||
       n.linked_emails.some((e) => e.includes(q)),
     );
@@ -171,7 +172,7 @@ function NoteRow({ n, onOpen }: { n: StaffNote; onOpen: () => void }) {
           <span className="truncate text-sm font-medium">{n.title || "Untitled"}</span>
           <span className={cn("rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase", STATUS_TONE[n.status])}>{NOTE_STATUS_LABELS[n.status]}</span>
         </span>
-        {n.body && <span className="mt-0.5 line-clamp-1 block text-xs text-muted-foreground">{n.body}</span>}
+        {htmlToText(n.body) && <span className="mt-0.5 line-clamp-1 block text-xs text-muted-foreground">{htmlToText(n.body)}</span>}
         <span className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground">
           {n.author_name && <span>{n.author_name}</span>}
           {n.due_date && <span>· due {fmt(n.due_date)}</span>}
@@ -222,7 +223,7 @@ function NotesKanban({ notes, onOpen }: { notes: StaffNote[]; onOpen: (n: StaffN
               return (
                 <button key={n.id} type="button" onClick={() => onOpen(n)} className="w-full rounded-md border border-border bg-background p-2.5 text-left transition hover:border-accent/40" style={{ borderLeftColor: c.swatch, borderLeftWidth: 3 }}>
                   <div className="truncate text-sm font-medium">{n.title || "Untitled"}</div>
-                  {n.body && <div className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{n.body}</div>}
+                  {htmlToText(n.body) && <div className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{htmlToText(n.body)}</div>}
                   <div className="mt-1.5 flex items-center gap-2 text-[11px] text-muted-foreground">
                     {n.due_date && <span>due {fmt(n.due_date)}</span>}
                     {n.attachments.length > 0 && <span className="inline-flex items-center gap-0.5"><Paperclip className="h-3 w-3" />{n.attachments.length}</span>}
