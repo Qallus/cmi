@@ -19,14 +19,20 @@ function normalize(row: Row): StaffNote {
 /** Notes visible to this staff member: authored by them or linked to them. */
 export async function listNotesFor(staffId: string): Promise<StaffNote[]> {
   const sb = getSupabaseAdmin();
-  const { data, error } = await sb
-    .from("staff_notes")
-    .select("*")
-    .or(`author_staff_id.eq.${staffId},linked_staff_ids.cs.{${staffId}}`)
-    .order("updated_at", { ascending: false });
-  if (error) throw new Error(error.message);
+  // Two simple queries beat a single `.or()` with an array-contains term, which
+  // is fragile in PostgREST. `.contains()` is the proven array pattern.
+  const [authored, linked] = await Promise.all([
+    sb.from("staff_notes").select("*").eq("author_staff_id", staffId),
+    sb.from("staff_notes").select("*").contains("linked_staff_ids", [staffId]),
+  ]);
+  if (authored.error) throw new Error(authored.error.message);
+  if (linked.error) throw new Error(linked.error.message);
 
-  const notes = (data ?? []).map((r) => normalize(r as Row));
+  const byId = new Map<string, Row>();
+  for (const r of [...(authored.data ?? []), ...(linked.data ?? [])]) byId.set((r as Row).id, r as Row);
+  const notes = Array.from(byId.values())
+    .sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1))
+    .map((r) => normalize(r));
 
   // Resolve linked-staff display info in one batch for the UI.
   const ids = Array.from(new Set(notes.flatMap((n) => n.linked_staff_ids)));

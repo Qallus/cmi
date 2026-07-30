@@ -10,10 +10,20 @@ export async function GET() {
   const staff = await getSessionStaff();
   if (!staff) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const [notes, staffList] = await Promise.all([
-    listNotesFor(staff.id),
-    getSupabaseAdmin().from("staff_users").select("id, display_name, email").eq("status", "active").order("display_name"),
-  ]);
+  // Load staff options independently so the Link Staff picker still populates
+  // even if the notes query hits a problem.
+  const staffList = await getSupabaseAdmin()
+    .from("staff_users")
+    .select("id, display_name, email")
+    .eq("status", "active")
+    .order("display_name");
+
+  let notes: Awaited<ReturnType<typeof listNotesFor>> = [];
+  try {
+    notes = await listNotesFor(staff.id);
+  } catch {
+    notes = [];
+  }
 
   return NextResponse.json({
     notes,
