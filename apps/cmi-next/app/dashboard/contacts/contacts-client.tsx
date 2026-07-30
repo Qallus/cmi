@@ -17,6 +17,7 @@ import {
   Factory,
   FileUp,
   Globe,
+  Hash,
   Info,
   LayoutGrid,
   LayoutTemplate,
@@ -82,7 +83,12 @@ const METADATA_GROUPS: { title: string; icon: LucideIcon; patterns: string[] }[]
   {
     title: "Industry",
     icon: Factory,
-    patterns: ["sic code", "naics", "industry", "sub-industry", "hierarchical"],
+    patterns: ["industr", "hierarchical"],
+  },
+  {
+    title: "Codes",
+    icon: Hash,
+    patterns: ["sic code", "sic codes", "naics"],
   },
   {
     title: "Financials",
@@ -122,6 +128,60 @@ function groupMetadata(meta: Record<string, string>): MetaGroup[] {
   }
   if (other.length) out.push({ title: "More Details", icon: Info, entries: other });
   return out;
+}
+
+// Collapsible, full-width sections for imported metadata. Each group is an
+// outlined card stacked one per row (regular modal) with fields flowing into
+// more columns as the modal widens (expanded). Sections open by default and can
+// be collapsed to save vertical space.
+function ImportedDetails({ metadata, expanded }: { metadata: Record<string, string>; expanded: boolean }) {
+  const groups = React.useMemo(() => groupMetadata(metadata), [metadata]);
+  const [collapsed, setCollapsed] = React.useState<Record<string, boolean>>({});
+  const toggle = (title: string) => setCollapsed((c) => ({ ...c, [title]: !c[title] }));
+
+  if (!groups.length) return null;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+        <Briefcase className="h-3.5 w-3.5" /> Imported Details
+      </div>
+      <div className="space-y-2">
+        {groups.map((group) => {
+          const open = !collapsed[group.title];
+          return (
+            <div key={group.title} className="overflow-hidden rounded-lg border border-border">
+              <button
+                type="button"
+                onClick={() => toggle(group.title)}
+                aria-expanded={open}
+                className="flex w-full items-center gap-2 bg-muted/30 px-4 py-2.5 text-left text-xs font-semibold text-foreground transition hover:bg-muted/50"
+              >
+                <group.icon className="h-3.5 w-3.5 text-accent" />
+                {group.title}
+                <span className="rounded-full bg-background px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground">{group.entries.length}</span>
+                <ChevronDown className={cn("ml-auto h-4 w-4 text-muted-foreground transition-transform", !open && "-rotate-90")} />
+              </button>
+              {open && (
+                <dl className={cn("grid gap-x-6 gap-y-3 border-t border-border px-4 py-3 text-sm sm:grid-cols-2", expanded && "lg:grid-cols-3 xl:grid-cols-4")}>
+                  {group.entries.map(([k, v]) => (
+                    <div key={k} className="min-w-0">
+                      <dt className="text-[11px] text-muted-foreground">{k}</dt>
+                      <dd className="break-words font-medium" title={v}>
+                        {/^https?:\/\//.test(v)
+                          ? <a href={v} target="_blank" rel="noreferrer" className="break-all text-accent hover:underline">{v}</a>
+                          : v}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 type Tab = "all" | ContactType;
@@ -666,36 +726,9 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
               <div className="rounded-lg bg-muted/40 px-4 py-3 text-sm text-muted-foreground whitespace-pre-wrap">{viewContact.notes}</div>
             )}
 
-            {/* Imported / enrichment details (e.g. from a lead CSV), grouped into cards */}
+            {/* Imported / enrichment details (e.g. from a lead CSV), grouped into collapsible cards */}
             {viewContact.metadata && Object.keys(viewContact.metadata).length > 0 && (
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                  <Briefcase className="h-3.5 w-3.5" /> Imported Details
-                </div>
-                <div className={cn("grid gap-3", modalFull ? "sm:grid-cols-2 xl:grid-cols-3" : "sm:grid-cols-2")}>
-                  {groupMetadata(viewContact.metadata).map((group) => (
-                    <div key={group.title} className="rounded-lg border border-border bg-muted/20 p-4">
-                      <div className="mb-3 flex items-center gap-2 border-b border-border/60 pb-2 text-xs font-semibold text-foreground">
-                        <group.icon className="h-3.5 w-3.5 text-accent" />
-                        {group.title}
-                        <span className="ml-auto text-[10px] font-normal text-muted-foreground">{group.entries.length}</span>
-                      </div>
-                      <dl className="space-y-2.5 text-sm">
-                        {group.entries.map(([k, v]) => (
-                          <div key={k} className="min-w-0">
-                            <dt className="text-[11px] text-muted-foreground">{k}</dt>
-                            <dd className="break-words font-medium" title={v}>
-                              {/^https?:\/\//.test(v)
-                                ? <a href={v} target="_blank" rel="noreferrer" className="break-all text-accent hover:underline">{v}</a>
-                                : v}
-                            </dd>
-                          </div>
-                        ))}
-                      </dl>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <ImportedDetails metadata={viewContact.metadata} expanded={modalFull} />
             )}
 
             {viewContact.type === "Lead" && (
