@@ -552,7 +552,7 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
         <div className="flex-1 overflow-auto p-4 md:p-6">
           {contactView === "list" && <ContactListView contacts={pageContacts} selected={selected} onToggle={toggleSelect} onOpen={openView} onEdit={openEdit} onAction={(type, contact) => setContactAction({ type, contact })} />}
           {contactView === "cards" && <ContactCardsView contacts={pageContacts} selected={selected} onToggle={toggleSelect} onOpen={openView} onEdit={openEdit} onAction={(type, contact) => setContactAction({ type, contact })} />}
-          {contactView === "kanban" && <ContactKanbanView contacts={filtered} onOpen={openView} onAction={(type, contact) => setContactAction({ type, contact })} />}
+          {contactView === "kanban" && <ContactKanbanView contacts={filtered} onOpen={openView} onAction={(type, contact) => setContactAction({ type, contact })} onChangeType={(id, type) => void applyBulkOne(id, { type })} />}
           {contactView === "calendar" && <ContactCalendarView contacts={filtered} onOpen={openView} />}
         </div>
       )}
@@ -1660,34 +1660,68 @@ function ContactCardsView({ contacts, selected, onToggle, onOpen, onEdit, onActi
   );
 }
 
-function ContactKanbanView({ contacts, onOpen, onAction }: { contacts: Contact[]; onOpen: (c: Contact) => void; onAction: ActionFn }) {
-  // Columns by type — the primary way leads move through the pipeline.
-  const cols = CONTACT_TYPES.map((t) => ({ type: t, items: contacts.filter((c) => (c.type ?? "Other") === t) })).filter((c) => c.items.length > 0);
+function ContactKanbanView({ contacts, onOpen, onAction, onChangeType }: { contacts: Contact[]; onOpen: (c: Contact) => void; onAction: ActionFn; onChangeType: (id: string, type: ContactType) => void }) {
+  // All type columns are shown so a card can be dragged into an (even empty)
+  // target type — the primary way leads move through the pipeline.
+  const cols = CONTACT_TYPES.map((t) => ({ type: t, items: contacts.filter((c) => (c.type ?? "Other") === t) }));
+  const [dragId, setDragId] = React.useState<string | null>(null);
+  const [dragType, setDragType] = React.useState<ContactType | null>(null);
+  const [overType, setOverType] = React.useState<ContactType | null>(null);
+
+  const endDrag = () => { setDragId(null); setDragType(null); setOverType(null); };
+  const drop = (target: ContactType) => {
+    if (dragId && dragType !== target) onChangeType(dragId, target);
+    endDrag();
+  };
+
   if (contacts.length === 0) return <EmptyState />;
   return (
     <div className="flex gap-3 overflow-x-auto pb-2">
-      {cols.map((col) => (
-        <div key={col.type} className="flex w-72 shrink-0 flex-col rounded-lg border border-border bg-muted/30">
-          <div className="flex items-center justify-between border-b border-border px-3 py-2">
-            <span className="text-xs font-semibold">{col.type}</span>
-            <span className="rounded-full bg-background px-2 py-0.5 text-[10px] font-medium text-muted-foreground">{col.items.length}</span>
+      {cols.map((col) => {
+        const isTarget = overType === col.type && dragType !== col.type;
+        return (
+          <div
+            key={col.type}
+            onDragOver={(e) => { if (dragId) { e.preventDefault(); setOverType(col.type); } }}
+            onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setOverType((t) => (t === col.type ? null : t)); }}
+            onDrop={(e) => { e.preventDefault(); drop(col.type); }}
+            className={cn(
+              "flex w-72 shrink-0 flex-col rounded-lg border bg-muted/30 transition-colors",
+              isTarget ? "border-accent bg-accent/5 ring-1 ring-accent" : "border-border",
+            )}
+          >
+            <div className="flex items-center justify-between border-b border-border px-3 py-2">
+              <span className="text-xs font-semibold">{col.type}</span>
+              <span className="rounded-full bg-background px-2 py-0.5 text-[10px] font-medium text-muted-foreground">{col.items.length}</span>
+            </div>
+            <div className="min-h-[60px] space-y-2 p-2">
+              {col.items.length === 0 && (
+                <div className={cn("rounded-md border border-dashed py-4 text-center text-[11px] transition-colors", isTarget ? "border-accent text-accent" : "border-border/60 text-muted-foreground")}>
+                  {isTarget ? `Move to ${col.type}` : "Drop here"}
+                </div>
+              )}
+              {col.items.map((c) => (
+                <div
+                  key={c.id}
+                  draggable
+                  onDragStart={(e) => { setDragId(c.id); setDragType(c.type ?? "Other"); e.dataTransfer.effectAllowed = "move"; }}
+                  onDragEnd={endDrag}
+                  className={cn("cursor-grab rounded-md border border-border bg-background p-2.5 active:cursor-grabbing", dragId === c.id && "opacity-50")}
+                >
+                  <button type="button" onClick={() => onOpen(c)} className="flex w-full items-center gap-2 text-left">
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent/15 text-[10px] font-semibold text-accent">{initials(c)}</div>
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium">{fullName(c)}</div>
+                      {c.company && <div className="truncate text-[11px] text-muted-foreground">{c.company}</div>}
+                    </div>
+                  </button>
+                  <div className="mt-2 flex justify-end"><RowQuickIcons c={c} onEdit={onOpen} onAction={onAction} /></div>
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="space-y-2 p-2">
-            {col.items.map((c) => (
-              <div key={c.id} className="rounded-md border border-border bg-background p-2.5">
-                <button type="button" onClick={() => onOpen(c)} className="flex w-full items-center gap-2 text-left">
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent/15 text-[10px] font-semibold text-accent">{initials(c)}</div>
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-medium">{fullName(c)}</div>
-                    {c.company && <div className="truncate text-[11px] text-muted-foreground">{c.company}</div>}
-                  </div>
-                </button>
-                <div className="mt-2 flex justify-end"><RowQuickIcons c={c} onEdit={onOpen} onAction={onAction} /></div>
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
