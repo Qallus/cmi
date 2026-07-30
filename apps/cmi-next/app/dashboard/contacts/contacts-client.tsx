@@ -1027,23 +1027,94 @@ const OPTIONAL_FIELDS = [
   { name: "tags",     desc: 'Pipe-separated tags  e.g. "VIP|Phoenix|2026"' },
 ];
 
+// Original header casing is preserved so unmapped columns can be shown in the
+// expanded profile with readable labels. Core-field lookups are case-insensitive
+// (see mapRowToDraft), so both our own template and a ZoomInfo export work.
 function parseCSV(text: string): Record<string, string>[] {
   const lines = text.split(/\r?\n/).filter((l) => l.trim());
   if (lines.length < 2) return [];
-  const headers = lines[0].split(",").map((h) => h.trim().replace(/^"|"$/g, "").toLowerCase());
-  return lines.slice(1).map((line) => {
+  const splitLine = (line: string) => {
     const vals: string[] = [];
     let cur = "", inQuote = false;
-    for (const ch of line) {
-      if (ch === '"') { inQuote = !inQuote; continue; }
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (inQuote && line[i + 1] === '"') { cur += '"'; i++; } // escaped ""
+        else inQuote = !inQuote;
+        continue;
+      }
       if (ch === "," && !inQuote) { vals.push(cur); cur = ""; continue; }
       cur += ch;
     }
     vals.push(cur);
+    return vals;
+  };
+  const headers = splitLine(lines[0]).map((h) => h.trim().replace(/^"|"$/g, ""));
+  return lines.slice(1).map((line) => {
+    const vals = splitLine(line);
     const row: Record<string, string> = {};
     headers.forEach((h, i) => { row[h] = (vals[i] ?? "").trim(); });
     return row;
-  }).filter((r) => r.email);
+  });
+}
+
+// Map a raw CSV row (any header casing / ZoomInfo layout) to a contact draft.
+// Known columns fill core fields; everything else non-empty goes to metadata.
+const CORE_ALIASES: Record<string, string[]> = {
+  first_name: ["first name", "first_name", "firstname"],
+  last_name: ["last name", "last_name", "lastname"],
+  email: ["email address", "email", "email_address", "e-mail"],
+  phone: ["mobile phone", "direct phone number", "phone", "phone number", "mobile", "cell"],
+  company: ["company name", "company", "organization"],
+  address: ["person street", "street", "address", "street address"],
+  city: ["person city", "city"],
+  state: ["person state", "state"],
+  zip: ["person zip code", "zip", "zip code", "postal code"],
+  source: ["job title", "title", "source", "job_title"],
+  type: ["type"],
+  status: ["status"],
+  notes: ["notes", "note"],
+  tags: ["tags"],
+};
+
+function mapRowToDraft(row: Record<string, string>): ContactDraft {
+  const norm = (h: string) => h.trim().toLowerCase();
+  const byNorm: Record<string, string> = {};
+  for (const [k, v] of Object.entries(row)) byNorm[norm(k)] = v;
+  const pick = (field: string) => {
+    for (const a of CORE_ALIASES[field] ?? []) if (byNorm[a]?.trim()) return byNorm[a].trim();
+    return "";
+  };
+  const consumed = new Set(Object.values(CORE_ALIASES).flat());
+
+  // Everything not consumed by a core field, non-empty, keyed by original header.
+  const metadata: Record<string, string> = {};
+  for (const [k, v] of Object.entries(row)) {
+    if (!v?.trim()) continue;
+    if (consumed.has(norm(k))) continue;
+    metadata[k] = v.trim();
+  }
+
+  const type = pick("type");
+  const status = pick("status");
+  const tags = pick("tags");
+  return {
+    first_name: pick("first_name"),
+    last_name: pick("last_name"),
+    email: pick("email"),
+    phone: pick("phone"),
+    company: pick("company"),
+    type: (CONTACT_TYPES as string[]).includes(type) ? (type as ContactType) : "Lead",
+    status: (["active", "inactive", "archived"].includes(status) ? status : "active") as ContactStatus,
+    address: pick("address"),
+    city: pick("city"),
+    state: pick("state") || "AZ",
+    zip: pick("zip"),
+    source: pick("source"),
+    notes: pick("notes"),
+    tags: tags ? tags.split("|").map((t) => t.trim()).filter(Boolean) : [],
+    metadata: Object.keys(metadata).length ? metadata : undefined,
+  };
 }
 
 function downloadTemplate() {
@@ -1081,22 +1152,7 @@ function ImportModal({ onClose, onImported }: { onClose: () => void; onImported:
     if (rows.length === 0) return;
     setImporting(true);
     try {
-      const contacts = rows.map((r) => ({
-        first_name: r.first_name || r["first name"] || "",
-        last_name:  r.last_name  || r["last name"]  || "",
-        email:      r.email || "",
-        phone:      r.phone || "",
-        company:    r.company || "",
-        type:       (["Client","Lead","Vendor","Sub Contractor"].includes(r.type) ? r.type : "Lead") as ContactType,
-        status:     (["active","inactive","archived"].includes(r.status) ? r.status : "active") as ContactStatus,
-        address:    r.address || "",
-        city:       r.city || "",
-        state:      r.state || "AZ",
-        zip:        r.zip || "",
-        source:     r.source || "",
-        notes:      r.notes || "",
-        tags:       r.tags ? r.tags.split("|").map((t) => t.trim()).filter(Boolean) : [],
-      }));
+      const contacts = rows.map(mapRowToDraft).filter((c) => c.email);
       const res = await fetch("/api/contacts/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1111,7 +1167,15 @@ function ImportModal({ onClose, onImported }: { onClose: () => void; onImported:
     } finally { setImporting(false); }
   }
 
-  const previewCols = ["first_name", "last_name", "email", "type", "company"];
+  // Importable rows (those that resolve to an email), mapped for preview + count.
+  const drafts = React.useMemo(() => rows.map(mapRowToDraft).filter((c) => c.email), [rows]);
+  const previewCols: { key: keyof ContactDraft; label: string }[] = [
+    { key: "first_name", label: "first name" },
+    { key: "last_name", label: "last name" },
+    { key: "email", label: "email" },
+    { key: "company", label: "company" },
+    { key: "phone", label: "phone" },
+  ];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -1196,22 +1260,24 @@ function ImportModal({ onClose, onImported }: { onClose: () => void; onImported:
                         <table className="w-full border-collapse text-xs">
                           <thead className="bg-muted/40">
                             <tr>
-                              {previewCols.map((c) => <th key={c} className="px-3 py-2 text-left font-semibold text-muted-foreground">{c}</th>)}
+                              {previewCols.map((c) => <th key={c.key} className="px-3 py-2 text-left font-semibold text-muted-foreground">{c.label}</th>)}
+                              <th className="px-3 py-2 text-left font-semibold text-muted-foreground">extra fields</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-border">
-                            {rows.slice(0, 5).map((r, i) => (
+                            {drafts.slice(0, 5).map((d, i) => (
                               <tr key={i} className="hover:bg-muted/30">
-                                {previewCols.map((c) => <td key={c} className="max-w-[140px] truncate px-3 py-2 text-muted-foreground">{r[c] || "--"}</td>)}
+                                {previewCols.map((c) => <td key={c.key} className="max-w-[140px] truncate px-3 py-2 text-muted-foreground">{String(d[c.key] ?? "") || "--"}</td>)}
+                                <td className="px-3 py-2 text-muted-foreground">{d.metadata ? `${Object.keys(d.metadata).length} fields` : "--"}</td>
                               </tr>
                             ))}
                           </tbody>
                         </table>
-                        {rows.length > 5 && <div className="border-t border-border px-3 py-2 text-xs text-muted-foreground">+ {rows.length - 5} more rows</div>}
+                        {drafts.length > 5 && <div className="border-t border-border px-3 py-2 text-xs text-muted-foreground">+ {drafts.length - 5} more rows</div>}
                       </div>
 
                       <div className="flex items-center justify-between rounded-lg border border-border bg-card px-4 py-3">
-                        <span className="text-sm font-medium">{rows.length} contact{rows.length !== 1 ? "s" : ""} ready</span>
+                        <span className="text-sm font-medium">{drafts.length} contact{drafts.length !== 1 ? "s" : ""} ready{rows.length !== drafts.length ? ` (${rows.length - drafts.length} skipped — no email)` : ""}</span>
                         <div className="flex items-center gap-3 text-sm">
                           <span className="text-muted-foreground">Duplicates:</span>
                           {(["skip", "overwrite"] as const).map((opt) => (
@@ -1235,8 +1301,8 @@ function ImportModal({ onClose, onImported }: { onClose: () => void; onImported:
           <Button size="sm" variant="outline" onClick={onClose}>Cancel</Button>
           {tab === "guide"
             ? <Button size="sm" variant="accent" onClick={() => setTab("upload")}><FileUp className="h-3.5 w-3.5" /> Upload CSV</Button>
-            : <Button size="sm" variant="accent" onClick={() => void doImport()} disabled={rows.length === 0 || importing || !!result}>
-                {importing ? "Importing..." : `Import ${rows.length} Contact${rows.length !== 1 ? "s" : ""}`}
+            : <Button size="sm" variant="accent" onClick={() => void doImport()} disabled={drafts.length === 0 || importing || !!result}>
+                {importing ? "Importing..." : `Import ${drafts.length} Contact${drafts.length !== 1 ? "s" : ""}`}
               </Button>
           }
         </div>
