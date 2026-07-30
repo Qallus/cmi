@@ -43,6 +43,19 @@ const CONTACT_TYPES: ContactType[] = ["Lead", "Client", "Prospect", "Customer", 
 const CONTACT_ONLY_TYPES: ContactType[] = ["Client", "Prospect", "Customer", "Vendor", "Sub Contractor", "Designer", "Other"];
 
 type ContactView = "table" | "list" | "cards" | "kanban" | "calendar";
+
+type Tab = "all" | ContactType;
+const TABS: { key: Tab; label: string; singular: string }[] = [
+  { key: "all", label: "All", singular: "Contact" },
+  { key: "Lead", label: "Leads", singular: "Lead" },
+  { key: "Client", label: "Clients", singular: "Client" },
+  { key: "Prospect", label: "Prospects", singular: "Prospect" },
+  { key: "Customer", label: "Customers", singular: "Customer" },
+  { key: "Vendor", label: "Vendors", singular: "Vendor" },
+  { key: "Sub Contractor", label: "Sub Contractors", singular: "Sub Contractor" },
+  { key: "Designer", label: "Designers", singular: "Designer" },
+  { key: "Other", label: "Other", singular: "Contact" },
+];
 const STAFF_ROLES = ["admin", "project_manager", "designer", "estimator", "superintendent", "viewer"] as const;
 type StaffRole = typeof STAFF_ROLES[number];
 const STATUSES: ContactStatus[] = ["active", "inactive", "archived"];
@@ -85,6 +98,7 @@ const EMPTY_DRAFT: ContactDraft = {
   notes: "",
   tags: [],
   source: "",
+  lead_owner: "",
 };
 
 type ModalMode = "add" | "edit" | "view";
@@ -92,7 +106,6 @@ type ModalMode = "add" | "edit" | "view";
 export function ContactsClient({ initialContacts }: { initialContacts: Contact[] }) {
   const [contacts, setContacts] = React.useState<Contact[]>(initialContacts);
   const [search, setSearch] = React.useState("");
-  const [typeFilter, setTypeFilter] = React.useState<string>("all");
   const [statusFilter, setStatusFilter] = React.useState<string>("all");
   const [perPage, setPerPage] = React.useState(25);
   const [page, setPage] = React.useState(1);
@@ -104,7 +117,7 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
   const [deleteConfirm, setDeleteConfirm] = React.useState<string | null>(null);
   const [showImport, setShowImport] = React.useState(false);
   const [contactAction, setContactAction] = React.useState<{ type: "call" | "sms" | "email"; contact: Contact } | null>(null);
-  const [viewMode, setViewMode] = React.useState<"contacts" | "leads">("contacts");
+  const [tab, setTab] = React.useState<Tab>("all");
   const [convertLead, setConvertLead] = React.useState<Contact | null>(null);
   // Bulk selection + expanded-modal state.
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
@@ -124,26 +137,29 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
     return () => window.removeEventListener("cmi-dashboard-search", handleDashboardSearch);
   }, []);
 
-  const leadsCount = React.useMemo(() => contacts.filter((c) => c.type === "Lead").length, [contacts]);
-  const contactsCount = contacts.length - leadsCount;
+  const countFor = React.useCallback(
+    (t: Tab) => (t === "all" ? contacts.length : contacts.filter((c) => (c.type ?? "Other") === t).length),
+    [contacts],
+  );
 
   const filtered = React.useMemo(() => {
     const q = search.toLowerCase();
     return contacts.filter((c) => {
-      if (viewMode === "leads" && c.type !== "Lead") return false;
-      if (viewMode === "contacts" && c.type === "Lead") return false;
+      if (tab !== "all" && (c.type ?? "Other") !== tab) return false;
       if (q && !fullName(c).toLowerCase().includes(q) && !c.email.toLowerCase().includes(q) && !(c.phone ?? "").includes(q) && !(c.company ?? "").toLowerCase().includes(q)) return false;
-      if (typeFilter !== "all" && c.type !== typeFilter) return false;
       if (statusFilter !== "all" && c.status !== statusFilter) return false;
       return true;
     });
-  }, [contacts, search, typeFilter, statusFilter, viewMode]);
+  }, [contacts, search, statusFilter, tab]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
   const pageContacts = filtered.slice((page - 1) * perPage, page * perPage);
 
+  const activeTab = TABS.find((t) => t.key === tab) ?? TABS[0];
+
   function openAdd() {
-    setDraft({ ...EMPTY_DRAFT, type: viewMode === "leads" ? "Lead" : "Client" });
+    const defaultType: ContactType = tab === "all" ? "Lead" : tab;
+    setDraft({ ...EMPTY_DRAFT, type: defaultType });
     setTagInput("");
     setError(null);
     setModal({ mode: "add" });
@@ -171,6 +187,7 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
       notes: c.notes ?? "",
       tags: c.tags ?? [],
       source: c.source ?? "",
+      lead_owner: c.lead_owner ?? "",
     });
     setTagInput("");
     setError(null);
@@ -298,10 +315,10 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
           <div>
             <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">CRM</div>
             <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight">
-              {viewMode === "leads" ? "Leads" : "Contacts"}
+              {tab === "all" ? "Contacts" : activeTab.label}
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              {viewMode === "leads" ? `${leadsCount} total leads` : `${contactsCount} total contacts`}
+              {countFor(tab)} total {tab === "all" ? "contacts" : activeTab.label.toLowerCase()}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -310,37 +327,28 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
               <FileUp className="h-3.5 w-3.5" /> Import
             </Button>
             <Button size="sm" variant="accent" onClick={openAdd}>
-              <Plus className="h-3.5 w-3.5" /> {viewMode === "leads" ? "Add Lead" : "Add Contact"}
+              <Plus className="h-3.5 w-3.5" /> Add {activeTab.singular}
             </Button>
           </div>
         </div>
 
-        {/* Contacts / Leads tabs */}
-        <div className="mt-4 flex gap-0 border-b border-border">
-          <button
-            type="button"
-            onClick={() => { setViewMode("contacts"); setTypeFilter("all"); setPage(1); }}
-            className={cn("border-b-2 px-4 pb-2.5 pt-1 text-sm font-medium transition -mb-px",
-              viewMode === "contacts" ? "border-accent text-accent" : "border-transparent text-muted-foreground hover:text-foreground"
-            )}
-          >
-            Contacts
-            <span className={cn("ml-1.5 rounded-full px-1.5 py-0.5 text-[11px]",
-              viewMode === "contacts" ? "bg-accent/15 text-accent" : "bg-muted text-muted-foreground"
-            )}>{contactsCount}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => { setViewMode("leads"); setTypeFilter("all"); setPage(1); }}
-            className={cn("border-b-2 px-4 pb-2.5 pt-1 text-sm font-medium transition -mb-px",
-              viewMode === "leads" ? "border-accent text-accent" : "border-transparent text-muted-foreground hover:text-foreground"
-            )}
-          >
-            Leads
-            <span className={cn("ml-1.5 rounded-full px-1.5 py-0.5 text-[11px]",
-              viewMode === "leads" ? "bg-accent/15 text-accent" : "bg-muted text-muted-foreground"
-            )}>{leadsCount}</span>
-          </button>
+        {/* Type tabs */}
+        <div className="mt-4 flex flex-wrap gap-0 border-b border-border">
+          {TABS.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => { setTab(t.key); setPage(1); clearSelection(); }}
+              className={cn("border-b-2 px-3.5 pb-2.5 pt-1 text-sm font-medium transition -mb-px",
+                tab === t.key ? "border-accent text-accent" : "border-transparent text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {t.label}
+              <span className={cn("ml-1.5 rounded-full px-1.5 py-0.5 text-[11px]",
+                tab === t.key ? "bg-accent/15 text-accent" : "bg-muted text-muted-foreground"
+              )}>{countFor(t.key)}</span>
+            </button>
+          ))}
         </div>
 
         {/* Filters */}
@@ -349,22 +357,12 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
             <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <input
               type="text"
-              placeholder={viewMode === "leads" ? "Search leads..." : "Search name, email, phone..."}
+              placeholder="Search name, email, phone..."
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
               className="h-8 w-full rounded-md border border-border bg-background pl-8 pr-3 text-sm outline-none focus:border-accent"
             />
           </div>
-          {viewMode === "contacts" && (
-            <Select
-              value={typeFilter}
-              onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }}
-              className="w-44 [&>button]:h-8"
-            >
-              <option value="all">All Types</option>
-              {CONTACT_ONLY_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-            </Select>
-          )}
           <Select
             value={statusFilter}
             onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
@@ -445,6 +443,7 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
               <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Email</th>
               <th className="hidden px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground md:table-cell">Phone</th>
               <th className="hidden px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground lg:table-cell">Company</th>
+              <th className="hidden px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground lg:table-cell">Lead Owner</th>
               <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Type</th>
               <th className="hidden px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground sm:table-cell">Status</th>
               <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Tags</th>
@@ -453,7 +452,7 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
           </thead>
           <tbody className="divide-y divide-border">
             {pageContacts.length === 0 && (
-              <tr><td colSpan={9} className="px-4 py-12 text-center text-sm text-muted-foreground">No contacts found.</td></tr>
+              <tr><td colSpan={10} className="px-4 py-12 text-center text-sm text-muted-foreground">No contacts found.</td></tr>
             )}
             {pageContacts.map((c) => (
               <tr key={c.id} className={cn("transition hover:bg-muted/30 cursor-pointer", selected.has(c.id) && "bg-accent/5")} onClick={() => openView(c)}>
@@ -475,6 +474,7 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
                 <td className="px-4 py-3 text-muted-foreground">{c.email}</td>
                 <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">{c.phone ?? "--"}</td>
                 <td className="hidden px-4 py-3 text-muted-foreground lg:table-cell">{c.company ?? "--"}</td>
+                <td className="hidden px-4 py-3 text-muted-foreground lg:table-cell">{c.lead_owner ?? "--"}</td>
                 <td className="px-4 py-3">
                   {c.type ? <Badge tone={TYPE_TONES[c.type] ?? "default"}>{c.type}</Badge> : <span className="text-muted-foreground">--</span>}
                 </td>
@@ -512,7 +512,7 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
       {/* Pagination (paginated views only) */}
       {contactView !== "kanban" && contactView !== "calendar" && totalPages > 1 && (
         <div className="flex items-center justify-between border-t border-border px-4 py-3 text-sm text-muted-foreground">
-          <span>{filtered.length} {viewMode === "leads" ? "leads" : "contacts"}</span>
+          <span>{filtered.length} {tab === "all" ? "contacts" : activeTab.label.toLowerCase()}</span>
           <div className="flex items-center gap-2">
             <button type="button" className="rounded border border-border px-2 py-1 text-xs disabled:opacity-40" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Prev</button>
             <span className="text-xs">{page} / {totalPages}</span>
@@ -570,6 +570,7 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
               <InfoRow icon={Phone} label="Phone" value={viewContact.phone ?? "--"} />
               <InfoRow icon={Building2} label="Company" value={viewContact.company ?? "--"} />
               <InfoRow icon={User} label="Source" value={viewContact.source ?? "--"} />
+              <InfoRow icon={User} label="Lead Owner" value={viewContact.lead_owner ?? "--"} />
               {(viewContact.city || viewContact.state) && (
                 <InfoRow icon={Building2} label="Location" value={[viewContact.city, viewContact.state, viewContact.zip].filter(Boolean).join(", ")} />
               )}
@@ -606,7 +607,7 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
               </div>
             )}
 
-            {viewMode === "leads" && (
+            {viewContact.type === "Lead" && (
               <div className="pt-2">
                 <Button size="sm" variant="outline" className="gap-1.5 text-accent border-accent/40 hover:bg-accent/5"
                   onClick={() => { closeModal(); setConvertLead(viewContact); }}>
@@ -641,6 +642,9 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
               </Field>
               <Field label="Job Title / Source">
                 <input className={inputCls} value={draft.source ?? ""} onChange={(e) => setDraft((d) => ({ ...d, source: e.target.value }))} />
+              </Field>
+              <Field label="Lead Owner">
+                <input className={inputCls} value={draft.lead_owner ?? ""} onChange={(e) => setDraft((d) => ({ ...d, lead_owner: e.target.value }))} placeholder="e.g. Jeremy Waters" />
               </Field>
               <Field label="Type">
                 <Select value={draft.type ?? "Lead"} onChange={(e) => setDraft((d) => ({ ...d, type: e.target.value as ContactType }))}>
@@ -1098,6 +1102,7 @@ const CORE_ALIASES: Record<string, string[]> = {
   state: ["person state", "state"],
   zip: ["person zip code", "zip", "zip code", "postal code"],
   source: ["job title", "title", "source", "job_title"],
+  lead_owner: ["lead owner", "owner", "lead_owner", "account owner", "assigned to"],
   type: ["type"],
   status: ["status"],
   notes: ["notes", "note"],
@@ -1138,6 +1143,7 @@ function mapRowToDraft(row: Record<string, string>): ContactDraft {
     state: pick("state") || "AZ",
     zip: pick("zip"),
     source: pick("source"),
+    lead_owner: pick("lead_owner") || undefined,
     notes: pick("notes"),
     tags: tags ? tags.split("|").map((t) => t.trim()).filter(Boolean) : [],
     metadata: Object.keys(metadata).length ? metadata : undefined,

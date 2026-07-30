@@ -23,6 +23,7 @@ export type Contact = {
   notes: string | null;
   tags: string[] | null;
   source: string | null;
+  lead_owner?: string | null;
   last_activity: string | null;
   metadata?: Record<string, string> | null;
   created_at: string;
