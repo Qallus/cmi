@@ -103,7 +103,7 @@ export function OverviewClient({ data, demoMode }: { data: OverviewData; demoMod
     { label: "Portfolio Items", value: stats.portfolio, icon: LayoutGrid, href: "/dashboard/portfolio" },
     { label: "Bookings", value: stats.bookings, icon: CalendarRange, href: "/dashboard/bookings" },
     { label: "Quotes", value: stats.quotes, icon: BriefcaseBusiness, href: "/dashboard/quotes-leads" },
-    { label: "Leads", value: stats.leads, icon: BriefcaseBusiness, href: "/dashboard/quotes-leads" },
+    { label: "Leads", value: stats.leads, icon: BriefcaseBusiness, href: "/dashboard/contacts?tab=Lead" },
     { label: "Blog Posts", value: stats.blogPosts, icon: Newspaper, href: "/dashboard/blog" },
     { label: "Team Members", value: stats.teamMembers, icon: Users, href: "/dashboard/team" },
     { label: "Documents", value: stats.documents, icon: FileText, href: "/dashboard/documents" },

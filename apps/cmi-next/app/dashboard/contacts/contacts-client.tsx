@@ -258,6 +258,13 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
   const [showImport, setShowImport] = React.useState(false);
   const [contactAction, setContactAction] = React.useState<{ type: "call" | "sms" | "email"; contact: Contact } | null>(null);
   const [tab, setTab] = React.useState<Tab>("all");
+  // Allow deep-linking to a specific tab, e.g. /dashboard/contacts?tab=Lead.
+  // One-time read of the URL on mount (client-only), so a single setState here is intended.
+  React.useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get("tab");
+    // eslint-disable-next-line -- intentional one-time deep-link sync on mount
+    if (t && TABS.some((x) => x.key === t)) setTab(t as Tab);
+  }, []);
   const [convertLead, setConvertLead] = React.useState<Contact | null>(null);
   // Bulk selection + expanded-modal state.
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
