@@ -87,7 +87,7 @@ export default function AboutPage() {
             <h2 className="mt-4 font-display text-3xl font-semibold leading-snug tracking-tight lg:text-4xl">
               How Constructed Matter Came to Be
             </h2>
-            <div className="mt-8 max-w-4xl space-y-6">
+            <div className="mt-8 space-y-6">
               {STORY_PARAGRAPHS.map((paragraph, i) => (
                 <p key={i} className="text-base leading-8 text-muted-foreground">{paragraph}</p>
               ))}
