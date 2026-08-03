@@ -19,7 +19,7 @@ const content: MicroLandingContent = {
   source: "DesignBuildEnjoy.com",
   domain: "designbuildenjoy.com",
   theme: "light",
-  heroImage: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1920&q=80",
+  heroImage: "https://images.squarespace-cdn.com/content/v1/61045ebed448e64bea2d4efb/589cd039-0f3e-488c-a28a-dc00086c6c8a/Conrad+Residence-13.jpg",
   eyebrow: "The Design-Build Experience",
   headline: "Design. Build.",
   headlineTwist: "Enjoy.",
