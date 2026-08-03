@@ -3,17 +3,6 @@ import { Facebook, Instagram, Linkedin, Mail, MapPin, Phone } from "lucide-react
 import { ContactFab } from "./contact-fab";
 import { FooterFlagLink } from "./footer-flag-link";
 
-// Every service link points at the Services overview. The individual service
-// pages stay live but are not linked from anywhere on the site yet.
-const SERVICES_LINKS = [
-  "Residential",
-  "Commercial",
-  "ADU",
-  "Renovations & Additions",
-  "Architectural & Design",
-  "Pools & Landscaping",
-].map((label) => ({ label, href: "/services" }));
-
 const GOOGLE_MAPS_DIRECTIONS =
   "https://www.google.com/maps/dir//Constructed+Matter,+Inc,+7314+E+Osborn+Dr+Ste+A,+Scottsdale,+AZ+85251/@33.4837392,-111.9164779,15z/data=!4m8!4m7!1m0!1m5!1m1!1s0x4df60e56031f726f:0xcfc958dfa22a341f!2m2!1d-111.924356!2d33.4870402";
 
@@ -25,12 +14,20 @@ const APPLE_MAPS_DIRECTIONS =
 const COMPANY_LINKS_BEFORE_CANVAS = [
   { label: "About Us",   href: "/about" },
   { label: "Our Team",   href: "/team" },
+  { label: "Services",   href: "/services" },
   { label: "Portfolio",  href: "/portfolio" },
   { label: "Resources",  href: "/resources" },
 ];
 
 const COMPANY_LINKS_AFTER_CANVAS = [
-  { label: "Contact",    href: "/contact" },
+  { label: "Contact Us", href: "/contact" },
+];
+
+const LEGAL_LINKS = [
+  { label: "Privacy Policy",   href: "/privacy-policy" },
+  { label: "Terms of Service", href: "/terms-of-service" },
+  { label: "SMS Opt-Out",      href: "/sms-opt-out" },
+  { label: "Email Opt-Out",    href: "/email-opt-out" },
 ];
 
 export function SiteFooter() {
@@ -66,18 +63,6 @@ export function SiteFooter() {
             </div>
           </div>
 
-          {/* Services col */}
-          <div>
-            <Link href="/services" className="mb-4 block text-[11px] font-semibold uppercase tracking-[0.18em] text-white/40 transition hover:text-white/70">Services</Link>
-            <ul className="space-y-2.5">
-              {SERVICES_LINKS.map((item) => (
-                <li key={item.label}>
-                  <Link href={item.href} className="text-sm text-white/60 transition hover:text-white">{item.label}</Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-
           {/* Company col */}
           <div>
             <div className="mb-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/40">Company</div>
@@ -89,6 +74,18 @@ export function SiteFooter() {
               ))}
               <FooterFlagLink flag="project_canvas_public" href="/project-canvas" label="Project Canvas" />
               {COMPANY_LINKS_AFTER_CANVAS.map((item) => (
+                <li key={item.href}>
+                  <Link href={item.href} className="text-sm text-white/60 transition hover:text-white">{item.label}</Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Legal col */}
+          <div>
+            <div className="mb-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/40">Legal</div>
+            <ul className="space-y-2.5">
+              {LEGAL_LINKS.map((item) => (
                 <li key={item.href}>
                   <Link href={item.href} className="text-sm text-white/60 transition hover:text-white">{item.label}</Link>
                 </li>
@@ -119,16 +116,6 @@ export function SiteFooter() {
                   <span>7314 E Osborn Dr Suite A<br />Scottsdale, AZ 85251</span>
                 </a>
               </li>
-              <li>
-                <a href={GOOGLE_MAPS_DIRECTIONS} target="_blank" rel="noreferrer" className="block pl-[26px] text-sm text-accent transition hover:text-white">
-                  Google Maps &rarr;
-                </a>
-              </li>
-              <li>
-                <a href={APPLE_MAPS_DIRECTIONS} target="_blank" rel="noreferrer" className="block pl-[26px] text-sm text-accent transition hover:text-white">
-                  Apple Maps &rarr;
-                </a>
-              </li>
             </ul>
           </div>
         </div>
@@ -138,11 +125,9 @@ export function SiteFooter() {
           <div className="text-xs text-white/40">
             © 2026 Constructed Matter Inc. All rights reserved. &nbsp;·&nbsp; ROC License KB1 - 343120
           </div>
-          <div className="flex items-center gap-4 text-xs text-white/40">
-            <Link href="/privacy-policy" className="transition hover:text-white/70">Privacy Policy</Link>
-            <Link href="/terms-of-service" className="transition hover:text-white/70">Terms of Service</Link>
-            <Link href="/sms-opt-out" className="transition hover:text-white/70">SMS Opt-Out</Link>
-            <Link href="/email-opt-out" className="transition hover:text-white/70">Email Opt-Out</Link>
+          <div className="flex items-center gap-5 text-xs text-white/40">
+            <a href={GOOGLE_MAPS_DIRECTIONS} target="_blank" rel="noreferrer" className="transition hover:text-white/70">Google Maps &rarr;</a>
+            <a href={APPLE_MAPS_DIRECTIONS} target="_blank" rel="noreferrer" className="transition hover:text-white/70">Apple Maps &rarr;</a>
           </div>
         </div>
       </div>
