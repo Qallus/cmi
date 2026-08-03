@@ -82,12 +82,12 @@ export default function AboutPage() {
 
         {/* ── Our Story ── */}
         <section className="border-b border-border bg-background py-24 lg:py-32">
-          <div className="mx-auto max-w-3xl px-5 lg:px-8">
+          <div className="mx-auto max-w-7xl px-5 lg:px-8">
             <div className="text-[12px] font-semibold uppercase tracking-[0.2em] text-accent">Our Story</div>
             <h2 className="mt-4 font-display text-3xl font-semibold leading-snug tracking-tight lg:text-4xl">
               How Constructed Matter Came to Be
             </h2>
-            <div className="mt-8 space-y-6">
+            <div className="mt-8 max-w-4xl space-y-6">
               {STORY_PARAGRAPHS.map((paragraph, i) => (
                 <p key={i} className="text-base leading-8 text-muted-foreground">{paragraph}</p>
               ))}
