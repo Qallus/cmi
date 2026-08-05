@@ -1,9 +1,14 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Eye, EyeOff } from "lucide-react";
+import { ArrowRight, Eye, EyeOff } from "lucide-react";
+import { AuthLayout } from "@/components/auth/auth-layout";
 import { InstallAppButton } from "@/components/pwa/install-app-button";
+
+const FIELD =
+  "w-full rounded-lg border border-border bg-card px-3 py-2.5 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent";
 
 function LoginForm() {
   const router = useRouter();
@@ -30,21 +35,17 @@ function LoginForm() {
     e.preventDefault();
     setError("");
     setLoading(true);
-
     try {
       const res = await fetch("/api/auth/signin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
-
-      const data = await res.json() as { ok?: boolean; error?: string };
-
+      const data = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok) {
         setError(data.error ?? "Sign in failed. Please try again.");
         return;
       }
-
       router.push(redirectTo);
       router.refresh();
     } catch {
@@ -55,100 +56,78 @@ function LoginForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <label htmlFor="email" className="mb-1.5 block text-sm font-medium">
-          Email
-        </label>
-        <input
-          id="email"
-          type="email"
-          autoComplete="email"
-          required
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className="w-full rounded-lg border border-border bg-card px-3 py-2.5 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent"
-          placeholder="you@constructedmatter.com"
-        />
+    <>
+      <div className="mb-6">
+        <h1 className="font-display text-2xl font-semibold tracking-tight">Welcome back</h1>
+        <p className="mt-1.5 text-sm text-muted-foreground">Sign in to your Constructed Matter staff dashboard.</p>
       </div>
 
-      <div>
-        <label htmlFor="password" className="mb-1.5 block text-sm font-medium">
-          Password
-        </label>
-        <div className="relative">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label htmlFor="email" className="mb-1.5 block text-sm font-medium">Email</label>
           <input
-            id="password"
-            type={showPassword ? "text" : "password"}
-            autoComplete="current-password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded-lg border border-border bg-card px-3 py-2.5 pr-10 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent"
-            placeholder="••••••••"
+            id="email" type="email" autoComplete="email" required
+            value={email} onChange={(e) => setEmail(e.target.value)}
+            className={FIELD} placeholder="you@constructedmatter.com"
           />
-          <button
-            type="button"
-            onClick={() => setShowPassword((v) => !v)}
-            aria-label={showPassword ? "Hide password" : "Show password"}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            tabIndex={-1}
-          >
-            {showPassword ? <EyeOff aria-hidden="true" className="h-4 w-4" /> : <Eye aria-hidden="true" className="h-4 w-4" />}
-          </button>
         </div>
+
+        <div>
+          <div className="mb-1.5 flex items-center justify-between">
+            <label htmlFor="password" className="block text-sm font-medium">Password</label>
+            <Link href="/forgot-password" className="text-sm text-accent hover:underline">Forgot your password?</Link>
+          </div>
+          <div className="relative">
+            <input
+              id="password" type={showPassword ? "text" : "password"} autoComplete="current-password" required
+              value={password} onChange={(e) => setPassword(e.target.value)}
+              className={`${FIELD} pr-10`} placeholder="••••••••"
+            />
+            <button
+              type="button" onClick={() => setShowPassword((v) => !v)}
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" tabIndex={-1}
+            >
+              {showPassword ? <EyeOff aria-hidden="true" className="h-4 w-4" /> : <Eye aria-hidden="true" className="h-4 w-4" />}
+            </button>
+          </div>
+        </div>
+
+        {error && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-400">
+            {error}
+          </div>
+        )}
+
+        <button
+          type="submit" disabled={loading}
+          className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-accent/90 disabled:opacity-60"
+        >
+          {loading ? "Signing in…" : (<>Sign In <ArrowRight className="h-4 w-4" /></>)}
+        </button>
+      </form>
+
+      <div className="my-6 flex items-center gap-3 text-xs text-muted-foreground">
+        <span className="h-px flex-1 bg-border" /> or <span className="h-px flex-1 bg-border" />
       </div>
 
-      {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-400">
-          {error}
-        </div>
-      )}
+      <InstallAppButton variant="outline" size="sm" className="w-full" />
 
-      <button
-        type="submit"
-        disabled={loading}
-        className="w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-accent/90 disabled:opacity-60"
-      >
-        {loading ? "Signing in…" : "Sign In"}
-      </button>
-    </form>
+      <p className="mt-6 text-center text-sm text-muted-foreground">
+        Need access?{" "}
+        <Link href="/request-access" className="font-semibold text-accent hover:underline">Request an account</Link>
+      </p>
+      <p className="mt-3 text-center text-xs text-muted-foreground">This portal is for Constructed Matter staff only.</p>
+    </>
   );
 }
 
 export default function LoginPage() {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4">
-      <div className="w-full max-w-sm">
-        <div className="mb-8 flex flex-col items-center gap-4">
-          <img
-            src="/brand/cmi-favicon-black.png"
-            alt="Constructed Matter, Inc."
-            className="h-14 w-14 object-contain dark:hidden"
-          />
-          <img
-            src="/brand/cmi-favicon-white.png"
-            alt="Constructed Matter, Inc."
-            className="hidden h-14 w-14 object-contain dark:block"
-          />
-          <h1 className="text-xl font-semibold">Staff Dashboard</h1>
-          <p className="text-center text-sm text-muted-foreground">
-            Sign in with your staff account to continue.
-          </p>
-        </div>
-
-        <React.Suspense fallback={<div className="h-48 animate-pulse rounded-lg bg-muted" />}>
-          <LoginForm />
-        </React.Suspense>
-
-        <p className="mt-6 text-center text-xs text-muted-foreground">
-          This portal is for Constructed Matter staff only.
-        </p>
-
-        <div className="mt-6 flex justify-center border-t border-border pt-6">
-          <InstallAppButton variant="outline" size="sm" />
-        </div>
-      </div>
-    </div>
+    <AuthLayout>
+      <React.Suspense fallback={<div className="h-64 animate-pulse rounded-lg bg-muted" />}>
+        <LoginForm />
+      </React.Suspense>
+    </AuthLayout>
   );
 }
