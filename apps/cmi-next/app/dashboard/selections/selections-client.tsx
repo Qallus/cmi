@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { CheckCircle2, Download, FileText, Image, Loader2, Package, Pencil, Plus, Share2, ShoppingCart, Upload } from "lucide-react";
+import Link from "next/link";
+import { CheckCircle2, Download, FileText, Image, Loader2, Package, Pencil, Plus, Share2, ShoppingCart, Sparkles, Upload } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -373,6 +374,7 @@ export function SelectionsClient({ initialData, demoMode = false, setupMessage }
             PDF
           </Button>
           <Button variant="outline" onClick={() => setProductDraft(emptyProductDraft())}><Package className="h-4 w-4" /> Add Product</Button>
+          <Link href="/dashboard/selections/live-builder"><Button variant="outline"><Sparkles className="h-4 w-4" /> Live Builder</Button></Link>
           <Button variant="accent" onClick={() => setSelectionDraft(emptySelectionDraft())}><Plus className="h-4 w-4" /> Add Selection</Button>
         </div>
       </header>

@@ -1,0 +1,321 @@
+"use client";
+
+import * as React from "react";
+import Link from "next/link";
+import {
+  ArrowLeft, CheckCircle2, ExternalLink, Eye, Info, Loader2, Monitor, Smartphone, Sparkles, Tablet, Wand2,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+
+export type BuilderVendor = { id: string; name: string; website_url: string | null; logo_url: string | null; category: string | null; status: string | null };
+export type BuilderOption = { id: string; label: string; sublabel: string | null };
+
+type Device = "desktop" | "tablet" | "mobile";
+const DEVICE_WIDTH: Record<Device, string> = { desktop: "100%", tablet: "820px", mobile: "390px" };
+
+const FIELD =
+  "w-full rounded-lg border border-border bg-card px-3 py-2 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent";
+const LABEL = "mb-1 block text-xs font-medium text-muted-foreground";
+
+const STATUSES = [
+  ["draft", "Draft"], ["needs_review", "Under Review"], ["pending_client_approval", "Client Review"],
+  ["rejected_needs_revision", "Changes Requested"], ["approved_internally", "Approved"], ["ordered", "Ordered"],
+  ["backordered", "Backordered"], ["delivered", "Received"], ["installed", "Installed"], ["canceled", "Declined"], ["replaced", "Replaced"],
+] as const;
+const PRICE_TYPES = [
+  ["exact", "Exact"], ["starting_at", "Starting at"], ["estimated", "Estimated"], ["allowance", "Allowance"],
+  ["contact_vendor", "Contact vendor"], ["not_available", "Not available"],
+] as const;
+const PRIORITIES = [["low", "Low"], ["medium", "Medium"], ["high", "High"], ["urgent", "Urgent"]] as const;
+
+type Extracted = {
+  title: string | null; description: string | null; image: string | null; images: string[];
+  price: string | null; currency: string | null; sku: string | null; brand: string | null; sourceUrl: string;
+};
+
+const EMPTY = {
+  title: "", vendor_id: "", vendor_name: "", short_description: "", image_url: "", long_description: "",
+  price: "", price_type: "exact", currency: "USD", product_url: "", sku: "", model_number: "", manufacturer: "",
+  category: "", subcategory: "", finish: "", color: "", material: "", dimensions: "", quantity: "1", unit: "",
+  lead_time_days: "", availability: "", features: "", gallery_urls: "", priority: "medium", status: "draft",
+  required: false, client_visible: false, creator_notes: "", client_notes: "", tags: "",
+  job_id: "", project_id: "", task_id: "",
+};
+type Form = typeof EMPTY;
+
+export function LiveBuilderClient({ vendors, jobs, projects }: { vendors: BuilderVendor[]; jobs: BuilderOption[]; projects: BuilderOption[] }) {
+  const [url, setUrl] = React.useState("");
+  const [loadedUrl, setLoadedUrl] = React.useState("");
+  const [device, setDevice] = React.useState<Device>("desktop");
+  const [extracting, setExtracting] = React.useState(false);
+  const [extractMsg, setExtractMsg] = React.useState<string | null>(null);
+  const [autofilled, setAutofilled] = React.useState(false);
+  const [form, setForm] = React.useState<Form>(EMPTY);
+  const [saving, setSaving] = React.useState(false);
+  const [error, setError] = React.useState("");
+  const [savedId, setSavedId] = React.useState<string | null>(null);
+  const [showMore, setShowMore] = React.useState(false);
+
+  function set<K extends keyof Form>(k: K, v: Form[K]) {
+    setForm((f) => ({ ...f, [k]: v }));
+  }
+
+  function pickVendor(id: string) {
+    const v = vendors.find((x) => x.id === id);
+    set("vendor_id", id);
+    set("vendor_name", v?.name ?? "");
+    if (v?.website_url && !url) setUrl(v.website_url);
+  }
+
+  function loadPage() {
+    if (!/^https?:\/\//i.test(url.trim())) { setExtractMsg("Enter a valid http(s) URL."); return; }
+    setExtractMsg(null);
+    setLoadedUrl(url.trim());
+  }
+
+  async function extract() {
+    const target = (url || loadedUrl).trim();
+    if (!/^https?:\/\//i.test(target)) { setExtractMsg("Enter a valid http(s) URL first."); return; }
+    setExtracting(true); setExtractMsg(null);
+    try {
+      const res = await fetch("/api/selections/extract", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: target }),
+      });
+      const json = await res.json() as { ok: boolean; found?: boolean; data?: Extracted; message?: string };
+      if (!json.ok || !json.data) { setExtractMsg(json.message ?? "Could not extract product info. Enter details manually."); return; }
+      const d = json.data;
+      setForm((f) => ({
+        ...f,
+        title: d.title ?? f.title,
+        short_description: d.description ?? f.short_description,
+        image_url: d.image ?? f.image_url,
+        gallery_urls: d.images.length ? d.images.join("\n") : f.gallery_urls,
+        price: d.price ?? f.price,
+        currency: d.currency ?? f.currency,
+        sku: d.sku ?? f.sku,
+        manufacturer: d.brand ?? f.manufacturer,
+        product_url: d.sourceUrl ?? f.product_url,
+        source_url: d.sourceUrl,
+      } as Form));
+      setAutofilled(true);
+      setExtractMsg(json.found === false ? (json.message ?? "No product metadata found — enter details manually.") : "Auto-filled from the page. Review and edit before saving.");
+    } catch {
+      setExtractMsg("Extraction failed. Open the page in a new tab and enter details manually.");
+    } finally {
+      setExtracting(false);
+    }
+  }
+
+  async function save() {
+    setError("");
+    if (!form.title.trim()) { setError("Product title is required."); return; }
+    if (!form.vendor_id && !form.vendor_name.trim()) { setError("Vendor is required."); return; }
+    setSaving(true);
+    try {
+      const res = await fetch("/api/selections/live", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...form, source_url: loadedUrl || url || form.product_url }),
+      });
+      const json = await res.json() as { selection?: { id: string }; error?: string };
+      if (!res.ok || !json.selection) throw new Error(json.error ?? "Save failed.");
+      setSavedId(json.selection.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Save failed.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function reset() {
+    setForm(EMPTY); setUrl(""); setLoadedUrl(""); setAutofilled(false); setExtractMsg(null); setSavedId(null); setError("");
+  }
+
+  if (savedId) {
+    return (
+      <div className="mx-auto max-w-md p-8 text-center">
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-accent/10">
+          <CheckCircle2 className="h-6 w-6 text-accent" />
+        </div>
+        <h1 className="font-display text-2xl font-semibold">Selection saved</h1>
+        <p className="mt-2 text-sm text-muted-foreground">The Selection Card was added to your library{form.job_id ? " and attached to the job" : ""}.</p>
+        <div className="mt-6 flex justify-center gap-3">
+          <Button variant="accent" onClick={reset}><Sparkles className="h-4 w-4" /> Build another</Button>
+          <Link href="/dashboard/selections"><Button variant="outline">Go to Selections</Button></Link>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-[calc(100vh-4rem)] flex-col">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-border px-4 py-3">
+        <div className="flex items-center gap-3">
+          <Link href="/dashboard/selections" className="text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /></Link>
+          <div>
+            <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Selections</div>
+            <h1 className="font-display text-lg font-semibold tracking-tight">Live Selection Builder</h1>
+          </div>
+        </div>
+        <Button variant="accent" onClick={save} disabled={saving}>
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Save Selection
+        </Button>
+      </div>
+
+      <div className="grid flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[280px_1fr_360px]">
+        {/* Left — controls */}
+        <aside className="overflow-y-auto border-r border-border p-4 space-y-5">
+          <div>
+            <label className={LABEL}>Vendor Source</label>
+            <select className={FIELD} value={form.vendor_id} onChange={(e) => pickVendor(e.target.value)}>
+              <option value="">Select a vendor…</option>
+              {vendors.map((v) => <option key={v.id} value={v.id}>{v.name}{v.category ? ` — ${v.category}` : ""}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className={LABEL}>Vendor or Product URL</label>
+            <input className={FIELD} value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" />
+            <div className="mt-2 flex gap-2">
+              <Button size="sm" variant="outline" className="flex-1" onClick={loadPage}>Load page</Button>
+              <Button size="sm" variant="accent" className="flex-1" onClick={() => void extract()} disabled={extracting}>
+                {extracting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />} Extract
+              </Button>
+            </div>
+          </div>
+
+          <div>
+            <label className={LABEL}>Device Preview</label>
+            <div className="flex gap-1 rounded-lg border border-border p-1">
+              {([["desktop", Monitor], ["tablet", Tablet], ["mobile", Smartphone]] as const).map(([d, Icon]) => (
+                <button key={d} type="button" onClick={() => setDevice(d)}
+                  className={`flex flex-1 items-center justify-center rounded-md py-1.5 text-xs capitalize transition ${device === d ? "bg-accent/15 text-accent" : "text-muted-foreground hover:text-foreground"}`}>
+                  <Icon className="h-3.5 w-3.5" />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-border bg-muted/30 p-3 text-[11px] leading-relaxed text-muted-foreground">
+            <Info className="mb-1 h-3.5 w-3.5 text-accent" />
+            Review-only workflow. Selecting page content creates Selection Cards. This tool never edits or publishes the vendor website.
+          </div>
+        </aside>
+
+        {/* Center — canvas */}
+        <main className="flex flex-col overflow-hidden bg-muted/20">
+          <div className="flex items-center justify-between border-b border-border bg-card px-4 py-2 text-xs text-muted-foreground">
+            <span className="truncate">{loadedUrl || "No page loaded"}</span>
+            {loadedUrl && (
+              <a href={loadedUrl} target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center gap-1 text-accent hover:underline">
+                Open Original <ExternalLink className="h-3 w-3" />
+              </a>
+            )}
+          </div>
+          <div className="flex-1 overflow-auto p-4">
+            {!loadedUrl ? (
+              <div className="flex h-full flex-col items-center justify-center text-center text-sm text-muted-foreground">
+                <Sparkles className="mb-3 h-8 w-8 text-accent/60" />
+                <p className="max-w-xs">Pick a vendor or paste a product URL, then <strong>Load page</strong> to preview it — or <strong>Extract</strong> to auto-fill the card.</p>
+              </div>
+            ) : (
+              <div className="mx-auto h-full overflow-hidden rounded-lg border border-border bg-white shadow-sm transition-all" style={{ width: DEVICE_WIDTH[device], maxWidth: "100%" }}>
+                <iframe key={loadedUrl} src={loadedUrl} title="Vendor page preview" className="h-full min-h-[600px] w-full" sandbox="allow-scripts allow-same-origin allow-popups" referrerPolicy="no-referrer" />
+              </div>
+            )}
+          </div>
+          <div className="border-t border-border bg-card px-4 py-2 text-[11px] text-muted-foreground">
+            If the page appears blank, the vendor blocks embedding — use <strong>Open Original</strong> then <strong>Extract</strong> or fill the card manually.
+          </div>
+        </main>
+
+        {/* Right — Selection Card editor */}
+        <aside className="overflow-y-auto border-l border-border p-4 space-y-3">
+          <div className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Selection Card</div>
+          {extractMsg && (
+            <div className={`rounded-lg border px-3 py-2 text-xs ${autofilled ? "border-accent/40 bg-accent/5 text-accent" : "border-border bg-muted/40 text-muted-foreground"}`}>{extractMsg}</div>
+          )}
+
+          <div><label className={LABEL}>Product Title *</label><input className={FIELD} value={form.title} onChange={(e) => set("title", e.target.value)} /></div>
+          <div>
+            <label className={LABEL}>Vendor *</label>
+            {form.vendor_id
+              ? <input className={FIELD} value={form.vendor_name} onChange={(e) => set("vendor_name", e.target.value)} readOnly />
+              : <input className={FIELD} value={form.vendor_name} onChange={(e) => set("vendor_name", e.target.value)} placeholder="Vendor name" />}
+          </div>
+          <div><label className={LABEL}>Short Description *</label><textarea className={`${FIELD} resize-none`} rows={2} value={form.short_description} onChange={(e) => set("short_description", e.target.value)} /></div>
+          <div>
+            <label className={LABEL}>Featured Image URL *</label>
+            <input className={FIELD} value={form.image_url} onChange={(e) => set("image_url", e.target.value)} placeholder="https://…" />
+            {form.image_url && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={form.image_url} alt="" className="mt-2 h-28 w-full rounded-lg border border-border object-cover" />
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div><label className={LABEL}>Price</label><input className={FIELD} value={form.price} onChange={(e) => set("price", e.target.value)} /></div>
+            <div><label className={LABEL}>Price Type</label><select className={FIELD} value={form.price_type} onChange={(e) => set("price_type", e.target.value)}>{PRICE_TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div><label className={LABEL}>Status</label><select className={FIELD} value={form.status} onChange={(e) => set("status", e.target.value)}>{STATUSES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
+            <div><label className={LABEL}>Priority</label><select className={FIELD} value={form.priority} onChange={(e) => set("priority", e.target.value)}>{PRIORITIES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
+          </div>
+
+          {/* Association */}
+          <div className="rounded-lg border border-border p-3 space-y-2">
+            <div className="text-[11px] font-semibold text-foreground">Attach to</div>
+            <div><label className={LABEL}>Job</label><select className={FIELD} value={form.job_id} onChange={(e) => set("job_id", e.target.value)}><option value="">— None —</option>{jobs.map((j) => <option key={j.id} value={j.id}>{j.label}</option>)}</select></div>
+            <div><label className={LABEL}>Project</label><select className={FIELD} value={form.project_id} onChange={(e) => set("project_id", e.target.value)}><option value="">— None —</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}</select></div>
+          </div>
+
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.client_visible} onChange={(e) => set("client_visible", e.target.checked)} className="h-4 w-4 accent-[var(--accent)]" /><Eye className="h-3.5 w-3.5 text-muted-foreground" /> Visible to client</label>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.required} onChange={(e) => set("required", e.target.checked)} className="h-4 w-4 accent-[var(--accent)]" /> Required selection</label>
+
+          <button type="button" onClick={() => setShowMore((v) => !v)} className="text-xs font-medium text-accent hover:underline">{showMore ? "Hide" : "Show"} more fields</button>
+          {showMore && (
+            <div className="space-y-3 border-t border-border pt-3">
+              <div><label className={LABEL}>Long Description</label><textarea className={`${FIELD} resize-none`} rows={3} value={form.long_description} onChange={(e) => set("long_description", e.target.value)} /></div>
+              <div><label className={LABEL}>Product URL</label><input className={FIELD} value={form.product_url} onChange={(e) => set("product_url", e.target.value)} /></div>
+              <div className="grid grid-cols-2 gap-2">
+                <div><label className={LABEL}>SKU</label><input className={FIELD} value={form.sku} onChange={(e) => set("sku", e.target.value)} /></div>
+                <div><label className={LABEL}>Model #</label><input className={FIELD} value={form.model_number} onChange={(e) => set("model_number", e.target.value)} /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div><label className={LABEL}>Manufacturer</label><input className={FIELD} value={form.manufacturer} onChange={(e) => set("manufacturer", e.target.value)} /></div>
+                <div><label className={LABEL}>Category</label><input className={FIELD} value={form.category} onChange={(e) => set("category", e.target.value)} /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div><label className={LABEL}>Color</label><input className={FIELD} value={form.color} onChange={(e) => set("color", e.target.value)} /></div>
+                <div><label className={LABEL}>Finish</label><input className={FIELD} value={form.finish} onChange={(e) => set("finish", e.target.value)} /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div><label className={LABEL}>Material</label><input className={FIELD} value={form.material} onChange={(e) => set("material", e.target.value)} /></div>
+                <div><label className={LABEL}>Dimensions</label><input className={FIELD} value={form.dimensions} onChange={(e) => set("dimensions", e.target.value)} /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div><label className={LABEL}>Quantity</label><input className={FIELD} value={form.quantity} onChange={(e) => set("quantity", e.target.value)} /></div>
+                <div><label className={LABEL}>Unit</label><input className={FIELD} value={form.unit} onChange={(e) => set("unit", e.target.value)} /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div><label className={LABEL}>Lead time (days)</label><input className={FIELD} value={form.lead_time_days} onChange={(e) => set("lead_time_days", e.target.value)} /></div>
+                <div><label className={LABEL}>Availability</label><input className={FIELD} value={form.availability} onChange={(e) => set("availability", e.target.value)} /></div>
+              </div>
+              <div><label className={LABEL}>Features (one per line)</label><textarea className={`${FIELD} resize-none`} rows={3} value={form.features} onChange={(e) => set("features", e.target.value)} /></div>
+              <div><label className={LABEL}>Gallery image URLs (one per line)</label><textarea className={`${FIELD} resize-none`} rows={2} value={form.gallery_urls} onChange={(e) => set("gallery_urls", e.target.value)} /></div>
+              <div><label className={LABEL}>Internal (creator) notes</label><textarea className={`${FIELD} resize-none`} rows={2} value={form.creator_notes} onChange={(e) => set("creator_notes", e.target.value)} placeholder="Never shown to clients" /></div>
+              <div><label className={LABEL}>Client-facing notes</label><textarea className={`${FIELD} resize-none`} rows={2} value={form.client_notes} onChange={(e) => set("client_notes", e.target.value)} /></div>
+              <div><label className={LABEL}>Tags (comma separated)</label><input className={FIELD} value={form.tags} onChange={(e) => set("tags", e.target.value)} /></div>
+            </div>
+          )}
+
+          {error && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-400">{error}</div>}
+
+          <Button variant="accent" className="w-full" onClick={save} disabled={saving}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Save Selection
+          </Button>
+        </aside>
+      </div>
+    </div>
+  );
+}
