@@ -3,9 +3,10 @@
 import * as React from "react";
 import Link from "next/link";
 import {
-  ArrowLeft, Check, CheckCircle2, ExternalLink, Eye, Info, Loader2, Monitor, Plus, Smartphone, Sparkles, Star, Tablet, Wand2,
+  ArrowLeft, Check, CheckCircle2, ChevronDown, ExternalLink, Eye, Info, Loader2, Monitor, Package, Plus, Smartphone, Sparkles, Star, Tablet, Wand2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export type BuilderVendor = { id: string; name: string; website_url: string | null; logo_url: string | null; category: string | null; status: string | null };
 export type BuilderOption = { id: string; label: string; sublabel: string | null };
@@ -51,6 +52,7 @@ const EMPTY = {
   category: "", subcategory: "", finish: "", color: "", material: "", dimensions: "", quantity: "1", unit: "",
   lead_time_days: "", availability: "", features: "", gallery_urls: "", priority: "medium", status: "draft",
   required: false, client_visible: false, creator_notes: "", client_notes: "", tags: "",
+  exterior_colors: "", interior_colors: "",
   job_id: "", project_id: "", task_id: "",
 };
 type Form = typeof EMPTY;
@@ -68,7 +70,10 @@ export function LiveBuilderClient({ vendors, jobs, projects }: { vendors: Builde
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState("");
   const [savedId, setSavedId] = React.useState<string | null>(null);
-  const [showMore, setShowMore] = React.useState(false);
+  const [openSections, setOpenSections] = React.useState<Set<string>>(new Set(["product"]));
+  function toggleSection(id: string) {
+    setOpenSections((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  }
 
   function set<K extends keyof Form>(k: K, v: Form[K]) {
     setForm((f) => ({ ...f, [k]: v }));
@@ -114,7 +119,7 @@ export function LiveBuilderClient({ vendors, jobs, projects }: { vendors: Builde
       features: d.features.length ? d.features.join("\n") : f.features,
       product_url: d.sourceUrl ?? f.product_url,
     }));
-    setShowMore(true);
+    setOpenSections(new Set(["product", "pricing", "details", "customization", "media", "status"]));
   }
 
   function pickVendor(id: string) {
@@ -307,53 +312,39 @@ export function LiveBuilderClient({ vendors, jobs, projects }: { vendors: Builde
           </div>
         </main>
 
-        {/* Right — Selection Card editor */}
-        <aside className="overflow-y-auto border-l border-border p-4 space-y-3">
+        {/* Right — live Card Preview + collapsible editor */}
+        <aside className="overflow-y-auto border-l border-border p-4 space-y-4">
           <div className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Selection Card</div>
           {extractMsg && (
             <div className={`rounded-lg border px-3 py-2 text-xs ${detected ? "border-accent/40 bg-accent/5 text-accent" : "border-border bg-muted/40 text-muted-foreground"}`}>{extractMsg}</div>
           )}
 
-          <div><label className={LABEL}>Product Title *</label><input className={FIELD} value={form.title} onChange={(e) => set("title", e.target.value)} /></div>
-          <div>
-            <label className={LABEL}>Vendor *</label>
-            {form.vendor_id
-              ? <input className={FIELD} value={form.vendor_name} onChange={(e) => set("vendor_name", e.target.value)} readOnly />
-              : <input className={FIELD} value={form.vendor_name} onChange={(e) => set("vendor_name", e.target.value)} placeholder="Vendor name" />}
-          </div>
-          <div><label className={LABEL}>Short Description *</label><textarea className={`${FIELD} resize-none`} rows={2} value={form.short_description} onChange={(e) => set("short_description", e.target.value)} /></div>
-          <div>
-            <label className={LABEL}>Featured Image URL *</label>
-            <input className={FIELD} value={form.image_url} onChange={(e) => set("image_url", e.target.value)} placeholder="https://…" />
-            {form.image_url && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={form.image_url} alt="" className="mt-2 h-28 w-full rounded-lg border border-border object-cover" />
-            )}
-          </div>
+          {/* Live preview — builds in real-time as elements are added */}
+          <CardPreview form={form} gallery={galleryList()} jobs={jobs} onSetJob={(id) => set("job_id", id)} onSave={save} saving={saving} />
 
-          <div className="grid grid-cols-2 gap-2">
-            <div><label className={LABEL}>Price</label><input className={FIELD} value={form.price} onChange={(e) => set("price", e.target.value)} /></div>
-            <div><label className={LABEL}>Price Type</label><select className={FIELD} value={form.price_type} onChange={(e) => set("price_type", e.target.value)}>{PRICE_TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
-          </div>
+          {error && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-400">{error}</div>}
 
-          <div className="grid grid-cols-2 gap-2">
-            <div><label className={LABEL}>Status</label><select className={FIELD} value={form.status} onChange={(e) => set("status", e.target.value)}>{STATUSES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
-            <div><label className={LABEL}>Priority</label><select className={FIELD} value={form.priority} onChange={(e) => set("priority", e.target.value)}>{PRIORITIES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
-          </div>
+          {/* Accordion editor */}
+          <div className="space-y-2">
+            <AccSection id="product" title="Product" open={openSections.has("product")} onToggle={toggleSection}>
+              <div><label className={LABEL}>Product Title *</label><input className={FIELD} value={form.title} onChange={(e) => set("title", e.target.value)} /></div>
+              <div>
+                <label className={LABEL}>Vendor *</label>
+                <input className={FIELD} value={form.vendor_name} onChange={(e) => set("vendor_name", e.target.value)} placeholder="Vendor name" />
+              </div>
+              <div><label className={LABEL}>Short Description *</label><textarea className={`${FIELD} resize-none`} rows={2} value={form.short_description} onChange={(e) => set("short_description", e.target.value)} /></div>
+              <div><label className={LABEL}>Featured Image URL *</label><input className={FIELD} value={form.image_url} onChange={(e) => set("image_url", e.target.value)} placeholder="https://…" /></div>
+            </AccSection>
 
-          {/* Association */}
-          <div className="rounded-lg border border-border p-3 space-y-2">
-            <div className="text-[11px] font-semibold text-foreground">Attach to</div>
-            <div><label className={LABEL}>Job</label><select className={FIELD} value={form.job_id} onChange={(e) => set("job_id", e.target.value)}><option value="">— None —</option>{jobs.map((j) => <option key={j.id} value={j.id}>{j.label}</option>)}</select></div>
-            <div><label className={LABEL}>Project</label><select className={FIELD} value={form.project_id} onChange={(e) => set("project_id", e.target.value)}><option value="">— None —</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}</select></div>
-          </div>
+            <AccSection id="pricing" title="Pricing" open={openSections.has("pricing")} onToggle={toggleSection}>
+              <div className="grid grid-cols-2 gap-2">
+                <div><label className={LABEL}>Price</label><input className={FIELD} value={form.price} onChange={(e) => set("price", e.target.value)} /></div>
+                <div><label className={LABEL}>Currency</label><input className={FIELD} value={form.currency} onChange={(e) => set("currency", e.target.value)} /></div>
+              </div>
+              <div><label className={LABEL}>Price Type</label><select className={FIELD} value={form.price_type} onChange={(e) => set("price_type", e.target.value)}>{PRICE_TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
+            </AccSection>
 
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.client_visible} onChange={(e) => set("client_visible", e.target.checked)} className="h-4 w-4 accent-[var(--accent)]" /><Eye className="h-3.5 w-3.5 text-muted-foreground" /> Visible to client</label>
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.required} onChange={(e) => set("required", e.target.checked)} className="h-4 w-4 accent-[var(--accent)]" /> Required selection</label>
-
-          <button type="button" onClick={() => setShowMore((v) => !v)} className="text-xs font-medium text-accent hover:underline">{showMore ? "Hide" : "Show"} more fields</button>
-          {showMore && (
-            <div className="space-y-3 border-t border-border pt-3">
+            <AccSection id="details" title="Details & Specs" open={openSections.has("details")} onToggle={toggleSection}>
               <div><label className={LABEL}>Long Description</label><textarea className={`${FIELD} resize-none`} rows={3} value={form.long_description} onChange={(e) => set("long_description", e.target.value)} /></div>
               <div><label className={LABEL}>Product URL</label><input className={FIELD} value={form.product_url} onChange={(e) => set("product_url", e.target.value)} /></div>
               <div className="grid grid-cols-2 gap-2">
@@ -363,10 +354,6 @@ export function LiveBuilderClient({ vendors, jobs, projects }: { vendors: Builde
               <div className="grid grid-cols-2 gap-2">
                 <div><label className={LABEL}>Manufacturer</label><input className={FIELD} value={form.manufacturer} onChange={(e) => set("manufacturer", e.target.value)} /></div>
                 <div><label className={LABEL}>Category</label><input className={FIELD} value={form.category} onChange={(e) => set("category", e.target.value)} /></div>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div><label className={LABEL}>Color</label><input className={FIELD} value={form.color} onChange={(e) => set("color", e.target.value)} /></div>
-                <div><label className={LABEL}>Finish</label><input className={FIELD} value={form.finish} onChange={(e) => set("finish", e.target.value)} /></div>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div><label className={LABEL}>Material</label><input className={FIELD} value={form.material} onChange={(e) => set("material", e.target.value)} /></div>
@@ -380,19 +367,42 @@ export function LiveBuilderClient({ vendors, jobs, projects }: { vendors: Builde
                 <div><label className={LABEL}>Lead time (days)</label><input className={FIELD} value={form.lead_time_days} onChange={(e) => set("lead_time_days", e.target.value)} /></div>
                 <div><label className={LABEL}>Availability</label><input className={FIELD} value={form.availability} onChange={(e) => set("availability", e.target.value)} /></div>
               </div>
+            </AccSection>
+
+            <AccSection id="customization" title="Customization Options" open={openSections.has("customization")} onToggle={toggleSection}>
+              <div className="grid grid-cols-2 gap-2">
+                <div><label className={LABEL}>Color</label><input className={FIELD} value={form.color} onChange={(e) => set("color", e.target.value)} /></div>
+                <div><label className={LABEL}>Finish</label><input className={FIELD} value={form.finish} onChange={(e) => set("finish", e.target.value)} /></div>
+              </div>
+              <div><label className={LABEL}>Exterior Colors (comma separated)</label><input className={FIELD} value={form.exterior_colors} onChange={(e) => set("exterior_colors", e.target.value)} placeholder="White, Sandtone, Terratone…" /></div>
+              <div><label className={LABEL}>Interior Colors (comma separated)</label><input className={FIELD} value={form.interior_colors} onChange={(e) => set("interior_colors", e.target.value)} placeholder="White, Maple, Oak…" /></div>
+            </AccSection>
+
+            <AccSection id="media" title="Features & Gallery" open={openSections.has("media")} onToggle={toggleSection}>
               <div><label className={LABEL}>Features (one per line)</label><textarea className={`${FIELD} resize-none`} rows={3} value={form.features} onChange={(e) => set("features", e.target.value)} /></div>
               <div><label className={LABEL}>Gallery image URLs (one per line)</label><textarea className={`${FIELD} resize-none`} rows={2} value={form.gallery_urls} onChange={(e) => set("gallery_urls", e.target.value)} /></div>
+            </AccSection>
+
+            <AccSection id="status" title="Status & Visibility" open={openSections.has("status")} onToggle={toggleSection}>
+              <div className="grid grid-cols-2 gap-2">
+                <div><label className={LABEL}>Status</label><select className={FIELD} value={form.status} onChange={(e) => set("status", e.target.value)}>{STATUSES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
+                <div><label className={LABEL}>Priority</label><select className={FIELD} value={form.priority} onChange={(e) => set("priority", e.target.value)}>{PRIORITIES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
+              </div>
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.client_visible} onChange={(e) => set("client_visible", e.target.checked)} className="h-4 w-4 accent-[var(--accent)]" /><Eye className="h-3.5 w-3.5 text-muted-foreground" /> Visible to client</label>
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.required} onChange={(e) => set("required", e.target.checked)} className="h-4 w-4 accent-[var(--accent)]" /> Required selection</label>
+              <div><label className={LABEL}>Tags (comma separated)</label><input className={FIELD} value={form.tags} onChange={(e) => set("tags", e.target.value)} /></div>
+            </AccSection>
+
+            <AccSection id="association" title="Attach to" open={openSections.has("association")} onToggle={toggleSection}>
+              <div><label className={LABEL}>Job</label><select className={FIELD} value={form.job_id} onChange={(e) => set("job_id", e.target.value)}><option value="">— None —</option>{jobs.map((j) => <option key={j.id} value={j.id}>{j.label}</option>)}</select></div>
+              <div><label className={LABEL}>Project</label><select className={FIELD} value={form.project_id} onChange={(e) => set("project_id", e.target.value)}><option value="">— None —</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}</select></div>
+            </AccSection>
+
+            <AccSection id="notes" title="Notes" open={openSections.has("notes")} onToggle={toggleSection}>
               <div><label className={LABEL}>Internal (creator) notes</label><textarea className={`${FIELD} resize-none`} rows={2} value={form.creator_notes} onChange={(e) => set("creator_notes", e.target.value)} placeholder="Never shown to clients" /></div>
               <div><label className={LABEL}>Client-facing notes</label><textarea className={`${FIELD} resize-none`} rows={2} value={form.client_notes} onChange={(e) => set("client_notes", e.target.value)} /></div>
-              <div><label className={LABEL}>Tags (comma separated)</label><input className={FIELD} value={form.tags} onChange={(e) => set("tags", e.target.value)} /></div>
-            </div>
-          )}
-
-          {error && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-400">{error}</div>}
-
-          <Button variant="accent" className="w-full" onClick={save} disabled={saving}>
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Save Selection
-          </Button>
+            </AccSection>
+          </div>
         </aside>
       </div>
     </div>
@@ -532,6 +542,109 @@ function DetectedPanel(props: {
           </div>
         </section>
       )}
+    </div>
+  );
+}
+
+// Collapsible editor section (accordion). Card preview above updates live as
+// fields change, so the user watches the card build.
+function AccSection({ id, title, open, onToggle, children }: { id: string; title: string; open: boolean; onToggle: (id: string) => void; children: React.ReactNode }) {
+  return (
+    <div className="overflow-hidden rounded-lg border border-border">
+      <button type="button" onClick={() => onToggle(id)} className="flex w-full items-center justify-between bg-muted/30 px-3 py-2.5 text-left text-xs font-semibold text-foreground transition hover:bg-muted/50">
+        {title}
+        <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", !open && "-rotate-90")} />
+      </button>
+      {open && <div className="space-y-3 border-t border-border p-3">{children}</div>}
+    </div>
+  );
+}
+
+function SwatchRow({ label, colors }: { label: string; colors: string[] }) {
+  return (
+    <div>
+      <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="flex flex-wrap gap-1.5">
+        {colors.map((c) => (
+          <span key={c} title={c} className="h-5 w-5 rounded-full border border-border" style={{ background: cssColor(c) }} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Best-effort map of a color name to a CSS value; falls back to a neutral chip.
+function cssColor(name: string): string {
+  const n = name.trim().toLowerCase().replace(/\s+/g, "");
+  const known: Record<string, string> = {
+    white: "#f5f5f0", black: "#1a1a1a", sandtone: "#d9c7a3", terratone: "#8a6d4b", canvas: "#e7e2d6",
+    bronze: "#5c4a35", forest: "#2f4231", forestgreen: "#2f4231", maple: "#c9975b", oak: "#b78a52",
+    gray: "#9ca3af", grey: "#9ca3af", cocoa: "#5b4636", clay: "#b0876a", pinegreen: "#33503b",
+  };
+  if (known[n]) return known[n];
+  if (typeof window !== "undefined" && typeof CSS !== "undefined" && CSS.supports("color", name)) return name;
+  return "linear-gradient(135deg,#e5e1d8,#c9c2b3)";
+}
+
+// The polished, client-ready Selection Card preview — builds in real-time.
+function CardPreview({ form, gallery, jobs, onSetJob, onSave, saving }: {
+  form: Form; gallery: string[]; jobs: BuilderOption[]; onSetJob: (id: string) => void; onSave: () => void; saving: boolean;
+}) {
+  const ext = form.exterior_colors.split(",").map((s) => s.trim()).filter(Boolean);
+  const intr = form.interior_colors.split(",").map((s) => s.trim()).filter(Boolean);
+  const priceLabel = form.price ? `${form.currency && form.currency !== "USD" ? form.currency + " " : "$"}${form.price}` : null;
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+      {/* Media */}
+      <div className="flex gap-3 p-4">
+        <div className="flex flex-1 items-center justify-center overflow-hidden rounded-lg border border-border bg-muted/30" style={{ minHeight: 176 }}>
+          {form.image_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={form.image_url} alt="" className="h-44 w-full object-contain" />
+          ) : (
+            <div className="flex flex-col items-center gap-2 py-10 text-muted-foreground"><Package className="h-7 w-7" /><span className="text-xs">Featured image</span></div>
+          )}
+        </div>
+        {gallery.length > 0 && (
+          <div className="flex max-h-44 w-14 shrink-0 flex-col gap-2 overflow-y-auto">
+            {gallery.slice(0, 6).map((g) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img key={g} src={g} alt="" className="h-12 w-14 shrink-0 rounded border border-border object-cover" />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Body */}
+      <div className="space-y-3 border-t border-border p-4">
+        <div>
+          <h3 className="font-display text-lg font-semibold leading-tight">{form.title || <span className="text-muted-foreground">Product title</span>}</h3>
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            {form.vendor_name && <span>{form.vendor_name}</span>}
+            {priceLabel && <span className="font-semibold text-foreground">{priceLabel}</span>}
+          </div>
+        </div>
+        <p className="text-sm leading-relaxed text-muted-foreground">{form.short_description || "Short description will appear here as you build the card."}</p>
+
+        {(ext.length > 0 || intr.length > 0) && (
+          <div className="space-y-2">
+            <div className="text-sm font-semibold">Customization Options</div>
+            {ext.length > 0 && <SwatchRow label="Exterior Colors" colors={ext} />}
+            {intr.length > 0 && <SwatchRow label="Interior Colors" colors={intr} />}
+          </div>
+        )}
+
+        <div className="flex gap-2 pt-1">
+          <Button variant="accent" className="flex-1" onClick={onSave} disabled={saving}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Save Selection Card
+          </Button>
+          <select value={form.job_id} onChange={(e) => onSetJob(e.target.value)} className="w-32 rounded-lg border border-border bg-card px-2 text-sm outline-none focus:border-accent" aria-label="Add to Job">
+            <option value="">Add to Job</option>
+            {jobs.map((j) => <option key={j.id} value={j.id}>{j.label}</option>)}
+          </select>
+        </div>
+      </div>
     </div>
   );
 }

@@ -56,6 +56,8 @@ export async function POST(req: Request) {
       dimensions: text(b.dimensions),
       availability: text(b.availability),
       features: list(b.features),
+      exterior_colors: list(b.exterior_colors),
+      interior_colors: list(b.interior_colors),
       tags: list(b.tags),
       client_notes: text(b.client_notes),
       required: Boolean(b.required),
