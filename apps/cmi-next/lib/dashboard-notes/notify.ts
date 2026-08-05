@@ -35,7 +35,7 @@ function buildHtml(note: DashboardNote, dashboardUrl: string): string {
 export async function sendSharedNoteEmails(note: DashboardNote, recipients: string[]): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey || recipients.length === 0) return;
-  const fromEmail = process.env.RESEND_FROM_EMAIL ?? "hello@constructedmatter.com";
+  const fromEmail = process.env.RESEND_FROM_EMAIL ?? "info@constructedmatter.com";
   const fromAddress = fromEmail.includes("<") ? fromEmail : `Constructed Matter <${fromEmail}>`;
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://my.constructedmatter.com";
   const html = buildHtml(note, `${appUrl}/dashboard/overview`);

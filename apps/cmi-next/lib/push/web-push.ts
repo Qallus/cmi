@@ -9,7 +9,7 @@ function ensureConfigured(): boolean {
   if (configured !== null) return configured;
   const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
   const privateKey = process.env.VAPID_PRIVATE_KEY;
-  const subject = process.env.VAPID_SUBJECT || "mailto:hello@constructedmatter.com";
+  const subject = process.env.VAPID_SUBJECT || "mailto:info@constructedmatter.com";
   if (!publicKey || !privateKey) {
     configured = false;
     return false;

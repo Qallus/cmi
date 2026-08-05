@@ -27,7 +27,7 @@ export const CMI_CONTACT = {
   legalName: "Constructed Matter, Inc.",
   phone: "(480) 628-4458",
   phoneHref: "tel:+14806284458",
-  email: "hello@constructedmatter.com",
+  email: "info@constructedmatter.com",
   addressLine: "7314 E Osborn Dr, Suite A",
   addressCityStateZip: "Scottsdale, AZ 85251",
 } as const;

@@ -21,9 +21,9 @@ export function ContactFab() {
               <Phone className="h-4 w-4 text-accent" strokeWidth={1.6} />
               (480) 628-4458
             </a>
-            <a href="mailto:hello@constructedmatter.com" className="flex items-center gap-3 px-4 py-3 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground">
+            <a href="mailto:info@constructedmatter.com" className="flex items-center gap-3 px-4 py-3 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground">
               <Mail className="h-4 w-4 text-accent" strokeWidth={1.6} />
-              hello@constructedmatter.com
+              info@constructedmatter.com
             </a>
             <button
               type="button"

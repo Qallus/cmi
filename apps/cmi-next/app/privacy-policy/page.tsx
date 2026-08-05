@@ -310,7 +310,7 @@ export default function PrivacyPolicyPage() {
 
       <p>
         Reply <strong>HELP</strong> for help or contact us at{" "}
-        <a href="mailto:hello@constructedmatter.com">hello@constructedmatter.com</a> or{" "}
+        <a href="mailto:info@constructedmatter.com">info@constructedmatter.com</a> or{" "}
         <a href="tel:+14806284458">(480) 628-4458</a>.
       </p>
 
@@ -551,7 +551,7 @@ export default function PrivacyPolicyPage() {
 
       <p>
         To submit a privacy request, email{" "}
-        <a href="mailto:hello@constructedmatter.com">hello@constructedmatter.com</a> with the subject line{" "}
+        <a href="mailto:info@constructedmatter.com">info@constructedmatter.com</a> with the subject line{" "}
         <strong>Privacy Request</strong> or write to the address below. We may need to verify your identity
         and authority before completing a request. Authorized agents may submit requests where permitted by
         law, subject to verification.
@@ -625,7 +625,7 @@ export default function PrivacyPolicyPage() {
         <br />
         Phone: <a href="tel:+14806284458">(480) 628-4458</a>
         <br />
-        Email: <a href="mailto:hello@constructedmatter.com">hello@constructedmatter.com</a>
+        Email: <a href="mailto:info@constructedmatter.com">info@constructedmatter.com</a>
         <br />
         Website:{" "}
         <a href="https://constructedmatter.com" target="_blank" rel="noreferrer">

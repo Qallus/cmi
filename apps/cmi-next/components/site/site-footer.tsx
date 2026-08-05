@@ -104,9 +104,9 @@ export function SiteFooter() {
                 </a>
               </li>
               <li>
-                <a href="mailto:hello@constructedmatter.com" className="flex items-start gap-2.5 text-sm text-white/60 transition hover:text-white">
+                <a href="mailto:info@constructedmatter.com" className="flex items-start gap-2.5 text-sm text-white/60 transition hover:text-white">
                   <Mail className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
-                  hello@constructedmatter.com
+                  info@constructedmatter.com
                 </a>
               </li>
               <li>

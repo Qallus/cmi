@@ -122,7 +122,7 @@ export default async function TeamPage() {
                   <Link href="/contact" className="inline-flex items-center gap-2 rounded-lg bg-accent px-6 py-3 text-sm font-semibold text-white transition hover:bg-accent/90">
                     Get In Touch <ArrowRight className="h-4 w-4" />
                   </Link>
-                  <a href="mailto:hello@constructedmatter.com" className="inline-flex items-center gap-2 rounded-lg border border-border px-6 py-3 text-sm font-semibold transition hover:border-accent hover:text-accent">
+                  <a href="mailto:info@constructedmatter.com" className="inline-flex items-center gap-2 rounded-lg border border-border px-6 py-3 text-sm font-semibold transition hover:border-accent hover:text-accent">
                     Send Your Resume
                   </a>
                 </div>

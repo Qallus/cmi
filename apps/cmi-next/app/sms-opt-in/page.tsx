@@ -63,7 +63,7 @@ export default function SmsOptInPage() {
             <br />
             Phone: <a href="tel:+14806284458">(480) 628-4458</a>
             <br />
-            Email: <a href="mailto:hello@constructedmatter.com">hello@constructedmatter.com</a>
+            Email: <a href="mailto:info@constructedmatter.com">info@constructedmatter.com</a>
             <br />
             Address: 7314 E Osborn Dr, Suite A, Scottsdale, AZ 85251
           </p>

@@ -18,7 +18,7 @@ export async function generateRecoveryLink(email: string, redirectPath: string):
 
 function resendConfig() {
   const apiKey = process.env.RESEND_API_KEY;
-  const fromEmail = process.env.RESEND_FROM_EMAIL ?? "hello@constructedmatter.com";
+  const fromEmail = process.env.RESEND_FROM_EMAIL ?? "info@constructedmatter.com";
   const from = fromEmail.includes("<") ? fromEmail : `Constructed Matter <${fromEmail}>`;
   const replyTo = process.env.RESEND_REPLY_TO ?? "jeremy@constructedmatter.com";
   return { apiKey, from, replyTo };

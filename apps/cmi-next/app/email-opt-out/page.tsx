@@ -96,7 +96,7 @@ export default function EmailOptOutPage() {
             <br />
             Phone: <a href="tel:+14806284458">(480) 628-4458</a>
             <br />
-            Email: <a href="mailto:hello@constructedmatter.com">hello@constructedmatter.com</a>
+            Email: <a href="mailto:info@constructedmatter.com">info@constructedmatter.com</a>
           </p>
           <p>
             Want CMI email again later? You can <Link href={LEGAL_ROUTES.emailOptIn}>opt back in here</Link>.

@@ -86,7 +86,7 @@ export default function ContactPage() {
                       </svg>
                       <div>
                         <p className="mb-0.5 font-medium text-foreground">Email</p>
-                        <a href="mailto:hello@constructedmatter.com" className="transition hover:text-accent">hello@constructedmatter.com</a>
+                        <a href="mailto:info@constructedmatter.com" className="transition hover:text-accent">info@constructedmatter.com</a>
                       </div>
                     </li>
                     <li className="flex items-start gap-3">
