@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import {
-  ArrowLeft, CheckCircle2, ExternalLink, Eye, Info, Loader2, Monitor, Smartphone, Sparkles, Tablet, Wand2,
+  ArrowLeft, Check, CheckCircle2, ExternalLink, Eye, Info, Loader2, Monitor, Plus, Smartphone, Sparkles, Star, Tablet, Wand2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -29,8 +29,20 @@ const PRICE_TYPES = [
 const PRIORITIES = [["low", "Low"], ["medium", "Medium"], ["high", "High"], ["urgent", "Urgent"]] as const;
 
 type Extracted = {
-  title: string | null; description: string | null; image: string | null; images: string[];
-  price: string | null; currency: string | null; sku: string | null; brand: string | null; sourceUrl: string;
+  title: string | null;
+  descriptions: string[];
+  image: string | null;
+  images: string[];
+  price: string | null;
+  currency: string | null;
+  sku: string | null;
+  model: string | null;
+  manufacturer: string | null;
+  category: string | null;
+  color: string | null;
+  material: string | null;
+  features: string[];
+  sourceUrl: string;
 };
 
 const EMPTY = {
@@ -49,7 +61,9 @@ export function LiveBuilderClient({ vendors, jobs, projects }: { vendors: Builde
   const [device, setDevice] = React.useState<Device>("desktop");
   const [extracting, setExtracting] = React.useState(false);
   const [extractMsg, setExtractMsg] = React.useState<string | null>(null);
-  const [autofilled, setAutofilled] = React.useState(false);
+  const [detected, setDetected] = React.useState<Extracted | null>(null);
+  const [centerTab, setCenterTab] = React.useState<"detected" | "preview">("preview");
+  const [added, setAdded] = React.useState<Set<string>>(new Set());
   const [form, setForm] = React.useState<Form>(EMPTY);
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState("");
@@ -58,6 +72,49 @@ export function LiveBuilderClient({ vendors, jobs, projects }: { vendors: Builde
 
   function set<K extends keyof Form>(k: K, v: Form[K]) {
     setForm((f) => ({ ...f, [k]: v }));
+  }
+  function mark(key: string) {
+    setAdded((s) => new Set(s).add(key));
+  }
+
+  // Click-to-add mapping: each detected element writes into a card field.
+  function addField<K extends keyof Form>(chipKey: string, formKey: K, value: string) {
+    set(formKey, value as Form[K]);
+    mark(chipKey);
+  }
+  function galleryList(): string[] {
+    return form.gallery_urls.split("\n").map((s) => s.trim()).filter(Boolean);
+  }
+  function toggleGallery(imgUrl: string) {
+    const list = galleryList();
+    const next = list.includes(imgUrl) ? list.filter((u) => u !== imgUrl) : [...list, imgUrl];
+    set("gallery_urls", next.join("\n"));
+  }
+  function addFeature(line: string) {
+    const list = form.features.split("\n").map((s) => s.trim()).filter(Boolean);
+    if (!list.includes(line)) set("features", [...list, line].join("\n"));
+    mark(`feat:${line}`);
+  }
+  function autofillAll(d: Extracted) {
+    setForm((f) => ({
+      ...f,
+      title: d.title ?? f.title,
+      short_description: d.descriptions[0] ?? f.short_description,
+      long_description: d.descriptions[1] ?? f.long_description,
+      image_url: d.image ?? f.image_url,
+      gallery_urls: d.images.length ? d.images.join("\n") : f.gallery_urls,
+      price: d.price ?? f.price,
+      currency: d.currency ?? f.currency,
+      sku: d.sku ?? f.sku,
+      model_number: d.model ?? f.model_number,
+      manufacturer: d.manufacturer ?? f.manufacturer,
+      category: d.category ?? f.category,
+      color: d.color ?? f.color,
+      material: d.material ?? f.material,
+      features: d.features.length ? d.features.join("\n") : f.features,
+      product_url: d.sourceUrl ?? f.product_url,
+    }));
+    setShowMore(true);
   }
 
   function pickVendor(id: string) {
@@ -83,22 +140,9 @@ export function LiveBuilderClient({ vendors, jobs, projects }: { vendors: Builde
       });
       const json = await res.json() as { ok: boolean; found?: boolean; data?: Extracted; message?: string };
       if (!json.ok || !json.data) { setExtractMsg(json.message ?? "Could not extract product info. Enter details manually."); return; }
-      const d = json.data;
-      setForm((f) => ({
-        ...f,
-        title: d.title ?? f.title,
-        short_description: d.description ?? f.short_description,
-        image_url: d.image ?? f.image_url,
-        gallery_urls: d.images.length ? d.images.join("\n") : f.gallery_urls,
-        price: d.price ?? f.price,
-        currency: d.currency ?? f.currency,
-        sku: d.sku ?? f.sku,
-        manufacturer: d.brand ?? f.manufacturer,
-        product_url: d.sourceUrl ?? f.product_url,
-        source_url: d.sourceUrl,
-      } as Form));
-      setAutofilled(true);
-      setExtractMsg(json.found === false ? (json.message ?? "No product metadata found — enter details manually.") : "Auto-filled from the page. Review and edit before saving.");
+      setDetected(json.data);
+      setCenterTab("detected");
+      setExtractMsg(json.found === false ? (json.message ?? "No product metadata found — enter details manually.") : "Click detected elements to add them to the card.");
     } catch {
       setExtractMsg("Extraction failed. Open the page in a new tab and enter details manually.");
     } finally {
@@ -127,7 +171,7 @@ export function LiveBuilderClient({ vendors, jobs, projects }: { vendors: Builde
   }
 
   function reset() {
-    setForm(EMPTY); setUrl(""); setLoadedUrl(""); setAutofilled(false); setExtractMsg(null); setSavedId(null); setError("");
+    setForm(EMPTY); setUrl(""); setLoadedUrl(""); setDetected(null); setAdded(new Set()); setCenterTab("preview"); setExtractMsg(null); setSavedId(null); setError("");
   }
 
   if (savedId) {
@@ -201,30 +245,65 @@ export function LiveBuilderClient({ vendors, jobs, projects }: { vendors: Builde
           </div>
         </aside>
 
-        {/* Center — canvas */}
+        {/* Center — canvas: Detected Elements picker + live preview */}
         <main className="flex flex-col overflow-hidden bg-muted/20">
-          <div className="flex items-center justify-between border-b border-border bg-card px-4 py-2 text-xs text-muted-foreground">
-            <span className="truncate">{loadedUrl || "No page loaded"}</span>
-            {loadedUrl && (
-              <a href={loadedUrl} target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center gap-1 text-accent hover:underline">
+          <div className="flex items-center justify-between border-b border-border bg-card px-3 py-2">
+            <div className="flex gap-1">
+              <button type="button" onClick={() => setCenterTab("detected")}
+                className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${centerTab === "detected" ? "bg-accent/15 text-accent" : "text-muted-foreground hover:text-foreground"}`}>
+                Detected Elements{detected ? "" : " (run Extract)"}
+              </button>
+              <button type="button" onClick={() => setCenterTab("preview")}
+                className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${centerTab === "preview" ? "bg-accent/15 text-accent" : "text-muted-foreground hover:text-foreground"}`}>
+                Live Preview
+              </button>
+            </div>
+            {(loadedUrl || detected?.sourceUrl) && (
+              <a href={loadedUrl || detected?.sourceUrl} target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center gap-1 text-xs text-accent hover:underline">
                 Open Original <ExternalLink className="h-3 w-3" />
               </a>
             )}
           </div>
+
           <div className="flex-1 overflow-auto p-4">
-            {!loadedUrl ? (
+            {centerTab === "preview" ? (
+              !loadedUrl ? (
+                <div className="flex h-full flex-col items-center justify-center text-center text-sm text-muted-foreground">
+                  <Sparkles className="mb-3 h-8 w-8 text-accent/60" />
+                  <p className="max-w-xs">Pick a vendor or paste a product URL, then <strong>Load page</strong> to preview it — or <strong>Extract</strong> to detect its content.</p>
+                </div>
+              ) : (
+                <div className="mx-auto h-full overflow-hidden rounded-lg border border-border bg-white shadow-sm transition-all" style={{ width: DEVICE_WIDTH[device], maxWidth: "100%" }}>
+                  <iframe key={loadedUrl} src={loadedUrl} title="Vendor page preview" className="h-full min-h-[600px] w-full" sandbox="allow-scripts allow-same-origin allow-popups" referrerPolicy="no-referrer" />
+                </div>
+              )
+            ) : !detected ? (
               <div className="flex h-full flex-col items-center justify-center text-center text-sm text-muted-foreground">
-                <Sparkles className="mb-3 h-8 w-8 text-accent/60" />
-                <p className="max-w-xs">Pick a vendor or paste a product URL, then <strong>Load page</strong> to preview it — or <strong>Extract</strong> to auto-fill the card.</p>
+                <Wand2 className="mb-3 h-8 w-8 text-accent/60" />
+                <p className="max-w-xs">Enter a product URL and hit <strong>Extract</strong>. Detected title, price, images, and specs will appear here to click into your card.</p>
               </div>
             ) : (
-              <div className="mx-auto h-full overflow-hidden rounded-lg border border-border bg-white shadow-sm transition-all" style={{ width: DEVICE_WIDTH[device], maxWidth: "100%" }}>
-                <iframe key={loadedUrl} src={loadedUrl} title="Vendor page preview" className="h-full min-h-[600px] w-full" sandbox="allow-scripts allow-same-origin allow-popups" referrerPolicy="no-referrer" />
-              </div>
+              <DetectedPanel
+                d={detected}
+                added={added}
+                featured={form.image_url}
+                gallery={galleryList()}
+                onAutofill={() => autofillAll(detected)}
+                onTitle={(v) => addField("title", "title", v)}
+                onPrice={(v) => { addField("price", "price", v); if (detected.currency) set("currency", detected.currency); }}
+                onShort={(v) => addField("short", "short_description", v)}
+                onLong={(v) => addField("long", "long_description", v)}
+                onSku={(v) => addField("sku", "sku", v)}
+                onModel={(v) => addField("model", "model_number", v)}
+                onManufacturer={(v) => addField("mfr", "manufacturer", v)}
+                onCategory={(v) => addField("cat", "category", v)}
+                onColor={(v) => addField("color", "color", v)}
+                onMaterial={(v) => addField("material", "material", v)}
+                onFeatured={(v) => { set("image_url", v); mark(`img:${v}`); }}
+                onToggleGallery={toggleGallery}
+                onFeature={addFeature}
+              />
             )}
-          </div>
-          <div className="border-t border-border bg-card px-4 py-2 text-[11px] text-muted-foreground">
-            If the page appears blank, the vendor blocks embedding — use <strong>Open Original</strong> then <strong>Extract</strong> or fill the card manually.
           </div>
         </main>
 
@@ -232,7 +311,7 @@ export function LiveBuilderClient({ vendors, jobs, projects }: { vendors: Builde
         <aside className="overflow-y-auto border-l border-border p-4 space-y-3">
           <div className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Selection Card</div>
           {extractMsg && (
-            <div className={`rounded-lg border px-3 py-2 text-xs ${autofilled ? "border-accent/40 bg-accent/5 text-accent" : "border-border bg-muted/40 text-muted-foreground"}`}>{extractMsg}</div>
+            <div className={`rounded-lg border px-3 py-2 text-xs ${detected ? "border-accent/40 bg-accent/5 text-accent" : "border-border bg-muted/40 text-muted-foreground"}`}>{extractMsg}</div>
           )}
 
           <div><label className={LABEL}>Product Title *</label><input className={FIELD} value={form.title} onChange={(e) => set("title", e.target.value)} /></div>
@@ -316,6 +395,143 @@ export function LiveBuilderClient({ vendors, jobs, projects }: { vendors: Builde
           </Button>
         </aside>
       </div>
+    </div>
+  );
+}
+
+function AddBtn({ done, onClick, label = "Add" }: { done: boolean; onClick: () => void; label?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition ${
+        done ? "bg-accent/15 text-accent" : "border border-border text-muted-foreground hover:border-accent hover:text-accent"
+      }`}
+    >
+      {done ? <Check className="h-3 w-3" /> : <Plus className="h-3 w-3" />} {done ? "Added" : label}
+    </button>
+  );
+}
+
+// The on-canvas "selector": detected page elements as click-to-add chips.
+// Clicking a chip maps that value into the Selection Card (right column) live.
+function DetectedPanel(props: {
+  d: Extracted;
+  added: Set<string>;
+  featured: string;
+  gallery: string[];
+  onAutofill: () => void;
+  onTitle: (v: string) => void;
+  onPrice: (v: string) => void;
+  onShort: (v: string) => void;
+  onLong: (v: string) => void;
+  onSku: (v: string) => void;
+  onModel: (v: string) => void;
+  onManufacturer: (v: string) => void;
+  onCategory: (v: string) => void;
+  onColor: (v: string) => void;
+  onMaterial: (v: string) => void;
+  onFeatured: (v: string) => void;
+  onToggleGallery: (v: string) => void;
+  onFeature: (v: string) => void;
+}) {
+  const { d, added, featured, gallery } = props;
+
+  const scalarChips: { k: string; label: string; value: string | null; onAdd: (v: string) => void }[] = [
+    { k: "title", label: "Product title", value: d.title, onAdd: props.onTitle },
+    { k: "price", label: `Price${d.currency ? ` (${d.currency})` : ""}`, value: d.price, onAdd: props.onPrice },
+    { k: "sku", label: "SKU", value: d.sku, onAdd: props.onSku },
+    { k: "model", label: "Model #", value: d.model, onAdd: props.onModel },
+    { k: "mfr", label: "Manufacturer / Brand", value: d.manufacturer, onAdd: props.onManufacturer },
+    { k: "cat", label: "Category", value: d.category, onAdd: props.onCategory },
+    { k: "color", label: "Color", value: d.color, onAdd: props.onColor },
+    { k: "material", label: "Material", value: d.material, onAdd: props.onMaterial },
+  ];
+
+  return (
+    <div className="mx-auto max-w-3xl space-y-5">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-muted-foreground">Click any element to add it to the Selection Card.</p>
+        <Button size="sm" variant="outline" onClick={props.onAutofill}><Wand2 className="h-3.5 w-3.5" /> Auto-fill all</Button>
+      </div>
+
+      {/* Images */}
+      {d.images.length > 0 && (
+        <section>
+          <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Images ({d.images.length})</div>
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+            {d.images.map((img) => {
+              const isFeatured = featured === img;
+              const inGallery = gallery.includes(img);
+              return (
+                <div key={img} className={`relative overflow-hidden rounded-lg border-2 bg-card ${isFeatured ? "border-accent" : "border-border"}`}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={img} alt="" className="h-24 w-full object-cover" />
+                  <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-1 bg-black/55 px-1.5 py-1 text-[10px] font-medium text-white">
+                    <button type="button" onClick={() => props.onFeatured(img)} className="inline-flex items-center gap-0.5 hover:text-accent">
+                      <Star className={`h-3 w-3 ${isFeatured ? "fill-accent text-accent" : ""}`} /> {isFeatured ? "Featured" : "Feature"}
+                    </button>
+                    <button type="button" onClick={() => props.onToggleGallery(img)} className="inline-flex items-center gap-0.5 hover:text-accent">
+                      {inGallery ? <Check className="h-3 w-3" /> : <Plus className="h-3 w-3" />} Gallery
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* Descriptions */}
+      {d.descriptions.length > 0 && (
+        <section>
+          <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Descriptions</div>
+          <div className="space-y-2">
+            {d.descriptions.map((desc, i) => (
+              <div key={i} className="flex items-start gap-2 rounded-lg border border-border bg-card p-2.5">
+                <p className="min-w-0 flex-1 text-sm leading-relaxed">{desc}</p>
+                <div className="flex shrink-0 flex-col gap-1">
+                  <AddBtn done={added.has("short")} onClick={() => props.onShort(desc)} label="Short" />
+                  <AddBtn done={added.has("long")} onClick={() => props.onLong(desc)} label="Long" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Scalar fields */}
+      {scalarChips.some((c) => c.value) && (
+        <section>
+          <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Details</div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {scalarChips.filter((c) => c.value).map((c) => (
+              <div key={c.k} className="flex items-start gap-2 rounded-lg border border-border bg-card p-2.5">
+                <div className="min-w-0 flex-1">
+                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{c.label}</div>
+                  <div className="truncate text-sm" title={c.value ?? ""}>{c.value}</div>
+                </div>
+                <AddBtn done={added.has(c.k)} onClick={() => c.onAdd(c.value as string)} />
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Features */}
+      {d.features.length > 0 && (
+        <section>
+          <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Features / Specs</div>
+          <div className="space-y-1.5">
+            {d.features.map((f, i) => (
+              <div key={i} className="flex items-center gap-2 rounded-lg border border-border bg-card px-2.5 py-1.5">
+                <span className="min-w-0 flex-1 truncate text-sm">{f}</span>
+                <AddBtn done={added.has(`feat:${f}`)} onClick={() => props.onFeature(f)} />
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

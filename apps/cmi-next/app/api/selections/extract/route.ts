@@ -130,31 +130,62 @@ export async function POST(req: Request) {
     );
     const price = offers?.price != null ? String(offers.price) : metaContent(html, ["product:price:amount", "og:price:amount"]);
     const currency = offers?.priceCurrency || metaContent(html, ["product:price:currency", "og:price:currency"]) || null;
-    const sku = (ld.sku && String(ld.sku)) || (ld.mpn && String(ld.mpn)) || null;
+    const sku = (ld.sku && String(ld.sku)) || null;
+    const model = (ld.model && String(ld.model)) || (ld.mpn && String(ld.mpn)) || null;
     const brand = ld.brand ? (typeof ld.brand === "object" ? ld.brand.name : String(ld.brand)) : metaContent(html, ["og:site_name"]);
+    const color = ld.color ? String(ld.color) : null;
+    const material = ld.material ? String(ld.material) : null;
+    const category = (ld.category && String(ld.category)) || metaContent(html, ["product:category"]) || null;
+
+    // Description candidates (deduped) so the user can pick short vs long.
+    const descriptions = Array.from(
+      new Set(
+        [
+          ld.description ? stripTags(String(ld.description)) : null,
+          metaContent(html, ["og:description"]),
+          metaContent(html, ["description"]),
+          metaContent(html, ["twitter:description"]),
+        ].filter(Boolean) as string[],
+      ),
+    );
+
+    // Structured feature/spec lines from schema.org additionalProperty.
+    const features: string[] = [];
+    const addl = Array.isArray(ld.additionalProperty) ? ld.additionalProperty : [];
+    for (const p of addl) {
+      if (p && typeof p === "object") {
+        const line = [p.name ? String(p.name) : "", p.value != null ? String(p.value) : ""].filter(Boolean).join(": ");
+        if (line) features.push(line);
+      }
+    }
 
     const images: string[] = [];
     if (Array.isArray(ld.image)) {
       for (const i of ld.image) {
         const u = absolutize(typeof i === "object" ? i?.url : i, target);
-        if (u) images.push(u);
+        if (u && !images.includes(u)) images.push(u);
       }
     }
     if (image && !images.includes(image)) images.unshift(image);
 
-    const found = Boolean(title || image || price || description);
+    const found = Boolean(title || image || price || descriptions.length);
     return NextResponse.json({
       ok: true,
       found,
       data: {
         title: title || null,
-        description: description || null,
+        descriptions,
         image: image || null,
-        images: images.slice(0, 8),
+        images: images.slice(0, 12),
         price: price || null,
         currency,
         sku,
-        brand: brand || null,
+        model,
+        manufacturer: brand || null,
+        category,
+        color,
+        material,
+        features: features.slice(0, 20),
         sourceUrl: target,
       },
       message: found ? undefined : "No product metadata found on this page. Enter details manually.",
