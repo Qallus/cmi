@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { CheckCircle2, Download, FileText, Image, Loader2, Package, Pencil, Plus, Share2, ShoppingCart, Sparkles, Upload } from "lucide-react";
+import { Briefcase, CheckCircle2, Columns3, Download, FileText, Image, LayoutGrid, Loader2, Package, Pencil, Plus, Search, Share2, ShoppingCart, Sparkles, Table as TableIcon, Upload } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -184,16 +184,59 @@ export function SelectionsClient({ initialData, demoMode = false, setupMessage }
   const [view, setView] = React.useState<"selections" | "catalog">("selections");
   const [projectFilter, setProjectFilter] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState("");
+  const [search, setSearch] = React.useState("");
+  const [selView, setSelView] = React.useState<"table" | "cards" | "kanban">("table");
   const [saving, setSaving] = React.useState(false);
   const [notice, setNotice] = React.useState<string | null>(setupMessage || null);
 
+  // Persist the user's preferred Selections view.
+  React.useEffect(() => {
+    const v = localStorage.getItem("cmi_sel_view");
+    // eslint-disable-next-line -- one-time restore of saved preference on mount
+    if (v === "table" || v === "cards" || v === "kanban") setSelView(v);
+  }, []);
+  React.useEffect(() => { localStorage.setItem("cmi_sel_view", selView); }, [selView]);
+
+  // Attach a selection to a job directly from the Selections dashboard.
+  const [attachTarget, setAttachTarget] = React.useState<ProjectSelection | null>(null);
+  const [jobsList, setJobsList] = React.useState<{ id: string; label: string }[]>([]);
+  const [jobsLoaded, setJobsLoaded] = React.useState(false);
+  const [attaching, setAttaching] = React.useState(false);
+
+  async function openAttach(sel: ProjectSelection) {
+    setAttachTarget(sel);
+    if (jobsLoaded || demoMode) return;
+    try {
+      const res = await fetch("/api/jobs");
+      const rows = await res.json();
+      if (Array.isArray(rows)) setJobsList(rows.map((r: { id: string; job_number?: string; job_name?: string }) => ({ id: r.id, label: [r.job_number, r.job_name].filter(Boolean).join(" · ") || r.job_name || "Job" })));
+      setJobsLoaded(true);
+    } catch { /* leave list empty; the modal shows an empty state */ }
+  }
+  async function attachToJob(jobId: string) {
+    if (!attachTarget) return;
+    setAttaching(true);
+    try {
+      const res = await fetch(`/api/jobs/${jobId}/selections/attach`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ selection_ids: [attachTarget.id] }) });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error || "Could not add to the job.");
+      setNotice(`Added “${attachTarget.name}” to the job.`);
+      setAttachTarget(null);
+    } catch (e) { setNotice(e instanceof Error ? e.message : "Could not add to the job."); } finally { setAttaching(false); }
+  }
+
   const visibleSelections = React.useMemo(() => {
+    const q = search.trim().toLowerCase();
     return selections.filter(selection => {
       if (projectFilter && selection.project_name !== projectFilter && selection.project_id !== projectFilter) return false;
       if (statusFilter && selection.selection_status !== statusFilter && selection.approval_status !== statusFilter && selection.procurement_status !== statusFilter && selection.install_status !== statusFilter) return false;
+      if (q) {
+        const hay = [selection.name, selection.vendor_name, selection.category, selection.room_area_name, selection.project_name, selection.client_name].filter(Boolean).join(" ").toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
       return true;
     });
-  }, [projectFilter, selections, statusFilter]);
+  }, [projectFilter, selections, statusFilter, search]);
 
   const metrics = React.useMemo(() => {
     const pendingApproval = selections.filter(row => row.approval_status === "pending" || row.selection_status === "pending_client_approval").length;
@@ -397,12 +440,27 @@ export function SelectionsClient({ initialData, demoMode = false, setupMessage }
               <button type="button" className={tabClass(view === "selections")} onClick={() => setView("selections")}>Selections</button>
               <button type="button" className={tabClass(view === "catalog")} onClick={() => setView("catalog")}>Product Catalog</button>
             </div>
-            <div className="grid gap-2 md:grid-cols-2">
-              <Select value={projectFilter} onChange={event => setProjectFilter(event.target.value)}>
+            <div className="flex flex-wrap items-center gap-2">
+              {view === "selections" && (
+                <>
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search selections…" className="h-9 w-48 pl-8" />
+                  </div>
+                  <div className="inline-flex rounded-md border border-border bg-muted p-1">
+                    {([["table", TableIcon], ["cards", LayoutGrid], ["kanban", Columns3]] as const).map(([v, Icon]) => (
+                      <button key={v} type="button" title={v} onClick={() => setSelView(v)} className={cn("grid h-7 w-8 place-items-center rounded transition", selView === v ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+                        <Icon className="h-4 w-4" />
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+              <Select value={projectFilter} onChange={event => setProjectFilter(event.target.value)} className="w-40">
                 <option value="">All projects</option>
                 {Array.from(new Set(selections.map(selection => selection.project_name || selection.project_id || "").filter(Boolean))).sort().map(project => <option key={project} value={project}>{project}</option>)}
               </Select>
-              <Select value={statusFilter} onChange={event => setStatusFilter(event.target.value)}>
+              <Select value={statusFilter} onChange={event => setStatusFilter(event.target.value)} className="w-40">
                 <option value="">All statuses</option>
                 {[...selectionStatuses, ...approvalStatuses, ...procurementStatuses, ...installStatuses].map(status => <option key={status} value={status}>{label(status)}</option>)}
               </Select>
@@ -411,7 +469,13 @@ export function SelectionsClient({ initialData, demoMode = false, setupMessage }
         </CardHeader>
         <CardContent>
           {view === "selections" ? (
-            <SelectionTable selections={visibleSelections} onEdit={selection => setSelectionDraft(selectionToDraft(selection))} onShare={selection => setShareDraft(makeShareDraft("selection", selection.id, selection.name))} onCsv={selection => exportCsv("selection", [selection])} onPdf={selection => printPdf(`Selection - ${selection.name}`, [selection])} />
+            selView === "cards" ? (
+              <SelectionCards selections={visibleSelections} onEdit={selection => setSelectionDraft(selectionToDraft(selection))} onAttach={openAttach} />
+            ) : selView === "kanban" ? (
+              <SelectionKanban selections={visibleSelections} onEdit={selection => setSelectionDraft(selectionToDraft(selection))} onAttach={openAttach} />
+            ) : (
+              <SelectionTable selections={visibleSelections} onEdit={selection => setSelectionDraft(selectionToDraft(selection))} onShare={selection => setShareDraft(makeShareDraft("selection", selection.id, selection.name))} onCsv={selection => exportCsv("selection", [selection])} onPdf={selection => printPdf(`Selection - ${selection.name}`, [selection])} onAttach={openAttach} />
+            )
           ) : (
             <ProductCatalog products={products} onEdit={product => setProductDraft(productToDraft(product))} onShare={product => setShareDraft(makeShareDraft("product", product.id, product.product_name))} onCsv={product => exportCsv("product", [product])} onPdf={product => printPdf(`Product - ${product.product_name}`, [product])} onAddSelection={product => setSelectionDraft({ ...emptySelectionDraft(), product_id: product.id, name: product.product_name, custom_product_name: product.product_name, category: product.category || "", vendor_id: product.vendor_id || "", vendor_name: product.vendor_name || "", image_url: product.image_url || "", gallery_urls: (product.gallery_urls || []).join("\n"), video_url: product.video_url || "", spec_sheet_url: product.spec_sheet_url || "", product_url: product.product_url || "", estimated_cost: String(product.retail_price || ""), lead_time_days: String(product.lead_time_days || "") })} />
           )}
@@ -421,6 +485,47 @@ export function SelectionsClient({ initialData, demoMode = false, setupMessage }
       {productDraft ? <ProductModal draft={productDraft} saving={saving} onChange={setProductDraft} onClose={() => setProductDraft(null)} onSave={saveProduct} /> : null}
       {selectionDraft ? <SelectionModal data={initialData} products={products} draft={selectionDraft} saving={saving} onChange={setSelectionDraft} onClose={() => setSelectionDraft(null)} onSave={saveSelection} /> : null}
       {shareDraft ? <ShareModal draft={shareDraft} saving={saving} onChange={setShareDraft} onClose={() => setShareDraft(null)} onShare={shareResource} /> : null}
+      {attachTarget ? <AttachJobModal selection={attachTarget} jobs={jobsList} attaching={attaching} onClose={() => setAttachTarget(null)} onAttach={attachToJob} /> : null}
+    </div>
+  );
+}
+
+function AttachJobModal({ selection, jobs, attaching, onClose, onAttach }: { selection: ProjectSelection; jobs: { id: string; label: string }[]; attaching: boolean; onClose: () => void; onAttach: (jobId: string) => void }) {
+  const [q, setQ] = React.useState("");
+  const [jobId, setJobId] = React.useState("");
+  const filtered = q ? jobs.filter(j => j.label.toLowerCase().includes(q.toLowerCase())) : jobs;
+  return (
+    <div className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-black/50 p-4 backdrop-blur-sm" role="dialog" aria-modal="true">
+      <div className="relative my-10 w-full max-w-md rounded-xl border border-border bg-card shadow-2xl">
+        <div className="border-b border-border px-5 py-3">
+          <h2 className="text-sm font-semibold">Add to Job</h2>
+          <p className="mt-0.5 truncate text-xs text-muted-foreground">{selection.name}</p>
+        </div>
+        <div className="space-y-3 p-5">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Search jobs…" className="pl-8" />
+          </div>
+          <div className="max-h-72 divide-y divide-border overflow-y-auto rounded-lg border border-border">
+            {jobs.length === 0 ? (
+              <div className="p-6 text-center text-sm text-muted-foreground">No jobs available.</div>
+            ) : filtered.length === 0 ? (
+              <div className="p-6 text-center text-sm text-muted-foreground">No jobs match “{q}”.</div>
+            ) : filtered.map(j => (
+              <label key={j.id} className="flex cursor-pointer items-center gap-3 px-3 py-2.5 text-sm hover:bg-muted/40">
+                <input type="radio" name="attach-job" checked={jobId === j.id} onChange={() => setJobId(j.id)} className="h-4 w-4 accent-[var(--accent)]" />
+                <span className="min-w-0 flex-1 truncate">{j.label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
+          <Button size="sm" variant="outline" onClick={onClose}>Cancel</Button>
+          <Button size="sm" variant="accent" disabled={!jobId || attaching} onClick={() => onAttach(jobId)}>
+            {attaching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Briefcase className="h-3.5 w-3.5" />} Add to Job
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -442,13 +547,15 @@ function SelectionTable({
   onEdit,
   onShare,
   onCsv,
-  onPdf
+  onPdf,
+  onAttach
 }: {
   selections: ProjectSelection[];
   onEdit: (selection: ProjectSelection) => void;
   onShare: (selection: ProjectSelection) => void;
   onCsv: (selection: ProjectSelection) => void;
   onPdf: (selection: ProjectSelection) => void;
+  onAttach: (selection: ProjectSelection) => void;
 }) {
   return (
     <div className="overflow-auto rounded-lg border border-border">
@@ -487,6 +594,7 @@ function SelectionTable({
               <td className="px-4 py-3">
                 <div className="flex flex-wrap gap-1">
                   <Button size="sm" variant="outline" onClick={() => onEdit(selection)}><Pencil className="h-3.5 w-3.5" /> Edit</Button>
+                  <Button size="sm" variant="ghost" title="Add to Job" onClick={() => onAttach(selection)}><Briefcase className="h-3.5 w-3.5" /></Button>
                   <Button size="sm" variant="ghost" onClick={() => onShare(selection)}><Share2 className="h-3.5 w-3.5" /></Button>
                   <Button size="sm" variant="ghost" onClick={() => onCsv(selection)}><Download className="h-3.5 w-3.5" /></Button>
                   <Button size="sm" variant="ghost" onClick={() => onPdf(selection)}><FileText className="h-3.5 w-3.5" /></Button>
@@ -497,6 +605,79 @@ function SelectionTable({
         </tbody>
       </table>
       {!selections.length ? <div className="p-8 text-center text-sm text-muted-foreground">No selections match the current filters.</div> : null}
+    </div>
+  );
+}
+
+function SelectionCards({ selections, onEdit, onAttach }: { selections: ProjectSelection[]; onEdit: (s: ProjectSelection) => void; onAttach: (s: ProjectSelection) => void }) {
+  if (!selections.length) return <div className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted-foreground">No selections match the current filters.</div>;
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      {selections.map(s => (
+        <div key={s.id} className="flex flex-col overflow-hidden rounded-xl border border-border bg-card">
+          <div className="flex h-40 items-center justify-center overflow-hidden border-b border-border bg-muted/30">
+            {s.image_url
+              // eslint-disable-next-line @next/next/no-img-element
+              ? <img src={s.image_url} alt="" className="h-full w-full object-cover" />
+              : <Image className="h-6 w-6 text-muted-foreground" />}
+          </div>
+          <div className="flex flex-1 flex-col gap-2 p-4">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="truncate font-medium">{s.name}</div>
+                <div className="truncate text-xs text-muted-foreground">{[s.vendor_name, s.category].filter(Boolean).join(" · ") || "—"}</div>
+              </div>
+              {s.client_visible ? <Badge tone="success">Visible</Badge> : null}
+            </div>
+            {s.description ? <p className="line-clamp-2 text-xs text-muted-foreground">{s.description}</p> : null}
+            <div className="mt-auto flex items-center justify-between pt-1">
+              <div className="text-sm font-semibold">{money(s.client_price || s.estimated_cost)}</div>
+              <StatusBadge value={s.selection_status} />
+            </div>
+            <div className="flex gap-1.5 pt-1">
+              <Button size="sm" variant="outline" className="flex-1" onClick={() => onEdit(s)}><Pencil className="h-3.5 w-3.5" /> Edit</Button>
+              <Button size="sm" variant="ghost" title="Add to Job" onClick={() => onAttach(s)}><Briefcase className="h-4 w-4" /></Button>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SelectionKanban({ selections, onEdit, onAttach }: { selections: ProjectSelection[]; onEdit: (s: ProjectSelection) => void; onAttach: (s: ProjectSelection) => void }) {
+  const cols = selectionStatuses.map(status => ({ status, items: selections.filter(s => (s.selection_status || "draft") === status) })).filter(c => c.items.length > 0);
+  if (!selections.length) return <div className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted-foreground">No selections match the current filters.</div>;
+  return (
+    <div className="flex gap-3 overflow-x-auto pb-2">
+      {cols.map(col => (
+        <div key={col.status} className="flex w-72 shrink-0 flex-col rounded-lg border border-border bg-muted/30">
+          <div className="flex items-center justify-between border-b border-border px-3 py-2">
+            <span className="text-xs font-semibold">{label(col.status)}</span>
+            <span className="rounded-full bg-background px-2 py-0.5 text-[10px] font-medium text-muted-foreground">{col.items.length}</span>
+          </div>
+          <div className="space-y-2 p-2">
+            {col.items.map(s => (
+              <div key={s.id} className="rounded-md border border-border bg-background p-2.5">
+                <div className="flex items-center gap-2">
+                  {s.image_url
+                    // eslint-disable-next-line @next/next/no-img-element
+                    ? <img src={s.image_url} alt="" className="h-8 w-8 shrink-0 rounded object-cover" />
+                    : <span className="grid h-8 w-8 shrink-0 place-items-center rounded bg-muted text-muted-foreground"><Image className="h-3.5 w-3.5" /></span>}
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium">{s.name}</div>
+                    <div className="truncate text-[11px] text-muted-foreground">{s.vendor_name || "—"} · {money(s.client_price || s.estimated_cost)}</div>
+                  </div>
+                </div>
+                <div className="mt-2 flex justify-end gap-1">
+                  <button type="button" onClick={() => onEdit(s)} className="text-xs text-muted-foreground hover:text-foreground">Edit</button>
+                  <button type="button" title="Add to Job" onClick={() => onAttach(s)} className="text-muted-foreground hover:text-accent"><Briefcase className="h-3.5 w-3.5" /></button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -1091,7 +1272,7 @@ function exportCsv(label: string, rows: Array<Record<string, unknown>>) {
 }
 
 function printPdf(title: string, rows: Array<Record<string, unknown>>) {
-  const logoUrl = `${window.location.origin}/brand/cmi-logo-light.png`;
+  const logoUrl = `${window.location.origin}/brand/CMI_Line_Logo_Black.svg`;
   const sheets = rows.map(row => selectionSheet(row)).join("");
   const win = window.open("", "_blank", "width=1100,height=800");
   if (!win) return;
@@ -1140,7 +1321,7 @@ function printPdf(title: string, rows: Array<Record<string, unknown>>) {
 }
 
 function selectionSheet(row: Record<string, unknown>) {
-  const logoUrl = `${window.location.origin}/brand/cmi-logo-light.png`;
+  const logoUrl = `${window.location.origin}/brand/CMI_Line_Logo_Black.svg`;
   const title = String(row.name || row.product_name || row.custom_product_name || "Selection");
   const imageUrl = String(row.image_url || row.featured_image || "");
   const gallery = Array.isArray(row.gallery_urls) ? row.gallery_urls.map(String).filter(Boolean) : parseUrlList(String(row.gallery_urls || ""));
