@@ -57,7 +57,7 @@ const EMPTY = {
 };
 type Form = typeof EMPTY;
 
-export function LiveBuilderClient({ vendors, jobs, projects }: { vendors: BuilderVendor[]; jobs: BuilderOption[]; projects: BuilderOption[] }) {
+export function LiveBuilderClient({ vendors, jobs, projects, initialJobId = "" }: { vendors: BuilderVendor[]; jobs: BuilderOption[]; projects: BuilderOption[]; initialJobId?: string }) {
   const [url, setUrl] = React.useState("");
   const [loadedUrl, setLoadedUrl] = React.useState("");
   const [device, setDevice] = React.useState<Device>("desktop");
@@ -66,7 +66,7 @@ export function LiveBuilderClient({ vendors, jobs, projects }: { vendors: Builde
   const [detected, setDetected] = React.useState<Extracted | null>(null);
   const [centerTab, setCenterTab] = React.useState<"detected" | "preview">("preview");
   const [added, setAdded] = React.useState<Set<string>>(new Set());
-  const [form, setForm] = React.useState<Form>(EMPTY);
+  const [form, setForm] = React.useState<Form>(() => ({ ...EMPTY, job_id: initialJobId }));
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState("");
   const [savedId, setSavedId] = React.useState<string | null>(null);
@@ -176,7 +176,7 @@ export function LiveBuilderClient({ vendors, jobs, projects }: { vendors: Builde
   }
 
   function reset() {
-    setForm(EMPTY); setUrl(""); setLoadedUrl(""); setDetected(null); setAdded(new Set()); setCenterTab("preview"); setExtractMsg(null); setSavedId(null); setError("");
+    setForm({ ...EMPTY, job_id: initialJobId }); setUrl(""); setLoadedUrl(""); setDetected(null); setAdded(new Set()); setCenterTab("preview"); setExtractMsg(null); setSavedId(null); setError("");
   }
 
   if (savedId) {
@@ -189,7 +189,9 @@ export function LiveBuilderClient({ vendors, jobs, projects }: { vendors: Builde
         <p className="mt-2 text-sm text-muted-foreground">The Selection Card was added to your library{form.job_id ? " and attached to the job" : ""}.</p>
         <div className="mt-6 flex justify-center gap-3">
           <Button variant="accent" onClick={reset}><Sparkles className="h-4 w-4" /> Build another</Button>
-          <Link href="/dashboard/selections"><Button variant="outline">Go to Selections</Button></Link>
+          {initialJobId
+            ? <Link href={`/dashboard/jobs/${initialJobId}/selections`}><Button variant="outline">Back to Job</Button></Link>
+            : <Link href="/dashboard/selections"><Button variant="outline">Go to Selections</Button></Link>}
         </div>
       </div>
     );
@@ -278,8 +280,14 @@ export function LiveBuilderClient({ vendors, jobs, projects }: { vendors: Builde
                   <p className="max-w-xs">Pick a vendor or paste a product URL, then <strong>Load page</strong> to preview it — or <strong>Extract</strong> to detect its content.</p>
                 </div>
               ) : (
-                <div className="mx-auto h-full overflow-hidden rounded-lg border border-border bg-white shadow-sm transition-all" style={{ width: DEVICE_WIDTH[device], maxWidth: "100%" }}>
-                  <iframe key={loadedUrl} src={loadedUrl} title="Vendor page preview" className="h-full min-h-[600px] w-full" sandbox="allow-scripts allow-same-origin allow-popups" referrerPolicy="no-referrer" />
+                <div className="mx-auto flex h-full max-w-full flex-col gap-2" style={{ width: DEVICE_WIDTH[device] }}>
+                  <div className="flex items-center gap-2 rounded-lg border border-accent/30 bg-accent/5 px-3 py-2 text-[11px] text-accent">
+                    <Info className="h-3.5 w-3.5 shrink-0" />
+                    Hovering this vendor page can&apos;t select items — it&apos;s a third-party site the browser sandboxes. Click <strong>Extract</strong>, then use the <strong>Detected Elements</strong> tab to add content to the card.
+                  </div>
+                  <div className="flex-1 overflow-hidden rounded-lg border border-border bg-white shadow-sm">
+                    <iframe key={loadedUrl} src={loadedUrl} title="Vendor page preview" className="h-full min-h-[560px] w-full" sandbox="allow-scripts allow-same-origin allow-popups" referrerPolicy="no-referrer" />
+                  </div>
                 </div>
               )
             ) : !detected ? (

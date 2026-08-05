@@ -3,7 +3,8 @@ import { LiveBuilderClient, type BuilderVendor, type BuilderOption } from "./liv
 
 export const dynamic = "force-dynamic";
 
-export default async function LiveBuilderPage() {
+export default async function LiveBuilderPage({ searchParams }: { searchParams: Promise<{ job?: string }> }) {
+  const { job } = await searchParams;
   let vendors: BuilderVendor[] = [];
   let jobs: BuilderOption[] = [];
   let projects: BuilderOption[] = [];
@@ -26,5 +27,5 @@ export default async function LiveBuilderPage() {
     /* render with empty option sets; the builder still works for manual entry */
   }
 
-  return <LiveBuilderClient vendors={vendors} jobs={jobs} projects={projects} />;
+  return <LiveBuilderClient vendors={vendors} jobs={jobs} projects={projects} initialJobId={job ?? ""} />;
 }

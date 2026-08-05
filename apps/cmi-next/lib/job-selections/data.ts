@@ -7,9 +7,41 @@ import type { ProjectSelection } from "@/lib/selections/types";
 export type JobSelectionDraft = Partial<Omit<ProjectSelection, "id" | "created_at" | "updated_at">> & { name: string };
 
 export async function loadJobSelections(jobId: string): Promise<ProjectSelection[]> {
+  const sb = getSupabaseAdmin();
+  // Selections attached directly (job_id) OR via a reusable association row.
+  const [directRes, assocRes] = await Promise.all([
+    sb.from("project_selections").select("*").eq("job_id", jobId),
+    sb.from("selection_associations").select("selection_id").eq("job_id", jobId),
+  ]);
+  if (directRes.error) throw new Error(directRes.error.message);
+
+  const rows = [...(directRes.data ?? [])];
+  const haveIds = new Set(rows.map((r) => r.id));
+  const assocIds = (assocRes.data ?? []).map((a) => a.selection_id).filter((id) => !haveIds.has(id));
+  if (assocIds.length) {
+    const { data: assoc } = await sb.from("project_selections").select("*").in("id", assocIds);
+    for (const r of assoc ?? []) rows.push(r);
+  }
+  rows.sort((a, b) => String(b.updated_at ?? "").localeCompare(String(a.updated_at ?? "")));
+  return rows as ProjectSelection[];
+}
+
+// All selections available to attach to a job (for the "Add Existing" picker).
+export async function listAttachableSelections(): Promise<ProjectSelection[]> {
   const { data, error } = await getSupabaseAdmin()
-    .from("project_selections").select("*").eq("job_id", jobId).order("updated_at", { ascending: false });
+    .from("project_selections").select("*").order("updated_at", { ascending: false }).limit(500);
   if (error) throw new Error(error.message);
+  return (data ?? []) as ProjectSelection[];
+}
+
+// Attach existing selections to a job via association rows (reusable, no move).
+export async function attachSelectionsToJob(jobId: string, selectionIds: string[], userId: string | null): Promise<ProjectSelection[]> {
+  const sb = getSupabaseAdmin();
+  for (const selection_id of selectionIds) {
+    const { error } = await sb.from("selection_associations").insert({ selection_id, job_id: jobId, created_by: userId });
+    if (error && error.code !== "23505") throw new Error(error.message);
+  }
+  const { data } = await sb.from("project_selections").select("*").in("id", selectionIds);
   return (data ?? []) as ProjectSelection[];
 }
 

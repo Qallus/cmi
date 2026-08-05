@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { Plus, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { CheckCircle2, Layers, Loader2, Plus, Search, Sparkles, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, Textarea } from "@/components/ui/input";
@@ -25,8 +26,46 @@ export function StaffSelectionsClient({ jobId, jobName, initial }: { jobId: stri
   const [d, setD] = React.useState<Draft>(EMPTY);
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [showCreateChoice, setShowCreateChoice] = React.useState(false);
+  const [existingOpen, setExistingOpen] = React.useState(false);
+  const [existingItems, setExistingItems] = React.useState<ProjectSelection[]>([]);
+  const [existingLoading, setExistingLoading] = React.useState(false);
+  const [existingSearch, setExistingSearch] = React.useState("");
+  const [picked, setPicked] = React.useState<Set<string>>(new Set());
+  const [attaching, setAttaching] = React.useState(false);
 
-  function openAdd() { setD({ ...EMPTY }); setError(null); setModal({ mode: "add" }); }
+  const onJob = React.useMemo(() => new Set(rows.map((r) => r.id)), [rows]);
+  const filteredExisting = React.useMemo(() => {
+    const q = existingSearch.trim().toLowerCase();
+    if (!q) return existingItems;
+    return existingItems.filter((s) => [s.name, s.vendor_name, s.category].filter(Boolean).some((v) => String(v).toLowerCase().includes(q)));
+  }, [existingItems, existingSearch]);
+
+  function openExisting() {
+    setExistingOpen(true); setPicked(new Set()); setExistingSearch(""); setExistingLoading(true); setError(null);
+    fetch(`/api/jobs/${jobId}/selections/attach`)
+      .then((r) => r.json())
+      .then((j) => setExistingItems(j.selections ?? []))
+      .catch(() => setExistingItems([]))
+      .finally(() => setExistingLoading(false));
+  }
+  function togglePick(id: string) {
+    setPicked((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  }
+  async function attach() {
+    if (picked.size === 0) return;
+    setAttaching(true); setError(null);
+    try {
+      const res = await fetch(`/api/jobs/${jobId}/selections/attach`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ selection_ids: Array.from(picked) }),
+      });
+      const j = await res.json(); if (!res.ok) throw new Error(j.error);
+      setRows((r) => { const map = new Map(r.map((x) => [x.id, x])); for (const s of j.attached ?? []) map.set(s.id, s); return Array.from(map.values()); });
+      setExistingOpen(false);
+    } catch (e) { setError(e instanceof Error ? e.message : "Could not attach selections."); } finally { setAttaching(false); }
+  }
+
+  function openAdd() { setD({ ...EMPTY }); setError(null); setShowCreateChoice(false); setModal({ mode: "add" }); }
   function openEdit(s: ProjectSelection) {
     setD({ name: s.name, category: s.category ?? "", room_area_name: s.room_area_name ?? "", custom_product_name: s.custom_product_name ?? "", description: s.description ?? "", image_url: s.image_url ?? "", product_url: s.product_url ?? "", client_price: s.client_price?.toString() ?? "", allowance_amount: s.allowance_amount?.toString() ?? "", quantity: s.quantity?.toString() ?? "1", selection_status: s.selection_status ?? "draft", approval_status: s.approval_status ?? "not_required", client_visible: s.client_visible, client_approval_required: s.client_approval_required });
     setError(null); setModal({ mode: "edit", sel: s });
@@ -52,7 +91,12 @@ export function StaffSelectionsClient({ jobId, jobName, initial }: { jobId: stri
 
   return (
     <JobModuleShell jobId={jobId} jobName={jobName} active="selections" title="Selections"
-      action={<Button size="sm" variant="accent" onClick={openAdd}><Plus className="h-3.5 w-3.5" /> Add Selection</Button>}>
+      action={
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={openExisting}><Layers className="h-3.5 w-3.5" /> Add Existing</Button>
+          <Button size="sm" variant="accent" onClick={() => setShowCreateChoice(true)}><Plus className="h-3.5 w-3.5" /> Create New</Button>
+        </div>
+      }>
       <p className="mb-3 text-sm text-muted-foreground">Mark a selection <strong>client-visible</strong> and <strong>needs approval</strong> (approval status “pending”) to request the client&apos;s sign-off — they&apos;ll be notified.</p>
       <table className="w-full min-w-[820px] border-collapse text-sm">
         <thead className="bg-card"><tr className="border-b border-border text-left">
@@ -97,6 +141,64 @@ export function StaffSelectionsClient({ jobId, jobName, initial }: { jobId: stri
               <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={d.client_approval_required} onChange={(e) => setD({ ...d, client_approval_required: e.target.checked })} /> Requires client approval</label>
             </div>
             <div className="flex justify-end gap-2"><Button size="sm" variant="outline" onClick={() => setModal(null)}>Cancel</Button><Button size="sm" variant="accent" onClick={() => void save()} disabled={saving}>{saving ? "Saving…" : "Save"}</Button></div>
+          </div>
+        </ModuleModal>
+      )}
+
+      {showCreateChoice && (
+        <ModuleModal title="Create New Selection" onClose={() => setShowCreateChoice(false)}>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">Build a card from a vendor page, or enter details by hand. Either way it&apos;s attached to this job.</p>
+            <Link href={`/dashboard/selections/live-builder?job=${jobId}`} className="flex items-start gap-3 rounded-lg border border-border p-4 transition hover:border-accent hover:bg-accent/5">
+              <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-accent" />
+              <div><div className="font-semibold">Live Selection Builder</div><p className="text-sm text-muted-foreground">Review a vendor page and build a Selection Card from its content.</p></div>
+            </Link>
+            <button type="button" onClick={openAdd} className="flex w-full items-start gap-3 rounded-lg border border-border p-4 text-left transition hover:border-accent hover:bg-accent/5">
+              <Plus className="mt-0.5 h-5 w-5 shrink-0 text-accent" />
+              <div><div className="font-semibold">Manual Selection</div><p className="text-sm text-muted-foreground">Enter product and selection details manually.</p></div>
+            </button>
+          </div>
+        </ModuleModal>
+      )}
+
+      {existingOpen && (
+        <ModuleModal title="Add Existing Selection" onClose={() => setExistingOpen(false)} wide>
+          <div className="space-y-3">
+            {error && <div className="rounded bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input className={`${inputCls} pl-9`} placeholder="Search selections…" value={existingSearch} onChange={(e) => setExistingSearch(e.target.value)} />
+            </div>
+            <div className="max-h-[52vh] divide-y divide-border overflow-y-auto rounded-lg border border-border">
+              {existingLoading ? (
+                <div className="flex items-center justify-center gap-2 p-8 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
+              ) : filteredExisting.length === 0 ? (
+                <div className="p-8 text-center text-sm text-muted-foreground">No selections found.</div>
+              ) : filteredExisting.map((s) => {
+                const already = onJob.has(s.id);
+                return (
+                  <label key={s.id} className={`flex cursor-pointer items-center gap-3 px-3 py-2.5 ${already ? "opacity-60" : "hover:bg-muted/40"}`}>
+                    <input type="checkbox" disabled={already} checked={already || picked.has(s.id)} onChange={() => togglePick(s.id)} className="h-4 w-4 accent-[var(--accent)]" />
+                    {s.image_url
+                      // eslint-disable-next-line @next/next/no-img-element
+                      ? <img src={s.image_url} alt="" className="h-9 w-9 shrink-0 rounded border border-border object-cover" />
+                      : <span className="grid h-9 w-9 shrink-0 place-items-center rounded bg-muted text-muted-foreground"><Layers className="h-4 w-4" /></span>}
+                    <div className="min-w-0 flex-1"><div className="truncate text-sm font-medium">{s.name}</div><div className="truncate text-xs text-muted-foreground">{[s.vendor_name, s.category].filter(Boolean).join(" · ") || "—"}</div></div>
+                    <div className="shrink-0 text-xs text-muted-foreground">{money(s.client_price)}</div>
+                    {already && <Badge tone="success">On this job</Badge>}
+                  </label>
+                );
+              })}
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">{picked.size} selected</span>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={() => setExistingOpen(false)}>Cancel</Button>
+                <Button size="sm" variant="accent" disabled={picked.size === 0 || attaching} onClick={() => void attach()}>
+                  {attaching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />} Add {picked.size || ""} to job
+                </Button>
+              </div>
+            </div>
           </div>
         </ModuleModal>
       )}
