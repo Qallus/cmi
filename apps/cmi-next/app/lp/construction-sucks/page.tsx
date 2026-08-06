@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 };
 
 const content: MicroLandingContent = {
-  brand: "ConstructionSucks.com",
+  brand: "Construction Sucks",
   source: "ConstructionSucks.com",
   domain: "constructionsucks.com",
   theme: "dark",

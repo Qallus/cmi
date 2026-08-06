@@ -47,7 +47,11 @@ export function MicroLanding({ content }: { content: MicroLandingContent }) {
     <div className={page}>
       {/* ── Minimal top bar (its own micro-brand, not the CMI nav) ── */}
       <header className="mx-auto flex max-w-6xl items-center justify-between px-5 py-5 lg:px-8">
-        <span className="font-display text-lg font-semibold tracking-tight">{content.brand}</span>
+        <span className="flex items-center gap-2.5 font-display text-lg font-semibold tracking-tight">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={dark ? "/brand/cmi-favicon-white.png" : "/brand/cmi-favicon-black.png"} alt="Constructed Matter, Inc." className="h-6 w-6 object-contain" />
+          {content.brand}
+        </span>
         <a href={CMI} className="inline-flex items-center gap-1.5 text-sm font-medium text-accent hover:underline">
           Visit Constructed Matter <ArrowRight className="h-3.5 w-3.5" />
         </a>
@@ -138,9 +142,8 @@ export function MicroLanding({ content }: { content: MicroLandingContent }) {
       {/* ── Minimal footer ── */}
       <footer className={`border-t ${cardBorder}`}>
         <div className={`mx-auto flex max-w-6xl flex-col gap-4 px-5 py-8 text-sm lg:flex-row lg:items-center lg:justify-between lg:px-8 ${muted}`}>
-          <span>{content.domain} — a Constructed Matter, Inc. company</span>
+          <a href={CMI} className="hover:text-accent">Powered by Constructed Matter, Inc.</a>
           <div className="flex flex-wrap gap-x-6 gap-y-2">
-            <a href={CMI} className="hover:text-accent">constructedmatter.com</a>
             <a href={`${CMI}/contact`} className="hover:text-accent">Contact</a>
             <a href={`${CMI}/privacy-policy`} className="hover:text-accent">Privacy</a>
             <a href={`${CMI}/terms-of-service`} className="hover:text-accent">Terms</a>
