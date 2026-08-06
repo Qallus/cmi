@@ -1,4 +1,7 @@
-import { ArrowRight, Check, X } from "lucide-react";
+"use client";
+
+import * as React from "react";
+import { ArrowRight, Check, Moon, Sun, X } from "lucide-react";
 import { LandingLeadForm } from "./landing-lead-form";
 
 // The main CMI site these campaign domains funnel into.
@@ -38,7 +41,7 @@ const EXPLORE = [
 ];
 
 export function MicroLanding({ content }: { content: MicroLandingContent }) {
-  const dark = content.theme === "dark";
+  const [dark, setDark] = React.useState(content.theme === "dark");
   const page = dark ? "bg-black text-white" : "bg-[#faf7f2] text-neutral-900";
   const muted = dark ? "text-white/70" : "text-neutral-600";
   const cardBorder = dark ? "border-white/10" : "border-black/10";
@@ -52,9 +55,19 @@ export function MicroLanding({ content }: { content: MicroLandingContent }) {
           <img src={dark ? "/brand/cmi-favicon-white.png" : "/brand/cmi-favicon-black.png"} alt="Constructed Matter, Inc." className="h-6 w-6 object-contain" />
           {content.brand}
         </a>
-        <a href={CMI} className="inline-flex items-center gap-1.5 text-sm font-medium text-accent hover:underline">
-          Visit Constructed Matter <ArrowRight className="h-3.5 w-3.5" />
-        </a>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setDark((v) => !v)}
+            aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
+            className={`grid h-8 w-8 place-items-center rounded-full border transition ${dark ? "border-white/20 text-white/70 hover:border-white/40 hover:text-white" : "border-black/15 text-neutral-500 hover:border-black/30 hover:text-neutral-900"}`}
+          >
+            {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </button>
+          <a href={CMI} className="inline-flex items-center gap-1.5 text-sm font-medium text-accent hover:underline">
+            Visit Constructed Matter <ArrowRight className="h-3.5 w-3.5" />
+          </a>
+        </div>
       </header>
 
       {/* ── Hero ── */}
