@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createContact } from "@/lib/contacts/data";
 import { createContactSubmission } from "@/lib/contact-submissions/data";
+import { sendContactNotification } from "@/lib/email/contact-notify";
 
 export async function POST(req: NextRequest) {
   try {
@@ -46,6 +47,15 @@ export async function POST(req: NextRequest) {
       status: "new",
       contact_id: contactId,
     });
+
+    // Also email a styled notification (info@ + BCC). Non-blocking — a mail
+    // failure must never fail the submission, which is already saved.
+    const site = req.headers.get("origin") || req.headers.get("referer") || null;
+    try {
+      await sendContactNotification({ firstName, lastName, email, phone, source, subject, message, site });
+    } catch (mailErr) {
+      console.error("[api/contact] notification email failed:", mailErr);
+    }
 
     return NextResponse.json({ ok: true });
   } catch (err) {
