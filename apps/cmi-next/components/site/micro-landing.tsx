@@ -47,11 +47,11 @@ export function MicroLanding({ content }: { content: MicroLandingContent }) {
     <div className={page}>
       {/* ── Minimal top bar (its own micro-brand, not the CMI nav) ── */}
       <header className="mx-auto flex max-w-6xl items-center justify-between px-5 py-5 lg:px-8">
-        <span className="flex items-center gap-2.5 font-display text-lg font-semibold tracking-tight">
+        <a href={CMI} className="flex items-center gap-2.5 font-display text-lg font-semibold tracking-tight transition hover:opacity-80">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={dark ? "/brand/cmi-favicon-white.png" : "/brand/cmi-favicon-black.png"} alt="Constructed Matter, Inc." className="h-6 w-6 object-contain" />
           {content.brand}
-        </span>
+        </a>
         <a href={CMI} className="inline-flex items-center gap-1.5 text-sm font-medium text-accent hover:underline">
           Visit Constructed Matter <ArrowRight className="h-3.5 w-3.5" />
         </a>
