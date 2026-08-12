@@ -136,6 +136,13 @@ export function CommunicationsClient({
   const [messages, setMessages] = React.useState<Message[]>(initialMessages);
   const [submissions, setSubmissions] = React.useState<ContactSubmission[]>(initialSubmissions);
   const [tab, setTab] = React.useState<Tab>("all");
+  // Deep-open a panel from the mobile quick-nav, e.g. ?panel=dialer / ?panel=email.
+  React.useEffect(() => {
+    const panel = new URLSearchParams(window.location.search).get("panel");
+    const map: Record<string, Tab> = { dialer: "call", call: "call", email: "email", sms: "sms", contact_form: "contact_form" };
+    // eslint-disable-next-line -- one-time deep-link read on mount
+    if (panel && map[panel]) setTab(map[panel]);
+  }, []);
   const [composing, setComposing] = React.useState(false);
   const [draft, setDraft] = React.useState<ComposePayload>(EMPTY_COMPOSE);
   const [sending, setSending] = React.useState(false);
