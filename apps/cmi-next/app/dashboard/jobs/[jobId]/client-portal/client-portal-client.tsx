@@ -146,6 +146,9 @@ export function ClientPortalClient({ job, initialUpdates, clients }: { job: JobW
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 text-sm"><span className="font-medium">{u.title}</span><Badge tone={u.visibility === "client_visible" ? "success" : "default"}>{u.visibility.replace(/_/g, " ")}</Badge></div>
                     {u.body && <div className="text-xs text-muted-foreground line-clamp-2">{u.body}</div>}
+                    {u.media?.filter((m) => m.type === "audio").map((m, i) => (
+                      <audio key={i} src={m.url} controls preload="none" className="mt-1.5 h-9 w-full max-w-[260px]" />
+                    ))}
                     <div className="text-[11px] text-muted-foreground">{fmtDate(u.created_at)}</div>
                   </div>
                 </div>

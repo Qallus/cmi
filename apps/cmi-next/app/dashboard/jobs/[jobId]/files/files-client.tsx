@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Download, FileText, Trash2, Upload, X } from "lucide-react";
+import { Download, FileText, Mic, Trash2, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { JobFile } from "@/lib/job-files/types";
 import { JobModuleShell, fmtDate } from "../job-module-shell";
@@ -14,6 +14,10 @@ function humanSize(n: number | null): string {
 
 function isImage(f: JobFile): boolean {
   return /^image\//i.test(f.mime_type ?? "") || /\.(jpe?g|png|gif|webp|heic|heif|avif|bmp)$/i.test(f.name ?? "");
+}
+
+function isAudio(f: JobFile): boolean {
+  return /^audio\//i.test(f.mime_type ?? "") || /\.(webm|mp3|m4a|wav|ogg|aac|oga)$/i.test(f.name ?? "");
 }
 
 export function FilesClient({ jobId, jobName, initial }: { jobId: string; jobName: string; initial: JobFile[] }) {
@@ -86,6 +90,11 @@ export function FilesClient({ jobId, jobName, initial }: { jobId: string; jobNam
                       <img src={f.file_url} alt={f.name} className="h-10 w-10 shrink-0 rounded border border-border object-cover" />
                       <span className="font-medium hover:text-accent">{f.name}</span>
                     </button>
+                  ) : isAudio(f) ? (
+                    <div className="flex flex-col gap-1.5">
+                      <div className="flex items-center gap-2"><Mic className="h-4 w-4 shrink-0 text-muted-foreground" /><span className="font-medium">{f.name}</span></div>
+                      <audio src={f.file_url} controls preload="none" className="h-9 w-full max-w-[260px]" />
+                    </div>
                   ) : (
                     <div className="flex items-center gap-2"><FileText className="h-4 w-4 text-muted-foreground" /><span className="font-medium">{f.name}</span></div>
                   )}

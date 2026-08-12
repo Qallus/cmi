@@ -34,13 +34,15 @@ export function MobileBottomNav() {
   const [open, setOpen] = React.useState(true);
 
   const photoRef = React.useRef<HTMLInputElement>(null);
-  const galleryRef = React.useRef<HTMLInputElement>(null);
+  const galleryCaptureRef = React.useRef<HTMLInputElement>(null);
+  const galleryLibraryRef = React.useRef<HTMLInputElement>(null);
   const videoRef = React.useRef<HTMLInputElement>(null);
 
   const [recorderOpen, setRecorderOpen] = React.useState(false);
 
   // Media capture state
   const [captureOpen, setCaptureOpen] = React.useState(false);
+  const [mode, setMode] = React.useState<"photo" | "gallery" | "video" | null>(null);
   const [items, setItems] = React.useState<Picked[]>([]);
   const [jobs, setJobs] = React.useState<JobOpt[]>([]);
   const [jobsLoaded, setJobsLoaded] = React.useState(false);
@@ -78,15 +80,24 @@ export function MobileBottomNav() {
 
   function openCapture() {
     setCaptureOpen(true);
-    setItems([]); setJobId(""); setNote(""); setClientVisible(false); setSaveErr(""); setSaveDone(false);
+    setMode(null); setItems([]); setJobId(""); setNote(""); setClientVisible(false); setSaveErr(""); setSaveDone(false);
   }
 
-  function onPicked(kind: MediaKind, e: React.ChangeEvent<HTMLInputElement>) {
+  // Add picked/captured files. `append` accumulates (gallery); otherwise replaces.
+  function addFiles(e: React.ChangeEvent<HTMLInputElement>, kind: MediaKind, append: boolean) {
     const files = Array.from(e.target.files ?? []);
     e.target.value = "";
     if (!files.length) return;
-    setItems(files.map((file) => ({ file, url: URL.createObjectURL(file), kind })));
+    const picked = files.map((file) => ({ file, url: URL.createObjectURL(file), kind }));
+    setItems((prev) => (append ? [...prev, ...picked] : picked));
     void ensureJobs();
+  }
+  function removeItem(idx: number) {
+    setItems((prev) => {
+      const it = prev[idx];
+      if (it) URL.revokeObjectURL(it.url);
+      return prev.filter((_, i) => i !== idx);
+    });
   }
 
   async function save() {
@@ -127,7 +138,7 @@ export function MobileBottomNav() {
 
   function closeCapture() {
     for (const it of items) URL.revokeObjectURL(it.url);
-    setCaptureOpen(false); setItems([]); setSaveDone(false); setSaveErr(""); setJobId(""); setNote(""); setClientVisible(false);
+    setCaptureOpen(false); setMode(null); setItems([]); setSaveDone(false); setSaveErr(""); setJobId(""); setNote(""); setClientVisible(false);
   }
 
   const bar = !open ? (
@@ -177,16 +188,17 @@ export function MobileBottomNav() {
     <>
       {bar}
       <JobVoiceRecorder open={recorderOpen} onClose={() => setRecorderOpen(false)} />
-      {/* Hidden capture inputs: single photo, photo gallery, video */}
-      <input ref={photoRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => onPicked("image", e)} />
-      <input ref={galleryRef} type="file" accept="image/*" multiple hidden onChange={(e) => onPicked("image", e)} />
-      <input ref={videoRef} type="file" accept="video/*" capture="environment" hidden onChange={(e) => onPicked("video", e)} />
+      {/* Hidden capture inputs: single photo, gallery (shoot / choose), video */}
+      <input ref={photoRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => { setMode("photo"); addFiles(e, "image", false); }} />
+      <input ref={galleryCaptureRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => addFiles(e, "image", true)} />
+      <input ref={galleryLibraryRef} type="file" accept="image/*" multiple hidden onChange={(e) => addFiles(e, "image", true)} />
+      <input ref={videoRef} type="file" accept="video/*" capture="environment" hidden onChange={(e) => { setMode("video"); addFiles(e, "video", false); }} />
 
       {captureOpen && (
-        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm sm:items-center sm:p-4 lg:hidden" role="dialog" aria-modal="true">
-          <div className="w-full max-w-md rounded-t-2xl border border-border bg-card shadow-2xl sm:rounded-2xl">
+        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 backdrop-blur-sm sm:items-center sm:p-4 lg:hidden" role="dialog" aria-modal="true">
+          <div className="w-full max-w-md overflow-hidden rounded-t-2xl border border-border bg-card shadow-2xl sm:rounded-2xl">
             <div className="flex items-center justify-between border-b border-border px-4 py-3">
-              <h2 className="text-sm font-semibold">{saveDone ? "Added to job" : items.length ? "Attach to a job" : "Add media"}</h2>
+              <h2 className="text-sm font-semibold">{saveDone ? "Added to job" : mode ? "Attach to a job" : "Add media"}</h2>
               <button type="button" onClick={closeCapture} aria-label="Close" className="rounded p-1 text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
             </div>
 
@@ -199,37 +211,48 @@ export function MobileBottomNav() {
                   <button type="button" onClick={openCapture} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white">Add more</button>
                 </div>
               </div>
-            ) : items.length === 0 ? (
+            ) : mode === null ? (
               // Step 1 — choose media type
               <div className="grid gap-2 p-4">
                 <p className="mb-1 text-xs text-muted-foreground">What would you like to add?</p>
-                <button type="button" onClick={() => photoRef.current?.click()} className="flex items-center gap-3 rounded-lg border border-border p-3 text-left transition hover:border-accent hover:bg-accent/5">
-                  <ImageIcon className="h-5 w-5 shrink-0 text-accent" /><div><div className="text-sm font-semibold">Single Photo</div><div className="text-xs text-muted-foreground">Take one photo</div></div>
+                <button type="button" onClick={() => photoRef.current?.click()} className="flex w-full items-center gap-3 rounded-lg border border-border p-3 text-left transition hover:border-accent hover:bg-accent/5">
+                  <ImageIcon className="h-5 w-5 shrink-0 text-accent" /><div className="min-w-0"><div className="text-sm font-semibold">Single Photo</div><div className="text-xs text-muted-foreground">Take one photo</div></div>
                 </button>
-                <button type="button" onClick={() => galleryRef.current?.click()} className="flex items-center gap-3 rounded-lg border border-border p-3 text-left transition hover:border-accent hover:bg-accent/5">
-                  <Images className="h-5 w-5 shrink-0 text-accent" /><div><div className="text-sm font-semibold">Photo Gallery</div><div className="text-xs text-muted-foreground">Select multiple photos</div></div>
+                <button type="button" onClick={() => setMode("gallery")} className="flex w-full items-center gap-3 rounded-lg border border-border p-3 text-left transition hover:border-accent hover:bg-accent/5">
+                  <Images className="h-5 w-5 shrink-0 text-accent" /><div className="min-w-0"><div className="text-sm font-semibold">Photo Gallery</div><div className="text-xs text-muted-foreground">Take or choose multiple photos</div></div>
                 </button>
-                <button type="button" onClick={() => videoRef.current?.click()} className="flex items-center gap-3 rounded-lg border border-border p-3 text-left transition hover:border-accent hover:bg-accent/5">
-                  <Video className="h-5 w-5 shrink-0 text-accent" /><div><div className="text-sm font-semibold">Video</div><div className="text-xs text-muted-foreground">Record a video</div></div>
+                <button type="button" onClick={() => videoRef.current?.click()} className="flex w-full items-center gap-3 rounded-lg border border-border p-3 text-left transition hover:border-accent hover:bg-accent/5">
+                  <Video className="h-5 w-5 shrink-0 text-accent" /><div className="min-w-0"><div className="text-sm font-semibold">Video</div><div className="text-xs text-muted-foreground">Record a video</div></div>
                 </button>
               </div>
             ) : (
               // Step 2 — preview, assign, notes, visibility, save
               <div className="max-h-[70vh] space-y-3 overflow-y-auto p-4">
-                {items[0].kind === "video" ? (
+                {mode === "video" && items[0] ? (
                   <video src={items[0].url} controls className="max-h-56 w-full rounded-lg border border-border" />
-                ) : items.length === 1 ? (
+                ) : mode === "photo" && items[0] ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={items[0].url} alt="" className="max-h-56 w-full rounded-lg border border-border object-contain" />
-                ) : (
-                  <div className="grid grid-cols-3 gap-2">
-                    {items.map((it, i) => (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img key={i} src={it.url} alt="" className="aspect-square w-full rounded-lg border border-border object-cover" />
-                    ))}
+                ) : mode === "gallery" ? (
+                  <div className="space-y-2">
+                    {items.length > 0 && (
+                      <div className="grid grid-cols-3 gap-2">
+                        {items.map((it, i) => (
+                          <div key={i} className="relative">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={it.url} alt="" className="aspect-square w-full rounded-lg border border-border object-cover" />
+                            <button type="button" onClick={() => removeItem(i)} aria-label="Remove photo" className="absolute right-1 top-1 grid h-5 w-5 place-items-center rounded-full bg-black/70 text-white"><X className="h-3 w-3" /></button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="flex gap-2">
+                      <button type="button" onClick={() => galleryCaptureRef.current?.click()} className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-medium transition hover:border-accent hover:text-accent"><Camera className="h-4 w-4" /> Take photo</button>
+                      <button type="button" onClick={() => galleryLibraryRef.current?.click()} className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-medium transition hover:border-accent hover:text-accent"><Images className="h-4 w-4" /> Choose photos</button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{items.length ? `${items.length} photo${items.length > 1 ? "s" : ""} added` : "Take or choose photos to build this gallery."}</p>
                   </div>
-                )}
-                {items.length > 1 && <p className="text-xs text-muted-foreground">{items.length} photos selected</p>}
+                ) : null}
 
                 <div>
                   <label className="mb-1 block text-xs font-medium text-muted-foreground">Attach to job</label>
@@ -251,7 +274,7 @@ export function MobileBottomNav() {
                 {saveErr && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-400">{saveErr}</p>}
                 <div className="flex gap-2">
                   <button type="button" onClick={closeCapture} className="flex-1 rounded-lg border border-border px-3 py-2.5 text-sm font-semibold transition hover:bg-muted">Cancel</button>
-                  <button type="button" onClick={() => void save()} disabled={!jobId || saving} className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-accent px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-accent/90 disabled:opacity-60">
+                  <button type="button" onClick={() => void save()} disabled={!jobId || saving || items.length === 0} className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-accent px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-accent/90 disabled:opacity-60">
                     {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Save
                   </button>
                 </div>
