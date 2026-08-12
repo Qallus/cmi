@@ -80,7 +80,7 @@ function formatDateTime(iso: string) {
 function StatCardItem({ card }: { card: StatCard }) {
   const Icon = card.icon;
   return (
-    <Link href={card.href} className="block rounded-lg border border-border bg-card p-4 transition hover:border-accent/40 hover:shadow-sm">
+    <Link href={card.href} className="block min-w-[45%] shrink-0 snap-start rounded-lg border border-border bg-card p-4 transition hover:border-accent/40 hover:shadow-sm sm:min-w-0">
       <div className="flex items-start justify-between gap-2">
         <div>
           <div className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">{card.label}</div>
@@ -130,8 +130,8 @@ export function OverviewClient({ data, demoMode }: { data: OverviewData; demoMod
         </div>
       )}
 
-      {/* Stats grid */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+      {/* Stats — horizontal slider on mobile, grid on larger screens */}
+      <div className="flex snap-x gap-3 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] sm:grid sm:grid-cols-3 sm:overflow-visible sm:pb-0 lg:grid-cols-4 [&::-webkit-scrollbar]:hidden">
         {statCards.map((card) => (
           <StatCardItem key={card.label} card={card} />
         ))}

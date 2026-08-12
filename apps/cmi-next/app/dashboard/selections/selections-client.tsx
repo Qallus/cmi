@@ -424,7 +424,7 @@ export function SelectionsClient({ initialData, demoMode = false, setupMessage }
 
       {notice ? <div className="rounded-md border border-border bg-card px-4 py-3 text-sm text-muted-foreground">{notice}</div> : null}
 
-      <section className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+      <section className="flex snap-x gap-3 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] md:grid md:grid-cols-3 md:overflow-visible md:pb-0 xl:grid-cols-6 [&::-webkit-scrollbar]:hidden">
         <MetricCard label="Total Selections" value={String(selections.length)} sub={`${products.length} catalog products`} />
         <MetricCard label="Pending Approval" value={String(metrics.pendingApproval)} sub="Client action needed" tone="warning" />
         <MetricCard label="Approved" value={String(metrics.approved)} sub="Client or internal" tone="success" />
@@ -532,7 +532,7 @@ function AttachJobModal({ selection, jobs, attaching, onClose, onAttach }: { sel
 
 function MetricCard({ label, value, sub, tone = "default" }: { label: string; value: string; sub: string; tone?: "default" | "success" | "warning" | "danger" }) {
   return (
-    <Card>
+    <Card className="min-w-[62%] shrink-0 snap-start sm:min-w-[240px] md:min-w-0">
       <CardContent className="p-4">
         <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{label}</div>
         <div className={cn("mt-3 text-2xl font-semibold", tone === "success" && "text-success", tone === "warning" && "text-warning", tone === "danger" && "text-destructive")}>{value}</div>

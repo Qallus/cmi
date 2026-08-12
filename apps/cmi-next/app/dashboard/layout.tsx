@@ -8,6 +8,7 @@ import { ThemeToggle } from "@/components/dashboard/theme-toggle";
 import { DashboardNav, type UserRole } from "@/components/dashboard/nav";
 import { NotificationBell } from "@/components/dashboard/notification-bell";
 import { ReviewFab } from "@/components/dashboard/review-fab";
+import { MobileBottomNav } from "@/components/dashboard/mobile-bottom-nav";
 import { GlobalSearch } from "@/components/dashboard/global-search";
 import { InstallAppButton } from "@/components/pwa/install-app-button";
 import { cn } from "@/lib/utils";
@@ -95,10 +96,12 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             </button>
           </div>
         </header>
-        <div className="min-h-[calc(100vh-56px)]">{children}</div>
+        <div className="min-h-[calc(100vh-56px)] pb-24 lg:pb-0 print:pb-0">{children}</div>
       </main>
       {/* Leadership review FAB — Super Admin only, on every dashboard page. */}
       {sessionUser?.role === "super_admin" && <ReviewFab />}
+      {/* Fixed quick-nav on mobile/tablet. */}
+      <MobileBottomNav />
     </div>
   );
 }
