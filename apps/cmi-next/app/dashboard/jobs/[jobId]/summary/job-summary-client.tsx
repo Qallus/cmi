@@ -259,7 +259,7 @@ function JobStatsRow({ stats, jobId }: { stats: JobStats; jobId: string }) {
     { label: "Bookings", value: stats.bookings, icon: CalendarClock, href: "/dashboard/bookings" },
   ];
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
+    <div className="flex gap-3 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&>*]:min-w-[42%] [&>*]:shrink-0 sm:grid sm:grid-cols-4 sm:overflow-visible sm:pb-0 sm:[&>*]:min-w-0 lg:grid-cols-6 [&::-webkit-scrollbar]:hidden">
       {tiles.map((t) => (
         <Link key={t.label} href={t.href} className="group rounded-lg border border-border bg-card p-4 transition hover:border-accent/50 hover:bg-muted/30">
           <div className="flex items-center justify-between gap-2">

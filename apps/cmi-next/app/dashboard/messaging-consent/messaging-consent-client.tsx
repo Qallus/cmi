@@ -112,7 +112,7 @@ export function MessagingConsentClient() {
 
       <div className="p-5">
         {/* Counts */}
-        <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="mb-4 flex gap-3 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&>*]:min-w-[42%] [&>*]:shrink-0 lg:grid lg:grid-cols-4 lg:overflow-visible lg:pb-0 lg:[&>*]:min-w-0 [&::-webkit-scrollbar]:hidden">
           {tiles.map((t) => (
             <div key={t.label} className="rounded-xl border border-border bg-card px-4 py-3">
               <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"><t.icon className={cn("h-3.5 w-3.5", t.tint)} />{t.label}</div>

@@ -129,7 +129,7 @@ export function JobsListClient({
         </div>
 
         {/* Stat tiles */}
-        <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-6">
+        <div className="mt-4 flex gap-2 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&>*]:min-w-[30%] [&>*]:shrink-0 sm:grid sm:grid-cols-6 sm:overflow-visible sm:pb-0 sm:[&>*]:min-w-0 [&::-webkit-scrollbar]:hidden">
           {tiles.map((t) => (
             <div key={t.label} className="rounded-lg border border-border bg-background px-3 py-2">
               <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{t.label}</div>

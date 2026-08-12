@@ -33,7 +33,7 @@ export default async function ClientEngagementPage() {
         <p className="mt-1 text-sm text-muted-foreground">Where clients need attention across all portal-enabled jobs.</p>
       </div>
 
-      <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+      <div className="flex gap-2 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&>*]:min-w-[30%] [&>*]:shrink-0 sm:grid sm:grid-cols-6 sm:overflow-visible sm:pb-0 sm:[&>*]:min-w-0 [&::-webkit-scrollbar]:hidden">
         {tiles.map((tile) => (
           <div key={tile.label} className="rounded-lg border border-border bg-card px-3 py-2">
             <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{tile.label}</div>
