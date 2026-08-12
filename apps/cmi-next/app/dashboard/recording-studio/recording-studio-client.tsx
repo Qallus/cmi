@@ -43,7 +43,7 @@ export function RecordingStudioClient() {
   const [view, setView] = React.useState<ViewMode>("table");
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
   const [creating, setCreating] = React.useState(false);
-  const [options, setOptions] = React.useState<{ contacts: LinkOption[]; projects: LinkOption[]; quotes: LinkOption[]; staff: LinkOption[] }>({ contacts: [], projects: [], quotes: [], staff: [] });
+  const [options, setOptions] = React.useState<{ contacts: LinkOption[]; projects: LinkOption[]; quotes: LinkOption[]; staff: LinkOption[]; jobs: LinkOption[] }>({ contacts: [], projects: [], quotes: [], staff: [], jobs: [] });
 
   // shared drawer + transcript modal
   const [drawerOpen, setDrawerOpen] = React.useState(false);
@@ -75,17 +75,19 @@ export function RecordingStudioClient() {
     }
     (async () => {
       try {
-        const [c, p, q, s] = await Promise.all([
+        const [c, p, q, s, j] = await Promise.all([
           fetch("/api/contacts").then((r) => r.ok ? r.json() : []),
           fetch("/api/project-manager/schedule?board_id=default").then((r) => r.ok ? r.json() : []),
           fetch("/api/quotes").then((r) => r.ok ? r.json() : []),
           fetch("/api/staff-options").then((r) => r.ok ? r.json() : []),
+          fetch("/api/jobs").then((r) => r.ok ? r.json() : []),
         ]);
         setOptions({
           contacts: norm(c, (r) => `${r.first_name ?? ""} ${r.last_name ?? ""}`.trim() || String(r.email ?? "Contact")),
           projects: norm(p, (r) => String(r.title ?? r.project_title ?? "Project")),
           quotes: norm(q, (r) => String(r.name ?? "Quote")),
           staff: norm(s, (r) => String(r.label ?? r.display_name ?? "Staff")),
+          jobs: norm(j, (r) => [r.job_number, r.job_name].filter(Boolean).join(" · ") || String(r.job_name ?? "Job")),
         });
       } catch { /* options optional */ }
     })();

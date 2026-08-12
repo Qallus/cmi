@@ -18,7 +18,7 @@ import {
 } from "@/lib/meetings/types";
 
 export type LinkOption = { id: string; label: string };
-type Options = { contacts: LinkOption[]; projects: LinkOption[]; quotes: LinkOption[]; staff: LinkOption[] };
+type Options = { contacts: LinkOption[]; projects: LinkOption[]; quotes: LinkOption[]; staff: LinkOption[]; jobs: LinkOption[] };
 
 const STATUSES: MeetingStatus[] = ["draft", "processing", "transcribed", "reviewed", "action_items_created", "shared_with_client", "archived"];
 const STATUS_LABEL: Record<string, string> = {
@@ -54,6 +54,7 @@ export function MeetingDetail({ id, options, onBack, onDeleted }: { id: string; 
 
   const [f, setF] = React.useState<Partial<Meeting>>({});
   const [contactIds, setContactIds] = React.useState<string[]>([]);
+  const [jobIds, setJobIds] = React.useState<string[]>([]);
   const [attText, setAttText] = React.useState("");
 
   // Audio drawer
@@ -69,6 +70,7 @@ export function MeetingDetail({ id, options, onBack, onDeleted }: { id: string; 
       setF(m);
       const related = (m.related_records ?? []).filter((r) => r.type === "contact").map((r) => r.id);
       setContactIds(related.length ? related : (m.contact_id ? [m.contact_id] : []));
+      setJobIds((m.related_records ?? []).filter((r) => r.type === "job").map((r) => r.id));
       setAttText((m.attendees ?? []).map((a) => [a.name, a.role, a.email].filter(Boolean).join(", ")).join("\n"));
     } else setError(json.error || "Failed to load meeting.");
   }, [id]);
@@ -88,9 +90,10 @@ export function MeetingDetail({ id, options, onBack, onDeleted }: { id: string; 
     setSaving(true); setError(null); setNotice(null);
     try {
       const contactRelated = contactIds.map((cid) => ({ type: "contact", id: cid, label: options.contacts.find((o) => o.id === cid)?.label }));
+      const jobRelated = jobIds.map((jid) => ({ type: "job", id: jid, label: options.jobs.find((o) => o.id === jid)?.label }));
       const payload = {
         title: f.title, meeting_type: f.meeting_type, meeting_date: f.meeting_date, location: f.location,
-        contact_id: contactIds[0] || null, related_records: contactRelated,
+        contact_id: contactIds[0] || null, related_records: [...contactRelated, ...jobRelated],
         project_item_id: f.project_item_id || null, quote_id: f.quote_id || null, staff_user_id: f.staff_user_id || null,
         attendees: parseAttendees(), status: f.status, follow_up_notes: f.follow_up_notes,
         internal_notes: f.internal_notes, client_notes: f.client_notes, client_visible: f.client_visible,
@@ -242,6 +245,9 @@ export function MeetingDetail({ id, options, onBack, onDeleted }: { id: string; 
             </Field>
             <Field label="Contact / client (search, add one or more)">
               <MultiCombobox options={options.contacts} value={contactIds} onChange={setContactIds} placeholder="Search contacts…" />
+            </Field>
+            <Field label="Jobs (link this recording to one or more jobs)">
+              <MultiCombobox options={options.jobs} value={jobIds} onChange={setJobIds} placeholder="Search jobs…" />
             </Field>
             <div className="grid grid-cols-2 gap-2">
               <Field label="Project">
