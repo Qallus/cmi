@@ -5,10 +5,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { CalendarRange, Camera, CheckCircle2, ChevronUp, Eye, HardHat, Home, IdCard, Image as ImageIcon, Images, Loader2, Mail, Mic, Package, Phone, Sparkles, Users, Video, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { JobVoiceRecorder } from "./job-voice-recorder";
 
 // Fixed, horizontally-scrollable quick-nav for mobile/tablet. Dismissable, with
 // the closed state remembered. Hidden on desktop (the sidebar covers that).
-type NavItem = { label: string; icon: typeof Home; href?: string; action?: "camera" };
+type NavItem = { label: string; icon: typeof Home; href?: string; action?: "camera" | "record" };
 const ITEMS: NavItem[] = [
   { href: "/dashboard/overview", label: "Dashboard", icon: Home },
   { href: "/dashboard/contacts", label: "Contacts", icon: Users },
@@ -17,7 +18,7 @@ const ITEMS: NavItem[] = [
   { href: "/dashboard/bookings", label: "Bookings", icon: CalendarRange },
   { href: "/dashboard/communications?panel=dialer", label: "Call", icon: Phone },
   { href: "/dashboard/communications?panel=email", label: "Email", icon: Mail },
-  { href: "/dashboard/recording-studio", label: "Record", icon: Mic },
+  { action: "record", label: "Record", icon: Mic },
   { action: "camera", label: "Camera", icon: Camera },
   { href: "/dashboard/business-cards", label: "Cards", icon: IdCard },
   { href: "/dashboard/agent", label: "Bolt", icon: Sparkles },
@@ -35,6 +36,8 @@ export function MobileBottomNav() {
   const photoRef = React.useRef<HTMLInputElement>(null);
   const galleryRef = React.useRef<HTMLInputElement>(null);
   const videoRef = React.useRef<HTMLInputElement>(null);
+
+  const [recorderOpen, setRecorderOpen] = React.useState(false);
 
   // Media capture state
   const [captureOpen, setCaptureOpen] = React.useState(false);
@@ -146,9 +149,9 @@ export function MobileBottomNav() {
               "flex min-w-[60px] shrink-0 flex-col items-center gap-1 rounded-lg px-2 py-1.5 text-[10px] font-medium transition",
               isActive(it.href) ? "bg-accent/12 text-accent" : "text-muted-foreground hover:bg-muted hover:text-foreground",
             );
-            if (it.action === "camera") {
+            if (it.action) {
               return (
-                <button key={it.label} type="button" onClick={openCapture} className={cls}>
+                <button key={it.label} type="button" onClick={it.action === "camera" ? openCapture : () => setRecorderOpen(true)} className={cls}>
                   <Icon className="h-5 w-5" />
                   {it.label}
                 </button>
@@ -173,6 +176,7 @@ export function MobileBottomNav() {
   return (
     <>
       {bar}
+      <JobVoiceRecorder open={recorderOpen} onClose={() => setRecorderOpen(false)} />
       {/* Hidden capture inputs: single photo, photo gallery, video */}
       <input ref={photoRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => onPicked("image", e)} />
       <input ref={galleryRef} type="file" accept="image/*" multiple hidden onChange={(e) => onPicked("image", e)} />

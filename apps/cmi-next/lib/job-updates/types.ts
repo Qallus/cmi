@@ -1,6 +1,6 @@
 export type UpdateVisibility = "internal" | "client_visible" | "team";
 
-export type JobUpdateMedia = { url: string; type: "image" | "video"; name?: string };
+export type JobUpdateMedia = { url: string; type: "image" | "video" | "audio"; name?: string };
 
 export type JobUpdate = {
   id: string;

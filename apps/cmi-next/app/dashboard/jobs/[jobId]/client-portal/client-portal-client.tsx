@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Megaphone, Send, Trash2, UserPlus, Video, X } from "lucide-react";
+import { Megaphone, Mic, Send, Trash2, UserPlus, Video, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, Textarea } from "@/components/ui/input";
@@ -135,7 +135,9 @@ export function ClientPortalClient({ job, initialUpdates, clients }: { job: JobW
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={cover} alt={u.title} className="h-12 w-12 rounded border border-border object-cover" />
                         ) : (
-                          <span className="grid h-12 w-12 place-items-center rounded border border-border bg-muted text-muted-foreground"><Video className="h-4 w-4" /></span>
+                          <span className="grid h-12 w-12 place-items-center rounded border border-border bg-muted text-muted-foreground">
+                            {u.media?.some((m) => m.type === "audio") ? <Mic className="h-4 w-4" /> : <Video className="h-4 w-4" />}
+                          </span>
                         )}
                         {count > 1 && <span className="absolute -bottom-1 -right-1 rounded-full bg-accent px-1 text-[9px] font-semibold text-white">{count}</span>}
                       </button>

@@ -30,6 +30,8 @@ export default async function ClientUpdatesPage({ params }: { params: Promise<{ 
               {u.media.map((m: { url: string; type: string }, i: number) => (
                 m.type === "video" ? (
                   <video key={i} src={m.url} controls className="col-span-full max-h-96 w-full rounded-lg border border-border" />
+                ) : m.type === "audio" ? (
+                  <audio key={i} src={m.url} controls className="col-span-full w-full" />
                 ) : (
                   // eslint-disable-next-line @next/next/no-img-element
                   <a key={i} href={m.url} target="_blank" rel="noreferrer" className={u.media.length === 1 ? "col-span-full" : ""}>
