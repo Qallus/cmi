@@ -312,15 +312,15 @@ export function CommunicationsClient({
         </div>
       </div>
 
-      {/* Channel tabs */}
-      <div className="flex border-b border-border bg-card px-4">
+      {/* Channel tabs — scroll horizontally on mobile instead of wrapping */}
+      <div className="flex overflow-x-auto border-b border-border bg-card px-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {TABS.map(({ key, label, icon: Icon }) => (
           <button
             key={key}
             type="button"
             onClick={() => { setTab(key); setSelected(null); setSelectedSubmission(null); }}
             className={cn(
-              "flex items-center gap-2 px-4 py-3 text-sm font-medium transition border-b-2 -mb-px whitespace-nowrap",
+              "flex shrink-0 items-center gap-2 px-4 py-3 text-sm font-medium transition border-b-2 -mb-px whitespace-nowrap",
               tab === key
                 ? "border-accent text-accent"
                 : "border-transparent text-muted-foreground hover:text-foreground"

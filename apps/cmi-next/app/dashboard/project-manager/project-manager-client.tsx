@@ -1162,7 +1162,7 @@ export function ProjectManagerClient({ initialData, demoMode = false, boardId = 
         <MetricCard label="Client Visible" value={String(metrics.clientVisible)} sub="Shared timeline items" />
       </section>
 
-      <div className="inline-flex flex-wrap rounded-md border border-border bg-muted p-1">
+      <div className="flex max-w-full gap-0.5 overflow-x-auto rounded-md border border-border bg-muted p-1 [-ms-overflow-style:none] [scrollbar-width:none] sm:inline-flex [&::-webkit-scrollbar]:hidden">
         {viewTabs.map(tab => {
           const Icon = tab.icon;
           const isActive = activeView === tab.id;
@@ -1172,7 +1172,7 @@ export function ProjectManagerClient({ initialData, demoMode = false, boardId = 
               type="button"
               aria-pressed={isActive}
               className={cn(
-                "inline-flex h-8 items-center gap-2 rounded px-3 text-xs font-medium transition",
+                "inline-flex h-8 shrink-0 items-center gap-2 whitespace-nowrap rounded px-3 text-xs font-medium transition",
                 isActive ? "bg-card text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
               )}
               onClick={() => setActiveView(tab.id)}

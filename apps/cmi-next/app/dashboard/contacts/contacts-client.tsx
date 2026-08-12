@@ -479,14 +479,14 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
           </div>
         </div>
 
-        {/* Type tabs */}
-        <div className="mt-4 flex flex-wrap gap-0 border-b border-border">
+        {/* Type tabs — scroll horizontally on mobile instead of wrapping */}
+        <div className="mt-4 flex gap-0 overflow-x-auto border-b border-border [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {TABS.map((t) => (
             <button
               key={t.key}
               type="button"
               onClick={() => { setTab(t.key); setPage(1); clearSelection(); }}
-              className={cn("border-b-2 px-3.5 pb-2.5 pt-1 text-sm font-medium transition -mb-px",
+              className={cn("shrink-0 whitespace-nowrap border-b-2 px-3.5 pb-2.5 pt-1 text-sm font-medium transition -mb-px",
                 tab === t.key ? "border-accent text-accent" : "border-transparent text-muted-foreground hover:text-foreground"
               )}
             >
