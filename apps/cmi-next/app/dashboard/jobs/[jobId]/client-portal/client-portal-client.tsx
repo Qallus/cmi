@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Megaphone, Send, Trash2, UserPlus } from "lucide-react";
+import { Megaphone, Send, Trash2, UserPlus, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, Textarea } from "@/components/ui/input";
@@ -21,6 +21,7 @@ export function ClientPortalClient({ job, initialUpdates, clients }: { job: JobW
   const [savingSettings, setSavingSettings] = React.useState(false);
 
   const [updates, setUpdates] = React.useState<JobUpdate[]>(initialUpdates);
+  const [preview, setPreview] = React.useState<string | null>(null);
   const [upd, setUpd] = React.useState({ title: "", body: "", update_type: "general", visibility: "client_visible", client_action_required: false });
   const [posting, setPosting] = React.useState(false);
 
@@ -124,12 +125,20 @@ export function ClientPortalClient({ job, initialUpdates, clients }: { job: JobW
           <div className="mt-4 space-y-2">
             {updates.map((u) => (
               <div key={u.id} className="flex items-start justify-between gap-3 rounded-md border border-border px-3 py-2">
-                <div>
-                  <div className="flex items-center gap-2 text-sm"><span className="font-medium">{u.title}</span><Badge tone={u.visibility === "client_visible" ? "success" : "default"}>{u.visibility.replace(/_/g, " ")}</Badge></div>
-                  {u.body && <div className="text-xs text-muted-foreground line-clamp-1">{u.body}</div>}
-                  <div className="text-[11px] text-muted-foreground">{fmtDate(u.created_at)}</div>
+                <div className="flex min-w-0 items-start gap-3">
+                  {u.photo_url && (
+                    <button type="button" onClick={() => setPreview(u.photo_url)} className="shrink-0">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={u.photo_url} alt={u.title} className="h-12 w-12 rounded border border-border object-cover" />
+                    </button>
+                  )}
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 text-sm"><span className="font-medium">{u.title}</span><Badge tone={u.visibility === "client_visible" ? "success" : "default"}>{u.visibility.replace(/_/g, " ")}</Badge></div>
+                    {u.body && <div className="text-xs text-muted-foreground line-clamp-2">{u.body}</div>}
+                    <div className="text-[11px] text-muted-foreground">{fmtDate(u.created_at)}</div>
+                  </div>
                 </div>
-                <button type="button" onClick={() => void deleteUpdate(u.id)} className="text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></button>
+                <button type="button" onClick={() => void deleteUpdate(u.id)} className="shrink-0 text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></button>
               </div>
             ))}
           </div>
@@ -140,6 +149,16 @@ export function ClientPortalClient({ job, initialUpdates, clients }: { job: JobW
         <WarrantyPanel jobId={job.id} />
         <MessagesPanel jobId={job.id} />
       </div>
+
+      {preview && (
+        <div className="fixed inset-0 z-[70] flex flex-col bg-black/85 p-4" role="dialog" aria-modal="true" onClick={() => setPreview(null)}>
+          <div className="flex justify-end text-white">
+            <button type="button" aria-label="Close" className="text-white/80 hover:text-white"><X className="h-5 w-5" /></button>
+          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={preview} alt="" className="mx-auto my-auto max-h-[85vh] max-w-full rounded object-contain" onClick={(e) => e.stopPropagation()} />
+        </div>
+      )}
     </JobModuleShell>
   );
 }
