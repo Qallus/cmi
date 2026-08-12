@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import * as React from "react";
-import { ArrowLeft, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { ArrowLeft, Menu, PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { ThemeToggle } from "@/components/dashboard/theme-toggle";
 import { DashboardNav, type UserRole } from "@/components/dashboard/nav";
@@ -25,6 +25,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = React.useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
   const [sessionUser, setSessionUser] = React.useState<SessionUser | null>(null);
 
   React.useEffect(() => {
@@ -39,9 +40,11 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     router.push("/login");
   }
 
-  // Clear any in-place list filter (e.g. Contacts) when navigating between pages.
+  // Clear any in-place list filter (e.g. Contacts) when navigating between pages,
+  // and close the mobile nav on navigation.
   React.useEffect(() => {
     window.dispatchEvent(new CustomEvent("cmi-dashboard-search", { detail: { value: "" } }));
+    setMobileNavOpen(false);
   }, [pathname]);
 
   return (
@@ -80,7 +83,18 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       </aside>
       <main className="min-w-0 lg:col-start-2">
         <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-background/92 px-5 backdrop-blur print:hidden">
-          <div className="text-sm font-semibold">CMI Dashboard</div>
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => setMobileNavOpen(true)}
+              aria-label="Open navigation menu"
+              className="rounded-md border border-border p-1.5 text-muted-foreground transition hover:text-foreground lg:hidden"
+            >
+              <Menu className="h-4 w-4" />
+            </button>
+            <img src="/brand/cmi-mark.svg" alt="Constructed Matter, Inc." className="h-7 w-7 object-contain lg:hidden" />
+            <span className="hidden text-sm font-semibold lg:block">CMI Dashboard</span>
+          </div>
           <div className="flex items-center gap-2">
             <GlobalSearch />
             <InstallAppButton variant="outline" size="sm" label="Get the App" className="hidden sm:inline-flex" />
@@ -102,6 +116,38 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       {sessionUser?.role === "super_admin" && <ReviewFab />}
       {/* Fixed quick-nav on mobile/tablet. */}
       <MobileBottomNav />
+
+      {/* Full-screen mobile navigation (hamburger). */}
+      {mobileNavOpen && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-background lg:hidden print:hidden">
+          <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-5">
+            <div className="flex items-center gap-2.5">
+              <img src="/brand/cmi-mark.svg" alt="Constructed Matter, Inc." className="h-8 w-8 object-contain" />
+              <span className="text-sm font-semibold">Menu</span>
+            </div>
+            <button type="button" onClick={() => setMobileNavOpen(false)} aria-label="Close menu" className="rounded-md border border-border p-1.5 text-muted-foreground transition hover:text-foreground">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            <DashboardNav role={sessionUser?.role ?? "viewer"} />
+          </div>
+          <div className="shrink-0 border-t border-border p-3">
+            <div className="flex items-center justify-between gap-2 px-1">
+              <div className="flex min-w-0 items-center gap-2">
+                <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent text-xs font-semibold text-accent-foreground">{sessionUser?.initials ?? "…"}</div>
+                <div className="min-w-0">
+                  <div className="truncate text-xs font-semibold">{sessionUser?.display_name ?? ""}</div>
+                  <div className="truncate text-[11px] text-muted-foreground">{sessionUser?.title ?? ""}</div>
+                </div>
+              </div>
+              <button type="button" onClick={handleSignOut} className="rounded-md border border-border p-1.5 text-muted-foreground transition hover:border-red-400 hover:text-red-500" title="Sign out">
+                <ArrowLeft className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

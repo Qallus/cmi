@@ -439,7 +439,7 @@ export function BookingsClient({ initialData, demoMode, setupMessage }: { initia
 
       {notice ? <div className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">{notice}</div> : null}
 
-      <section className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+      <section className="flex snap-x gap-3 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] md:grid md:grid-cols-3 md:overflow-visible md:pb-0 xl:grid-cols-6 [&::-webkit-scrollbar]:hidden">
         {[
           ["Total", metrics.total],
           ["Upcoming", metrics.upcoming],
@@ -448,7 +448,7 @@ export function BookingsClient({ initialData, demoMode, setupMessage }: { initia
           ["Linked Records", metrics.linked],
           ["Project Timeline", metrics.timeline]
         ].map(([label, value]) => (
-          <Card key={label}>
+          <Card key={label} className="min-w-[60%] shrink-0 snap-start sm:min-w-[240px] md:min-w-0">
             <CardContent className="p-4">
               <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{label}</div>
               <div className="mt-3 text-2xl font-semibold">{value}</div>
