@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarRange, Camera, ChevronUp, HardHat, Home, Mail, Mic, Package, Phone, Sparkles, Users, X } from "lucide-react";
+import { CalendarRange, Camera, ChevronUp, HardHat, Home, IdCard, Mail, Mic, Package, Phone, Sparkles, Users, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Fixed, horizontally-scrollable quick-nav for mobile/tablet. Dismissable, with
@@ -19,6 +19,7 @@ const ITEMS: { href: string; label: string; icon: typeof Home }[] = [
   { href: "/dashboard/communications?panel=email", label: "Email", icon: Mail },
   { href: "/dashboard/recording-studio", label: "Record", icon: Mic },
   { href: "/dashboard/jobs?capture=photo", label: "Camera", icon: Camera },
+  { href: "/dashboard/business-cards", label: "Cards", icon: IdCard },
   { href: "/dashboard/agent", label: "Bolt", icon: Sparkles },
 ];
 
