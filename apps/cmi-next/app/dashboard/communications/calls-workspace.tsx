@@ -362,7 +362,7 @@ export function CallsWorkspace({ onSmsTo }: { onSmsTo?: (phone: string) => void 
   return (
     <div className="flex-1 overflow-y-auto px-5 py-5">
       {/* Stats bar */}
-      <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-5">
+      <div className="mb-5 flex snap-x gap-3 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] sm:grid sm:grid-cols-4 sm:overflow-visible sm:pb-0 xl:grid-cols-5 [&::-webkit-scrollbar]:hidden">
         <StatCard icon={PhoneOutgoing} label="Outbound today" value={stats ? String(stats.outboundToday) : "—"} tint="text-blue-500" />
         <StatCard icon={PhoneIncoming} label="Inbound today" value={stats ? String(stats.inboundToday) : "—"} tint="text-emerald-500" />
         <StatCard icon={Timer} label="Avg talk time" value={stats ? formatTalk(stats.avgTalkSeconds) : "—"} tint="text-purple-500" />
@@ -642,7 +642,7 @@ export function CallsWorkspace({ onSmsTo }: { onSmsTo?: (phone: string) => void 
 
 function StatCard({ icon: Icon, label, value, tint }: { icon: React.ElementType; label: string; value: string; tint: string }) {
   return (
-    <div className="rounded-xl border border-border bg-card px-4 py-3">
+    <div className="min-w-[42%] shrink-0 snap-start rounded-xl border border-border bg-card px-4 py-3 sm:min-w-0">
       <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
         <Icon className={cn("h-3.5 w-3.5", tint)} />{label}
       </div>

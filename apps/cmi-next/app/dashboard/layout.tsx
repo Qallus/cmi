@@ -92,7 +92,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             >
               <Menu className="h-4 w-4" />
             </button>
-            <img src="/brand/cmi-mark.svg" alt="Constructed Matter, Inc." className="h-7 w-7 object-contain lg:hidden" />
+            <img src="/brand/cmi-mark.svg" alt="Constructed Matter, Inc." className="h-7 w-7 object-contain lg:hidden dark:invert" />
             <span className="hidden text-sm font-semibold lg:block">CMI Dashboard</span>
           </div>
           <div className="flex items-center gap-2">
@@ -122,7 +122,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         <div className="fixed inset-0 z-50 flex flex-col bg-background lg:hidden print:hidden">
           <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-5">
             <div className="flex items-center gap-2.5">
-              <img src="/brand/cmi-mark.svg" alt="Constructed Matter, Inc." className="h-8 w-8 object-contain" />
+              <img src="/brand/cmi-mark.svg" alt="Constructed Matter, Inc." className="h-8 w-8 object-contain dark:invert" />
               <span className="text-sm font-semibold">Menu</span>
             </div>
             <button type="button" onClick={() => setMobileNavOpen(false)} aria-label="Close menu" className="rounded-md border border-border p-1.5 text-muted-foreground transition hover:text-foreground">
