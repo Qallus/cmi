@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Megaphone, Send, Trash2, UserPlus, X } from "lucide-react";
+import { Megaphone, Send, Trash2, UserPlus, Video, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, Textarea } from "@/components/ui/input";
@@ -126,12 +126,21 @@ export function ClientPortalClient({ job, initialUpdates, clients }: { job: JobW
             {updates.map((u) => (
               <div key={u.id} className="flex items-start justify-between gap-3 rounded-md border border-border px-3 py-2">
                 <div className="flex min-w-0 items-start gap-3">
-                  {u.photo_url && (
-                    <button type="button" onClick={() => setPreview(u.photo_url)} className="shrink-0">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={u.photo_url} alt={u.title} className="h-12 w-12 rounded border border-border object-cover" />
-                    </button>
-                  )}
+                  {((u.media && u.media.length > 0) || u.photo_url) && (() => {
+                    const cover = u.media?.find((m) => m.type === "image")?.url ?? u.photo_url;
+                    const count = u.media?.length ?? (u.photo_url ? 1 : 0);
+                    return (
+                      <button type="button" onClick={() => { if (cover) setPreview(cover); }} className="relative shrink-0">
+                        {cover ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={cover} alt={u.title} className="h-12 w-12 rounded border border-border object-cover" />
+                        ) : (
+                          <span className="grid h-12 w-12 place-items-center rounded border border-border bg-muted text-muted-foreground"><Video className="h-4 w-4" /></span>
+                        )}
+                        {count > 1 && <span className="absolute -bottom-1 -right-1 rounded-full bg-accent px-1 text-[9px] font-semibold text-white">{count}</span>}
+                      </button>
+                    );
+                  })()}
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 text-sm"><span className="font-medium">{u.title}</span><Badge tone={u.visibility === "client_visible" ? "success" : "default"}>{u.visibility.replace(/_/g, " ")}</Badge></div>
                     {u.body && <div className="text-xs text-muted-foreground line-clamp-2">{u.body}</div>}

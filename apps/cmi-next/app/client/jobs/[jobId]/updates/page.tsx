@@ -25,10 +25,23 @@ export default async function ClientUpdatesPage({ params }: { params: Promise<{ 
             <span className="text-xs text-muted-foreground">{fmtDate(u.created_at)}</span>
           </div>
           {u.body && <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{u.body}</p>}
-          {u.photo_url && (
+          {Array.isArray(u.media) && u.media.length > 0 ? (
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {u.media.map((m: { url: string; type: string }, i: number) => (
+                m.type === "video" ? (
+                  <video key={i} src={m.url} controls className="col-span-full max-h-96 w-full rounded-lg border border-border" />
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <a key={i} href={m.url} target="_blank" rel="noreferrer" className={u.media.length === 1 ? "col-span-full" : ""}>
+                    <img src={m.url} alt={u.title} className={u.media.length === 1 ? "max-h-96 w-full rounded-lg border border-border object-contain" : "aspect-square w-full rounded-lg border border-border object-cover"} />
+                  </a>
+                )
+              ))}
+            </div>
+          ) : u.photo_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={u.photo_url} alt={u.title} className="mt-3 max-h-96 w-full rounded-lg border border-border object-contain" />
-          )}
+          ) : null}
           {u.posted_by && <div className="mt-2 text-[11px] text-muted-foreground">Posted by {u.posted_by}</div>}
         </div>
       ))}

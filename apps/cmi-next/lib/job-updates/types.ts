@@ -1,5 +1,7 @@
 export type UpdateVisibility = "internal" | "client_visible" | "team";
 
+export type JobUpdateMedia = { url: string; type: "image" | "video"; name?: string };
+
 export type JobUpdate = {
   id: string;
   job_id: string;
@@ -8,6 +10,7 @@ export type JobUpdate = {
   update_type: string | null;
   visibility: UpdateVisibility;
   photo_url: string | null;
+  media: JobUpdateMedia[];
   posted_by: string | null;
   client_action_required: boolean;
   created_at: string;
