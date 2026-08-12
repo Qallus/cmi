@@ -7,6 +7,7 @@ export type JobUpdate = {
   body: string | null;
   update_type: string | null;
   visibility: UpdateVisibility;
+  photo_url: string | null;
   posted_by: string | null;
   client_action_required: boolean;
   created_at: string;

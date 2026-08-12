@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarRange, Camera, CheckCircle2, ChevronUp, HardHat, Home, IdCard, Loader2, Mail, Mic, Package, Phone, Sparkles, Users, X } from "lucide-react";
+import { CalendarRange, Camera, CheckCircle2, ChevronUp, Eye, HardHat, Home, IdCard, Loader2, Mail, Mic, Package, Phone, Sparkles, Users, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Fixed, horizontally-scrollable quick-nav for mobile/tablet. Dismissable, with
@@ -36,6 +36,8 @@ export function MobileBottomNav() {
   const [jobs, setJobs] = React.useState<JobOpt[]>([]);
   const [jobsLoaded, setJobsLoaded] = React.useState(false);
   const [jobId, setJobId] = React.useState("");
+  const [note, setNote] = React.useState("");
+  const [clientVisible, setClientVisible] = React.useState(false);
   const [uploading, setUploading] = React.useState(false);
   const [uploadDone, setUploadDone] = React.useState(false);
   const [uploadErr, setUploadErr] = React.useState("");
@@ -61,7 +63,7 @@ export function MobileBottomNav() {
     e.target.value = "";
     if (!file) return;
     setPhoto({ file, url: URL.createObjectURL(file) });
-    setJobId(""); setUploadErr(""); setUploadDone(false);
+    setJobId(""); setNote(""); setClientVisible(false); setUploadErr(""); setUploadDone(false);
     if (!jobsLoaded) {
       try {
         const rows = await fetch("/api/jobs").then((r) => r.json());
@@ -71,7 +73,10 @@ export function MobileBottomNav() {
     }
   }
 
-  async function uploadPhoto() {
+  // Always store the photo in the job's Files (so it's visible in the
+  // dashboard); when adding as a Note, or when marked client-visible, also
+  // post a job update carrying the photo + description.
+  async function submit(destination: "job" | "notes") {
     if (!photo || !jobId) return;
     setUploading(true); setUploadErr("");
     try {
@@ -79,8 +84,22 @@ export function MobileBottomNav() {
       fd.append("file", photo.file, photo.file.name || `photo-${Date.now()}.jpg`);
       fd.append("folder", "Job Photos");
       fd.append("category", "photo");
-      const res = await fetch(`/api/jobs/${jobId}/files`, { method: "POST", body: fd });
-      if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || "Upload failed."); }
+      const fres = await fetch(`/api/jobs/${jobId}/files`, { method: "POST", body: fd });
+      if (!fres.ok) { const j = await fres.json().catch(() => ({})); throw new Error(j.error || "Upload failed."); }
+      const fileRec = await fres.json();
+
+      if (destination === "notes" || clientVisible) {
+        await fetch(`/api/jobs/${jobId}/updates`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: note.trim() ? note.trim().slice(0, 80) : "Job photo",
+            body: note.trim() || null,
+            photo_url: fileRec.file_url,
+            update_type: "photo_update",
+            visibility: clientVisible ? "client_visible" : "internal",
+          }),
+        });
+      }
       setUploadDone(true);
     } catch (err) {
       setUploadErr(err instanceof Error ? err.message : "Upload failed.");
@@ -91,7 +110,7 @@ export function MobileBottomNav() {
 
   function closeCapture() {
     if (photo) URL.revokeObjectURL(photo.url);
-    setPhoto(null); setUploadDone(false); setUploadErr(""); setJobId("");
+    setPhoto(null); setUploadDone(false); setUploadErr(""); setJobId(""); setNote(""); setClientVisible(false);
   }
 
   const bar = !open ? (
@@ -162,7 +181,7 @@ export function MobileBottomNav() {
                 </div>
               </div>
             ) : (
-              <div className="space-y-3 p-4">
+              <div className="max-h-[70vh] space-y-3 overflow-y-auto p-4">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={photo.url} alt="Captured" className="max-h-56 w-full rounded-lg border border-border object-contain" />
                 <div>
@@ -173,10 +192,24 @@ export function MobileBottomNav() {
                   </select>
                   {jobsLoaded && jobs.length === 0 && <p className="mt-1 text-xs text-muted-foreground">No jobs available.</p>}
                 </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">Notes (optional)</label>
+                  <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="Describe this photo…" className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent" />
+                </div>
+                <label className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm">
+                  <input type="checkbox" checked={clientVisible} onChange={(e) => setClientVisible(e.target.checked)} className="h-4 w-4 accent-[var(--accent)]" />
+                  <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span>Visible to client <span className="text-muted-foreground">— posts to the client portal</span></span>
+                </label>
                 {uploadErr && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-400">{uploadErr}</p>}
-                <button type="button" onClick={() => void uploadPhoto()} disabled={!jobId || uploading} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-accent/90 disabled:opacity-60">
-                  {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />} Upload to job
-                </button>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => void submit("job")} disabled={!jobId || uploading} className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-border px-3 py-2.5 text-sm font-semibold transition hover:border-accent hover:text-accent disabled:opacity-60">
+                    {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <HardHat className="h-4 w-4" />} Add to Job
+                  </button>
+                  <button type="button" onClick={() => void submit("notes")} disabled={!jobId || uploading} className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-accent px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-accent/90 disabled:opacity-60">
+                    {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />} Add to Notes
+                  </button>
+                </div>
               </div>
             )}
           </div>

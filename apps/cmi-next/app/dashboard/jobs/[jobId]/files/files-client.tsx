@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Download, FileText, Trash2, Upload } from "lucide-react";
+import { Download, FileText, Trash2, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { JobFile } from "@/lib/job-files/types";
 import { JobModuleShell, fmtDate } from "../job-module-shell";
@@ -12,11 +12,16 @@ function humanSize(n: number | null): string {
   return kb < 1024 ? `${Math.round(kb)} KB` : `${(kb / 1024).toFixed(1)} MB`;
 }
 
+function isImage(f: JobFile): boolean {
+  return /^image\//i.test(f.mime_type ?? "") || /\.(jpe?g|png|gif|webp|heic|heif|avif|bmp)$/i.test(f.name ?? "");
+}
+
 export function FilesClient({ jobId, jobName, initial }: { jobId: string; jobName: string; initial: JobFile[] }) {
   const [rows, setRows] = React.useState<JobFile[]>(initial);
   const [folder, setFolder] = React.useState("General");
   const [uploading, setUploading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [preview, setPreview] = React.useState<JobFile | null>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
 
   async function upload(files: FileList | null) {
@@ -74,7 +79,17 @@ export function FilesClient({ jobId, jobName, initial }: { jobId: string; jobNam
           <tbody className="divide-y divide-border">
             {rows.map((f) => (
               <tr key={f.id} className="hover:bg-muted/30">
-                <td className="px-4 py-3"><div className="flex items-center gap-2"><FileText className="h-4 w-4 text-muted-foreground" /><span className="font-medium">{f.name}</span></div></td>
+                <td className="px-4 py-3">
+                  {isImage(f) ? (
+                    <button type="button" onClick={() => setPreview(f)} className="flex items-center gap-2.5 text-left">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={f.file_url} alt={f.name} className="h-10 w-10 shrink-0 rounded border border-border object-cover" />
+                      <span className="font-medium hover:text-accent">{f.name}</span>
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-2"><FileText className="h-4 w-4 text-muted-foreground" /><span className="font-medium">{f.name}</span></div>
+                  )}
+                </td>
                 <td className="px-4 py-3 text-muted-foreground">{f.folder}</td>
                 <td className="px-4 py-3 text-muted-foreground">{humanSize(f.size_bytes)}</td>
                 <td className="px-4 py-3 text-muted-foreground">{fmtDate(f.created_at)}</td>
@@ -88,6 +103,20 @@ export function FilesClient({ jobId, jobName, initial }: { jobId: string; jobNam
             ))}
           </tbody>
         </table>
+      )}
+
+      {preview && (
+        <div className="fixed inset-0 z-[70] flex flex-col bg-black/85 p-4" role="dialog" aria-modal="true" onClick={() => setPreview(null)}>
+          <div className="flex items-center justify-between text-white">
+            <span className="truncate text-sm">{preview.name}</span>
+            <div className="flex items-center gap-3">
+              <a href={preview.file_url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="text-white/80 hover:text-white"><Download className="h-5 w-5" /></a>
+              <button type="button" aria-label="Close" className="text-white/80 hover:text-white"><X className="h-5 w-5" /></button>
+            </div>
+          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={preview.file_url} alt={preview.name} className="mx-auto my-auto max-h-[85vh] max-w-full rounded object-contain" onClick={(e) => e.stopPropagation()} />
+        </div>
       )}
     </JobModuleShell>
   );
