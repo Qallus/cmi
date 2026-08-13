@@ -1,7 +1,14 @@
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { DocumentsClient } from "./documents-client";
+import { getSessionStaff } from "@/lib/auth/server-session";
+import {
+  listDocuments, listFolders, listWorkspaces, listHiddenTemplateIds,
+  listFavoriteTemplateIds, listArchivedDocuments, DEFAULT_WORKSPACE_ID,
+} from "@/lib/workspace/repository";
+import { WORKSPACE_TEMPLATES } from "@/lib/workspace/templates";
+import { listNotesFor } from "@/lib/notes/data";
+import { DocumentsClient, type WorkspaceBundle } from "./documents-client";
 
-export const metadata = { title: "Documents — CMI Dashboard" };
+export const metadata = { title: "Workspace — CMI Dashboard" };
 
 export type Document = {
   id: string;
@@ -44,13 +51,42 @@ async function loadDocuments(): Promise<Document[]> {
   return (data ?? []) as Document[];
 }
 
+// Workspace (Quip/Notion-style) is Super Admin only. When the current staff is a
+// super admin we hydrate the Workspace tab server-side; otherwise it's omitted.
+async function loadWorkspaceBundle(currentWorkspaceId?: string): Promise<WorkspaceBundle | null> {
+  const staff = await getSessionStaff();
+  if (!staff || staff.role_slug !== "super_admin") return null;
+  try {
+    const workspaces = await listWorkspaces();
+    const wsId = currentWorkspaceId && workspaces.some((w) => w.id === currentWorkspaceId)
+      ? currentWorkspaceId
+      : (workspaces[0]?.id ?? DEFAULT_WORKSPACE_ID);
+    const [{ mine, shared }, folders, hiddenTemplateIds, favoriteTemplateIds, archived, notes] = await Promise.all([
+      listDocuments(staff.id, wsId),
+      listFolders(staff.id, wsId),
+      listHiddenTemplateIds(),
+      listFavoriteTemplateIds(staff.id),
+      listArchivedDocuments(staff.id, wsId),
+      listNotesFor(staff.id),
+    ]);
+    return {
+      mine, shared, folders, hiddenTemplateIds, favoriteTemplateIds, archived,
+      workspaces, currentWorkspaceId: wsId,
+      templates: WORKSPACE_TEMPLATES.map((t) => ({ id: t.id, name: t.name, description: t.description, category: t.category })),
+      notes: notes.map((n) => ({ id: n.id, title: n.title, body: n.body, status: n.status })),
+    };
+  } catch {
+    return null;
+  }
+}
+
 export const dynamic = "force-dynamic";
 
-export default async function DocumentsPage() {
-  try {
-    const docs = await loadDocuments();
-    return <DocumentsClient initialDocs={docs} />;
-  } catch {
-    return <DocumentsClient initialDocs={[]} />;
-  }
+export default async function DocumentsPage({ searchParams }: { searchParams: Promise<{ ws?: string }> }) {
+  const { ws } = await searchParams;
+  const [docs, workspace] = await Promise.all([
+    loadDocuments().catch(() => [] as Document[]),
+    loadWorkspaceBundle(ws),
+  ]);
+  return <DocumentsClient initialDocs={docs} workspace={workspace} />;
 }

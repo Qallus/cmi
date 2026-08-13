@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { Tooltip } from "@/components/ui/tooltip";
 import {
   ArrowLeft, BookOpen, BriefcaseBusiness, CalendarRange,
-  CreditCard, FileText, FolderKanban, HardHat, Home, IdCard, Inbox, LayoutGrid,
+  CreditCard, FileText, FolderKanban, HardHat, Home, IdCard, Inbox, LayoutDashboard, LayoutGrid,
   Megaphone, MessageCircle, MessagesSquare, Mic, Minus, Newspaper, Package, Plus, Settings, ShieldCheck,
   Sparkles, SquarePen, User, UserRoundCog, Users,
 } from "lucide-react";
@@ -58,7 +58,7 @@ const nav: NavItem[] = [
       { href: "/dashboard/recording-studio", label: "Recording Studio", icon: Mic,    roles: ["super_admin", "admin", "project_manager", "designer", "estimator", "superintendent", "staff"] },
     ],
   },
-  { href: "/dashboard/documents",      label: "Documents",      icon: FileText },
+  { href: "/dashboard/documents",      label: "Workspace",      icon: LayoutDashboard },
   {
     href: "/dashboard/site-content",   label: "Site Content",   icon: BookOpen,       roles: ["super_admin", "admin", "designer"],
     children: [

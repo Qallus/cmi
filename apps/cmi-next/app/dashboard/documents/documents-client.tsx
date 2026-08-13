@@ -1,13 +1,29 @@
 "use client";
 
 import * as React from "react";
-import { FileText, Plus, Search, StickyNote, X } from "lucide-react";
+import { FileText, LayoutDashboard, Plus, Search, StickyNote, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { NotesPanel } from "@/components/notes/notes-panel";
+import { WorkspaceTab } from "./workspace-tab";
+import type { WorkspaceDocListItem, WorkspaceFolder } from "@/lib/workspace/types";
 import type { Document } from "./page";
+
+// Server-hydrated Workspace data for the Workspace tab (Super Admin only; null otherwise).
+export type WorkspaceBundle = {
+  mine: WorkspaceDocListItem[];
+  shared: WorkspaceDocListItem[];
+  folders: WorkspaceFolder[];
+  templates: { id: string; name: string; description: string; category: string }[];
+  hiddenTemplateIds: string[];
+  favoriteTemplateIds: string[];
+  archived: (WorkspaceDocListItem & { state: "archived" | "trashed" })[];
+  workspaces: { id: string; name: string; icon: string | null }[];
+  currentWorkspaceId: string;
+  notes: { id: string; title: string; body: string; status: string }[];
+};
 
 const DOC_STATUSES = ["Draft", "Sent", "Signed", "Completed", "Void"];
 const SERVICES_LIST = ["Demo", "Framing", "Electrical", "Plumbing", "HVAC", "Flooring", "Cabinets", "Countertops", "Tile", "Paint", "Roofing", "Permits", "Design", "Project Management"];
@@ -57,11 +73,11 @@ const BASE_DRAFT: Omit<Document, "id" | "created_at" | "updated_at"> = {
   notes: "",
 };
 
-type DocTab = "all" | "contract" | "sow" | "notes";
+type DocTab = "workspace" | "all" | "contract" | "sow" | "notes";
 
-export function DocumentsClient({ initialDocs }: { initialDocs: Document[] }) {
+export function DocumentsClient({ initialDocs, workspace = null }: { initialDocs: Document[]; workspace?: WorkspaceBundle | null }) {
   const [docs, setDocs] = React.useState<Document[]>(initialDocs);
-  const [tab, setTab] = React.useState<DocTab>("all");
+  const [tab, setTab] = React.useState<DocTab>(workspace ? "workspace" : "all");
   const [search, setSearch] = React.useState("");
   const [modal, setModal] = React.useState<{ mode: "view" | "edit" | "new"; doc?: Document; docType?: "contract" | "sow" } | null>(null);
   const [draft, setDraft] = React.useState<Omit<Document, "id" | "created_at" | "updated_at">>(BASE_DRAFT);
@@ -127,11 +143,11 @@ export function DocumentsClient({ initialDocs }: { initialDocs: Document[] }) {
       <div className="border-b border-border bg-card px-4 py-4 md:px-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Legal</div>
-            <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight">Documents</h1>
+            <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Constructed Matter</div>
+            <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight">Workspace</h1>
           </div>
           <div className="flex gap-2">
-            {tab === "notes" ? (
+            {tab === "workspace" ? null : tab === "notes" ? (
               <Button size="sm" variant="accent" onClick={() => setNotesAddNonce((n) => n + 1)}><Plus className="h-3.5 w-3.5" /> Add Note</Button>
             ) : (
               <>
@@ -143,22 +159,26 @@ export function DocumentsClient({ initialDocs }: { initialDocs: Document[] }) {
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="mt-3 flex flex-wrap gap-3">
-          {([["all", "Total"], ["contract", "Contracts"], ["sow", "SOWs"], ["notes", "Notes"]] as [DocTab, string][]).map(([key, label]) => (
+        {/* Tabs — scroll horizontally on mobile instead of wrapping */}
+        <div className="mt-3 flex gap-3 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {([
+            ...(workspace ? [["workspace", "Workspace"] as [DocTab, string]] : []),
+            ["all", "Total"], ["contract", "Contracts"], ["sow", "SOWs"], ["notes", "Notes"],
+          ] as [DocTab, string][]).map(([key, label]) => (
             <button
               key={key}
               type="button"
               onClick={() => setTab(key)}
-              className={cn("flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition", tab === key ? "border-accent bg-accent/15 text-accent" : "border-border text-muted-foreground hover:border-accent/40")}
+              className={cn("flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition", tab === key ? "border-accent bg-accent/15 text-accent" : "border-border text-muted-foreground hover:border-accent/40")}
             >
+              {key === "workspace" && <LayoutDashboard className="h-3.5 w-3.5" />}
               {label}
-              {key !== "notes" && <span className={cn("rounded-full px-1.5 py-0.5 text-[10px]", tab === key ? "bg-accent/20" : "bg-muted")}>{counts[key as "all" | "contract" | "sow"]}</span>}
+              {(key === "all" || key === "contract" || key === "sow") && <span className={cn("rounded-full px-1.5 py-0.5 text-[10px]", tab === key ? "bg-accent/20" : "bg-muted")}>{counts[key]}</span>}
             </button>
           ))}
         </div>
 
-        {tab !== "notes" && (
+        {tab !== "notes" && tab !== "workspace" && (
           <div className="relative mt-3 max-w-xs">
             <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <input type="text" placeholder="Search documents…" value={search} onChange={(e) => setSearch(e.target.value)} className="h-8 w-full rounded-md border border-border bg-background pl-8 pr-3 text-sm outline-none focus:border-accent" />
@@ -166,7 +186,11 @@ export function DocumentsClient({ initialDocs }: { initialDocs: Document[] }) {
         )}
       </div>
 
-      {tab === "notes" ? (
+      {tab === "workspace" && workspace ? (
+        <div className="flex-1 overflow-hidden">
+          <WorkspaceTab bundle={workspace} docs={docs} onOpenDoc={openView} onOpenNotes={() => setTab("notes")} />
+        </div>
+      ) : tab === "notes" ? (
         <div className="flex-1 overflow-hidden">
           <NotesPanel addNonce={notesAddNonce} />
         </div>

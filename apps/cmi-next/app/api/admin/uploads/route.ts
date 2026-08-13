@@ -3,8 +3,19 @@ import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { requireAdmin, AuthError } from "@/lib/auth/require-admin";
 
 const BUCKET = "cmi-media";
-const ALLOWED_MIME_PREFIXES = ["image/", "video/"];
-const ALLOWED_MIME_EXACT = ["application/pdf"];
+const ALLOWED_MIME_PREFIXES = ["image/", "video/", "audio/"];
+const ALLOWED_MIME_EXACT = [
+  "application/pdf",
+  // Office / document types (Workspace media + attachments)
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "text/plain",
+  "text/csv",
+];
 const MAX_FILE_SIZE = 1024 * 1024 * 50; // 50 MB
 
 function safeName(name: string) {
@@ -46,8 +57,7 @@ export async function POST(request: Request) {
     if (!buckets?.some(bucket => bucket.name === BUCKET)) {
       const { error: createError } = await supabase.storage.createBucket(BUCKET, {
         public: true,
-        fileSizeLimit: 1024 * 1024 * 50,
-        allowedMimeTypes: ["image/*", "video/*", "application/pdf"]
+        fileSizeLimit: 1024 * 1024 * 50
       });
       if (createError) throw createError;
     }

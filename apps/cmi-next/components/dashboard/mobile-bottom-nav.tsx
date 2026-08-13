@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarRange, Camera, CheckCircle2, ChevronUp, Eye, HardHat, Home, IdCard, Image as ImageIcon, Images, Loader2, Mail, Mic, Package, Phone, Sparkles, Users, Video, X } from "lucide-react";
+import { CalendarRange, Camera, CheckCircle2, ChevronUp, Eye, HardHat, Home, IdCard, Image as ImageIcon, Images, LayoutDashboard, Loader2, Mail, Mic, Package, Phone, Sparkles, Users, Video, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { JobVoiceRecorder } from "./job-voice-recorder";
 
@@ -16,6 +16,7 @@ const ITEMS: NavItem[] = [
   { href: "/dashboard/selections", label: "Selections", icon: Package },
   { href: "/dashboard/jobs", label: "Jobs", icon: HardHat },
   { href: "/dashboard/bookings", label: "Bookings", icon: CalendarRange },
+  { href: "/dashboard/documents", label: "Workspace", icon: LayoutDashboard },
   { href: "/dashboard/communications?panel=dialer", label: "Call", icon: Phone },
   { href: "/dashboard/communications?panel=email", label: "Email", icon: Mail },
   { action: "record", label: "Record", icon: Mic },
