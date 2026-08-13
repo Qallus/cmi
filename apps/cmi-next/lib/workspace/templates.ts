@@ -3,6 +3,9 @@ type Node = { type: string; children: { text: string }[]; checked?: boolean; [ke
 const h = (type: string, text: string): Node => ({ type, children: [{ text }] });
 const p = (text = ""): Node => ({ type: "p", children: [{ text }] });
 const todo = (text: string): Node => ({ type: "todo_item", checked: false, children: [{ text }] });
+const hr = (): Node => ({ type: "hr", children: [{ text: "" }] });
+const bullet = (text = ""): Node => ({ type: "p", indent: 1, listStyleType: "disc", children: [{ text }] });
+const quote = (text: string): Node => ({ type: "blockquote", children: [{ text }] });
 
 // --- Live-app block builders (Project Tracker / Kanban / Calendar) ---
 // Deterministic ids (no runtime randomness) — unique within a document is all that's required.
@@ -128,6 +131,61 @@ export const WORKSPACE_TEMPLATES: WorkspaceTemplate[] = [
       h("h2", "Assigned actions"),
       todo(""),
       h("h2", "Next meeting"),
+      p(""),
+    ],
+  },
+  {
+    id: "team-meeting-review",
+    name: "Team Meeting Review",
+    description: "Live team-meeting overview of every active job — status, dates, financials, issues, action items, and procurement.",
+    category: "Meetings",
+    content: [
+      h("h1", "Team Meeting Review"),
+      p("Meeting Date & Time: "),
+      p("Project Coordinator: "),
+      p("Attendees: "),
+      hr(),
+
+      h("h2", "Jobs Overview"),
+      p("At-a-glance status of every active job. Owner = PM · Deadline = current completion date. Use “Add row” for each job and the Owner column to assign a PM."),
+      projectTracker([
+        trackerRow("Job — ", { status: "In Progress" }),
+        trackerRow("Job — ", { status: "Upcoming" }),
+      ]),
+      hr(),
+
+      h("h2", "Job Review"),
+      quote("Duplicate this Job Review section for each active job discussed."),
+      p("Job Name: "),
+      p("Job Number: "),
+      p("Status: "),
+      p("Original Completion Date: "),
+      p("Current Completion Date: "),
+      p("Financial Status (as of date & time): "),
+
+      h("h3", "Issues"),
+      bullet(""),
+      bullet(""),
+
+      h("h3", "Action Items"),
+      p("Add an item per row, assign staff/contacts in Owner (type a name or add a Users / Connect column for a CMI contact), and set a due date + status."),
+      projectTracker([
+        trackerRow("", { status: "Upcoming" }),
+        trackerRow("", { status: "Upcoming" }),
+      ]),
+
+      h("h3", "Procurement"),
+      p("Track products & selections — assign a vendor in Owner, set selection/install dates in Deadline, and use “Add column” for Vendor Assignment Date and Bill/Deposit."),
+      projectTracker([
+        trackerRow("Product / selection — ", { status: "Upcoming" }),
+        trackerRow("Product / selection — ", { status: "Upcoming" }),
+      ]),
+      bullet("Product / selection & dates: "),
+      bullet("Install: "),
+      bullet("Vendor assignment date: "),
+      bullet("Bill / deposit (selection / product): "),
+
+      h("h3", "Notes"),
       p(""),
     ],
   },
