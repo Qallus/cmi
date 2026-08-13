@@ -34,7 +34,7 @@ import {
   Check, CheckSquare, CalendarDays, Boxes, ClipboardList, UserCircle, CalendarClock, ExternalLink, Sparkles,
   PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen,
   Undo2, Redo2, Search as SearchIcon, RemoveFormatting, Maximize2, ChevronDown, Pilcrow, Settings2,
-  FolderKanban, SquareKanban, CalendarRange, FileText, Hash,
+  FolderKanban, SquareKanban, CalendarRange, FileText, Hash, Keyboard,
 } from "lucide-react";
 import { DatePicker } from "@/components/workspace/ui/date-picker";
 import { SimpleTooltip } from "@/components/workspace/ui/tooltip";
@@ -322,6 +322,75 @@ function CommandMenu({ open, pos, commands, onClose }: { open: boolean; pos: { t
       </div>
     </>
   );
+}
+
+// Quick-keys reference: a clickable cheat-sheet of shortcuts + common actions.
+// Opened by typing "key?" + Enter in the body (anchored at the caret, flipping
+// above/below to stay on-screen) or the toolbar keyboard button. Clicking a row
+// runs that action immediately.
+type QuickKey = { label: string; shortcut?: string; icon: typeof Type; run: () => void };
+type QuickKeysPos = { top: number; left: number; placement: "above" | "below" };
+
+function QuickKeysMenu({ pos, items, onClose }: { pos: QuickKeysPos; items: QuickKey[]; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { e.preventDefault(); onClose(); } };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <>
+      <div className="fixed inset-0 z-40" onMouseDown={(e) => { e.preventDefault(); onClose(); }} />
+      <div
+        role="menu"
+        aria-label="Quick keys"
+        className="fixed z-50 w-72 overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-lg"
+        style={{ top: pos.top, left: pos.left, transform: pos.placement === "above" ? "translateY(calc(-100% - 8px))" : undefined }}
+        onMouseDown={(e) => e.preventDefault()}
+      >
+        <div className="flex items-center gap-1.5 border-b border-border px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <Keyboard className="h-3.5 w-3.5" /> Quick keys — click to run
+        </div>
+        <ul className="max-h-72 overflow-y-auto p-1">
+          {items.map((k) => (
+            <li key={k.label}>
+              <button
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); k.run(); onClose(); }}
+                className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent"
+              >
+                <k.icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <span className="min-w-0 flex-1 truncate">{k.label}</span>
+                {k.shortcut ? <kbd className="shrink-0 rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">{k.shortcut}</kbd> : null}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </>
+  );
+}
+
+// Caret anchor for the quick-keys panel; flips above the line when a below panel
+// would run off the bottom of the viewport.
+function quickKeysAnchor(width = 288, estHeight = 340): QuickKeysPos {
+  if (typeof window === "undefined") return { top: 220, left: 240, placement: "below" };
+  const sel = window.getSelection();
+  let rect: DOMRect | null = null;
+  if (sel && sel.rangeCount) {
+    const range = sel.getRangeAt(0);
+    const r = range.getBoundingClientRect();
+    if (r && (r.width || r.height || r.top || r.left)) rect = r;
+    else {
+      const node = range.startContainer;
+      const elx = node.nodeType === 3 ? node.parentElement : (node as Element);
+      if (elx) rect = elx.getBoundingClientRect();
+    }
+  }
+  if (!rect) return { top: 220, left: 240, placement: "below" };
+  const placement: "above" | "below" = rect.bottom + estHeight > window.innerHeight - 8 ? "above" : "below";
+  const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
+  const top = placement === "above" ? rect.top - 4 : rect.bottom + 6;
+  return { top, left, placement };
 }
 
 // The "#" document-link picker: searchable, workspace-filterable, multi-column rows.
@@ -919,10 +988,47 @@ export function WorkspaceEditorSurface({
   ];
   const mentionCommands: Cmd[] = mentionUsers.map((u) => ({ label: `@${u.name}`, keywords: u.name, icon: AtSign, run: () => insertText(`@${u.name} `) }));
 
+  // Quick-keys cheat-sheet (shortcuts + common actions). Every row is clickable
+  // and runs immediately. Opened by "key?" + Enter or the toolbar keyboard button.
+  const [quickKeysPos, setQuickKeysPos] = useState<QuickKeysPos | null>(null);
+  const openQuickKeys = () => setQuickKeysPos(quickKeysAnchor());
+  const quickKeys: QuickKey[] = [
+    { label: "Insert blocks menu", shortcut: "/", icon: Plus, run: () => { const c = caretPos(); openMenu(c.top, c.left, commands); } },
+    { label: "Bold", shortcut: "Ctrl+B", icon: Bold, run: () => toggle(BoldPlugin.key) },
+    { label: "Italic", shortcut: "Ctrl+I", icon: Italic, run: () => toggle(ItalicPlugin.key) },
+    { label: "Underline", shortcut: "Ctrl+U", icon: Underline, run: () => toggle(UnderlinePlugin.key) },
+    { label: "Strikethrough", icon: Strikethrough, run: () => toggle(StrikethroughPlugin.key) },
+    { label: "Highlight", icon: Highlighter, run: () => toggle(HighlightPlugin.key) },
+    { label: "Inline code", icon: Code, run: () => toggle(CodePlugin.key) },
+    { label: "Clear formatting", shortcut: "Ctrl+\\", icon: RemoveFormatting, run: clearFormatting },
+    { label: "Undo", shortcut: "Ctrl+Z", icon: Undo2, run: doUndo },
+    { label: "Redo", shortcut: "Ctrl+Y", icon: Redo2, run: doRedo },
+    { label: "Find & Replace", shortcut: "Ctrl+H", icon: SearchIcon, run: () => setFindOpen(true) },
+    { label: "Heading 1", icon: Heading1, run: () => toggle(H1Plugin.key) },
+    { label: "Heading 2", icon: Heading2, run: () => toggle(H2Plugin.key) },
+    { label: "Heading 3", icon: Heading3, run: () => toggle(H3Plugin.key) },
+    { label: "Bulleted list", icon: List, run: () => list("disc") },
+    { label: "Numbered list", icon: ListOrdered, run: () => list("decimal") },
+    { label: "Checklist", icon: CheckSquare, run: makeTodo },
+    { label: "Quote", icon: Quote, run: () => toggle(BlockquotePlugin.key) },
+    { label: "Divider", icon: Minus, run: insertDivider },
+    { label: "Table", icon: TableIcon, run: doInsertTable },
+    { label: "Date", icon: CalendarDays, run: insertDate },
+    { label: "Code block", icon: SquareCode, run: insertCodeBlock },
+    { label: "Project Tracker", icon: FolderKanban, run: insertProjectTracker },
+    { label: "Kanban Board", icon: SquareKanban, run: insertKanban },
+    { label: "Calendar", icon: CalendarRange, run: insertCalendar },
+    { label: "Table of contents", icon: ListTree, run: insertToc },
+    { label: "Link a document", shortcut: "#", icon: Hash, run: () => setDocLinkPos(caretPos()) },
+    { label: "Mention someone", shortcut: "@", icon: AtSign, run: () => { if (!mentionCommands.length) return; const c = caretPos(); openMenu(c.top, c.left, mentionCommands); } },
+    { label: "Ask AI", icon: Sparkles, run: () => setAiOpen(true) },
+  ];
+
   return (
     <Plate editor={editor} onChange={({ value }: any) => { onChange(value); setTick((t) => t + 1); }}>
       <div className="sticky top-16 z-20 flex flex-wrap items-center gap-0.5 rounded-md border bg-card p-1 shadow-sm">
         <TBtn icon={leftOpen ? PanelLeftClose : PanelLeftOpen} title={leftOpen ? "Hide files" : "Show files"} onClick={() => setLeftOpen((o) => !o)} />
+        <TBtn icon={Keyboard} title={"Quick keys (or type “key?” + Enter)"} onClick={openQuickKeys} />
         <Sep />
         {/* Quip-style menus — alternative access points for actions also on the toolbar. */}
         <DropdownMenu>
@@ -1115,7 +1221,7 @@ export function WorkspaceEditorSurface({
           {titleSlot}
           <PlateContent
             className={cn("min-h-[62vh] rounded-md border bg-background px-4 py-3 text-[15px] leading-7 focus:outline-none [&_p]:my-1.5")}
-            placeholder="Start writing… type / for blocks, or use Markdown (# heading, > quote, ** bold, ` code)"
+            placeholder="Start writing… type / for blocks, key? for shortcuts, or use Markdown (# heading, > quote, ** bold, ` code)"
             onKeyDown={(ev: any) => {
               const sel = typeof window !== "undefined" ? window.getSelection() : null;
               if (!sel || !sel.isCollapsed) return;
@@ -1142,6 +1248,20 @@ export function WorkspaceEditorSurface({
                   ev.preventDefault();
                   setDocLinkPos(caretPos());
                 }
+              } else if (ev.key === "Enter" && !ev.shiftKey) {
+                // Type "key?" then Enter → floating clickable quick-keys reference.
+                const before = (sel.anchorNode?.textContent ?? "").slice(0, sel.anchorOffset ?? 0);
+                if (/key\?$/i.test(before)) {
+                  ev.preventDefault();
+                  try {
+                    const s = (editor as any).selection;
+                    if (s?.anchor) {
+                      const at = { anchor: { path: s.anchor.path, offset: Math.max(0, s.anchor.offset - 4) }, focus: s.anchor };
+                      (editor.tf as any)?.delete?.({ at });
+                    }
+                  } catch { /* no-op */ }
+                  setQuickKeysPos(quickKeysAnchor());
+                }
               }
             }}
           />
@@ -1149,6 +1269,7 @@ export function WorkspaceEditorSurface({
         {right && rightOpen ? <aside className="sticky top-16 hidden max-h-[calc(100vh-6rem)] w-72 shrink-0 self-start overflow-y-auto xl:block">{right}</aside> : null}
       </div>
       <CommandMenu open={menu.open} pos={{ top: menu.top, left: menu.left }} commands={menu.cmds} onClose={closeMenu} />
+      {quickKeysPos ? <QuickKeysMenu pos={quickKeysPos} items={quickKeys} onClose={() => setQuickKeysPos(null)} /> : null}
       {docLinkPos ? <DocLinkMenu pos={docLinkPos} onClose={() => setDocLinkPos(null)} onPick={(d) => { insertDocLink(d); setDocLinkPos(null); }} onTab={() => { insertText("#"); setDocLinkPos(null); }} /> : null}
       <HtmlEmbedDialog open={htmlOpen} onOpenChange={setHtmlOpen} onInsert={insertHtml} />
       <RecorderDialog open={recorderOpen} onOpenChange={setRecorderOpen} actionToken={actionToken} onInsert={insertRecordedAudio} onTranscript={insertAiText} />
