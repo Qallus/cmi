@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Plus, GitBranch, Flag, Layers, CalendarClock, Camera as Cam, Settings2, Star, Archive, ChevronDown } from "lucide-react";
+import { Plus, GitBranch, Flag, Layers, CalendarClock, FileText, Star, Archive, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -284,6 +284,7 @@ export function SchedulesWorkspace({ jobId, jobLabel, initialSchedules, initialH
               </div>
             ) : null}
             <div className="flex-1" />
+            {primarySchedule ? <Button size="sm" variant="ghost" onClick={() => window.open(`/api/schedules/${primarySchedule.id}/pdf`, "_blank")}><FileText className="h-3.5 w-3.5" /> PDF</Button> : null}
             {primarySchedule && canManage ? (
               <div className="flex items-center gap-1">
                 {!primarySchedule.is_master ? <Button size="sm" variant="ghost" onClick={() => setMaster(primarySchedule.id)}><Star className="h-3.5 w-3.5" /> Make Master</Button> : null}

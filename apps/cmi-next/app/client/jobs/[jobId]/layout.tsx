@@ -15,6 +15,7 @@ function tabsFor(job: { status: string; permissions: Record<string, boolean> }) 
     { slug: "overview", label: "Overview" },
     { slug: "updates", label: "Updates" },
     { slug: "progress", label: "Progress" },
+    { slug: "schedule", label: "Schedule" },
     { slug: "photos", label: "Photos" },
     { slug: "documents", label: "Documents" },
   ];
