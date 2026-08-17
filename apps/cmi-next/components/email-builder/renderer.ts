@@ -164,6 +164,12 @@ function renderBlock(block: EmailBlock): string {
   }
 }
 
+// Just the rendered block rows (no email wrapper) — used by the Print builder to
+// place the same blocks inside a page-sized document instead of the 560px email.
+export function blocksToInnerHtml(blocks: EmailBlock[]): string {
+  return blocks.map(renderBlock).join("\n");
+}
+
 export function blocksToHtml(blocks: EmailBlock[]): string {
   const rows = blocks.map(renderBlock).join("\n");
   return `<!DOCTYPE html>

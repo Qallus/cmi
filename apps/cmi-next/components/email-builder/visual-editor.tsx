@@ -441,9 +441,11 @@ function BlockSettings({ block, onChange, onDelete }: {
 
 // -- Main Visual Editor --------------------------------------------------------
 
-export function VisualEditor({ blocks, onChange }: {
+export function VisualEditor({ blocks, onChange, pageWidth = 560 }: {
   blocks: EmailBlock[];
   onChange: (blocks: EmailBlock[]) => void;
+  /** Canvas width in px (email = 560; a Letter print page ≈ 816). */
+  pageWidth?: number;
 }) {
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
   const [dragId, setDragId] = React.useState<string | null>(null);
@@ -530,7 +532,7 @@ export function VisualEditor({ blocks, onChange }: {
         <DynamicFieldsBar onInsert={() => {}} clipboard />
 
         <div className="flex-1 overflow-y-auto bg-[#f4f4f4] p-6">
-          <div className="mx-auto max-w-[560px] overflow-hidden rounded-lg bg-white shadow-sm">
+          <div className="mx-auto overflow-hidden rounded-lg bg-white shadow-sm" style={{ maxWidth: pageWidth }}>
             {blocks.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 text-center">
                 <Plus className="mb-3 h-8 w-8 text-muted-foreground/40" />
@@ -589,8 +591,9 @@ export function VisualEditor({ blocks, onChange }: {
           <div className="flex-1 overflow-auto bg-[#f4f4f4] p-6">
             <iframe
               srcDoc={previewHtml}
-              className="mx-auto block h-[800px] w-[600px] max-w-full rounded-lg border border-border bg-white shadow"
-              title="Email Preview"
+              style={{ width: pageWidth }}
+              className="mx-auto block h-[800px] max-w-full rounded-lg border border-border bg-white shadow"
+              title="Preview"
               sandbox="allow-same-origin"
             />
           </div>

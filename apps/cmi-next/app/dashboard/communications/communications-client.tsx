@@ -4,17 +4,18 @@ import * as React from "react";
 import {
   Mail, MessageSquare, Phone, Send, Plus, RefreshCw, Clock,
   CheckCircle2, XCircle, ArrowDownLeft, ArrowUpRight, X,
-  ClipboardList, ChevronDown, UserRound, LayoutTemplate, Users, Eye,
+  ClipboardList, ChevronDown, UserRound, LayoutTemplate, Users, Eye, Printer,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { Message, MessageChannel } from "@/lib/communications/types";
 import type { ContactSubmission, ContactSubmissionStatus } from "@/lib/contact-submissions/types";
 import { TemplateManager } from "@/components/email-builder/template-manager";
+import { PrintManager } from "@/components/print-builder/print-manager";
 import { DynamicFieldsBar } from "@/components/ui/dynamic-fields-bar";
 import { CallsWorkspace } from "./calls-workspace";
 
-type Tab = "all" | MessageChannel | "contact_form" | "templates";
+type Tab = "all" | MessageChannel | "contact_form" | "templates" | "prints";
 
 const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
   { key: "all",          label: "All",          icon: RefreshCw },
@@ -23,6 +24,7 @@ const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
   { key: "call",         label: "Calls",         icon: Phone },
   { key: "contact_form", label: "Contact Form",  icon: ClipboardList },
   { key: "templates",    label: "Templates",     icon: LayoutTemplate },
+  { key: "prints",       label: "Prints",        icon: Printer },
 ];
 
 function statusIcon(status: string) {
@@ -200,6 +202,7 @@ export function CommunicationsClient({
     call:         messages.filter((m) => m.channel === "call").length,
     contact_form: submissions.length,
     templates:    0,
+    prints:       0,
   };
 
   function openCompose(channel: "email" | "sms" = "email") {
@@ -346,6 +349,10 @@ export function CommunicationsClient({
       {tab === "templates" ? (
         <div className="flex-1 overflow-hidden">
           <TemplateManager />
+        </div>
+      ) : tab === "prints" ? (
+        <div className="flex-1 overflow-hidden">
+          <PrintManager />
         </div>
       ) : tab === "call" ? (
         <CallsWorkspace onSmsTo={composeSmsTo} />
