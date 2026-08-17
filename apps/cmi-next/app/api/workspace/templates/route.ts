@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { requireSuperAdmin } from "@/lib/workspace/auth";
+import { requireWorkspaceAccess } from "@/lib/workspace/auth";
 import { hideTemplate, unhideTemplate, favoriteTemplate } from "@/lib/workspace/repository";
 
 // PATCH toggles a per-user favorite on a template.
 export async function PATCH(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
-    const actor = await requireSuperAdmin(request, body.actionToken);
+    const actor = await requireWorkspaceAccess(request, body.actionToken);
     const templateId = String(body.templateId ?? "").trim();
     if (!templateId) return NextResponse.json({ error: "A template is required." }, { status: 400 });
     await favoriteTemplate(actor.id, templateId, body.favorite !== false);
@@ -22,7 +22,7 @@ export async function PATCH(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
-    const actor = await requireSuperAdmin(request, body.actionToken);
+    const actor = await requireWorkspaceAccess(request, body.actionToken);
     const templateId = String(body.templateId ?? "").trim();
     if (!templateId) return NextResponse.json({ error: "A template is required." }, { status: 400 });
     await hideTemplate(templateId, actor.id);
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
-    await requireSuperAdmin(request, body.actionToken);
+    await requireWorkspaceAccess(request, body.actionToken);
     const templateId = String(body.templateId ?? "").trim();
     if (!templateId) return NextResponse.json({ error: "A template is required." }, { status: 400 });
     await unhideTemplate(templateId);

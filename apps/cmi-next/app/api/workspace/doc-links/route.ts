@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { requireSuperAdmin } from "@/lib/workspace/auth";
+import { requireWorkspaceAccess } from "@/lib/workspace/auth";
 import { listLinkableDocuments, listWorkspaces } from "@/lib/workspace/repository";
 
 // Powers the "#" document-link picker in the Workspace editor.
 export async function GET(request: Request) {
   try {
-    const actor = await requireSuperAdmin(request);
+    const actor = await requireWorkspaceAccess(request);
     const url = new URL(request.url);
     const q = url.searchParams.get("q") ?? "";
     const ws = url.searchParams.get("ws") ?? "";

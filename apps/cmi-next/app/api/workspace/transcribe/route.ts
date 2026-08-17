@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { requireSuperAdmin } from "@/lib/workspace/auth";
+import { requireWorkspaceAccess } from "@/lib/workspace/auth";
 
 // Transcribes an uploaded audio blob to text via OpenAI (Whisper). Super-admin gated.
 export async function POST(request: Request) {
   try {
-    await requireSuperAdmin(request);
+    await requireWorkspaceAccess(request);
 
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) return NextResponse.json({ error: "Transcription isn't configured (OPENAI_API_KEY is missing)." }, { status: 503 });

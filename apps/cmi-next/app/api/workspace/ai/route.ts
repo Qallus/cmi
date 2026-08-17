@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireSuperAdmin } from "@/lib/workspace/auth";
+import { requireWorkspaceAccess } from "@/lib/workspace/auth";
 
 const PROMPTS: Record<string, string> = {
   summarize: "Summarize the document below in a few clear sentences.",
@@ -12,7 +12,7 @@ const PROMPTS: Record<string, string> = {
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
-    await requireSuperAdmin(request, body.actionToken);
+    await requireWorkspaceAccess(request, body.actionToken);
 
     const action = String(body.action ?? "summarize");
     const custom = typeof body.prompt === "string" ? body.prompt.trim() : "";

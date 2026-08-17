@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireSuperAdmin } from "@/lib/workspace/auth";
+import { requireWorkspaceAccess } from "@/lib/workspace/auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 type Hit = { recordType: string; recordId: string; label: string; sublabel: string | null; href: string };
@@ -17,7 +17,7 @@ type Hit = { recordType: string; recordId: string; label: string; sublabel: stri
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
-    await requireSuperAdmin(request, body.actionToken);
+    await requireWorkspaceAccess(request, body.actionToken);
     const name = String(body.name ?? "").trim();
     if (!name) return NextResponse.json({ error: "A name is required." }, { status: 400 });
     if (body.type !== "plan") return NextResponse.json({ error: "Only projects can be created here." }, { status: 400 });
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
 
 export async function GET(request: Request) {
   try {
-    await requireSuperAdmin(request);
+    await requireWorkspaceAccess(request);
     const url = new URL(request.url);
     const type = url.searchParams.get("type") ?? "plan";
     const q = (url.searchParams.get("q") ?? "").trim();

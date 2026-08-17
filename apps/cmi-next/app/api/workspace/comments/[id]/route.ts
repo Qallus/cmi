@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { requireSuperAdmin } from "@/lib/workspace/auth";
+import { requireWorkspaceAccess } from "@/lib/workspace/auth";
 import { setCommentResolved, deleteComment } from "@/lib/workspace/comments";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
     const body = await request.json().catch(() => ({}));
-    const actor = await requireSuperAdmin(request, body.actionToken);
+    const actor = await requireWorkspaceAccess(request, body.actionToken);
     const result = await setCommentResolved(id, body.resolved !== false, actor.id);
     return NextResponse.json({ ok: true, ...result });
   } catch (error) {
@@ -20,7 +20,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   try {
     const { id } = await params;
     const body = await request.json().catch(() => ({}));
-    await requireSuperAdmin(request, body.actionToken);
+    await requireWorkspaceAccess(request, body.actionToken);
     const result = await deleteComment(id);
     return NextResponse.json({ ok: true, ...result });
   } catch (error) {

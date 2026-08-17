@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { requireSuperAdmin } from "@/lib/workspace/auth";
+import { requireWorkspaceAccess } from "@/lib/workspace/auth";
 import { updateDocument, deleteDocument, restoreDocument, purgeDocument } from "@/lib/workspace/repository";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
     const body = await request.json().catch(() => ({}));
-    const actor = await requireSuperAdmin(request, body.actionToken);
+    const actor = await requireWorkspaceAccess(request, body.actionToken);
     if (body.restore === true) {
       await restoreDocument(id, actor.id);
       return NextResponse.json({ ok: true });
@@ -38,7 +38,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   try {
     const { id } = await params;
     const body = await request.json().catch(() => ({}));
-    await requireSuperAdmin(request, body.actionToken);
+    await requireWorkspaceAccess(request, body.actionToken);
     if (body.purge === true) await purgeDocument(id); // permanent delete from the trash
     else await deleteDocument(id); // soft delete → trash
     return NextResponse.json({ ok: true });

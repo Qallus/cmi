@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireSuperAdmin } from "@/lib/workspace/auth";
+import { requireWorkspaceAccess } from "@/lib/workspace/auth";
 import { getSharing, addCollaborator, removeCollaborator } from "@/lib/workspace/repository";
 
 function fail(error: unknown) {
@@ -11,7 +11,7 @@ function fail(error: unknown) {
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    await requireSuperAdmin(request);
+    await requireWorkspaceAccess(request);
     const data = await getSharing(id);
     return NextResponse.json({ ok: true, ...data });
   } catch (error) {
@@ -23,7 +23,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   try {
     const { id } = await params;
     const body = await request.json().catch(() => ({}));
-    const actor = await requireSuperAdmin(request, body.actionToken);
+    const actor = await requireWorkspaceAccess(request, body.actionToken);
     if (!body.userId) return NextResponse.json({ error: "A user is required." }, { status: 400 });
     const permission = ["editor", "commenter", "viewer"].includes(body.permission) ? body.permission : "editor";
     await addCollaborator(id, String(body.userId), actor.id, permission);
@@ -37,7 +37,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   try {
     const { id } = await params;
     const body = await request.json().catch(() => ({}));
-    await requireSuperAdmin(request, body.actionToken);
+    await requireWorkspaceAccess(request, body.actionToken);
     if (!body.userId) return NextResponse.json({ error: "A user is required." }, { status: 400 });
     await removeCollaborator(id, String(body.userId));
     return NextResponse.json({ ok: true });

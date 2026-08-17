@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { requireSuperAdmin } from "@/lib/workspace/auth";
+import { requireWorkspaceAccess } from "@/lib/workspace/auth";
 import { listWorkspaces, createWorkspace } from "@/lib/workspace/repository";
 
 export async function GET(request: Request) {
   try {
-    await requireSuperAdmin(request);
+    await requireWorkspaceAccess(request);
     const workspaces = await listWorkspaces();
     return NextResponse.json({ ok: true, workspaces });
   } catch (error) {
@@ -17,7 +17,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
-    const actor = await requireSuperAdmin(request, body.actionToken);
+    const actor = await requireWorkspaceAccess(request, body.actionToken);
     const name = String(body.name ?? "").trim();
     if (!name) return NextResponse.json({ error: "Workspace name is required." }, { status: 400 });
     const workspace = await createWorkspace(name, actor.id);

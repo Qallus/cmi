@@ -6,6 +6,7 @@ import {
 } from "@/lib/workspace/repository";
 import { WORKSPACE_TEMPLATES } from "@/lib/workspace/templates";
 import { listNotesFor } from "@/lib/notes/data";
+import { isWorkspaceRole } from "@/lib/workspace/auth";
 import { DocumentsClient, type WorkspaceBundle } from "./documents-client";
 
 export const metadata = { title: "Workspace — CMI Dashboard" };
@@ -51,11 +52,12 @@ async function loadDocuments(): Promise<Document[]> {
   return (data ?? []) as Document[];
 }
 
-// Workspace (Quip/Notion-style) is Super Admin only. When the current staff is a
-// super admin we hydrate the Workspace tab server-side; otherwise it's omitted.
+// Workspace (Quip/Notion-style) is open to the internal team (see WORKSPACE_ROLES).
+// When the current staff has a Workspace role we hydrate the tab server-side;
+// external portal roles get the standard Documents tabs without it.
 async function loadWorkspaceBundle(currentWorkspaceId?: string): Promise<WorkspaceBundle | null> {
   const staff = await getSessionStaff();
-  if (!staff || staff.role_slug !== "super_admin") return null;
+  if (!staff || !isWorkspaceRole(staff.role_slug)) return null;
   try {
     const workspaces = await listWorkspaces();
     const wsId = currentWorkspaceId && workspaces.some((w) => w.id === currentWorkspaceId)

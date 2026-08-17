@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireSuperAdmin } from "@/lib/workspace/auth";
+import { requireWorkspaceAccess } from "@/lib/workspace/auth";
 import { listDocumentVersions, restoreDocumentVersion } from "@/lib/workspace/repository";
 
 function fail(error: unknown) {
@@ -11,7 +11,7 @@ function fail(error: unknown) {
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    await requireSuperAdmin(request);
+    await requireWorkspaceAccess(request);
     const versions = await listDocumentVersions(id);
     return NextResponse.json({ ok: true, versions });
   } catch (error) {
@@ -24,7 +24,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   try {
     const { id } = await params;
     const body = await request.json().catch(() => ({}));
-    const actor = await requireSuperAdmin(request, body.actionToken);
+    const actor = await requireWorkspaceAccess(request, body.actionToken);
     if (!body.versionId) return NextResponse.json({ error: "A version is required." }, { status: 400 });
     const result = await restoreDocumentVersion(id, String(body.versionId), actor.id);
     return NextResponse.json({ ok: true, updatedAt: result.updatedAt });

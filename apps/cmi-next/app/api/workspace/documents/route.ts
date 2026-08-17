@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { requireSuperAdmin } from "@/lib/workspace/auth";
+import { requireWorkspaceAccess } from "@/lib/workspace/auth";
 import { createDocument } from "@/lib/workspace/repository";
 import { getTemplateContent, WORKSPACE_TEMPLATES } from "@/lib/workspace/templates";
 
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
-    const actor = await requireSuperAdmin(request, body.actionToken);
+    const actor = await requireWorkspaceAccess(request, body.actionToken);
     const scope = body.scope === "shared" ? "shared" : "personal";
     const template = body.templateId ? WORKSPACE_TEMPLATES.find((t) => t.id === body.templateId) : null;
     const content = body.templateId ? getTemplateContent(body.templateId) ?? undefined : undefined;
