@@ -6,9 +6,12 @@ import { scheduleColor } from "../shared";
 import type { ScheduleItem, ScheduleDependency, SchedulePhase } from "@/lib/schedules/types";
 
 type Zoom = "day" | "week" | "month";
-const DAY_W: Record<Zoom, number> = { day: 30, week: 12, month: 5 };
+const DAY_W: Record<Zoom, number> = { day: 40, week: 20, month: 10 };
 const ROW_H = 34;
 const LABEL_W = 260;
+const HEAD_TOP = 22;   // month band
+const HEAD_TICK = 24;  // day / week ticks
+const HEAD_H = HEAD_TOP + HEAD_TICK;
 
 function parse(iso?: string | null): Date | null { if (!iso) return null; const d = new Date(`${iso}T00:00:00Z`); return isNaN(d.getTime()) ? null : d; }
 function fmtISO(d: Date) { return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`; }
@@ -84,7 +87,7 @@ export function GanttView({ items, dependencies, phases, zoom, groupBySchedule, 
   const today = new Date(`${fmtISO(new Date())}T00:00:00Z`);
   const todayX = diffDays(min, today) * dayW;
 
-  // Month header segments.
+  // Top band: month segments (unambiguous "Aug 2026").
   const months = React.useMemo(() => {
     const segs: { label: string; left: number; width: number }[] = [];
     let cur = new Date(min); cur.setUTCDate(1);
@@ -94,11 +97,34 @@ export function GanttView({ items, dependencies, phases, zoom, groupBySchedule, 
       const segStart = cur < min ? min : cur;
       const left = diffDays(min, segStart) * dayW;
       const width = (diffDays(segStart, next > end ? end : next)) * dayW;
-      segs.push({ label: new Intl.DateTimeFormat("en-US", { month: "short", year: "2-digit", timeZone: "UTC" }).format(cur), left, width });
+      segs.push({ label: new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric", timeZone: "UTC" }).format(cur), left, width });
       cur = next;
     }
     return segs;
   }, [min, totalDays, dayW]);
+
+  // Bottom band + gridlines: per-day (day zoom), per-week (week), per-month (month).
+  const ticks = React.useMemo(() => {
+    const out: { left: number; width: number; label: string; weekend: boolean }[] = [];
+    if (zoom === "day") {
+      for (let i = 0; i < totalDays; i++) {
+        const d = addDays(min, i);
+        out.push({ left: i * dayW, width: dayW, label: String(d.getUTCDate()), weekend: d.getUTCDay() === 0 || d.getUTCDay() === 6 });
+      }
+    } else if (zoom === "week") {
+      // Align to Sundays.
+      const startOffset = -min.getUTCDay();
+      for (let i = startOffset; i < totalDays; i += 7) {
+        const left = Math.max(0, i) * dayW;
+        const d = addDays(min, Math.max(0, i));
+        out.push({ left, width: 7 * dayW, label: `${d.getUTCMonth() + 1}/${d.getUTCDate()}`, weekend: false });
+      }
+    } else {
+      // month: gridlines at month boundaries (labels live in the top band).
+      for (const m of months) out.push({ left: m.left, width: m.width, label: "", weekend: false });
+    }
+    return out;
+  }, [zoom, min, totalDays, dayW, months]);
 
   // ---- drag / resize ----
   React.useEffect(() => {
@@ -164,7 +190,7 @@ export function GanttView({ items, dependencies, phases, zoom, groupBySchedule, 
       <div className="flex">
         {/* Left labels */}
         <div className="shrink-0 border-r border-border" style={{ width: LABEL_W }}>
-          <div className="h-10 border-b border-border bg-muted/40" />
+          <div className="border-b border-border bg-muted/40" style={{ height: HEAD_H }} />
           {rows.map((r, idx) => r.kind === "group" ? (
             <div key={`g-${idx}`} className="flex items-center gap-2 border-b border-border bg-muted/30 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground" style={{ height: ROW_H }}>
               {r.color ? <span className="h-2.5 w-2.5 rounded-sm" style={{ background: r.color }} /> : null}
@@ -181,14 +207,21 @@ export function GanttView({ items, dependencies, phases, zoom, groupBySchedule, 
         {/* Right timeline (scrolls) */}
         <div className="relative flex-1 overflow-x-auto">
           <div className="relative" style={{ width: boardW }}>
-            {/* Month header */}
-            <div className="relative h-10 border-b border-border bg-muted/40">
+            {/* Header — month band (top) + day/week ticks (bottom) */}
+            <div className="relative border-b border-border bg-muted/40" style={{ height: HEAD_H }}>
               {months.map((m, i) => (
-                <div key={i} className="absolute top-0 h-full border-l border-border/60 px-2 text-[11px] font-medium leading-10 text-muted-foreground" style={{ left: m.left, width: m.width }}>{m.label}</div>
+                <div key={`m${i}`} className="absolute border-l border-border/60 px-2 text-[11px] font-semibold text-muted-foreground" style={{ left: m.left, width: m.width, top: 0, height: HEAD_TOP, lineHeight: `${HEAD_TOP}px` }}>{m.label}</div>
               ))}
+              {zoom !== "month" ? ticks.map((t, i) => (
+                <div key={`t${i}`} className={cn("absolute overflow-hidden border-l border-border/40 text-center text-[10px] text-muted-foreground", t.weekend && "bg-muted/50")} style={{ left: t.left, width: t.width, top: HEAD_TOP, height: HEAD_TICK, lineHeight: `${HEAD_TICK}px` }}>{t.label}</div>
+              )) : null}
             </div>
 
             <div className="relative" style={{ height: rows.length * ROW_H }}>
+              {/* column gridlines (+ weekend shading on day zoom) */}
+              {ticks.map((t, i) => (
+                <div key={`gl${i}`} className={cn("absolute top-0 border-l border-border/25", t.weekend && "bg-muted/20")} style={{ left: t.left, width: zoom === "day" && t.weekend ? dayW : undefined, height: rows.length * ROW_H }} />
+              ))}
               {/* today marker */}
               {todayX >= 0 && todayX <= boardW ? <div className="absolute top-0 z-10 w-px bg-accent/70" style={{ left: todayX, height: rows.length * ROW_H }} /> : null}
 
