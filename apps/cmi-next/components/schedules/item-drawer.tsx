@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Trash2, Link2, X, Plus } from "lucide-react";
-import { Drawer } from "@/components/ui/drawer";
+import { ScheduleModal } from "./schedule-modal";
 import { Button } from "@/components/ui/button";
 import { Input, Select, Textarea } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -59,8 +59,20 @@ export function ItemDrawer({
   const itemName = (id: string) => allItems.find((i) => i.id === id)?.title ?? "Item";
 
   return (
-    <Drawer open={open} onClose={onClose} title={isNew ? `New ${kind === "milestone" ? "Milestone" : "Item"}` : draft.title || "Item"}>
-      <div className="space-y-4 pb-4">
+    <ScheduleModal
+      open={open}
+      onClose={onClose}
+      title={isNew ? `New ${kind === "milestone" ? "Milestone" : "Item"}` : draft.title || "Item"}
+      footer={canEdit ? (
+        <div className="flex items-center gap-2">
+          {!isNew && onDelete ? <Button variant="ghost" size="sm" onClick={onDelete} className="text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></Button> : null}
+          <div className="flex-1" />
+          <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+          <Button variant="accent" size="sm" onClick={() => void save()} disabled={saving || !draft.title?.trim()}>{saving ? "Saving…" : isNew ? "Create" : "Save"}</Button>
+        </div>
+      ) : undefined}
+    >
+      <div className="space-y-4 pb-2">
         <div className="flex gap-2">
           {(["task", "milestone"] as const).map((k) => (
             <button key={k} type="button" disabled={!canEdit} onClick={() => set("kind", k)} className={cn("flex-1 rounded-lg border px-3 py-2 text-sm font-medium capitalize transition", kind === k ? "border-accent bg-accent/10 text-accent" : "border-border text-muted-foreground hover:bg-muted")}>{k === "milestone" ? "◆ Milestone" : "Task"}</button>
@@ -146,16 +158,8 @@ export function ItemDrawer({
           </div>
         ) : null}
 
-        {canEdit ? (
-          <div className="flex items-center gap-2 border-t border-border pt-3">
-            {!isNew && onDelete ? <Button variant="ghost" size="sm" onClick={onDelete} className="text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></Button> : null}
-            <div className="flex-1" />
-            <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
-            <Button variant="accent" size="sm" onClick={() => void save()} disabled={saving || !draft.title?.trim()}>{saving ? "Saving…" : isNew ? "Create" : "Save"}</Button>
-          </div>
-        ) : null}
       </div>
-    </Drawer>
+    </ScheduleModal>
   );
 }
 

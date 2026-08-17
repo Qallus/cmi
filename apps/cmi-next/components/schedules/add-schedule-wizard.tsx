@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Drawer } from "@/components/ui/drawer";
+import { ScheduleModal } from "./schedule-modal";
 import { Button } from "@/components/ui/button";
 import { Input, Select, Textarea } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -36,7 +36,18 @@ export function AddScheduleWizard({ open, staff, templates, existing, onClose, o
   }
 
   return (
-    <Drawer open={open} onClose={onClose} title="Add Schedule">
+    <ScheduleModal open={open} onClose={onClose} title="Add Schedule" footer={
+      <div className="flex items-center gap-2">
+        {step > 0 ? <Button variant="outline" size="sm" onClick={() => setStep((s) => s - 1)}>Back</Button> : null}
+        <div className="flex-1" />
+        <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+        {step < STEPS.length - 1 ? (
+          <Button variant="accent" size="sm" disabled={!canNext} onClick={() => setStep((s) => s + 1)}>Next</Button>
+        ) : (
+          <Button variant="accent" size="sm" disabled={saving || !draft.name.trim()} onClick={() => void create()}>{saving ? "Creating…" : "Create Schedule"}</Button>
+        )}
+      </div>
+    }>
       {/* Step rail */}
       <div className="mb-4 flex items-center gap-1 text-[11px]">
         {STEPS.map((s, i) => (
@@ -110,18 +121,7 @@ export function AddScheduleWizard({ open, staff, templates, existing, onClose, o
           </div>
         )}
       </div>
-
-      <div className="flex items-center gap-2 border-t border-border pt-3">
-        {step > 0 ? <Button variant="outline" size="sm" onClick={() => setStep((s) => s - 1)}>Back</Button> : null}
-        <div className="flex-1" />
-        <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
-        {step < STEPS.length - 1 ? (
-          <Button variant="accent" size="sm" disabled={!canNext} onClick={() => setStep((s) => s + 1)}>Next</Button>
-        ) : (
-          <Button variant="accent" size="sm" disabled={saving || !draft.name.trim()} onClick={() => void create()}>{saving ? "Creating…" : "Create Schedule"}</Button>
-        )}
-      </div>
-    </Drawer>
+    </ScheduleModal>
   );
 }
 
