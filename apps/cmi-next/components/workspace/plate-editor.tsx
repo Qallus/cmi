@@ -21,6 +21,7 @@ import { ImagePlugin, VideoPlugin, AudioPlugin, FilePlugin } from "@platejs/medi
 import { useDashboardActionToken } from "@/components/workspace/ui/action-token";
 import { BrandAudioPlayer } from "@/components/workspace/brand-audio-player";
 import { LIVE_APP_PLUGINS, LIVE_APP_COMPONENTS, newProjectTrackerNode, newKanbanNode, newCalendarNode } from "@/components/workspace/live-apps";
+import { WorkspaceActionPlugin, ActionElement, newActionNode, type ActionKind } from "@/components/workspace/action-block";
 import { Button } from "@/components/workspace/ui/button";
 import { Input } from "@/components/workspace/ui/input";
 import { Textarea } from "@/components/workspace/ui/textarea";
@@ -35,6 +36,7 @@ import {
   PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen,
   Undo2, Redo2, Search as SearchIcon, RemoveFormatting, Maximize2, ChevronDown, Pilcrow, Settings2,
   FolderKanban, SquareKanban, CalendarRange, FileText, Hash, Keyboard,
+  Send, MessageSquare, MessageCircle, Mail,
 } from "lucide-react";
 import { DatePicker } from "@/components/workspace/ui/date-picker";
 import { SimpleTooltip } from "@/components/workspace/ui/tooltip";
@@ -65,6 +67,7 @@ const PLUGINS = [
   TablePlugin, TableRowPlugin, TableCellPlugin, TableCellHeaderPlugin,
   ImagePlugin, VideoPlugin, AudioPlugin, FilePlugin,
   ColumnPlugin, ColumnItemPlugin, HtmlEmbedPlugin, TocPlugin, TodoItemPlugin, DateFieldPlugin, RecordLinkPlugin, DocLinkPlugin,
+  WorkspaceActionPlugin,
   ...LIVE_APP_PLUGINS,
 ];
 
@@ -82,6 +85,38 @@ function TocElement() {
       )) : <p className="text-xs text-muted-foreground">Add headings (H1–H3) to build the outline.</p>}
     </div>
   );
+}
+
+// Drag handle on the right edge of a first-row table cell — resizes its column
+// by writing pixel widths onto the table node's `colSizes` (rendered via <colgroup>).
+function ColResizeHandle() {
+  const editor = useEditorRef();
+  const path = usePath();
+  if (!path || path.length < 2 || path[path.length - 2] !== 0) return null; // handles on the first row only
+  const colIndex = path[path.length - 1];
+  const tablePath = path.slice(0, -2);
+  const onDown = (e: React.MouseEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    const cell = (e.currentTarget as HTMLElement).parentElement as HTMLElement | null;
+    const startW = cell?.offsetWidth ?? 120;
+    const startX = e.clientX;
+    const move = (ev: MouseEvent) => {
+      const nw = Math.max(60, Math.round(startW + (ev.clientX - startX)));
+      try {
+        const entry: any = (editor as any).api?.node?.(tablePath);
+        const table = Array.isArray(entry) ? entry[0] : entry;
+        const count = table?.children?.[0]?.children?.length ?? colIndex + 1;
+        const sizes: number[] = Array.isArray(table?.colSizes) ? [...table.colSizes] : new Array(count).fill(0);
+        while (sizes.length < count) sizes.push(0);
+        sizes[colIndex] = nw;
+        editor.tf?.setNodes?.({ colSizes: sizes } as any, { at: tablePath });
+      } catch { /* no-op */ }
+    };
+    const up = () => { window.removeEventListener("mousemove", move); window.removeEventListener("mouseup", up); };
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+  };
+  return <span contentEditable={false} onMouseDown={onDown} title="Drag to resize column" className="absolute right-[-3px] top-0 z-20 h-full w-1.5 cursor-col-resize select-none hover:bg-accent/50" />;
 }
 
 const COMPONENTS: Record<string, any> = {
@@ -140,11 +175,22 @@ const COMPONENTS: Record<string, any> = {
   [TablePlugin.key]: (p: any) => {
     const bw = p.element?.borderWidth ?? 1;
     const bc = p.element?.borderColor ?? "var(--border)";
-    return <PlateElement {...p} as="table" style={{ ["--tbl-bw" as any]: `${bw}px`, ["--tbl-bc" as any]: bc, border: `${bw}px solid ${bc}` }} className="my-3 w-full table-fixed border-collapse text-sm" />;
+    const colCount: number = p.element?.children?.[0]?.children?.length ?? 0;
+    const colSizes: number[] = Array.isArray(p.element?.colSizes) ? p.element.colSizes : [];
+    return (
+      <PlateElement {...p} as="table" style={{ ["--tbl-bw" as any]: `${bw}px`, ["--tbl-bc" as any]: bc, border: `${bw}px solid ${bc}` }} className="my-3 w-full table-fixed border-collapse text-sm">
+        {colCount > 0 ? (
+          <colgroup contentEditable={false}>
+            {Array.from({ length: colCount }).map((_, i) => <col key={i} style={colSizes[i] ? { width: `${colSizes[i]}px` } : undefined} />)}
+          </colgroup>
+        ) : null}
+        {p.children}
+      </PlateElement>
+    );
   },
   [TableRowPlugin.key]: (p: any) => <PlateElement {...p} as="tr" />,
-  [TableCellPlugin.key]: (p: any) => <PlateElement {...p} as="td" style={{ borderWidth: "var(--tbl-bw,1px)", borderColor: "var(--tbl-bc,var(--border))", borderStyle: "solid", background: p.element?.background || undefined }} className="px-2 py-1 align-top" />,
-  [TableCellHeaderPlugin.key]: (p: any) => <PlateElement {...p} as="th" style={{ borderWidth: "var(--tbl-bw,1px)", borderColor: "var(--tbl-bc,var(--border))", borderStyle: "solid", background: p.element?.background || "var(--muted)" }} className="px-2 py-1 text-left font-semibold" />,
+  [TableCellPlugin.key]: (p: any) => <PlateElement {...p} as="td" style={{ borderWidth: "var(--tbl-bw,1px)", borderColor: "var(--tbl-bc,var(--border))", borderStyle: "solid", background: p.element?.background || undefined, position: "relative" }} className="px-2 py-1 align-top">{p.children}<ColResizeHandle /></PlateElement>,
+  [TableCellHeaderPlugin.key]: (p: any) => <PlateElement {...p} as="th" style={{ borderWidth: "var(--tbl-bw,1px)", borderColor: "var(--tbl-bc,var(--border))", borderStyle: "solid", background: p.element?.background || "var(--muted)", position: "relative" }} className="px-2 py-1 text-left font-semibold">{p.children}<ColResizeHandle /></PlateElement>,
   // Media (void nodes).
   [ImagePlugin.key]: (p: any) => <PlateElement {...p}><div contentEditable={false} className="my-2">{/* eslint-disable-next-line @next/next/no-img-element */}<img src={p.element?.url} alt={p.element?.name || ""} className="max-h-[28rem] max-w-full rounded-md border" /></div>{p.children}</PlateElement>,
   [VideoPlugin.key]: (p: any) => <PlateElement {...p}><div contentEditable={false} className="my-2"><video controls src={p.element?.url} className="max-h-[28rem] max-w-full rounded-md border" /></div>{p.children}</PlateElement>,
@@ -161,6 +207,7 @@ const COMPONENTS: Record<string, any> = {
       </div>{p.children}
     </PlateElement>
   ),
+  [WorkspaceActionPlugin.key]: ActionElement,
   ...LIVE_APP_COMPONENTS,
 };
 
@@ -916,6 +963,7 @@ export function WorkspaceEditorSurface({
   const insertProjectTracker = () => { try { e.tf?.insertNodes?.(newProjectTrackerNode()); } catch { /* no-op */ } };
   const insertKanban = () => { try { e.tf?.insertNodes?.(newKanbanNode()); } catch { /* no-op */ } };
   const insertCalendar = () => { try { e.tf?.insertNodes?.(newCalendarNode()); } catch { /* no-op */ } };
+  const insertAction = (kind: ActionKind) => { try { e.tf?.insertNodes?.(newActionNode(kind)); } catch { /* no-op */ } };
   const [htmlOpen, setHtmlOpen] = useState(false);
   const [recorderOpen, setRecorderOpen] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
@@ -978,6 +1026,10 @@ export function WorkspaceEditorSurface({
     { label: "Kanban Board", keywords: "kanban board columns cards", icon: SquareKanban, run: insertKanban },
     { label: "Calendar", keywords: "calendar events schedule month", icon: CalendarRange, run: insertCalendar },
     { label: "Ask AI", keywords: "ai summarize rewrite improve action items assistant", icon: Sparkles, run: () => setAiOpen(true) },
+    { label: "Send DM", keywords: "dm direct message notify staff action send", icon: MessageSquare, run: () => insertAction("dm") },
+    { label: "Send SMS", keywords: "sms text twilio message phone action send", icon: MessageCircle, run: () => insertAction("sms") },
+    { label: "Send Email", keywords: "email mail staff action send", icon: Mail, run: () => insertAction("email") },
+    { label: "Add to Schedule", keywords: "schedule calendar booking staff action jeremy", icon: CalendarClock, run: () => insertAction("schedule") },
     { label: "Link a document", keywords: "hash document link reference workspace", icon: Hash, run: () => setDocLinkPos(caretPos()) },
     { label: "Link a record", keywords: "plan client booking record link mjg", icon: Boxes, run: () => setRecordOpen(true) },
     { label: "Columns", keywords: "layout two column split", icon: Columns2, run: insertColumns },
@@ -1022,6 +1074,10 @@ export function WorkspaceEditorSurface({
     { label: "Link a document", shortcut: "#", icon: Hash, run: () => setDocLinkPos(caretPos()) },
     { label: "Mention someone", shortcut: "@", icon: AtSign, run: () => { if (!mentionCommands.length) return; const c = caretPos(); openMenu(c.top, c.left, mentionCommands); } },
     { label: "Ask AI", icon: Sparkles, run: () => setAiOpen(true) },
+    { label: "Send DM", icon: MessageSquare, run: () => insertAction("dm") },
+    { label: "Send SMS", icon: MessageCircle, run: () => insertAction("sms") },
+    { label: "Send Email", icon: Mail, run: () => insertAction("email") },
+    { label: "Add to Schedule", icon: CalendarClock, run: () => insertAction("schedule") },
   ];
 
   return (
@@ -1095,6 +1151,14 @@ export function WorkspaceEditorSurface({
               <DropdownMenuItem onSelect={() => setHtmlOpen(true)}><FileCode2 /> HTML embed</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setEmojiOpen(true)}><Smile /> Emoji</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setAiOpen(true)}><Sparkles /> Ask AI</DropdownMenuItem>
+            </div>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel>Actions (verify before sending)</DropdownMenuLabel>
+            <div className="grid grid-cols-2 gap-0.5">
+              <DropdownMenuItem onSelect={() => insertAction("dm")}><MessageSquare /> Send DM</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => insertAction("sms")}><MessageCircle /> Send SMS</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => insertAction("email")}><Mail /> Send Email</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => insertAction("schedule")}><CalendarClock /> Add to Schedule</DropdownMenuItem>
             </div>
           </DropdownMenuContent>
         </DropdownMenu>
