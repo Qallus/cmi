@@ -14,9 +14,10 @@ function rowBg(block: EmailBlock): string {
 
 function tdPad(block: EmailBlock, defT: number, defX: number, defB: number): string {
   const t = block.pad_top    ?? defT;
-  const x = block.pad_x     ?? defX;
+  const l = block.pad_left   ?? block.pad_x ?? defX;
+  const r = block.pad_right  ?? block.pad_x ?? defX;
   const b = block.pad_bottom ?? defB;
-  return `padding:${t}px ${x}px ${b}px ${x}px;`;
+  return `padding:${t}px ${r}px ${b}px ${l}px;`;
 }
 
 // A column is a composite stack: any of image, heading, body text, and button
@@ -134,7 +135,8 @@ function renderBlock(block: EmailBlock): string {
       const count  = block.col_count ?? 2;
       const cols   = block.columns ?? [];
       const padT   = block.pad_top    ?? 16;
-      const padX   = block.pad_x     ?? 40;
+      const padL   = block.pad_left   ?? block.pad_x ?? 40;
+      const padR   = block.pad_right  ?? block.pad_x ?? 40;
       const padB   = block.pad_bottom ?? 16;
       const gutter = 8;
       const colW   = count === 2 ? "50%" : count === 3 ? "33%" : "25%";
@@ -148,7 +150,7 @@ function renderBlock(block: EmailBlock): string {
 </td>`;
       }).join("\n      ");
 
-      return `<tr${rowBg(block)}><td style="padding:${padT}px ${padX}px ${padB}px ${padX}px;">
+      return `<tr${rowBg(block)}><td style="padding:${padT}px ${padR}px ${padB}px ${padL}px;">
   <table width="100%" cellpadding="0" cellspacing="0">
     <tr>
       ${colTds}

@@ -5,11 +5,13 @@ import {
   Mail, MessageSquare, Phone, Send, Plus, RefreshCw, Clock,
   CheckCircle2, XCircle, ArrowDownLeft, ArrowUpRight, X,
   ClipboardList, ChevronDown, UserRound, LayoutTemplate, Users, Eye, Printer,
+  Check, HardHat, FolderKanban, BriefcaseBusiness, ExternalLink, Tag,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { Message, MessageChannel } from "@/lib/communications/types";
 import type { ContactSubmission, ContactSubmissionStatus } from "@/lib/contact-submissions/types";
+import { CONTACT_TYPES, type ContactType } from "@/lib/contacts/types";
 import { TemplateManager } from "@/components/email-builder/template-manager";
 import { PrintManager } from "@/components/print-builder/print-manager";
 import { DynamicFieldsBar } from "@/components/ui/dynamic-fields-bar";
@@ -815,7 +817,24 @@ export function CommunicationsClient({
                 <ContactActionField label="Phone" value={selectedSubmission.phone ?? "--"} phone={selectedSubmission.phone} contactId={selectedSubmission.contact_id} />
                 <ModalField label="How They Heard" value={selectedSubmission.how_heard ?? "--"} />
                 <ModalField label="Subject" value={selectedSubmission.subject} />
+                {formatSubmissionAddress(selectedSubmission) && (
+                  <ModalField label="Project Address" value={formatSubmissionAddress(selectedSubmission)} />
+                )}
+                {selectedSubmission.project_budget && (
+                  <ModalField label="Project Budget" value={selectedSubmission.budget_amount || selectedSubmission.project_budget} />
+                )}
               </div>
+
+              {selectedSubmission.project_status?.length > 0 && (
+                <div>
+                  <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Project Status</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {selectedSubmission.project_status.map((s) => (
+                      <span key={s} className="rounded-full border border-accent/30 bg-accent/10 px-2.5 py-1 text-xs font-medium text-accent">{s}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div>
                 <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Message</div>
@@ -823,6 +842,9 @@ export function CommunicationsClient({
                   {selectedSubmission.message}
                 </div>
               </div>
+
+              {/* Assign / route */}
+              <AssignPanel submission={selectedSubmission} />
 
               {/* Status actions */}
               <div className="flex items-center justify-between border-t border-border pt-4">
@@ -922,6 +944,116 @@ function ContactActionField({
         <a href={profileHref} className="flex items-center gap-2 rounded-md px-2.5 py-2 hover:bg-muted">
           <UserRound className="h-3.5 w-3.5 text-accent" /> Contact profile
         </a>
+      </div>
+    </div>
+  );
+}
+
+function formatSubmissionAddress(s: ContactSubmission): string {
+  const l1 = [s.address_line1, s.address_line2].filter(Boolean).join(", ");
+  const cityState = [s.city, s.state].filter(Boolean).join(", ");
+  const l2 = [cityState, s.zip].filter(Boolean).join(" ");
+  return [l1, l2].filter(Boolean).join(" · ");
+}
+
+// Route a submission onward: tag the linked contact (Lead / Client / Vendor / …)
+// and jump into the workspace where the next record lives (Pre-Con, Jobs,
+// Projects). The contact profile is the hub — every downstream record links back
+// to it — so we deep-link there with the contact pre-selected.
+function AssignPanel({ submission }: { submission: ContactSubmission }) {
+  const contactId = submission.contact_id;
+  const [assignedType, setAssignedType] = React.useState<ContactType | null>(null);
+  const [saving, setSaving] = React.useState<ContactType | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
+
+  async function assignType(type: ContactType) {
+    if (!contactId) return;
+    setSaving(type); setError(null);
+    try {
+      const res = await fetch(`/api/contacts/${contactId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type }),
+      });
+      if (!res.ok) throw new Error();
+      setAssignedType(type);
+    } catch {
+      setError("Couldn't update. Try again.");
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  const profileHref = contactId
+    ? `/dashboard/contacts?id=${encodeURIComponent(contactId)}`
+    : `/dashboard/contacts?search=${encodeURIComponent(submission.email)}`;
+  const q = contactId ? `?contact=${encodeURIComponent(contactId)}` : "";
+
+  const routes: { label: string; href: string; icon: React.ElementType }[] = [
+    { label: "Contact Profile", href: profileHref, icon: UserRound },
+    { label: "Pre-Con", href: `/dashboard/sales${q}`, icon: BriefcaseBusiness },
+    { label: "New Job", href: `/dashboard/jobs/new${q}`, icon: HardHat },
+    { label: "Projects", href: `/dashboard/project-manager${q}`, icon: FolderKanban },
+  ];
+
+  return (
+    <div className="rounded-lg border border-border bg-muted/20 p-4">
+      <div className="mb-2.5 flex items-center gap-2">
+        <Tag className="h-3.5 w-3.5 text-accent" />
+        <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Assign / Route</span>
+      </div>
+
+      {/* Tag the linked contact */}
+      <div className="mb-3">
+        <div className="mb-1.5 text-xs text-muted-foreground">
+          Tag {submission.first_name || "this contact"} as:
+        </div>
+        {!contactId ? (
+          <p className="text-xs text-muted-foreground">
+            No linked contact record — open the contact profile to create one.
+          </p>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {CONTACT_TYPES.map((type) => {
+              const active = assignedType === type;
+              return (
+                <button
+                  key={type}
+                  type="button"
+                  disabled={saving !== null}
+                  onClick={() => void assignType(type)}
+                  className={cn(
+                    "inline-flex items-center gap-1 rounded-full border px-3 py-1 text-[12px] font-medium transition disabled:opacity-60",
+                    active
+                      ? "border-accent bg-accent/10 text-accent"
+                      : "border-border text-muted-foreground hover:border-accent/40 hover:text-foreground"
+                  )}
+                >
+                  {active && <Check className="h-3 w-3" />}
+                  {saving === type ? "Saving…" : type}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {error && <p className="mt-1.5 text-xs text-destructive">{error}</p>}
+      </div>
+
+      {/* Jump to a workspace */}
+      <div>
+        <div className="mb-1.5 text-xs text-muted-foreground">Open in:</div>
+        <div className="flex flex-wrap gap-1.5">
+          {routes.map(({ label, href, icon: Icon }) => (
+            <a
+              key={label}
+              href={href}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs font-medium text-foreground transition hover:border-accent/40 hover:text-accent"
+            >
+              <Icon className="h-3.5 w-3.5" /> {label}
+              <ExternalLink className="h-3 w-3 opacity-50" />
+            </a>
+          ))}
+        </div>
       </div>
     </div>
   );

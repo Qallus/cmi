@@ -73,7 +73,10 @@ export interface EmailBlock {
   section_bg?: string;
   pad_top?: number;
   pad_bottom?: number;
+  /** Legacy combined left/right padding; pad_left/pad_right take precedence. */
   pad_x?: number;
+  pad_left?: number;
+  pad_right?: number;
 }
 
 export interface EmailTemplate {

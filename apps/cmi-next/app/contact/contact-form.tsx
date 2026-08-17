@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Check } from "lucide-react";
 import { Select } from "@/components/ui/input";
 
 const HOW_DID_YOU_HEAR = [
@@ -17,9 +17,56 @@ const HOW_DID_YOU_HEAR = [
   "Vendor Referral",
 ];
 
+// Budget ladder, climbing in construction-scale brackets up to $5M, then "Other"
+// (which reveals a free-text amount field).
+const BUDGET_RANGES = [
+  "Under $50,000",
+  "$50,000 – $100,000",
+  "$100,000 – $250,000",
+  "$250,000 – $500,000",
+  "$500,000 – $1,000,000",
+  "$1,000,000 – $2,000,000",
+  "$2,000,000 – $3,000,000",
+  "$3,000,000 – $4,000,000",
+  "$4,000,000 – $5,000,000",
+  "Over $5,000,000",
+  "Other",
+];
+
+// Where the project stands in the construction process — multi-select chips.
+const PROJECT_STATUS_OPTIONS = [
+  "Just exploring ideas",
+  "Have a design concept",
+  "Have construction drawings",
+  "Have engineering / structural plans",
+  "Permits in progress",
+  "Permits approved",
+  "Financing secured",
+  "Land / lot acquired",
+  "Ready to break ground",
+  "Selecting a contractor",
+];
+
+const US_STATES = [
+  "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD",
+  "MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC",
+  "SD","TN","TX","UT","VT","VA","WA","WV","WI","WY","DC",
+];
+
+const inputCls =
+  "w-full rounded-lg border border-border bg-card px-4 py-2.5 text-sm outline-none placeholder:text-muted-foreground/50 focus:border-accent focus:ring-1 focus:ring-accent";
+
 export function ContactForm() {
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
+  const [budget, setBudget] = useState("");
+  const [projectStatus, setProjectStatus] = useState<string[]>([]);
+
+  function toggleStatus(opt: string) {
+    setProjectStatus((prev) =>
+      prev.includes(opt) ? prev.filter((s) => s !== opt) : [...prev, opt]
+    );
+  }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -27,14 +74,23 @@ export function ContactForm() {
     setErrorMsg("");
 
     const form = e.currentTarget;
+    const val = (n: string) => (form.elements.namedItem(n) as HTMLInputElement | null)?.value ?? "";
     const data = {
-      firstName: (form.elements.namedItem("firstName") as HTMLInputElement).value,
-      lastName: (form.elements.namedItem("lastName") as HTMLInputElement).value,
-      email: (form.elements.namedItem("email") as HTMLInputElement).value,
-      phone: (form.elements.namedItem("phone") as HTMLInputElement).value,
-      source: (form.elements.namedItem("source") as HTMLSelectElement).value,
-      subject: (form.elements.namedItem("subject") as HTMLInputElement).value,
-      message: (form.elements.namedItem("message") as HTMLTextAreaElement).value,
+      firstName: val("firstName"),
+      lastName: val("lastName"),
+      email: val("email"),
+      phone: val("phone"),
+      source: val("source"),
+      subject: val("subject"),
+      message: val("message"),
+      addressLine1: val("addressLine1"),
+      addressLine2: val("addressLine2"),
+      city: val("city"),
+      state: val("state"),
+      zip: val("zip"),
+      projectBudget: budget,
+      budgetAmount: budget === "Other" ? val("budgetAmount") : "",
+      projectStatus,
     };
 
     try {
@@ -51,6 +107,8 @@ export function ContactForm() {
 
       setStatus("success");
       form.reset();
+      setBudget("");
+      setProjectStatus([]);
     } catch (err) {
       setStatus("error");
       setErrorMsg(err instanceof Error ? err.message : "Something went wrong. Please try again.");
@@ -87,27 +145,13 @@ export function ContactForm() {
           <label htmlFor="firstName" className="mb-1.5 block text-sm font-medium">
             First Name <span className="text-accent">*</span>
           </label>
-          <input
-            id="firstName"
-            name="firstName"
-            type="text"
-            required
-            placeholder="John"
-            className="w-full rounded-lg border border-border bg-card px-4 py-2.5 text-sm outline-none placeholder:text-muted-foreground/50 focus:border-accent focus:ring-1 focus:ring-accent"
-          />
+          <input id="firstName" name="firstName" type="text" required placeholder="John" className={inputCls} />
         </div>
         <div>
           <label htmlFor="lastName" className="mb-1.5 block text-sm font-medium">
             Last Name <span className="text-accent">*</span>
           </label>
-          <input
-            id="lastName"
-            name="lastName"
-            type="text"
-            required
-            placeholder="Smith"
-            className="w-full rounded-lg border border-border bg-card px-4 py-2.5 text-sm outline-none placeholder:text-muted-foreground/50 focus:border-accent focus:ring-1 focus:ring-accent"
-          />
+          <input id="lastName" name="lastName" type="text" required placeholder="Smith" className={inputCls} />
         </div>
       </div>
 
@@ -117,43 +161,125 @@ export function ContactForm() {
           <label htmlFor="email" className="mb-1.5 block text-sm font-medium">
             Email <span className="text-accent">*</span>
           </label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            required
-            placeholder="john@example.com"
-            className="w-full rounded-lg border border-border bg-card px-4 py-2.5 text-sm outline-none placeholder:text-muted-foreground/50 focus:border-accent focus:ring-1 focus:ring-accent"
-          />
+          <input id="email" name="email" type="email" required placeholder="john@example.com" className={inputCls} />
         </div>
         <div>
           <label htmlFor="phone" className="mb-1.5 block text-sm font-medium">
             Phone
           </label>
-          <input
-            id="phone"
-            name="phone"
-            type="tel"
-            placeholder="(480) 555-0100"
-            className="w-full rounded-lg border border-border bg-card px-4 py-2.5 text-sm outline-none placeholder:text-muted-foreground/50 focus:border-accent focus:ring-1 focus:ring-accent"
-          />
+          <input id="phone" name="phone" type="tel" placeholder="(480) 555-0100" className={inputCls} />
         </div>
       </div>
 
+      {/* Address */}
+      <fieldset className="space-y-4 rounded-xl border border-border bg-card/40 p-5">
+        <legend className="px-1 text-sm font-medium">Project Address</legend>
+        <div>
+          <label htmlFor="addressLine1" className="mb-1.5 block text-sm font-medium">
+            Address Line 1
+          </label>
+          <input id="addressLine1" name="addressLine1" type="text" placeholder="7314 E Osborn Dr" className={inputCls} />
+        </div>
+        <div>
+          <label htmlFor="addressLine2" className="mb-1.5 block text-sm font-medium">
+            Address Line 2
+          </label>
+          <input id="addressLine2" name="addressLine2" type="text" placeholder="Suite A" className={inputCls} />
+        </div>
+        <div className="grid gap-4 sm:grid-cols-[1fr_120px_140px]">
+          <div>
+            <label htmlFor="city" className="mb-1.5 block text-sm font-medium">City</label>
+            <input id="city" name="city" type="text" placeholder="Scottsdale" className={inputCls} />
+          </div>
+          <div>
+            <label htmlFor="state" className="mb-1.5 block text-sm font-medium">State</label>
+            <Select id="state" name="state" className="[&>button]:h-[42px] [&>button]:rounded-lg [&>button]:px-3">
+              <option value="">--</option>
+              {US_STATES.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </Select>
+          </div>
+          <div>
+            <label htmlFor="zip" className="mb-1.5 block text-sm font-medium">Zip Code</label>
+            <input id="zip" name="zip" type="text" inputMode="numeric" placeholder="85251" className={inputCls} />
+          </div>
+        </div>
+      </fieldset>
+
+      {/* How did you hear */}
       <div>
         <label htmlFor="source" className="mb-1.5 block text-sm font-medium">
           How did you hear about us?
         </label>
-        <Select
-          id="source"
-          name="source"
-          className="[&>button]:h-12 [&>button]:rounded-lg [&>button]:px-4"
-        >
+        <Select id="source" name="source" className="[&>button]:h-12 [&>button]:rounded-lg [&>button]:px-4">
           <option value="">Select an option</option>
           {HOW_DID_YOU_HEAR.map((opt) => (
             <option key={opt} value={opt}>{opt}</option>
           ))}
         </Select>
+      </div>
+
+      {/* Project Budget */}
+      <div>
+        <label htmlFor="projectBudget" className="mb-1.5 block text-sm font-medium">
+          Project Budget Range
+        </label>
+        <Select
+          id="projectBudget"
+          name="projectBudget"
+          value={budget}
+          onChange={(e) => setBudget(e.target.value)}
+          className="[&>button]:h-12 [&>button]:rounded-lg [&>button]:px-4"
+        >
+          <option value="">Select a budget range</option>
+          {BUDGET_RANGES.map((opt) => (
+            <option key={opt} value={opt}>{opt}</option>
+          ))}
+        </Select>
+        {budget === "Other" && (
+          <div className="mt-3">
+            <label htmlFor="budgetAmount" className="mb-1.5 block text-sm font-medium">
+              Budget Amount
+            </label>
+            <input
+              id="budgetAmount"
+              name="budgetAmount"
+              type="text"
+              placeholder="e.g. $7.5M or a specific figure"
+              className={inputCls}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Project Status — multi-select chips */}
+      <div>
+        <label className="mb-1.5 block text-sm font-medium">
+          Project Status <span className="font-normal text-muted-foreground">(select all that apply)</span>
+        </label>
+        <div className="flex flex-wrap gap-2">
+          {PROJECT_STATUS_OPTIONS.map((opt) => {
+            const active = projectStatus.includes(opt);
+            return (
+              <button
+                key={opt}
+                type="button"
+                onClick={() => toggleStatus(opt)}
+                aria-pressed={active}
+                className={
+                  "inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm transition " +
+                  (active
+                    ? "border-accent bg-accent/10 text-accent"
+                    : "border-border text-muted-foreground hover:border-accent/40 hover:text-foreground")
+                }
+              >
+                {active && <Check className="h-3.5 w-3.5" />}
+                {opt}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Subject */}
@@ -167,7 +293,7 @@ export function ContactForm() {
           type="text"
           required
           placeholder="e.g. Custom Home Build — Paradise Valley"
-          className="w-full rounded-lg border border-border bg-card px-4 py-2.5 text-sm outline-none placeholder:text-muted-foreground/50 focus:border-accent focus:ring-1 focus:ring-accent"
+          className={inputCls}
         />
       </div>
 
@@ -182,7 +308,7 @@ export function ContactForm() {
           required
           rows={6}
           placeholder="Tell us about your project — timeline, location, scope, or anything else we should know."
-          className="w-full resize-none rounded-lg border border-border bg-card px-4 py-2.5 text-sm outline-none placeholder:text-muted-foreground/50 focus:border-accent focus:ring-1 focus:ring-accent"
+          className={inputCls + " resize-none"}
         />
       </div>
 

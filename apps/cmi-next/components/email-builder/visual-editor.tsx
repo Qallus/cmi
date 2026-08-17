@@ -80,11 +80,22 @@ function ColPreview({ col }: { col: ColumnItem }) {
   );
 }
 
+// Live padding for the canvas preview — honors the block's pad overrides so the
+// properties panel reflects immediately (falls back to each block's defaults).
+// Order matches CSS shorthand: top right bottom left.
+function previewPad(block: EmailBlock, defT: number, defX: number, defB: number): string {
+  const t = block.pad_top    ?? defT;
+  const l = block.pad_left   ?? block.pad_x ?? defX;
+  const r = block.pad_right  ?? block.pad_x ?? defX;
+  const b = block.pad_bottom ?? defB;
+  return `${t}px ${r}px ${b}px ${l}px`;
+}
+
 function BlockPreview({ block }: { block: EmailBlock }) {
   switch (block.type) {
     case "header":
       return (
-        <div style={{ background: block.bg_color ?? "#111111", padding: "20px 32px", textAlign: "center" }}>
+        <div style={{ background: block.bg_color ?? "#111111", padding: previewPad(block, 20, 32, 20), textAlign: "center" }}>
           {block.logo_url
             ? <img src={block.logo_url} alt="Logo" style={{ height: 32, width: "auto", display: "inline-block" }} />
             : <span style={{ color: "#ffffff", fontSize: 14, fontWeight: 600 }}>Logo Header</span>}
@@ -92,7 +103,7 @@ function BlockPreview({ block }: { block: EmailBlock }) {
       );
     case "heading":
       return (
-        <div style={{ padding: "12px 32px 4px", textAlign: block.align ?? "left" }}>
+        <div style={{ padding: previewPad(block, 12, 32, 4), textAlign: block.align ?? "left" }}>
           <span style={{ fontSize: block.font_size ?? 28, fontWeight: 700, color: block.color ?? "#111111", lineHeight: 1.3 }}>
             {block.text || "Heading"}
           </span>
@@ -100,7 +111,7 @@ function BlockPreview({ block }: { block: EmailBlock }) {
       );
     case "text":
       return (
-        <div style={{ padding: "4px 32px", textAlign: block.align ?? "left" }}>
+        <div style={{ padding: previewPad(block, 4, 32, 4), textAlign: block.align ?? "left" }}>
           <span style={{ fontSize: block.font_size ?? 15, color: block.color ?? "#4b5563", lineHeight: 1.7 }}>
             {block.content || "Your text here."}
           </span>
@@ -108,7 +119,7 @@ function BlockPreview({ block }: { block: EmailBlock }) {
       );
     case "button":
       return (
-        <div style={{ padding: "12px 32px", textAlign: block.align ?? "center" }}>
+        <div style={{ padding: previewPad(block, 12, 32, 12), textAlign: block.align ?? "center" }}>
           <span style={{ display: "inline-block", background: block.btn_bg ?? "#C87A3A", color: block.btn_color ?? "#ffffff", borderRadius: block.btn_radius ?? 6, padding: "12px 28px", fontSize: 14, fontWeight: 700 }}>
             {block.label || "Click Here"} {"->"}
           </span>
@@ -116,7 +127,7 @@ function BlockPreview({ block }: { block: EmailBlock }) {
       );
     case "image":
       return (
-        <div style={{ padding: "8px 32px", textAlign: block.align ?? "center" }}>
+        <div style={{ padding: previewPad(block, 8, 32, 8), textAlign: block.align ?? "center" }}>
           {block.src
             ? <img src={block.src} alt={block.alt ?? ""} style={{ maxWidth: "100%", height: "auto", display: "inline-block" }} />
             : <div style={{ width: "100%", height: 100, background: "#f3f4f6", display: "flex", alignItems: "center", justifyContent: "center", color: "#9ca3af", fontSize: 13, borderRadius: 4 }}>No image URL set</div>}
@@ -124,7 +135,7 @@ function BlockPreview({ block }: { block: EmailBlock }) {
       );
     case "divider":
       return (
-        <div style={{ padding: "8px 32px" }}>
+        <div style={{ padding: previewPad(block, 8, 32, 8) }}>
           <div style={{ borderTop: `${block.thickness ?? 1}px solid ${block.border_color ?? "#eeeeee"}` }} />
         </div>
       );
@@ -132,7 +143,7 @@ function BlockPreview({ block }: { block: EmailBlock }) {
       return <div style={{ height: block.height ?? 24, background: "repeating-linear-gradient(45deg,#f9f9f9,#f9f9f9 4px,#f3f4f6 4px,#f3f4f6 8px)" }} />;
     case "html":
       return block.html?.trim()
-        ? <div style={{ padding: "8px 24px" }} dangerouslySetInnerHTML={{ __html: stripScripts(block.html) }} />
+        ? <div style={{ padding: previewPad(block, 8, 24, 8) }} dangerouslySetInnerHTML={{ __html: stripScripts(block.html) }} />
         : <div style={{ padding: 16, textAlign: "center", color: "#9ca3af", fontSize: 12, fontFamily: "monospace" }}>&lt;/&gt; Empty HTML block</div>;
     case "footer":
       return (
@@ -146,7 +157,7 @@ function BlockPreview({ block }: { block: EmailBlock }) {
       const count = block.col_count ?? 2;
       const cols  = block.columns ?? [];
       return (
-        <div style={{ padding: `${block.pad_top ?? 12}px ${block.pad_x ?? 16}px ${block.pad_bottom ?? 12}px`, display: "flex", gap: 6 }}>
+        <div style={{ padding: previewPad(block, 12, 16, 12), display: "flex", gap: 6 }}>
           {Array.from({ length: count }).map((_, i) => (
             <div key={i} style={{ flex: 1, border: "1.5px dashed #d1d5db", borderRadius: 4, overflow: "hidden", minHeight: 60 }}>
               {cols[i]
@@ -267,10 +278,16 @@ function SectionSettings({ block, onChange }: { block: EmailBlock; onChange: (p:
           onChange={e => onChange({ pad_bottom: e.target.value ? Number(e.target.value) : undefined })}
         />
       </Field>
-      <Field label="Pad Left / Right (px)">
+      <Field label="Pad Left (px)">
         <input className={inputCls} type="number" min={0} max={120}
-          value={block.pad_x ?? ""} placeholder="default"
-          onChange={e => onChange({ pad_x: e.target.value ? Number(e.target.value) : undefined })}
+          value={block.pad_left ?? block.pad_x ?? ""} placeholder="default"
+          onChange={e => onChange({ pad_left: e.target.value ? Number(e.target.value) : undefined })}
+        />
+      </Field>
+      <Field label="Pad Right (px)">
+        <input className={inputCls} type="number" min={0} max={120}
+          value={block.pad_right ?? block.pad_x ?? ""} placeholder="default"
+          onChange={e => onChange({ pad_right: e.target.value ? Number(e.target.value) : undefined })}
         />
       </Field>
     </div>

@@ -23,9 +23,24 @@ export type ContactNotification = {
   source?: string | null;
   subject?: string | null;
   message?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
+  projectBudget?: string | null;
+  projectStatus?: string[] | null;
   /** Which site the form was submitted from (derived from the request origin). */
   site?: string | null;
 };
+
+// Assemble a one-line, human-readable address from the parts that are present.
+function formatAddress(n: ContactNotification): string {
+  const l1 = [n.addressLine1, n.addressLine2].filter(Boolean).join(", ");
+  const cityState = [n.city, n.state].filter(Boolean).join(", ");
+  const l2 = [cityState, n.zip].filter(Boolean).join(" ");
+  return [l1, l2].filter(Boolean).join(" · ");
+}
 
 function row(labelText: string, valueHtml: string): string {
   return `<tr>
@@ -42,6 +57,15 @@ function buildHtml(n: ContactNotification): string {
   rows.push(row("Email", `<a href="mailto:${esc(n.email)}" style="color:#C87A3A;text-decoration:none;">${esc(n.email)}</a>`));
   if (n.phone) rows.push(row("Phone", `<a href="tel:${esc(telHref(n.phone))}" style="color:#C87A3A;text-decoration:none;">${esc(n.phone)}</a>`));
   if (n.subject) rows.push(row("Subject", esc(n.subject)));
+  const address = formatAddress(n);
+  if (address) rows.push(row("Project Address", esc(address)));
+  if (n.projectBudget) rows.push(row("Project Budget", esc(n.projectBudget)));
+  if (n.projectStatus && n.projectStatus.length) {
+    const chips = n.projectStatus
+      .map((s) => `<span style="display:inline-block;margin:0 6px 6px 0;padding:4px 10px;background:#f5efe8;border:1px solid #e7dccd;border-radius:14px;font-size:12px;color:#6b4b2b;">${esc(s)}</span>`)
+      .join("");
+    rows.push(row("Project Status", `<div style="margin-top:-4px;">${chips}</div>`));
+  }
   if (n.source) rows.push(row("How they heard", esc(n.source)));
   if (n.site) rows.push(row("Submitted from", `<a href="${esc(n.site)}" style="color:#C87A3A;text-decoration:none;">${esc(n.site)}</a>`));
   if (n.message) rows.push(row("Message", esc(n.message).replace(/\n/g, "<br>")));
@@ -72,8 +96,11 @@ export async function sendContactNotification(n: ContactNotification): Promise<{
   }
   const fromEmail = process.env.RESEND_FROM_EMAIL ?? "info@constructedmatter.com";
   const from = fromEmail.includes("<") ? fromEmail : `Constructed Matter <${fromEmail}>`;
-  const to = [process.env.CONTACT_NOTIFY_TO ?? "info@constructedmatter.com"];
-  const bccRaw = process.env.CONTACT_NOTIFY_BCC ?? "jeremy@constructedmatter.com";
+  // Deliver to both the shared inbox and Brandon by default; overridable via env
+  // (comma-separated list).
+  const toRaw = process.env.CONTACT_NOTIFY_TO ?? "brandon@constructedmatter.com,info@constructedmatter.com";
+  const to = Array.from(new Set(toRaw.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean)));
+  const bccRaw = process.env.CONTACT_NOTIFY_BCC ?? "";
   const bcc = bccRaw.split(",").map((s) => s.trim()).filter(Boolean);
   const name = [n.firstName, n.lastName].filter(Boolean).join(" ").trim() || n.email;
 
