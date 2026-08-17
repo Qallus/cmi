@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { requireAdmin, AuthError } from "@/lib/auth/require-admin";
+import { firstImage } from "@/components/print-builder/print-doc";
+import type { EmailBlock } from "@/components/email-builder/types";
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -25,6 +27,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     for (const k of ["name", "page_size", "orientation", "width_in", "height_in", "blocks", "html", "status"]) {
       if (k in body) patch[k] = body[k];
     }
+    if (Array.isArray(body.blocks)) patch.thumbnail_url = firstImage(body.blocks as EmailBlock[]);
     const { data, error } = await getSupabaseAdmin().from("print_documents").update(patch).eq("id", id).select("*").single();
     if (error) throw error;
     return NextResponse.json({ print: data });

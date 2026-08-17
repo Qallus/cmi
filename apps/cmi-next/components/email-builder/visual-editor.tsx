@@ -4,7 +4,7 @@ import * as React from "react";
 import {
   GripVertical, Trash2, Plus, Type, AlignLeft, MousePointerClick,
   ImageIcon, Minus, SeparatorHorizontal, PanelBottom, LayoutTemplate,
-  Columns2, Upload as UploadIcon,
+  Columns2, Upload as UploadIcon, Code2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { EmailBlock, BlockType, ColumnItem } from "./types";
@@ -22,8 +22,14 @@ const PALETTE: { type: BlockType; label: string; icon: React.ElementType; desc: 
   { type: "image",   label: "Image",    icon: ImageIcon,           desc: "Image with optional link" },
   { type: "divider", label: "Divider",  icon: Minus,               desc: "Horizontal rule" },
   { type: "spacer",  label: "Spacer",   icon: SeparatorHorizontal, desc: "Empty vertical gap" },
+  { type: "html",    label: "HTML",     icon: Code2,               desc: "Raw HTML snippet" },
   { type: "footer",  label: "Footer",   icon: PanelBottom,         desc: "Company info footer" },
 ];
+
+// Strip <script> for safety (staff-authored, but rendered in-app + exported).
+function stripScripts(html: string): string {
+  return (html ?? "").replace(/<script[\s\S]*?<\/script>/gi, "");
+}
 
 // -- Defaults ------------------------------------------------------------------
 
@@ -44,6 +50,7 @@ function defaultBlock(type: BlockType): Omit<EmailBlock, "id"> {
     case "image":   return { type, src: "", alt: "", img_width: 480, align: "center", link: "" };
     case "divider": return { type, border_color: "#eeeeee", thickness: 1 };
     case "spacer":  return { type, height: 24 };
+    case "html":    return { type, html: "<p style=\"font-family:Arial,sans-serif;font-size:15px;color:#111;\">Your custom HTML here.</p>" };
     case "footer":  return { type, company: "Constructed Matter, Inc.", address: "7314 E Osborn Dr Suite A - Scottsdale, AZ 85251", disclaimer: "If you weren't expecting this email, you can safely ignore it." };
     case "columns": return {
       type, col_count: 3,
@@ -123,6 +130,10 @@ function BlockPreview({ block }: { block: EmailBlock }) {
       );
     case "spacer":
       return <div style={{ height: block.height ?? 24, background: "repeating-linear-gradient(45deg,#f9f9f9,#f9f9f9 4px,#f3f4f6 4px,#f3f4f6 8px)" }} />;
+    case "html":
+      return block.html?.trim()
+        ? <div style={{ padding: "8px 24px" }} dangerouslySetInnerHTML={{ __html: stripScripts(block.html) }} />
+        : <div style={{ padding: 16, textAlign: "center", color: "#9ca3af", fontSize: 12, fontFamily: "monospace" }}>&lt;/&gt; Empty HTML block</div>;
     case "footer":
       return (
         <div style={{ padding: "16px 32px", textAlign: "center", borderTop: "1px solid #eeeeee" }}>
@@ -348,6 +359,12 @@ function BlockSettings({ block, onChange, onDelete }: {
       {/* Spacer */}
       {s.type === "spacer" && <>
         <Field label="Height (px)"><input className={inputCls} type="number" min={8} max={120} value={s.height ?? 24} onChange={e => onChange({ height: Number(e.target.value) })} /></Field>
+      </>}
+
+      {/* HTML */}
+      {s.type === "html" && <>
+        <Field label="HTML"><textarea className={cn(inputCls, "min-h-[180px] resize-y font-mono text-xs")} value={s.html ?? ""} onChange={e => onChange({ html: e.target.value })} placeholder="<div>…</div>" /></Field>
+        <p className="text-[11px] text-muted-foreground">Paste any HTML markup. &lt;script&gt; tags are removed for safety.</p>
       </>}
 
       {/* Footer */}

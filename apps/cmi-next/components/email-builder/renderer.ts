@@ -112,6 +112,12 @@ function renderBlock(block: EmailBlock): string {
       return `<tr${rowBg(block)}><td style="height:${h}px;line-height:${h}px;font-size:${h}px;">&nbsp;</td></tr>`;
     }
 
+    case "html": {
+      const pad = tdPad(block, 8, 40, 8);
+      const html = (block.html ?? "").replace(/<script[\s\S]*?<\/script>/gi, "");
+      return `<tr${rowBg(block)}><td style="${pad}">${html}</td></tr>`;
+    }
+
     case "footer": {
       const company = block.company ?? "Constructed Matter, Inc.";
       const address = block.address ?? "7314 E Osborn Dr Suite A - Scottsdale, AZ 85251";

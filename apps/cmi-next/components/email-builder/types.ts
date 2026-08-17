@@ -1,7 +1,7 @@
 export type BlockType =
   | "header" | "heading" | "text" | "button"
   | "image" | "divider" | "spacer" | "footer"
-  | "columns";
+  | "columns" | "html";
 
 export interface ColumnItem {
   id: string;
@@ -67,6 +67,8 @@ export interface EmailBlock {
   // Columns
   col_count?: 2 | 3 | 4;
   columns?: ColumnItem[];
+  // Raw HTML block
+  html?: string;
   // Section / spacing overrides (all blocks)
   section_bg?: string;
   pad_top?: number;

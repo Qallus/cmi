@@ -57,7 +57,7 @@ export function PrintManager() {
   }
   function handleSaved(saved: PrintDoc) {
     setPrints((prev) => {
-      const entry: PrintListItem = { id: saved.id, name: saved.name, page_size: saved.page_size, orientation: saved.orientation, status: saved.status, created_at: saved.created_at, updated_at: saved.updated_at };
+      const entry: PrintListItem = { id: saved.id, name: saved.name, page_size: saved.page_size, orientation: saved.orientation, status: saved.status, thumbnail_url: saved.thumbnail_url ?? null, created_at: saved.created_at, updated_at: saved.updated_at };
       const idx = prev.findIndex((p) => p.id === saved.id);
       if (idx === -1) return [entry, ...prev];
       const next = [...prev]; next[idx] = entry; return next;
@@ -100,8 +100,10 @@ export function PrintManager() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {prints.map((p) => (
               <button key={p.id} type="button" onClick={() => void openView(p.id)} className="group overflow-hidden rounded-xl border border-border bg-card text-left transition hover:border-accent/40 hover:shadow-sm">
-                <div className="relative flex items-center justify-center bg-muted/40" style={{ aspectRatio: p.orientation === "landscape" ? "11/8.5" : "8.5/11" }}>
-                  <FileText className="h-10 w-10 text-muted-foreground/40" />
+                <div className="relative flex items-center justify-center overflow-hidden bg-muted/40" style={{ aspectRatio: p.orientation === "landscape" ? "11/8.5" : "8.5/11" }}>
+                  {p.thumbnail_url
+                    ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={p.thumbnail_url} alt={p.name} className="h-full w-full object-cover" />
+                    : <FileText className="h-10 w-10 text-muted-foreground/40" />}
                   <span className={cn("absolute right-2 top-2 rounded-full px-2 py-0.5 text-[10px] font-semibold", p.status === "active" ? "bg-success/15 text-success" : "bg-background/80 text-muted-foreground")}>{p.status}</span>
                 </div>
                 <div className="p-3">
@@ -120,7 +122,7 @@ export function PrintManager() {
               <tbody className="divide-y divide-border">
                 {prints.map((p) => (
                   <tr key={p.id} className="group cursor-pointer transition hover:bg-muted/30" onClick={() => void openView(p.id)}>
-                    <td className="px-4 py-3 font-medium"><span className="inline-flex items-center gap-2"><FileText className="h-4 w-4 text-muted-foreground" />{p.name}</span></td>
+                    <td className="px-4 py-3 font-medium"><span className="inline-flex items-center gap-2">{p.thumbnail_url ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={p.thumbnail_url} alt="" className="h-8 w-8 shrink-0 rounded border border-border object-cover" /> : <FileText className="h-4 w-4 text-muted-foreground" />}{p.name}</span></td>
                     {view === "table" ? <td className="px-4 py-3 text-xs text-muted-foreground">{sizeLabel(p.page_size)} · {p.orientation}</td> : null}
                     <td className="px-4 py-3"><span className={cn("rounded-full px-2 py-0.5 text-[11px] font-semibold", p.status === "active" ? "bg-success/15 text-success" : "bg-muted text-muted-foreground")}>{p.status}</span></td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">{timeAgo(p.updated_at)}</td>

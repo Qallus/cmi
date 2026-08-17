@@ -30,6 +30,17 @@ export function printableHtml(
 </html>`;
 }
 
+// The print's featured image for the library thumbnail: the first image block,
+// then any column image, then the header logo.
+export function firstImage(blocks: EmailBlock[]): string | null {
+  for (const b of blocks ?? []) {
+    if (b.type === "image" && b.src) return b.src;
+    if (b.type === "columns") { for (const c of b.columns ?? []) if (c.src) return c.src; }
+  }
+  for (const b of blocks ?? []) if (b.type === "header" && b.logo_url) return b.logo_url;
+  return null;
+}
+
 // Open the print document in a new window and trigger the browser print dialog
 // (where the user can pick a printer or "Save as PDF").
 export function openPrintWindow(html: string) {

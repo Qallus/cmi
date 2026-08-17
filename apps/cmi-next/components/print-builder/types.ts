@@ -10,9 +10,10 @@ export interface PrintDoc {
   height_in: number | null;
   blocks: EmailBlock[];
   html: string;
+  thumbnail_url: string | null;
   status: "draft" | "active";
   created_at: string;
   updated_at: string;
 }
 
-export type PrintListItem = Pick<PrintDoc, "id" | "name" | "page_size" | "orientation" | "status" | "created_at" | "updated_at">;
+export type PrintListItem = Pick<PrintDoc, "id" | "name" | "page_size" | "orientation" | "status" | "thumbnail_url" | "created_at" | "updated_at">;
