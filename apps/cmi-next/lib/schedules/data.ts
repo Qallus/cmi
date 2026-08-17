@@ -2,6 +2,7 @@
 // service-role client (RLS bypass); the API layer gates by role.
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { addWorkdays, parseISO, fmtISO, durationDays } from "./workdays";
+import { notifyScheduleEvent, assigneeStaffIds } from "./notify";
 import { DEFAULT_WORKDAYS } from "./types";
 import type {
   JobSchedule, SchedulePhase, ScheduleItem, ScheduleDependency, ScheduleParticipant,
@@ -218,7 +219,12 @@ export async function createItem(scheduleId: string, input: Partial<ScheduleItem
   const { data, error } = await sb.from("schedule_items").insert(row).select("*").single();
   if (error) throw new Error(error.message);
   await logActivity({ jobId: sched?.job_id ?? null, scheduleId, itemId: data.id, action: "item_created", detail: { title: data.title, kind: data.kind }, actor });
-  return mapItem(data);
+  const created = mapItem(data);
+  const assignees = assigneeStaffIds(created.assignees);
+  if (assignees.length) {
+    await notifyScheduleEvent({ kind: "assigned", recipientIds: assignees, jobId: data.job_id, scheduleId, itemId: data.id, title: `Assigned: ${data.title}`, subtitle: created.end_date ? `Due ${created.end_date}` : "New schedule assignment", actorId: actor?.id });
+  }
+  return created;
 }
 
 export async function updateItem(id: string, patch: Partial<ScheduleItem>, actor?: Actor, opts: { cascade?: boolean } = {}): Promise<{ item: ScheduleItem; cascaded: ScheduleItem[] }> {
@@ -230,8 +236,20 @@ export async function updateItem(id: string, patch: Partial<ScheduleItem>, actor
   if (error) throw new Error(error.message);
   await logActivity({ jobId: data.job_id, scheduleId: data.schedule_id, itemId: id, action: "item_updated", detail: { fields: Object.keys(clean), title: data.title }, actor });
 
-  let cascaded: ScheduleItem[] = [];
+  // Notify newly-added assignees, and (on a date change) the existing assignees.
+  const prevAssignees = assigneeStaffIds((prev?.assignees ?? []) as never);
+  const nowAssignees = assigneeStaffIds(mapItem(data).assignees);
+  const added = nowAssignees.filter((x) => !prevAssignees.includes(x));
   const datesChanged = prev && (prev.start_date !== data.start_date || prev.end_date !== data.end_date);
+  if (added.length) {
+    await notifyScheduleEvent({ kind: "assigned", recipientIds: added, jobId: data.job_id, scheduleId: data.schedule_id, itemId: id, title: `Assigned: ${data.title}`, subtitle: data.end_date ? `Due ${data.end_date}` : "New schedule assignment", actorId: actor?.id });
+  }
+  if (datesChanged) {
+    const movedRecipients = nowAssignees.filter((x) => !added.includes(x));
+    if (movedRecipients.length) await notifyScheduleEvent({ kind: "moved", recipientIds: movedRecipients, jobId: data.job_id, scheduleId: data.schedule_id, itemId: id, title: `Rescheduled: ${data.title}`, subtitle: `Now ${data.start_date ?? "?"}${data.end_date ? ` → ${data.end_date}` : ""}`, actorId: actor?.id });
+  }
+
+  let cascaded: ScheduleItem[] = [];
   if (opts.cascade !== false && datesChanged && data.job_id) {
     cascaded = await applyCascade(data.job_id, id, actor);
   }
@@ -353,6 +371,11 @@ export async function applyCascade(jobId: string, changedItemId: string, actor?:
   const sb = getSupabaseAdmin();
   await Promise.all(changes.map((c) => sb.from("schedule_items").update({ start_date: c.to.start, end_date: c.to.end, updated_at: new Date().toISOString() }).eq("id", c.item.id)));
   await logActivity({ jobId, action: "cascade_applied", detail: { count: changes.length, from_item: changedItemId }, actor });
+  // Notify assignees of items that shifted from the cascade.
+  for (const c of changes) {
+    const recipients = assigneeStaffIds(c.item.assignees);
+    if (recipients.length) await notifyScheduleEvent({ kind: "moved", recipientIds: recipients, jobId, scheduleId: c.item.schedule_id, itemId: c.item.id, title: `Rescheduled: ${c.item.title}`, subtitle: `Now ${c.to.start ?? "?"}${c.to.end ? ` → ${c.to.end}` : ""} (dependency)`, actorId: actor?.id });
+  }
   return changes.map((c) => c.item);
 }
 

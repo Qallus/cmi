@@ -14,8 +14,9 @@
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { listConversations } from "@/lib/direct-messages/data";
 import { markBroadcastRead, unreadBroadcastsForStaff } from "@/lib/broadcasts/data";
+import { listScheduleNotifications, markScheduleNotificationRead } from "@/lib/schedules/notify";
 
-export type StaffNotificationKind = "submission" | "message" | "lead" | "note" | "booking" | "dm" | "broadcast" | "note_link";
+export type StaffNotificationKind = "submission" | "message" | "lead" | "note" | "booking" | "dm" | "broadcast" | "note_link" | "schedule";
 
 export type StaffNotification = {
   id: string;
@@ -37,6 +38,7 @@ const HREF: Record<StaffNotificationKind, string> = {
   dm: "/dashboard/direct-messages",
   broadcast: "/dashboard/overview",
   note_link: "/dashboard/documents",
+  schedule: "/dashboard/schedules",
 };
 
 function bookingWhen(iso: string | null): string {
@@ -218,6 +220,13 @@ export async function loadStaffNotifications(ctx: Ctx): Promise<StaffNotificatio
     });
   }
 
+  // Schedule notifications (assignments, reschedules, due-soon) for this staff member.
+  try {
+    for (const s of await listScheduleNotifications(ctx.staffId)) {
+      items.push({ id: s.id, kind: "schedule", title: s.title, subtitle: s.subtitle, time: s.time, href: s.href });
+    }
+  } catch { /* best-effort */ }
+
   items.sort((a, b) => (a.time < b.time ? 1 : a.time > b.time ? -1 : 0));
   return items;
 }
@@ -254,6 +263,8 @@ export async function markStaffNotificationRead(
       await supabase.from("dm_participants").update({ last_read_at: nowExpr }).eq("conversation_id", id).eq("user_id", ctx.staffId);
     } else if (kind === "broadcast") {
       await markBroadcastRead("staff", ctx.staffId, id);
+    } else if (kind === "schedule") {
+      await markScheduleNotificationRead(ctx.staffId, id);
     } else if (kind === "note_link") {
       const { data } = await supabase.from("staff_notes").select("read_by").eq("id", id).maybeSingle();
       const readBy = (data?.read_by as string[] | null) ?? [];

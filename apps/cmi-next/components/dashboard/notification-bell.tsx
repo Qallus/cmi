@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { PushToggle } from "@/components/pwa/push-toggle";
 
-type Kind = "submission" | "message" | "lead" | "note" | "booking" | "dm" | "broadcast";
+type Kind = "submission" | "message" | "lead" | "note" | "booking" | "dm" | "broadcast" | "note_link" | "schedule";
 type Item = { id: string; kind: Kind; title: string; subtitle: string; time: string; href: string };
 
 const ICON: Record<Kind, React.ComponentType<{ className?: string }>> = {
@@ -17,6 +17,8 @@ const ICON: Record<Kind, React.ComponentType<{ className?: string }>> = {
   booking: CalendarClock,
   dm: MessagesSquare,
   broadcast: Megaphone,
+  note_link: StickyNote,
+  schedule: CalendarClock,
 };
 const ICON_TONE: Record<Kind, string> = {
   submission: "bg-info/15 text-info",
@@ -26,6 +28,8 @@ const ICON_TONE: Record<Kind, string> = {
   booking: "bg-accent/15 text-accent",
   dm: "bg-info/15 text-info",
   broadcast: "bg-accent/15 text-accent",
+  note_link: "bg-warning/15 text-warning",
+  schedule: "bg-accent/15 text-accent",
 };
 
 function relTime(iso: string): string {
@@ -173,7 +177,7 @@ export function NotificationBell() {
             ) : (
               <ul className="divide-y divide-border">
                 {items.map((item) => {
-                  const Icon = ICON[item.kind];
+                  const Icon = ICON[item.kind] ?? Bell;
                   return (
                     <li key={`${item.kind}-${item.id}`} className="group relative flex items-start gap-3 px-4 py-3 transition hover:bg-muted/40">
                       <button type="button" onClick={() => void openItem(item)} className="flex min-w-0 flex-1 items-start gap-3 text-left">
