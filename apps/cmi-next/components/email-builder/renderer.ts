@@ -19,27 +19,19 @@ function tdPad(block: EmailBlock, defT: number, defX: number, defB: number): str
   return `padding:${t}px ${x}px ${b}px ${x}px;`;
 }
 
+// A column is a composite stack: any of image, heading, body text, and button
+// (in that order) — whichever fields the user fills in.
 function renderColumnItem(col: ColumnItem): string {
-  switch (col.type) {
-    case "image": {
-      const src = col.src ?? "";
-      const inner = src
-        ? `<img src="${src}" alt="${col.alt ?? ""}" style="display:block;width:100%;height:auto;max-width:100%;" />`
-        : `<div style="width:100%;height:100px;background:#f3f4f6;display:flex;align-items:center;justify-content:center;color:#9ca3af;font-size:12px;font-family:Arial,sans-serif;">Image</div>`;
-      return col.link ? `<a href="${col.link}" style="display:block;">${inner}</a>` : inner;
-    }
-    case "text":
-      return `<p style="margin:0;font-size:${col.font_size ?? 14}px;color:${col.color ?? "#4b5563"};line-height:1.6;text-align:${align(col.align)};">${(col.content ?? "").replace(/\n/g, "<br/>")}</p>`;
-    case "heading": {
-      const tag = col.level ?? "h2";
-      const fs  = col.font_size ?? 18;
-      return `<${tag} style="margin:0;font-size:${fs}px;font-weight:700;color:${col.color ?? "#111111"};text-align:${align(col.align)};">${col.text ?? "Heading"}</${tag}>`;
-    }
-    case "button":
-      return `<table cellpadding="0" cellspacing="0" style="width:100%;"><tr><td style="text-align:${align(col.align)};"><a href="${col.url ?? "#"}" style="display:inline-block;background:${col.btn_bg ?? "#C87A3A"};color:${col.btn_color ?? "#ffffff"};border-radius:${col.btn_radius ?? 6}px;padding:10px 20px;font-size:13px;font-weight:700;text-decoration:none;">${col.label ?? "Click Here"}</a></td></tr></table>`;
-    default:
-      return "";
+  const ta = align(col.align);
+  const parts: string[] = [];
+  if (col.src) {
+    const img = `<img src="${col.src}" alt="${col.alt ?? ""}" style="display:block;width:100%;height:auto;max-width:100%;margin-bottom:8px;" />`;
+    parts.push(col.link ? `<a href="${col.link}" style="display:block;">${img}</a>` : img);
   }
+  if (col.text) parts.push(`<div style="margin:0 0 4px;font-size:${col.heading_size ?? 16}px;font-weight:700;color:${col.heading_color ?? "#111111"};line-height:1.3;text-align:${ta};">${col.text}</div>`);
+  if (col.content) parts.push(`<p style="margin:0 0 6px;font-size:${col.font_size ?? 14}px;color:${col.color ?? "#4b5563"};line-height:1.6;text-align:${ta};">${col.content.replace(/\n/g, "<br/>")}</p>`);
+  if (col.label) parts.push(`<table cellpadding="0" cellspacing="0" style="width:100%;"><tr><td style="text-align:${ta};"><a href="${col.url ?? "#"}" style="display:inline-block;background:${col.btn_bg ?? "#C87A3A"};color:${col.btn_color ?? "#ffffff"};border-radius:${col.btn_radius ?? 6}px;padding:10px 20px;font-size:13px;font-weight:700;text-decoration:none;">${col.label}</a></td></tr></table>`);
+  return parts.join("\n") || `<div style="height:40px;"></div>`;
 }
 
 function renderBlock(block: EmailBlock): string {
@@ -139,7 +131,7 @@ function renderBlock(block: EmailBlock): string {
       const padX   = block.pad_x     ?? 40;
       const padB   = block.pad_bottom ?? 16;
       const gutter = 8;
-      const colW   = count === 2 ? "50%" : "33%";
+      const colW   = count === 2 ? "50%" : count === 3 ? "33%" : "25%";
 
       const colTds = Array.from({ length: count }).map((_, i) => {
         const col     = cols[i];

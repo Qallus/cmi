@@ -4,7 +4,7 @@ import * as React from "react";
 import {
   GripVertical, Trash2, Plus, Type, AlignLeft, MousePointerClick,
   ImageIcon, Minus, SeparatorHorizontal, PanelBottom, LayoutTemplate,
-  Columns2,
+  Columns2, Upload as UploadIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { EmailBlock, BlockType, ColumnItem } from "./types";
@@ -29,13 +29,9 @@ const PALETTE: { type: BlockType; label: string; icon: React.ElementType; desc: 
 
 function uid() { return Math.random().toString(36).slice(2, 10); }
 
-function defaultColumnItem(type: ColumnItem["type"]): Omit<ColumnItem, "id"> {
-  switch (type) {
-    case "image":   return { type, src: "", alt: "", link: "", align: "center" };
-    case "text":    return { type, content: "Column text here.", color: "#4b5563", font_size: 14, align: "left" };
-    case "button":  return { type, label: "Click Here", url: "#", btn_bg: "#C87A3A", btn_color: "#ffffff", btn_radius: 6, align: "center" };
-    case "heading": return { type, text: "Heading", level: "h2", color: "#111111", font_size: 18, align: "left" };
-  }
+// A column is a composite: optional image, heading, body text, and button.
+function defaultColumnItem(): Omit<ColumnItem, "id"> {
+  return { type: "text", src: "", alt: "", link: "", text: "Heading", heading_size: 16, heading_color: "#111111", content: "Add supporting text here.", color: "#4b5563", font_size: 14, label: "", url: "", btn_bg: "#C87A3A", btn_color: "#ffffff", btn_radius: 6, align: "left" };
 }
 
 function defaultBlock(type: BlockType): Omit<EmailBlock, "id"> {
@@ -50,10 +46,11 @@ function defaultBlock(type: BlockType): Omit<EmailBlock, "id"> {
     case "spacer":  return { type, height: 24 };
     case "footer":  return { type, company: "Constructed Matter, Inc.", address: "7314 E Osborn Dr Suite A - Scottsdale, AZ 85251", disclaimer: "If you weren't expecting this email, you can safely ignore it." };
     case "columns": return {
-      type, col_count: 2,
+      type, col_count: 3,
       columns: [
-        { id: uid(), ...defaultColumnItem("image") },
-        { id: uid(), ...defaultColumnItem("image") },
+        { id: uid(), ...defaultColumnItem() },
+        { id: uid(), ...defaultColumnItem() },
+        { id: uid(), ...defaultColumnItem() },
       ],
     };
   }
@@ -61,35 +58,19 @@ function defaultBlock(type: BlockType): Omit<EmailBlock, "id"> {
 
 // -- Block Previews ------------------------------------------------------------
 
+// Composite column preview: image, then heading, body, and button — whichever are set.
 function ColPreview({ col }: { col: ColumnItem }) {
-  switch (col.type) {
-    case "image":
-      return col.src
-        ? <img src={col.src} alt={col.alt ?? ""} style={{ width: "100%", height: "auto", display: "block" }} />
-        : <div style={{ background: "#f3f4f6", height: 72, display: "flex", alignItems: "center", justifyContent: "center", color: "#9ca3af", fontSize: 11 }}>Image</div>;
-    case "text":
-      return (
-        <div style={{ padding: 8, fontSize: col.font_size ?? 13, color: col.color ?? "#4b5563", textAlign: col.align ?? "left", lineHeight: 1.5 }}>
-          {col.content || "Column text..."}
-        </div>
-      );
-    case "button":
-      return (
-        <div style={{ padding: 8, textAlign: col.align ?? "center" }}>
-          <span style={{ display: "inline-block", background: col.btn_bg ?? "#C87A3A", color: col.btn_color ?? "#fff", borderRadius: col.btn_radius ?? 6, padding: "7px 14px", fontSize: 12, fontWeight: 700 }}>
-            {col.label || "Button"}
-          </span>
-        </div>
-      );
-    case "heading":
-      return (
-        <div style={{ padding: 8, fontSize: col.font_size ?? 16, fontWeight: 700, color: col.color ?? "#111111", textAlign: col.align ?? "left" }}>
-          {col.text || "Heading"}
-        </div>
-      );
-    default:
-      return null;
-  }
+  const ta = (col.align ?? "left") as "left" | "center" | "right";
+  const empty = !col.src && !col.text && !col.content && !col.label;
+  if (empty) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 60, color: "#9ca3af", fontSize: 11 }}>Empty column</div>;
+  return (
+    <div style={{ padding: 8, textAlign: ta }}>
+      {col.src ? <img src={col.src} alt={col.alt ?? ""} style={{ width: "100%", height: "auto", display: "block", marginBottom: 6 }} /> : null}
+      {col.text ? <div style={{ fontSize: col.heading_size ?? 16, fontWeight: 700, color: col.heading_color ?? "#111111", lineHeight: 1.3, marginBottom: 3 }}>{col.text}</div> : null}
+      {col.content ? <div style={{ fontSize: col.font_size ?? 13, color: col.color ?? "#4b5563", lineHeight: 1.5, marginBottom: 4, whiteSpace: "pre-wrap" }}>{col.content}</div> : null}
+      {col.label ? <span style={{ display: "inline-block", background: col.btn_bg ?? "#C87A3A", color: col.btn_color ?? "#fff", borderRadius: col.btn_radius ?? 6, padding: "6px 12px", fontSize: 12, fontWeight: 700 }}>{col.label}</span> : null}
+    </div>
+  );
 }
 
 function BlockPreview({ block }: { block: EmailBlock }) {
@@ -205,6 +186,36 @@ function ColorField({ label, value, onChange, placeholder }: { label: string; va
   );
 }
 
+// Image field: paste a URL or upload a file (to the cmi-media bucket), with a preview.
+function ImageInput({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
+  const ref = React.useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = React.useState(false);
+  const [err, setErr] = React.useState("");
+  async function upload(file: File) {
+    setBusy(true); setErr("");
+    try {
+      const fd = new FormData(); fd.append("file", file); fd.append("folder", "prints");
+      const res = await fetch("/api/admin/uploads", { method: "POST", body: fd });
+      const d = await res.json() as { url?: string; message?: string };
+      if (res.ok && d.url) onChange(d.url); else setErr(d.message ?? "Upload failed.");
+    } catch { setErr("Upload failed."); } finally { setBusy(false); }
+  }
+  return (
+    <div className="space-y-1.5">
+      <div className="flex gap-1.5">
+        <input className={inputCls} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder ?? "https://…"} />
+        <button type="button" onClick={() => ref.current?.click()} disabled={busy} className="flex shrink-0 items-center gap-1 rounded-md border border-border px-2.5 text-xs font-medium transition hover:bg-muted disabled:opacity-60">
+          <UploadIcon className="h-3.5 w-3.5" /> {busy ? "…" : "Upload"}
+        </button>
+      </div>
+      <input ref={ref} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); e.target.value = ""; }} />
+      {err ? <p className="text-[11px] text-destructive">{err}</p> : null}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      {value ? <img src={value} alt="" className="h-16 w-full rounded border border-border bg-muted/30 object-contain" /> : null}
+    </div>
+  );
+}
+
 function AlignButtons({ value, onChange }: { value?: string; onChange: (v: string) => void }) {
   return (
     <div className="flex gap-1">
@@ -233,26 +244,21 @@ function SectionSettings({ block, onChange }: { block: EmailBlock; onChange: (p:
         onChange={v => onChange({ section_bg: v || undefined })}
         placeholder="transparent"
       />
-      <NumberRow>
-        <Field label="Pad Top (px)">
-          <input className={inputCls} type="number" min={0} max={120}
-            value={block.pad_top ?? ""}
-            placeholder="default"
-            onChange={e => onChange({ pad_top: e.target.value ? Number(e.target.value) : undefined })}
-          />
-        </Field>
-        <Field label="Pad Bottom (px)">
-          <input className={inputCls} type="number" min={0} max={120}
-            value={block.pad_bottom ?? ""}
-            placeholder="default"
-            onChange={e => onChange({ pad_bottom: e.target.value ? Number(e.target.value) : undefined })}
-          />
-        </Field>
-      </NumberRow>
+      <Field label="Pad Top (px)">
+        <input className={inputCls} type="number" min={0} max={120}
+          value={block.pad_top ?? ""} placeholder="default"
+          onChange={e => onChange({ pad_top: e.target.value ? Number(e.target.value) : undefined })}
+        />
+      </Field>
+      <Field label="Pad Bottom (px)">
+        <input className={inputCls} type="number" min={0} max={120}
+          value={block.pad_bottom ?? ""} placeholder="default"
+          onChange={e => onChange({ pad_bottom: e.target.value ? Number(e.target.value) : undefined })}
+        />
+      </Field>
       <Field label="Pad Left / Right (px)">
         <input className={inputCls} type="number" min={0} max={120}
-          value={block.pad_x ?? ""}
-          placeholder="default"
+          value={block.pad_x ?? ""} placeholder="default"
           onChange={e => onChange({ pad_x: e.target.value ? Number(e.target.value) : undefined })}
         />
       </Field>
@@ -275,12 +281,6 @@ function BlockSettings({ block, onChange, onDelete }: {
     onChange({ columns: next });
   }
 
-  function swapColType(idx: number, type: ColumnItem["type"]) {
-    const next = [...(s.columns ?? [])];
-    next[idx] = { id: next[idx]?.id ?? uid(), ...defaultColumnItem(type) };
-    onChange({ columns: next });
-  }
-
   return (
     <div className="space-y-3 p-4">
       <div className="flex items-center justify-between">
@@ -292,7 +292,7 @@ function BlockSettings({ block, onChange, onDelete }: {
 
       {/* Header */}
       {s.type === "header" && <>
-        <Field label="Logo URL"><input className={inputCls} value={s.logo_url ?? ""} onChange={e => onChange({ logo_url: e.target.value })} placeholder="https://.../logo.svg" /></Field>
+        <Field label="Logo"><ImageInput value={s.logo_url ?? ""} onChange={v => onChange({ logo_url: v })} placeholder="Logo URL or upload" /></Field>
         <Field label="Logo Width (px)"><input className={inputCls} type="number" min={60} max={400} value={s.logo_width ?? 180} onChange={e => onChange({ logo_width: Number(e.target.value) })} /></Field>
         <ColorField label="Bar Background" value={s.bg_color ?? "#111111"} onChange={v => onChange({ bg_color: v })} />
       </>}
@@ -332,7 +332,7 @@ function BlockSettings({ block, onChange, onDelete }: {
 
       {/* Image */}
       {s.type === "image" && <>
-        <Field label="Image URL"><input className={inputCls} value={s.src ?? ""} onChange={e => onChange({ src: e.target.value })} placeholder="https://.../image.jpg" /></Field>
+        <Field label="Image"><ImageInput value={s.src ?? ""} onChange={v => onChange({ src: v })} placeholder="Image URL or upload" /></Field>
         <Field label="Alt Text"><input className={inputCls} value={s.alt ?? ""} onChange={e => onChange({ alt: e.target.value })} /></Field>
         <Field label="Link URL"><input className={inputCls} value={s.link ?? ""} onChange={e => onChange({ link: e.target.value })} placeholder="https://..." /></Field>
         <Field label="Width (px)"><input className={inputCls} type="number" min={100} max={560} value={s.img_width ?? 480} onChange={e => onChange({ img_width: Number(e.target.value) })} /></Field>
@@ -357,77 +357,44 @@ function BlockSettings({ block, onChange, onDelete }: {
         <Field label="Disclaimer"><textarea className={cn(inputCls, "min-h-[60px] resize-y")} value={s.disclaimer ?? ""} onChange={e => onChange({ disclaimer: e.target.value })} /></Field>
       </>}
 
-      {/* Columns */}
+      {/* Columns — each column stacks an optional image, heading, text, and button. */}
       {s.type === "columns" && <>
         <Field label="Layout">
           <div className="flex gap-1">
-            {([2, 3] as const).map(n => (
+            {([2, 3, 4] as const).map(n => (
               <button key={n} type="button"
                 onClick={() => {
                   const existing = s.columns ?? [];
-                  const next = Array.from({ length: n }).map((_, i) =>
-                    existing[i] ?? { id: uid(), ...defaultColumnItem("image") }
-                  );
+                  const next = Array.from({ length: n }).map((_, i) => existing[i] ?? { id: uid(), ...defaultColumnItem() });
                   onChange({ col_count: n, columns: next });
                 }}
                 className={cn(
                   "flex-1 rounded border py-1.5 text-xs font-semibold transition",
-                  (s.col_count ?? 2) === n
-                    ? "border-accent bg-accent/10 text-accent"
-                    : "border-border text-muted-foreground hover:border-accent/40"
+                  (s.col_count ?? 2) === n ? "border-accent bg-accent/10 text-accent" : "border-border text-muted-foreground hover:border-accent/40"
                 )}>
-                {n} Columns
+                {n} Col
               </button>
             ))}
           </div>
         </Field>
+        <p className="text-[11px] text-muted-foreground">Fill any of the fields below in each column — image, heading, text, and/or button. Leave a field blank to hide it.</p>
 
         {(s.columns ?? []).map((col, idx) => (
-          <div key={col.id} className="rounded-lg border border-border p-2.5 space-y-2.5">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold text-accent">Column {idx + 1}</span>
-            </div>
-
-            <Field label="Content Type">
-              <select className={inputCls} value={col.type} onChange={e => swapColType(idx, e.target.value as ColumnItem["type"])}>
-                <option value="image">Image</option>
-                <option value="text">Text</option>
-                <option value="button">Button</option>
-                <option value="heading">Heading</option>
-              </select>
-            </Field>
-
-            {col.type === "image" && <>
-              <Field label="Image URL"><input className={inputCls} value={col.src ?? ""} onChange={e => updateCol(idx, { src: e.target.value })} placeholder="https://..." /></Field>
-              <Field label="Alt Text"><input className={inputCls} value={col.alt ?? ""} onChange={e => updateCol(idx, { alt: e.target.value })} /></Field>
-              <Field label="Link URL"><input className={inputCls} value={col.link ?? ""} onChange={e => updateCol(idx, { link: e.target.value })} placeholder="https://..." /></Field>
-            </>}
-
-            {col.type === "text" && <>
-              <Field label="Content"><textarea className={cn(inputCls, "min-h-[72px] resize-y")} value={col.content ?? ""} onChange={e => updateCol(idx, { content: e.target.value })} /></Field>
-              <NumberRow>
-                <Field label="Font Size (px)"><input className={inputCls} type="number" min={11} max={22} value={col.font_size ?? 14} onChange={e => updateCol(idx, { font_size: Number(e.target.value) })} /></Field>
-                <Field label="Color"><input className={inputCls} value={col.color ?? "#4b5563"} onChange={e => updateCol(idx, { color: e.target.value })} placeholder="#4b5563" /></Field>
-              </NumberRow>
-            </>}
-
-            {col.type === "button" && <>
-              <Field label="Label"><input className={inputCls} value={col.label ?? ""} onChange={e => updateCol(idx, { label: e.target.value })} /></Field>
-              <Field label="URL"><input className={inputCls} value={col.url ?? ""} onChange={e => updateCol(idx, { url: e.target.value })} placeholder="https://..." /></Field>
-              <NumberRow>
-                <Field label="Bg Color"><input className={inputCls} value={col.btn_bg ?? "#C87A3A"} onChange={e => updateCol(idx, { btn_bg: e.target.value })} /></Field>
-                <Field label="Text Color"><input className={inputCls} value={col.btn_color ?? "#ffffff"} onChange={e => updateCol(idx, { btn_color: e.target.value })} /></Field>
-              </NumberRow>
-            </>}
-
-            {col.type === "heading" && <>
-              <Field label="Text"><input className={inputCls} value={col.text ?? ""} onChange={e => updateCol(idx, { text: e.target.value })} /></Field>
-              <NumberRow>
-                <Field label="Font Size (px)"><input className={inputCls} type="number" min={12} max={36} value={col.font_size ?? 18} onChange={e => updateCol(idx, { font_size: Number(e.target.value) })} /></Field>
-                <Field label="Color"><input className={inputCls} value={col.color ?? "#111111"} onChange={e => updateCol(idx, { color: e.target.value })} /></Field>
-              </NumberRow>
-            </>}
-
+          <div key={col.id} className="space-y-2.5 rounded-lg border border-border p-2.5">
+            <span className="text-[11px] font-semibold text-accent">Column {idx + 1}</span>
+            <Field label="Image"><ImageInput value={col.src ?? ""} onChange={v => updateCol(idx, { src: v })} placeholder="Image URL or upload" /></Field>
+            <Field label="Heading"><input className={inputCls} value={col.text ?? ""} onChange={e => updateCol(idx, { text: e.target.value })} placeholder="Column title" /></Field>
+            <NumberRow>
+              <Field label="Heading Size"><input className={inputCls} type="number" min={12} max={36} value={col.heading_size ?? 16} onChange={e => updateCol(idx, { heading_size: Number(e.target.value) })} /></Field>
+              <Field label="Heading Color"><input className={inputCls} value={col.heading_color ?? "#111111"} onChange={e => updateCol(idx, { heading_color: e.target.value })} placeholder="#111111" /></Field>
+            </NumberRow>
+            <Field label="Text"><textarea className={cn(inputCls, "min-h-[72px] resize-y")} value={col.content ?? ""} onChange={e => updateCol(idx, { content: e.target.value })} placeholder="Supporting text" /></Field>
+            <NumberRow>
+              <Field label="Text Size"><input className={inputCls} type="number" min={11} max={22} value={col.font_size ?? 14} onChange={e => updateCol(idx, { font_size: Number(e.target.value) })} /></Field>
+              <Field label="Text Color"><input className={inputCls} value={col.color ?? "#4b5563"} onChange={e => updateCol(idx, { color: e.target.value })} placeholder="#4b5563" /></Field>
+            </NumberRow>
+            <Field label="Button label (optional)"><input className={inputCls} value={col.label ?? ""} onChange={e => updateCol(idx, { label: e.target.value })} placeholder="Leave blank for no button" /></Field>
+            {col.label ? <Field label="Button URL"><input className={inputCls} value={col.url ?? ""} onChange={e => updateCol(idx, { url: e.target.value })} placeholder="https://..." /></Field> : null}
             <Field label="Align"><AlignButtons value={col.align} onChange={v => updateCol(idx, { align: v as "left"|"center"|"right" })} /></Field>
           </div>
         ))}

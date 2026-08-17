@@ -15,6 +15,8 @@ export interface ColumnItem {
   // heading
   text?: string;
   level?: "h1" | "h2" | "h3";
+  heading_size?: number;
+  heading_color?: string;
   // button
   label?: string;
   url?: string;
@@ -63,7 +65,7 @@ export interface EmailBlock {
   address?: string;
   disclaimer?: string;
   // Columns
-  col_count?: 2 | 3;
+  col_count?: 2 | 3 | 4;
   columns?: ColumnItem[];
   // Section / spacing overrides (all blocks)
   section_bg?: string;
