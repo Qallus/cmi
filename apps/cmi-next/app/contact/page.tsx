@@ -36,8 +36,8 @@ export default function ContactPage() {
             <div className="grid items-start gap-16 lg:grid-cols-[1fr_420px] lg:gap-20">
               <ContactForm />
 
-              {/* Sidebar */}
-              <div className="space-y-8">
+              {/* Sidebar — sticks in view while the form scrolls (desktop only) */}
+              <div className="space-y-8 lg:sticky lg:top-24 lg:self-start">
                 {/* Office Info */}
                 <div className="rounded-2xl border border-border bg-card p-8">
                   <h3 className="mb-6 font-display text-xl font-semibold">Our Office</h3>

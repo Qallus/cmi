@@ -59,6 +59,8 @@ const inputCls =
 export function ContactForm() {
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
+  const [source, setSource] = useState("");
+  const [addrState, setAddrState] = useState("");
   const [budget, setBudget] = useState("");
   const [projectStatus, setProjectStatus] = useState<string[]>([]);
 
@@ -80,13 +82,13 @@ export function ContactForm() {
       lastName: val("lastName"),
       email: val("email"),
       phone: val("phone"),
-      source: val("source"),
+      source,
       subject: val("subject"),
       message: val("message"),
       addressLine1: val("addressLine1"),
       addressLine2: val("addressLine2"),
       city: val("city"),
-      state: val("state"),
+      state: addrState,
       zip: val("zip"),
       projectBudget: budget,
       budgetAmount: budget === "Other" ? val("budgetAmount") : "",
@@ -107,6 +109,8 @@ export function ContactForm() {
 
       setStatus("success");
       form.reset();
+      setSource("");
+      setAddrState("");
       setBudget("");
       setProjectStatus([]);
     } catch (err) {
@@ -193,7 +197,7 @@ export function ContactForm() {
           </div>
           <div>
             <label htmlFor="state" className="mb-1.5 block text-sm font-medium">State</label>
-            <Select id="state" name="state" className="[&>button]:h-[42px] [&>button]:rounded-lg [&>button]:px-3">
+            <Select id="state" name="state" value={addrState} onChange={(e) => setAddrState(e.target.value)} className="[&>button]:h-[42px] [&>button]:rounded-lg [&>button]:px-3">
               <option value="">--</option>
               {US_STATES.map((s) => (
                 <option key={s} value={s}>{s}</option>
@@ -212,7 +216,7 @@ export function ContactForm() {
         <label htmlFor="source" className="mb-1.5 block text-sm font-medium">
           How did you hear about us?
         </label>
-        <Select id="source" name="source" className="[&>button]:h-12 [&>button]:rounded-lg [&>button]:px-4">
+        <Select id="source" name="source" value={source} onChange={(e) => setSource(e.target.value)} className="[&>button]:h-12 [&>button]:rounded-lg [&>button]:px-4">
           <option value="">Select an option</option>
           {HOW_DID_YOU_HEAR.map((opt) => (
             <option key={opt} value={opt}>{opt}</option>
