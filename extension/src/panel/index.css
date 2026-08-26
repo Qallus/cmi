@@ -1,0 +1,72 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* CMI design tokens — light (default) and dark. Components reference these via
+   var(--x) so both themes stay in sync. Dark applies with the `dark` class on
+   <html> (set from prefers-color-scheme or the panel toggle). */
+:root {
+  --bg: #faf9f7;
+  --card: #ffffff;
+  --card-2: #f6f3ee;
+  --fg: #1a1713;
+  --muted: #6b6459;
+  --border: #e7e2da;
+  --accent: #c87a3a;
+  --accent-fg: #ffffff;
+  --danger: #c0392b;
+  --font-display: "DM Serif Display", Georgia, "Times New Roman", serif;
+  --font-sans: "DM Sans", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+}
+
+:root.dark {
+  --bg: #141210;
+  --card: #1e1b18;
+  --card-2: #26221d;
+  --fg: #f5f1ea;
+  --muted: #a79d8e;
+  --border: #322d27;
+  --accent: #d98a48;
+  --accent-fg: #141210;
+  --danger: #e57368;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: 13px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.cmi-input {
+  width: 100%;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--fg);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 13px;
+  outline: none;
+}
+.cmi-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.cmi-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 4px;
+}

@@ -1,0 +1,7 @@
+node_modules
+dist
+*.log
+.DS_Store
+# The private signing key must NEVER be committed.
+*.pem
+key.pem
