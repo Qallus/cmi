@@ -3,11 +3,26 @@ import { EMPTY_DRAFT, type CardDraft, type Destination, type SessionInfo } from 
 import { api, ApiError } from "./api";
 import { clearToken, getToken, onTokenChange, openSignIn } from "./auth";
 import { API_BASE, EXTENSION_VERSION } from "./config";
+import { autoBuild, startPick, CaptureError } from "./capture";
+import type { Confidence } from "../content/injected";
 import { CardForm } from "./components/CardForm";
 import { DestinationPicker } from "./components/DestinationPicker";
 import { CardModal, SelectionCard } from "./components/SelectionCard";
 
 type Phase = "loading" | "signed-out" | "disabled" | "ready" | "error";
+
+// Which page-captured field maps onto which draft key.
+const PICK_TO_DRAFT: Record<string, keyof CardDraft> = {
+  title: "title",
+  vendor_name: "vendor_name",
+  category: "category",
+  price: "price",
+  sku: "sku",
+  model_number: "model_number",
+  short_description: "short_description",
+  long_description: "long_description",
+  image_url: "image_url",
+};
 
 function useTheme() {
   const [dark, setDark] = useState<boolean>(() =>
@@ -32,6 +47,63 @@ export function App() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [savedUrl, setSavedUrl] = useState<string | null>(null);
+
+  // Phase 2 capture state
+  const [confidence, setConfidence] = useState<Record<string, Confidence>>({});
+  const [picking, setPicking] = useState<string | null>(null);
+  const [building, setBuilding] = useState(false);
+  const [captureMsg, setCaptureMsg] = useState("");
+
+  // Receive picked values from the injected element picker.
+  useEffect(() => {
+    const listener = (msg: { type?: string; field?: string; value?: string }) => {
+      if (msg?.type === "CMI_PICK" && msg.field) {
+        const key = PICK_TO_DRAFT[msg.field] ?? (msg.field as keyof CardDraft);
+        setDraft((d) => ({ ...d, [key]: msg.value ?? "" }));
+        setConfidence((c) => ({ ...c, [msg.field as string]: "high" }));
+        setPicking(null);
+      } else if (msg?.type === "CMI_PICK_CANCEL") {
+        setPicking(null);
+      }
+    };
+    chrome.runtime.onMessage.addListener(listener);
+    return () => chrome.runtime.onMessage.removeListener(listener);
+  }, []);
+
+  async function runAutoBuild() {
+    setBuilding(true);
+    setCaptureMsg("");
+    setSaveError("");
+    try {
+      const { fields, confidence: conf } = await autoBuild();
+      setDraft((d) => {
+        const next = { ...d };
+        for (const [k, v] of Object.entries(fields)) {
+          const key = PICK_TO_DRAFT[k] ?? (k as keyof CardDraft);
+          if (v && key in next) (next as Record<string, unknown>)[key as string] = v;
+        }
+        return next;
+      });
+      setConfidence((c) => ({ ...c, ...conf }));
+      const n = Object.keys(fields).filter((k) => k !== "source_url").length;
+      setCaptureMsg(n ? `Auto-filled ${n} field${n === 1 ? "" : "s"} — review and edit as needed.` : "No product data found on this page.");
+    } catch (e) {
+      setCaptureMsg(e instanceof CaptureError ? e.message : "Auto-Build failed on this page.");
+    } finally {
+      setBuilding(false);
+    }
+  }
+
+  async function onPick(field: string) {
+    setPicking(field);
+    setCaptureMsg("");
+    try {
+      await startPick(field);
+    } catch (e) {
+      setPicking(null);
+      setCaptureMsg(e instanceof CaptureError ? e.message : "Couldn't start the picker on this page.");
+    }
+  }
 
   const check = useCallback(async () => {
     const token = await getToken();
@@ -118,6 +190,9 @@ export function App() {
     setDestination({ kind: "library", group: null });
     setSavedUrl(null);
     setSaveError("");
+    setConfidence({});
+    setCaptureMsg("");
+    setPicking(null);
   }
 
   return (
@@ -164,6 +239,37 @@ export function App() {
             />
           ) : (
             <div style={{ display: "grid", gap: 16 }}>
+              <Section title="Capture">
+                <button
+                  type="button"
+                  onClick={() => void runAutoBuild()}
+                  disabled={building}
+                  style={{
+                    width: "100%",
+                    background: "var(--accent)",
+                    color: "var(--accent-fg)",
+                    border: "none",
+                    borderRadius: 10,
+                    padding: "11px 14px",
+                    fontWeight: 700,
+                    fontSize: 13.5,
+                    cursor: building ? "default" : "pointer",
+                    opacity: building ? 0.7 : 1,
+                  }}
+                >
+                  {building ? "Reading page…" : "⚡ Auto-Build from this page"}
+                </button>
+                <p style={{ margin: "8px 0 0", fontSize: 11.5, color: "var(--muted)", lineHeight: 1.5 }}>
+                  Or click the <strong style={{ color: "var(--accent)" }}>⌖</strong> on any field below, then click that item on the page.
+                </p>
+                {captureMsg && <p style={{ margin: "6px 0 0", fontSize: 12, color: "var(--fg)" }}>{captureMsg}</p>}
+                {picking && (
+                  <p style={{ margin: "6px 0 0", fontSize: 12, color: "var(--accent)" }}>
+                    Picking <strong>{picking.replace(/_/g, " ")}</strong>… click it on the page (Esc to cancel).
+                  </p>
+                )}
+              </Section>
+
               <Section title="Preview">
                 <SelectionCard draft={draft} />
                 <button
@@ -180,7 +286,13 @@ export function App() {
               </Section>
 
               <Section title="Details">
-                <CardForm draft={draft} onChange={(p) => setDraft((d) => ({ ...d, ...p }))} />
+                <CardForm
+                  draft={draft}
+                  onChange={(p) => setDraft((d) => ({ ...d, ...p }))}
+                  onPick={onPick}
+                  picking={picking}
+                  confidence={confidence}
+                />
               </Section>
 
               <Section title="Visibility">
