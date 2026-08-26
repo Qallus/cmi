@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, Textarea } from "@/components/ui/input";
 import type { ProjectSelection } from "@/lib/selections/types";
+import { SelectionCardModal } from "@/components/selections/selection-card-modal";
 import { JobModuleShell, ModuleModal, Field, inputCls, money } from "../job-module-shell";
 
 const SELECTION_STATUSES = ["draft", "needs_review", "pending_client_approval", "client_approved", "rejected_needs_revision", "approved_internally", "ordered", "delivered", "installed", "completed"];
@@ -33,6 +34,7 @@ export function StaffSelectionsClient({ jobId, jobName, initial }: { jobId: stri
   const [existingSearch, setExistingSearch] = React.useState("");
   const [picked, setPicked] = React.useState<Set<string>>(new Set());
   const [attaching, setAttaching] = React.useState(false);
+  const [viewing, setViewing] = React.useState<ProjectSelection | null>(null);
 
   const onJob = React.useMemo(() => new Set(rows.map((r) => r.id)), [rows]);
   const filteredExisting = React.useMemo(() => {
@@ -97,7 +99,8 @@ export function StaffSelectionsClient({ jobId, jobName, initial }: { jobId: stri
           <Button size="sm" variant="accent" onClick={() => setShowCreateChoice(true)}><Plus className="h-3.5 w-3.5" /> Create New</Button>
         </div>
       }>
-      <p className="mb-3 text-sm text-muted-foreground">Mark a selection <strong>client-visible</strong> and <strong>needs approval</strong> (approval status “pending”) to request the client&apos;s sign-off — they&apos;ll be notified.</p>
+      <p className="mb-3 text-sm text-muted-foreground">Click a selection name to preview its card. Mark a selection <strong>client-visible</strong> and <strong>needs approval</strong> (approval status “pending”) to request the client&apos;s sign-off — they&apos;ll be notified.</p>
+      {viewing && <SelectionCardModal selection={viewing} onClose={() => setViewing(null)} />}
       <table className="w-full min-w-[820px] border-collapse text-sm">
         <thead className="bg-card"><tr className="border-b border-border text-left">
           {["Selection", "Room", "Category", "Client Price", "Approval", "Client", ""].map((h) => <th key={h} className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">{h}</th>)}
@@ -106,7 +109,9 @@ export function StaffSelectionsClient({ jobId, jobName, initial }: { jobId: stri
           {rows.length === 0 && <tr><td colSpan={7} className="px-4 py-10 text-center text-sm text-muted-foreground">No selections yet.</td></tr>}
           {rows.map((s) => (
             <tr key={s.id} className="hover:bg-muted/30">
-              <td className="px-4 py-3 font-medium">{s.name}</td>
+              <td className="px-4 py-3 font-medium">
+                <button type="button" onClick={() => setViewing(s)} className="text-left hover:text-accent hover:underline">{s.name}</button>
+              </td>
               <td className="px-4 py-3 text-muted-foreground">{s.room_area_name ?? "—"}</td>
               <td className="px-4 py-3 text-muted-foreground">{s.category ?? "—"}</td>
               <td className="px-4 py-3">{money(s.client_price)}</td>

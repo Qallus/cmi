@@ -58,9 +58,18 @@ export type ProjectSelection = {
   room_area_name: string | null;
   category: string | null;
   name: string;
+  eyebrow?: string | null;
+  manufacturer?: string | null;
+  sku?: string | null;
+  model_number?: string | null;
   product_id: string | null;
   custom_product_name: string | null;
   description: string | null;
+  long_description?: string | null;
+  features?: string[] | null;
+  price?: number | null;
+  source_url?: string | null;
+  source_type?: string | null;
   image_url: string | null;
   gallery_urls: string[];
   video_url: string | null;

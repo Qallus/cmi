@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input, Select, Textarea } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { Product, ProjectSelection, SelectionsData } from "@/lib/selections/types";
+import { SelectionCardModal } from "@/components/selections/selection-card-modal";
 
 type ProductDraft = {
   id?: string;
@@ -186,6 +187,7 @@ export function SelectionsClient({ initialData, demoMode = false, setupMessage }
   const [statusFilter, setStatusFilter] = React.useState("");
   const [search, setSearch] = React.useState("");
   const [selView, setSelView] = React.useState<"table" | "cards" | "kanban">("table");
+  const [viewing, setViewing] = React.useState<ProjectSelection | null>(null);
   const [saving, setSaving] = React.useState(false);
   const [notice, setNotice] = React.useState<string | null>(setupMessage || null);
 
@@ -423,6 +425,7 @@ export function SelectionsClient({ initialData, demoMode = false, setupMessage }
       </header>
 
       {notice ? <div className="rounded-md border border-border bg-card px-4 py-3 text-sm text-muted-foreground">{notice}</div> : null}
+      {viewing ? <SelectionCardModal selection={viewing} onClose={() => setViewing(null)} /> : null}
 
       <section className="flex snap-x gap-3 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] md:grid md:grid-cols-3 md:overflow-visible md:pb-0 xl:grid-cols-6 [&::-webkit-scrollbar]:hidden">
         <MetricCard label="Total Selections" value={String(selections.length)} sub={`${products.length} catalog products`} />
@@ -470,11 +473,11 @@ export function SelectionsClient({ initialData, demoMode = false, setupMessage }
         <CardContent>
           {view === "selections" ? (
             selView === "cards" ? (
-              <SelectionCards selections={visibleSelections} onEdit={selection => setSelectionDraft(selectionToDraft(selection))} onAttach={openAttach} />
+              <SelectionCards selections={visibleSelections} onEdit={selection => setSelectionDraft(selectionToDraft(selection))} onAttach={openAttach} onView={setViewing} />
             ) : selView === "kanban" ? (
-              <SelectionKanban selections={visibleSelections} onEdit={selection => setSelectionDraft(selectionToDraft(selection))} onAttach={openAttach} />
+              <SelectionKanban selections={visibleSelections} onEdit={selection => setSelectionDraft(selectionToDraft(selection))} onAttach={openAttach} onView={setViewing} />
             ) : (
-              <SelectionTable selections={visibleSelections} onEdit={selection => setSelectionDraft(selectionToDraft(selection))} onShare={selection => setShareDraft(makeShareDraft("selection", selection.id, selection.name))} onCsv={selection => exportCsv("selection", [selection])} onPdf={selection => printPdf(`Selection - ${selection.name}`, [selection])} onAttach={openAttach} />
+              <SelectionTable selections={visibleSelections} onEdit={selection => setSelectionDraft(selectionToDraft(selection))} onShare={selection => setShareDraft(makeShareDraft("selection", selection.id, selection.name))} onCsv={selection => exportCsv("selection", [selection])} onPdf={selection => printPdf(`Selection - ${selection.name}`, [selection])} onAttach={openAttach} onView={setViewing} />
             )
           ) : (
             <ProductCatalog products={products} onEdit={product => setProductDraft(productToDraft(product))} onShare={product => setShareDraft(makeShareDraft("product", product.id, product.product_name))} onCsv={product => exportCsv("product", [product])} onPdf={product => printPdf(`Product - ${product.product_name}`, [product])} onAddSelection={product => setSelectionDraft({ ...emptySelectionDraft(), product_id: product.id, name: product.product_name, custom_product_name: product.product_name, category: product.category || "", vendor_id: product.vendor_id || "", vendor_name: product.vendor_name || "", image_url: product.image_url || "", gallery_urls: (product.gallery_urls || []).join("\n"), video_url: product.video_url || "", spec_sheet_url: product.spec_sheet_url || "", product_url: product.product_url || "", estimated_cost: String(product.retail_price || ""), lead_time_days: String(product.lead_time_days || "") })} />
@@ -548,7 +551,8 @@ function SelectionTable({
   onShare,
   onCsv,
   onPdf,
-  onAttach
+  onAttach,
+  onView
 }: {
   selections: ProjectSelection[];
   onEdit: (selection: ProjectSelection) => void;
@@ -556,6 +560,7 @@ function SelectionTable({
   onCsv: (selection: ProjectSelection) => void;
   onPdf: (selection: ProjectSelection) => void;
   onAttach: (selection: ProjectSelection) => void;
+  onView: (selection: ProjectSelection) => void;
 }) {
   return (
     <div className="overflow-auto rounded-lg border border-border">
@@ -576,7 +581,7 @@ function SelectionTable({
           {selections.map(selection => (
             <tr key={selection.id} className="hover:bg-muted/50">
               <td className="px-4 py-3">
-                <div className="font-medium">{selection.name}</div>
+                <button type="button" onClick={() => onView(selection)} className="text-left font-medium hover:text-accent hover:underline">{selection.name}</button>
                 <div className="text-xs text-muted-foreground">{selection.category || "Uncategorized"} / {selection.custom_product_name || "Custom product"}</div>
               </td>
               <td className="px-4 py-3 text-muted-foreground">
@@ -609,22 +614,22 @@ function SelectionTable({
   );
 }
 
-function SelectionCards({ selections, onEdit, onAttach }: { selections: ProjectSelection[]; onEdit: (s: ProjectSelection) => void; onAttach: (s: ProjectSelection) => void }) {
+function SelectionCards({ selections, onEdit, onAttach, onView }: { selections: ProjectSelection[]; onEdit: (s: ProjectSelection) => void; onAttach: (s: ProjectSelection) => void; onView: (s: ProjectSelection) => void }) {
   if (!selections.length) return <div className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted-foreground">No selections match the current filters.</div>;
   return (
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
       {selections.map(s => (
         <div key={s.id} className="flex flex-col overflow-hidden rounded-xl border border-border bg-card">
-          <div className="flex h-40 items-center justify-center overflow-hidden border-b border-border bg-muted/30">
+          <button type="button" onClick={() => onView(s)} className="flex h-40 items-center justify-center overflow-hidden border-b border-border bg-muted/30" title="Preview card">
             {s.image_url
               // eslint-disable-next-line @next/next/no-img-element
               ? <img src={s.image_url} alt="" className="h-full w-full object-cover" />
               : <Image className="h-6 w-6 text-muted-foreground" />}
-          </div>
+          </button>
           <div className="flex flex-1 flex-col gap-2 p-4">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <div className="truncate font-medium">{s.name}</div>
+                <button type="button" onClick={() => onView(s)} className="block max-w-full truncate text-left font-medium hover:text-accent hover:underline">{s.name}</button>
                 <div className="truncate text-xs text-muted-foreground">{[s.vendor_name, s.category].filter(Boolean).join(" · ") || "—"}</div>
               </div>
               {s.client_visible ? <Badge tone="success">Visible</Badge> : null}
@@ -645,7 +650,7 @@ function SelectionCards({ selections, onEdit, onAttach }: { selections: ProjectS
   );
 }
 
-function SelectionKanban({ selections, onEdit, onAttach }: { selections: ProjectSelection[]; onEdit: (s: ProjectSelection) => void; onAttach: (s: ProjectSelection) => void }) {
+function SelectionKanban({ selections, onEdit, onAttach, onView }: { selections: ProjectSelection[]; onEdit: (s: ProjectSelection) => void; onAttach: (s: ProjectSelection) => void; onView: (s: ProjectSelection) => void }) {
   const cols = selectionStatuses.map(status => ({ status, items: selections.filter(s => (s.selection_status || "draft") === status) })).filter(c => c.items.length > 0);
   if (!selections.length) return <div className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted-foreground">No selections match the current filters.</div>;
   return (
@@ -665,7 +670,7 @@ function SelectionKanban({ selections, onEdit, onAttach }: { selections: Project
                     ? <img src={s.image_url} alt="" className="h-8 w-8 shrink-0 rounded object-cover" />
                     : <span className="grid h-8 w-8 shrink-0 place-items-center rounded bg-muted text-muted-foreground"><Image className="h-3.5 w-3.5" /></span>}
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium">{s.name}</div>
+                    <button type="button" onClick={() => onView(s)} className="block max-w-full truncate text-left text-sm font-medium hover:text-accent hover:underline">{s.name}</button>
                     <div className="truncate text-[11px] text-muted-foreground">{s.vendor_name || "—"} · {money(s.client_price || s.estimated_cost)}</div>
                   </div>
                 </div>

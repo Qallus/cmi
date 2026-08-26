@@ -177,7 +177,18 @@ export async function getJobStats(job: JobWithRelations): Promise<JobStats> {
   const contractsQ = name ? head("documents").ilike("project", name).ilike("type", "%contract%") : null;
   const sowsQ = name ? head("documents").ilike("project", name).or("type.ilike.%sow%,type.ilike.%statement of work%,type.ilike.%scope of work%") : null;
   const invoicesQ = head("invoices").eq("job_id", job.id);
-  const selectionsQ = head("project_selections").eq("job_id", job.id);
+  // Selections attached directly (job_id) OR via a reusable association row —
+  // mirror loadJobSelections so the stat matches the Selections tab list.
+  const selectionsCountP = (async () => {
+    const [dir, assoc] = await Promise.all([
+      sb.from("project_selections").select("id").eq("job_id", job.id),
+      sb.from("selection_associations").select("selection_id").eq("job_id", job.id),
+    ]);
+    const ids = new Set<string>();
+    for (const r of dir.data ?? []) ids.add(r.id as string);
+    for (const a of assoc.data ?? []) ids.add(a.selection_id as string);
+    return ids.size;
+  })();
   const changeOrdersQ = head("change_orders").eq("job_id", job.id);
   const updatesQ = head("job_updates").eq("job_id", job.id);
   const quotesQ = clientIds.length ? head("quotes").in("contact_id", clientIds) : null;
@@ -188,7 +199,7 @@ export async function getJobStats(job: JobWithRelations): Promise<JobStats> {
     contractsQ ? contractsQ.then(num) : Promise.resolve(0),
     sowsQ ? sowsQ.then(num) : Promise.resolve(0),
     invoicesQ.then(num),
-    selectionsQ.then(num),
+    selectionsCountP,
     changeOrdersQ.then(num),
     updatesQ.then(num),
     quotesQ ? quotesQ.then(num) : Promise.resolve(0),
