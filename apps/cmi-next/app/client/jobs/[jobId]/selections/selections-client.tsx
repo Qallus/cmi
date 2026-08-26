@@ -5,6 +5,7 @@ import { Check, MessageSquare } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { ProjectSelection } from "@/lib/selections/types";
+import { SelectionCardModal } from "@/components/selections/selection-card-modal";
 import { money, humanize } from "../../../portal-ui";
 
 const APPROVAL_TONE: Record<string, "default" | "info" | "warning" | "success" | "danger"> = {
@@ -16,6 +17,7 @@ export function SelectionsClient({ jobId, initial }: { jobId: string; initial: P
   const [commenting, setCommenting] = React.useState<string | null>(null);
   const [comment, setComment] = React.useState("");
   const [busy, setBusy] = React.useState<string | null>(null);
+  const [viewing, setViewing] = React.useState<ProjectSelection | null>(null);
 
   async function decide(sel: ProjectSelection, decision: "approved" | "revision_requested", note?: string) {
     setBusy(sel.id);
@@ -25,7 +27,7 @@ export function SelectionsClient({ jobId, initial }: { jobId: string; initial: P
       });
       const j = await res.json(); if (!res.ok) throw new Error(j.error);
       setRows((r) => r.map((x) => (x.id === sel.id ? j : x)));
-      setCommenting(null); setComment("");
+      setCommenting(null); setComment(""); setViewing(null);
     } catch { /* surfaced inline below via disabled state */ } finally { setBusy(null); }
   }
 
@@ -45,11 +47,16 @@ export function SelectionsClient({ jobId, initial }: { jobId: string; initial: P
               const needsDecision = s.client_approval_required && s.approval_status === "pending";
               return (
                 <div key={s.id} className="overflow-hidden rounded-xl border border-border bg-card">
-                  {s.image_url && <div className="h-40 bg-muted"><img src={s.image_url} alt={s.name} className="h-full w-full object-cover" /></div>}
+                  {s.image_url && (
+                    <button type="button" onClick={() => setViewing(s)} className="block h-40 w-full bg-muted" title="View selection">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={s.image_url} alt={s.name} className="h-full w-full object-cover" />
+                    </button>
+                  )}
                   <div className="p-4">
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <div className="font-medium">{s.name}</div>
+                        <button type="button" onClick={() => setViewing(s)} className="text-left font-medium hover:text-accent hover:underline">{s.name}</button>
                         <div className="text-xs text-muted-foreground">{[s.category, s.custom_product_name].filter(Boolean).join(" · ")}</div>
                       </div>
                       <Badge tone={APPROVAL_TONE[s.approval_status] ?? "default"}>{humanize(s.approval_status)}</Badge>
@@ -85,6 +92,23 @@ export function SelectionsClient({ jobId, initial }: { jobId: string; initial: P
           </div>
         </div>
       ))}
+
+      {viewing && (
+        <SelectionCardModal
+          selection={viewing}
+          onClose={() => setViewing(null)}
+          decision={
+            viewing.client_approval_required && viewing.approval_status === "pending"
+              ? {
+                  canDecide: true,
+                  busy: busy === viewing.id,
+                  onApprove: () => void decide(viewing, "approved"),
+                  onRequestChange: (c) => void decide(viewing, "revision_requested", c),
+                }
+              : undefined
+          }
+        />
+      )}
     </div>
   );
 }
