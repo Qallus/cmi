@@ -62,6 +62,9 @@ export type ProjectSelection = {
   manufacturer?: string | null;
   sku?: string | null;
   model_number?: string | null;
+  size?: string | null;
+  finish?: string | null;
+  colors?: string | null;
   product_id: string | null;
   custom_product_name: string | null;
   description: string | null;

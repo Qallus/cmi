@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { CheckCircle2, Layers, Loader2, Plus, Search, Sparkles, Trash2 } from "lucide-react";
+import { CheckCircle2, Copy, Layers, Loader2, Plus, Search, Sparkles, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, Textarea } from "@/components/ui/input";
@@ -16,10 +16,11 @@ const APPROVAL_TONE: Record<string, "default" | "warning" | "success" | "danger"
 
 type Draft = {
   name: string; category: string; room_area_name: string; custom_product_name: string; description: string;
+  size: string; finish: string; colors: string;
   image_url: string; product_url: string; client_price: string; allowance_amount: string; quantity: string;
   selection_status: string; approval_status: string; client_visible: boolean; client_approval_required: boolean;
 };
-const EMPTY: Draft = { name: "", category: "", room_area_name: "", custom_product_name: "", description: "", image_url: "", product_url: "", client_price: "", allowance_amount: "", quantity: "1", selection_status: "draft", approval_status: "not_required", client_visible: false, client_approval_required: false };
+const EMPTY: Draft = { name: "", category: "", room_area_name: "", custom_product_name: "", description: "", size: "", finish: "", colors: "", image_url: "", product_url: "", client_price: "", allowance_amount: "", quantity: "1", selection_status: "draft", approval_status: "not_required", client_visible: false, client_approval_required: false };
 
 export function StaffSelectionsClient({ jobId, jobName, initial }: { jobId: string; jobName: string; initial: ProjectSelection[] }) {
   const [rows, setRows] = React.useState<ProjectSelection[]>(initial);
@@ -69,7 +70,7 @@ export function StaffSelectionsClient({ jobId, jobName, initial }: { jobId: stri
 
   function openAdd() { setD({ ...EMPTY }); setError(null); setShowCreateChoice(false); setModal({ mode: "add" }); }
   function openEdit(s: ProjectSelection) {
-    setD({ name: s.name, category: s.category ?? "", room_area_name: s.room_area_name ?? "", custom_product_name: s.custom_product_name ?? "", description: s.description ?? "", image_url: s.image_url ?? "", product_url: s.product_url ?? "", client_price: s.client_price?.toString() ?? "", allowance_amount: s.allowance_amount?.toString() ?? "", quantity: s.quantity?.toString() ?? "1", selection_status: s.selection_status ?? "draft", approval_status: s.approval_status ?? "not_required", client_visible: s.client_visible, client_approval_required: s.client_approval_required });
+    setD({ name: s.name, category: s.category ?? "", room_area_name: s.room_area_name ?? "", custom_product_name: s.custom_product_name ?? "", description: s.description ?? "", size: s.size ?? "", finish: s.finish ?? "", colors: s.colors ?? "", image_url: s.image_url ?? "", product_url: s.product_url ?? "", client_price: s.client_price?.toString() ?? "", allowance_amount: s.allowance_amount?.toString() ?? "", quantity: s.quantity?.toString() ?? "1", selection_status: s.selection_status ?? "draft", approval_status: s.approval_status ?? "not_required", client_visible: s.client_visible, client_approval_required: s.client_approval_required });
     setError(null); setModal({ mode: "edit", sel: s });
   }
 
@@ -89,6 +90,14 @@ export function StaffSelectionsClient({ jobId, jobName, initial }: { jobId: stri
     if (!confirm("Delete this selection?")) return;
     const res = await fetch(`/api/jobs/${jobId}/selections/${id}`, { method: "DELETE" });
     if (res.ok || res.status === 204) setRows((r) => r.filter((x) => x.id !== id));
+  }
+  async function duplicate(s: ProjectSelection) {
+    setError(null);
+    try {
+      const res = await fetch(`/api/jobs/${jobId}/selections/${s.id}/duplicate`, { method: "POST" });
+      const j = await res.json(); if (!res.ok) throw new Error(j.error);
+      setRows((r) => [j, ...r]);
+    } catch (e) { setError(e instanceof Error ? e.message : "Could not duplicate."); }
   }
 
   return (
@@ -117,7 +126,7 @@ export function StaffSelectionsClient({ jobId, jobName, initial }: { jobId: stri
               <td className="px-4 py-3">{money(s.client_price)}</td>
               <td className="px-4 py-3"><Badge tone={APPROVAL_TONE[s.approval_status] ?? "default"}>{s.approval_status.replace(/_/g, " ")}</Badge></td>
               <td className="px-4 py-3">{s.client_visible ? <Badge tone="success">Visible</Badge> : <span className="text-xs text-muted-foreground">Hidden</span>}</td>
-              <td className="px-4 py-3"><div className="flex items-center gap-2"><button type="button" onClick={() => openEdit(s)} className="text-xs text-muted-foreground hover:text-foreground">Edit</button><button type="button" onClick={() => void remove(s.id)} className="text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></button></div></td>
+              <td className="px-4 py-3"><div className="flex items-center gap-2"><button type="button" onClick={() => openEdit(s)} className="text-xs text-muted-foreground hover:text-foreground">Edit</button><button type="button" onClick={() => void duplicate(s)} className="text-muted-foreground hover:text-accent" title="Duplicate"><Copy className="h-4 w-4" /></button><button type="button" onClick={() => void remove(s.id)} className="text-muted-foreground hover:text-destructive" title="Delete"><Trash2 className="h-4 w-4" /></button></div></td>
             </tr>
           ))}
         </tbody>
@@ -133,6 +142,9 @@ export function StaffSelectionsClient({ jobId, jobName, initial }: { jobId: stri
               <Field label="Category"><input className={inputCls} value={d.category} onChange={(e) => setD({ ...d, category: e.target.value })} /></Field>
               <Field label="Product Name"><input className={inputCls} value={d.custom_product_name} onChange={(e) => setD({ ...d, custom_product_name: e.target.value })} /></Field>
               <Field label="Quantity"><input type="number" className={inputCls} value={d.quantity} onChange={(e) => setD({ ...d, quantity: e.target.value })} /></Field>
+              <Field label="Size"><input className={inputCls} value={d.size} onChange={(e) => setD({ ...d, size: e.target.value })} placeholder={'24" x 48"'} /></Field>
+              <Field label="Finish"><input className={inputCls} value={d.finish} onChange={(e) => setD({ ...d, finish: e.target.value })} placeholder="Matte / Polished" /></Field>
+              <Field label="Colors" className="sm:col-span-2"><input className={inputCls} value={d.colors} onChange={(e) => setD({ ...d, colors: e.target.value })} placeholder="Limo, Melange, Sabbia" /></Field>
               <Field label="Image URL" className="sm:col-span-2"><input className={inputCls} value={d.image_url} onChange={(e) => setD({ ...d, image_url: e.target.value })} /></Field>
               <Field label="Product URL" className="sm:col-span-2"><input className={inputCls} value={d.product_url} onChange={(e) => setD({ ...d, product_url: e.target.value })} /></Field>
               <Field label="Client Price ($)"><input type="number" className={inputCls} value={d.client_price} onChange={(e) => setD({ ...d, client_price: e.target.value })} /></Field>

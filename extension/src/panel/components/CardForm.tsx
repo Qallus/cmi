@@ -8,6 +8,9 @@ const PICKABLE = new Set<keyof CardDraft>([
   "price",
   "sku",
   "model_number",
+  "size",
+  "finish",
+  "colors",
   "short_description",
   "long_description",
   "image_url",
@@ -107,6 +110,19 @@ export function CardForm({ draft, onChange, onPick, picking, confidence }: Props
           <input className="cmi-input" value={draft.model_number} onChange={set("model_number")} placeholder="Model" />
         </Field>
       </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        <Field label="Size" k="size">
+          <input className="cmi-input" value={draft.size} onChange={set("size")} placeholder={'24" x 48"'} />
+        </Field>
+        <Field label="Finish" k="finish">
+          <input className="cmi-input" value={draft.finish} onChange={set("finish")} placeholder="Matte / Polished" />
+        </Field>
+      </div>
+
+      <Field label="Colors" k="colors">
+        <input className="cmi-input" value={draft.colors} onChange={set("colors")} placeholder="Limo, Melange, Sabbia" />
+      </Field>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
         <Field label="Price" k="price">

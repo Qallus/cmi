@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Briefcase, CheckCircle2, Columns3, Download, FileText, Image, LayoutGrid, Loader2, Package, Pencil, Plus, Search, Share2, ShoppingCart, Sparkles, Table as TableIcon, Upload } from "lucide-react";
+import { Briefcase, CheckCircle2, Columns3, Copy, Download, FileText, Image, LayoutGrid, Loader2, Package, Pencil, Plus, Search, Share2, ShoppingCart, Sparkles, Table as TableIcon, Upload } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -49,6 +49,9 @@ type SelectionDraft = {
   product_id: string;
   custom_product_name: string;
   description: string;
+  size: string;
+  finish: string;
+  colors: string;
   image_url: string;
   gallery_urls: string;
   video_url: string;
@@ -142,6 +145,9 @@ function emptySelectionDraft(): SelectionDraft {
     product_id: "",
     custom_product_name: "",
     description: "",
+    size: "",
+    finish: "",
+    colors: "",
     image_url: "",
     gallery_urls: "",
     video_url: "",
@@ -332,6 +338,18 @@ export function SelectionsClient({ initialData, demoMode = false, setupMessage }
     }
   }
 
+  async function duplicateSel(selection: ProjectSelection) {
+    try {
+      const res = await fetch(`/api/admin/selections/${selection.id}/duplicate`, { method: "POST" });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Duplicate failed.");
+      setSelections(current => [json.selection, ...current]);
+      setNotice(`Duplicated “${selection.name}” — edit the copy to change it.`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Duplicate failed.");
+    }
+  }
+
   async function importCsv(kind: "product" | "selection", file: File | null) {
     if (!file) return;
     const text = await file.text();
@@ -473,11 +491,11 @@ export function SelectionsClient({ initialData, demoMode = false, setupMessage }
         <CardContent>
           {view === "selections" ? (
             selView === "cards" ? (
-              <SelectionCards selections={visibleSelections} onEdit={selection => setSelectionDraft(selectionToDraft(selection))} onAttach={openAttach} onView={setViewing} />
+              <SelectionCards selections={visibleSelections} onEdit={selection => setSelectionDraft(selectionToDraft(selection))} onAttach={openAttach} onView={setViewing} onDuplicate={duplicateSel} />
             ) : selView === "kanban" ? (
-              <SelectionKanban selections={visibleSelections} onEdit={selection => setSelectionDraft(selectionToDraft(selection))} onAttach={openAttach} onView={setViewing} />
+              <SelectionKanban selections={visibleSelections} onEdit={selection => setSelectionDraft(selectionToDraft(selection))} onAttach={openAttach} onView={setViewing} onDuplicate={duplicateSel} />
             ) : (
-              <SelectionTable selections={visibleSelections} onEdit={selection => setSelectionDraft(selectionToDraft(selection))} onShare={selection => setShareDraft(makeShareDraft("selection", selection.id, selection.name))} onCsv={selection => exportCsv("selection", [selection])} onPdf={selection => printPdf(`Selection - ${selection.name}`, [selection])} onAttach={openAttach} onView={setViewing} />
+              <SelectionTable selections={visibleSelections} onEdit={selection => setSelectionDraft(selectionToDraft(selection))} onShare={selection => setShareDraft(makeShareDraft("selection", selection.id, selection.name))} onCsv={selection => exportCsv("selection", [selection])} onPdf={selection => printPdf(`Selection - ${selection.name}`, [selection])} onAttach={openAttach} onView={setViewing} onDuplicate={duplicateSel} />
             )
           ) : (
             <ProductCatalog products={products} onEdit={product => setProductDraft(productToDraft(product))} onShare={product => setShareDraft(makeShareDraft("product", product.id, product.product_name))} onCsv={product => exportCsv("product", [product])} onPdf={product => printPdf(`Product - ${product.product_name}`, [product])} onAddSelection={product => setSelectionDraft({ ...emptySelectionDraft(), product_id: product.id, name: product.product_name, custom_product_name: product.product_name, category: product.category || "", vendor_id: product.vendor_id || "", vendor_name: product.vendor_name || "", image_url: product.image_url || "", gallery_urls: (product.gallery_urls || []).join("\n"), video_url: product.video_url || "", spec_sheet_url: product.spec_sheet_url || "", product_url: product.product_url || "", estimated_cost: String(product.retail_price || ""), lead_time_days: String(product.lead_time_days || "") })} />
@@ -552,7 +570,8 @@ function SelectionTable({
   onCsv,
   onPdf,
   onAttach,
-  onView
+  onView,
+  onDuplicate
 }: {
   selections: ProjectSelection[];
   onEdit: (selection: ProjectSelection) => void;
@@ -561,6 +580,7 @@ function SelectionTable({
   onPdf: (selection: ProjectSelection) => void;
   onAttach: (selection: ProjectSelection) => void;
   onView: (selection: ProjectSelection) => void;
+  onDuplicate: (selection: ProjectSelection) => void;
 }) {
   return (
     <div className="overflow-auto rounded-lg border border-border">
@@ -599,6 +619,7 @@ function SelectionTable({
               <td className="px-4 py-3">
                 <div className="flex flex-wrap gap-1">
                   <Button size="sm" variant="outline" onClick={() => onEdit(selection)}><Pencil className="h-3.5 w-3.5" /> Edit</Button>
+                  <Button size="sm" variant="ghost" title="Duplicate" onClick={() => onDuplicate(selection)}><Copy className="h-3.5 w-3.5" /></Button>
                   <Button size="sm" variant="ghost" title="Add to Job" onClick={() => onAttach(selection)}><Briefcase className="h-3.5 w-3.5" /></Button>
                   <Button size="sm" variant="ghost" onClick={() => onShare(selection)}><Share2 className="h-3.5 w-3.5" /></Button>
                   <Button size="sm" variant="ghost" onClick={() => onCsv(selection)}><Download className="h-3.5 w-3.5" /></Button>
@@ -614,7 +635,7 @@ function SelectionTable({
   );
 }
 
-function SelectionCards({ selections, onEdit, onAttach, onView }: { selections: ProjectSelection[]; onEdit: (s: ProjectSelection) => void; onAttach: (s: ProjectSelection) => void; onView: (s: ProjectSelection) => void }) {
+function SelectionCards({ selections, onEdit, onAttach, onView, onDuplicate }: { selections: ProjectSelection[]; onEdit: (s: ProjectSelection) => void; onAttach: (s: ProjectSelection) => void; onView: (s: ProjectSelection) => void; onDuplicate: (s: ProjectSelection) => void }) {
   if (!selections.length) return <div className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted-foreground">No selections match the current filters.</div>;
   return (
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -641,6 +662,7 @@ function SelectionCards({ selections, onEdit, onAttach, onView }: { selections: 
             </div>
             <div className="flex gap-1.5 pt-1">
               <Button size="sm" variant="outline" className="flex-1" onClick={() => onEdit(s)}><Pencil className="h-3.5 w-3.5" /> Edit</Button>
+              <Button size="sm" variant="ghost" title="Duplicate" onClick={() => onDuplicate(s)}><Copy className="h-4 w-4" /></Button>
               <Button size="sm" variant="ghost" title="Add to Job" onClick={() => onAttach(s)}><Briefcase className="h-4 w-4" /></Button>
             </div>
           </div>
@@ -650,7 +672,7 @@ function SelectionCards({ selections, onEdit, onAttach, onView }: { selections: 
   );
 }
 
-function SelectionKanban({ selections, onEdit, onAttach, onView }: { selections: ProjectSelection[]; onEdit: (s: ProjectSelection) => void; onAttach: (s: ProjectSelection) => void; onView: (s: ProjectSelection) => void }) {
+function SelectionKanban({ selections, onEdit, onAttach, onView, onDuplicate }: { selections: ProjectSelection[]; onEdit: (s: ProjectSelection) => void; onAttach: (s: ProjectSelection) => void; onView: (s: ProjectSelection) => void; onDuplicate: (s: ProjectSelection) => void }) {
   const cols = selectionStatuses.map(status => ({ status, items: selections.filter(s => (s.selection_status || "draft") === status) })).filter(c => c.items.length > 0);
   if (!selections.length) return <div className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted-foreground">No selections match the current filters.</div>;
   return (
@@ -674,8 +696,9 @@ function SelectionKanban({ selections, onEdit, onAttach, onView }: { selections:
                     <div className="truncate text-[11px] text-muted-foreground">{s.vendor_name || "—"} · {money(s.client_price || s.estimated_cost)}</div>
                   </div>
                 </div>
-                <div className="mt-2 flex justify-end gap-1">
+                <div className="mt-2 flex justify-end gap-2">
                   <button type="button" onClick={() => onEdit(s)} className="text-xs text-muted-foreground hover:text-foreground">Edit</button>
+                  <button type="button" title="Duplicate" onClick={() => onDuplicate(s)} className="text-muted-foreground hover:text-accent"><Copy className="h-3.5 w-3.5" /></button>
                   <button type="button" title="Add to Job" onClick={() => onAttach(s)} className="text-muted-foreground hover:text-accent"><Briefcase className="h-3.5 w-3.5" /></button>
                 </div>
               </div>
@@ -889,6 +912,11 @@ function SelectionModal({ data, products, draft, saving, onChange, onClose, onSa
               </Select>
             </Field>
             <Field label="Custom Product Name"><Input value={draft.custom_product_name} onChange={event => update("custom_product_name", event.target.value)} placeholder={selectedProduct?.product_name || "One-off product name"} /></Field>
+          </div>
+          <div className="grid gap-3 md:grid-cols-3">
+            <Field label="Size"><Input value={draft.size} onChange={event => update("size", event.target.value)} placeholder={'24" x 48"'} /></Field>
+            <Field label="Finish"><Input value={draft.finish} onChange={event => update("finish", event.target.value)} placeholder="Matte / Polished" /></Field>
+            <Field label="Colors"><Input value={draft.colors} onChange={event => update("colors", event.target.value)} placeholder="Limo, Melange, Sabbia" /></Field>
           </div>
           <div className="grid gap-3 md:grid-cols-4">
             <Field label="Client">
@@ -1432,6 +1460,9 @@ function selectionToDraft(selection: ProjectSelection): SelectionDraft {
     product_id: selection.product_id || "",
     custom_product_name: selection.custom_product_name || "",
     description: selection.description || "",
+    size: selection.size || "",
+    finish: selection.finish || "",
+    colors: selection.colors || "",
     image_url: selection.image_url || "",
     gallery_urls: (selection.gallery_urls || []).join("\n"),
     video_url: selection.video_url || "",
@@ -1514,6 +1545,9 @@ function draftToSelection(draft: SelectionDraft): ProjectSelection {
     product_id: draft.product_id || null,
     custom_product_name: draft.custom_product_name || null,
     description: draft.description || null,
+    size: draft.size || null,
+    finish: draft.finish || null,
+    colors: draft.colors || null,
     image_url: draft.image_url || null,
     gallery_urls: parseUrlList(draft.gallery_urls),
     video_url: draft.video_url || null,

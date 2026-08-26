@@ -29,6 +29,9 @@ export type CardDraft = {
   category: string;
   sku: string;
   model_number: string;
+  size: string;
+  finish: string;
+  colors: string;
   price: string;
   price_unit: string;
   short_description: string;
@@ -53,6 +56,9 @@ export const EMPTY_DRAFT: CardDraft = {
   category: "",
   sku: "",
   model_number: "",
+  size: "",
+  finish: "",
+  colors: "",
   price: "",
   price_unit: "each",
   short_description: "",

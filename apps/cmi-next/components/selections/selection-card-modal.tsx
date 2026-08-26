@@ -147,6 +147,14 @@ export function SelectionCardModal({
             </div>
           )}
 
+          {(sel.size || sel.finish || sel.colors) && (
+            <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+              {sel.size && <><dt className="text-muted-foreground">Size</dt><dd className="text-foreground">{sel.size}</dd></>}
+              {sel.finish && <><dt className="text-muted-foreground">Finish</dt><dd className="text-foreground">{sel.finish}</dd></>}
+              {sel.colors && <><dt className="text-muted-foreground">Colors</dt><dd className="text-foreground">{sel.colors}</dd></>}
+            </dl>
+          )}
+
           {sel.description && <p className="mt-3 text-sm leading-relaxed text-foreground">{sel.description}</p>}
           {expanded && sel.long_description && <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">{sel.long_description}</p>}
 
