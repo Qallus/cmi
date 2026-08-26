@@ -11,8 +11,11 @@ export default defineManifest({
   minimum_chrome_version: "116",
   permissions: ["sidePanel", "activeTab", "scripting", "storage", "tabs"],
   host_permissions: ["<all_urls>"],
-  // Only the CMI app may hand the session token to the extension.
-  externally_connectable: { matches: ["https://app.constructedmatter.com/*"] },
+  // Only the CMI app may hand the session token to the extension. Live domain is
+  // my.constructedmatter.com; app.* kept for a future cutover.
+  externally_connectable: {
+    matches: ["https://my.constructedmatter.com/*", "https://app.constructedmatter.com/*"],
+  },
   background: { service_worker: "src/sw.ts", type: "module" },
   side_panel: { default_path: "index.html" },
   icons: {
