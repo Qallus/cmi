@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ProjectCanvasVisibility } from "@/components/dashboard/project-canvas-visibility";
+import { ExtensionAccessPanel } from "@/components/dashboard/extension-access-panel";
 
 export const metadata = { title: "Settings — CMI Dashboard" };
 
@@ -36,6 +37,13 @@ export default function SettingsPage() {
           <CardHeader><CardTitle>Project Canvas Visibility</CardTitle></CardHeader>
           <CardContent className="pt-0">
             <ProjectCanvasVisibility />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle>Extension Access</CardTitle></CardHeader>
+          <CardContent className="pt-0">
+            <ExtensionAccessPanel />
           </CardContent>
         </Card>
 
