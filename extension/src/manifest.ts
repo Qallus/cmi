@@ -15,7 +15,21 @@ export default defineManifest({
   externally_connectable: { matches: ["https://app.constructedmatter.com/*"] },
   background: { service_worker: "src/sw.ts", type: "module" },
   side_panel: { default_path: "index.html" },
-  action: { default_title: "CMI Selection Card Builder" },
+  icons: {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png",
+  },
+  action: {
+    default_title: "CMI Selection Card Builder",
+    default_icon: {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png",
+    },
+  },
   // TODO: paste the Chrome Web Store public key here to pin the extension ID so
   // the local unpacked ID matches the published ID (keeps CORS/CMI_EXTENSION_ID
   // stable). Until then Chrome assigns a random dev ID.
