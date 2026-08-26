@@ -13,7 +13,12 @@ export default async function ExtensionAuthPage() {
   const store = await cookies();
   const token = store.get("cmi-session")?.value ?? null;
   const staff = token ? await getSessionStaff() : null;
-  const extensionId = process.env.NEXT_PUBLIC_CMI_EXTENSION_ID ?? "";
+  // Read the runtime (non-public) var first — NEXT_PUBLIC_* is inlined at build
+  // time, and this app only passes NEXT_PUBLIC_APP_URL as a build arg, so the
+  // public copy can be empty in production. CMI_EXTENSION_ID is always available
+  // server-side at runtime.
+  const extensionId =
+    process.env.CMI_EXTENSION_ID ?? process.env.NEXT_PUBLIC_CMI_EXTENSION_ID ?? "";
 
   return (
     <ExtensionAuthHandoff
