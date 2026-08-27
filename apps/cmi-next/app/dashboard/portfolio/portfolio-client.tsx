@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Archive, ArchiveRestore, AlertTriangle, CheckCircle2, Columns2, GripVertical, Image, LayoutGrid, List, Loader2, Pencil, Plus, RotateCcw, Share2, Table2, Trash2, Upload, Video, X } from "lucide-react";
+import { Archive, ArchiveRestore, AlertTriangle, CheckCircle2, Columns2, Eye, ExternalLink, GripVertical, Image, LayoutGrid, List, Loader2, Pencil, Plus, RotateCcw, Share2, Table2, Trash2, Upload, Video, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 type ViewMode = "cards" | "list" | "table" | "kanban";
@@ -125,6 +125,7 @@ export function PortfolioClient({ initialItems, demoMode }: { initialItems: Port
   const [trashLoading, setTrashLoading] = React.useState(false);
   const [confirmDelete, setConfirmDelete] = React.useState<PortfolioItem | null>(null);
   const [confirmPurge, setConfirmPurge] = React.useState<PortfolioItem | null>(null);
+  const [preview, setPreview] = React.useState<PortfolioItem | null>(null);
 
   async function openTrash() {
     setTrashMode(true);
@@ -363,8 +364,11 @@ export function PortfolioClient({ initialItems, demoMode }: { initialItems: Port
               className={cn("overflow-hidden cursor-grab active:cursor-grabbing transition",
                 draggingId === item.id ? "opacity-40 scale-95" : "",
                 dragOverId === item.id ? "ring-2 ring-accent" : "")}>
-              <div className="aspect-[4/3] bg-muted">
+              <div className="relative aspect-[4/3] bg-muted">
                 {item.featured_image ? <img src={item.featured_image} alt="" className="h-full w-full object-cover" /> : <div className="grid h-full place-items-center text-muted-foreground"><Image className="h-8 w-8" /></div>}
+                <button type="button" title="View" onClick={() => setPreview(item)} onMouseDown={(e) => e.stopPropagation()} className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-md bg-black/55 px-2 py-1 text-xs font-medium text-white shadow-md backdrop-blur transition hover:bg-black/75">
+                  <Eye className="h-3.5 w-3.5" /> View
+                </button>
               </div>
               <CardContent className="p-4">
                 <div className="flex items-start justify-between gap-3">
@@ -379,8 +383,9 @@ export function PortfolioClient({ initialItems, demoMode }: { initialItems: Port
                   {(item.gallery_images || []).length ? <Badge>{item.gallery_images?.length} images</Badge> : null}
                 </div>
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <Button size="sm" variant="outline" onClick={() => setDraft(itemToDraft(item))}><Pencil className="h-3.5 w-3.5" /> Edit</Button>
+                  <Button size="sm" variant="outline" onClick={() => setPreview(item)}><Eye className="h-3.5 w-3.5" /> View</Button>
                   <Button size="sm" variant="outline" onClick={() => void share(item)}><Share2 className="h-3.5 w-3.5" /> Share</Button>
+                  <Button size="sm" variant="outline" onClick={() => setDraft(itemToDraft(item))}><Pencil className="h-3.5 w-3.5" /> Edit</Button>
                   <Button size="sm" variant="outline" onClick={() => void toggleArchive(item)}>{item.status === "archived" ? <><ArchiveRestore className="h-3.5 w-3.5" /> Unarchive</> : <><Archive className="h-3.5 w-3.5" /> Archive</>}</Button>
                   <Button size="sm" variant="ghost" className="text-destructive" onClick={() => void deletePortfolio(item)}><Trash2 className="h-3.5 w-3.5" /> Delete</Button>
                 </div>
@@ -411,10 +416,11 @@ export function PortfolioClient({ initialItems, demoMode }: { initialItems: Port
                 <p className="mt-0.5 text-xs text-muted-foreground">{item.category || "Uncategorized"} · {item.location || "Arizona"} · {item.year || "—"}</p>
               </div>
               <div className="flex shrink-0 items-center gap-1">
-                <Button size="sm" variant="outline" onClick={() => setDraft(itemToDraft(item))}><Pencil className="h-3.5 w-3.5" /></Button>
-                <Button size="sm" variant="outline" onClick={() => void share(item)}><Share2 className="h-3.5 w-3.5" /></Button>
+                <Button size="sm" variant="outline" title="View" onClick={() => setPreview(item)}><Eye className="h-3.5 w-3.5" /></Button>
+                <Button size="sm" variant="outline" title="Share" onClick={() => void share(item)}><Share2 className="h-3.5 w-3.5" /></Button>
+                <Button size="sm" variant="outline" title="Edit" onClick={() => setDraft(itemToDraft(item))}><Pencil className="h-3.5 w-3.5" /></Button>
                 <Button size="sm" variant="outline" title={item.status === "archived" ? "Unarchive" : "Archive"} onClick={() => void toggleArchive(item)}>{item.status === "archived" ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}</Button>
-                <Button size="sm" variant="ghost" className="text-destructive" onClick={() => void deletePortfolio(item)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                <Button size="sm" variant="ghost" className="text-destructive" title="Delete" onClick={() => void deletePortfolio(item)}><Trash2 className="h-3.5 w-3.5" /></Button>
               </div>
             </div>
           ))}
@@ -460,10 +466,11 @@ export function PortfolioClient({ initialItems, demoMode }: { initialItems: Port
                   <td className="px-4 py-3"><Badge tone={item.status === "published" ? "success" : item.status === "archived" || item.status === "hidden" ? "warning" : "default"}>{item.status}</Badge></td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1">
-                      <Button size="sm" variant="outline" onClick={() => setDraft(itemToDraft(item))}><Pencil className="h-3.5 w-3.5" /></Button>
-                      <Button size="sm" variant="outline" onClick={() => void share(item)}><Share2 className="h-3.5 w-3.5" /></Button>
+                      <Button size="sm" variant="outline" title="View" onClick={() => setPreview(item)}><Eye className="h-3.5 w-3.5" /></Button>
+                      <Button size="sm" variant="outline" title="Share" onClick={() => void share(item)}><Share2 className="h-3.5 w-3.5" /></Button>
+                      <Button size="sm" variant="outline" title="Edit" onClick={() => setDraft(itemToDraft(item))}><Pencil className="h-3.5 w-3.5" /></Button>
                       <Button size="sm" variant="outline" title={item.status === "archived" ? "Unarchive" : "Archive"} onClick={() => void toggleArchive(item)}>{item.status === "archived" ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}</Button>
-                      <Button size="sm" variant="ghost" className="text-destructive" onClick={() => void deletePortfolio(item)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                      <Button size="sm" variant="ghost" className="text-destructive" title="Delete" onClick={() => void deletePortfolio(item)}><Trash2 className="h-3.5 w-3.5" /></Button>
                     </div>
                   </td>
                 </tr>
@@ -500,10 +507,11 @@ export function PortfolioClient({ initialItems, demoMode }: { initialItems: Port
                       </div>
                       <p className="mt-1 text-[11px] text-muted-foreground">{item.year || "—"} · {item.location || "AZ"}</p>
                       <div className="mt-2 flex gap-1">
-                        <Button size="sm" variant="outline" onClick={() => setDraft(itemToDraft(item))}><Pencil className="h-3 w-3" /></Button>
-                        <Button size="sm" variant="outline" onClick={() => void share(item)}><Share2 className="h-3 w-3" /></Button>
+                        <Button size="sm" variant="outline" title="View" onClick={() => setPreview(item)}><Eye className="h-3 w-3" /></Button>
+                        <Button size="sm" variant="outline" title="Share" onClick={() => void share(item)}><Share2 className="h-3 w-3" /></Button>
+                        <Button size="sm" variant="outline" title="Edit" onClick={() => setDraft(itemToDraft(item))}><Pencil className="h-3 w-3" /></Button>
                         <Button size="sm" variant="outline" title={item.status === "archived" ? "Unarchive" : "Archive"} onClick={() => void toggleArchive(item)}>{item.status === "archived" ? <ArchiveRestore className="h-3 w-3" /> : <Archive className="h-3 w-3" />}</Button>
-                        <Button size="sm" variant="ghost" className="text-destructive" onClick={() => void deletePortfolio(item)}><Trash2 className="h-3 w-3" /></Button>
+                        <Button size="sm" variant="ghost" className="text-destructive" title="Delete" onClick={() => void deletePortfolio(item)}><Trash2 className="h-3 w-3" /></Button>
                       </div>
                     </div>
                   </div>
@@ -521,6 +529,8 @@ export function PortfolioClient({ initialItems, demoMode }: { initialItems: Port
       {!filtered.length ? <div className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted-foreground">No portfolio items yet.</div> : null}
 
       {draft ? <PortfolioEditor draft={draft} saving={saving} onChange={setDraft} onClose={() => setDraft(null)} onSave={savePortfolio} /> : null}
+
+      {preview ? <PortfolioPreviewModal item={preview} onClose={() => setPreview(null)} onEdit={(it) => { setPreview(null); setDraft(itemToDraft(it)); }} /> : null}
 
       {/* Trash dialog */}
       {trashMode ? (
@@ -613,6 +623,81 @@ function ConfirmDialog({ icon, title, body, confirmLabel, destructive, onCancel,
         <div className="mt-5 flex justify-end gap-2">
           <Button size="sm" variant="outline" onClick={onCancel}>Cancel</Button>
           <Button size="sm" variant={destructive ? "outline" : "accent"} className={destructive ? "border-destructive/40 text-destructive hover:bg-destructive/10" : ""} onClick={onConfirm}>{confirmLabel}</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Read-only preview of a portfolio item — works for any status (drafts included),
+// unlike the public page which only renders published items.
+function PortfolioPreviewModal({ item, onClose, onEdit }: { item: PortfolioItem; onClose: () => void; onEdit: (item: PortfolioItem) => void }) {
+  React.useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onClose]);
+  const meta = [item.category, item.location, item.year ? String(item.year) : null, item.timeline, item.square_feet ? `${item.square_feet.toLocaleString()} sq ft` : null].filter(Boolean);
+  const gallery = (item.gallery_images || []).filter(Boolean);
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="my-8 w-full max-w-3xl overflow-hidden rounded-2xl border border-border bg-card shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="relative aspect-[16/9] bg-muted">
+          {item.featured_image
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img src={item.featured_image} alt={item.title} className="h-full w-full object-cover" />
+            : <div className="grid h-full place-items-center text-muted-foreground"><Image className="h-10 w-10" /></div>}
+          <div className="absolute right-3 top-3 flex items-center gap-2">
+            <Badge tone={item.status === "published" ? "success" : item.status === "archived" || item.status === "hidden" ? "warning" : "default"}>{item.status}</Badge>
+            <button type="button" onClick={onClose} className="rounded-full bg-black/55 p-2 text-white shadow-md backdrop-blur transition hover:bg-black/75" aria-label="Close"><X className="h-4 w-4" /></button>
+          </div>
+        </div>
+        <div className="max-h-[55vh] overflow-y-auto p-6">
+          {item.subtitle ? <div className="mb-1 text-[11px] font-bold uppercase tracking-[0.14em] text-accent">{item.subtitle}</div> : null}
+          <h2 className="font-display text-2xl font-semibold">{item.title}</h2>
+          {meta.length ? <div className="mt-2 text-sm text-muted-foreground">{meta.join(" · ")}</div> : null}
+          {item.description ? <p className="mt-4 whitespace-pre-line text-sm leading-relaxed text-foreground">{item.description}</p> : null}
+
+          {(item.services_used || []).length ? (
+            <div className="mt-4 flex flex-wrap gap-1.5">
+              {item.services_used!.map((s) => <Badge key={s}>{s}</Badge>)}
+            </div>
+          ) : null}
+
+          {(item.attributes_json || []).length ? (
+            <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-3">
+              {item.attributes_json!.map((a, i) => (
+                <div key={i}><dt className="text-xs text-muted-foreground">{a.label}</dt><dd className="text-foreground">{a.value}</dd></div>
+              ))}
+            </dl>
+          ) : null}
+
+          {gallery.length ? (
+            <div className="mt-5">
+              <div className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Gallery ({gallery.length})</div>
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                {gallery.map((g, i) => (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img key={i} src={g} alt="" className="aspect-square w-full rounded-md border border-border object-cover" />
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border p-4">
+          <div>
+            {item.status === "published" ? (
+              <a href={`/portfolio/${item.slug || item.id}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-sm font-medium text-accent hover:underline">
+                Open public page <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+            ) : (
+              <span className="text-xs text-muted-foreground">Not on the public site ({item.status})</span>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={onClose}>Close</Button>
+            <Button size="sm" variant="accent" onClick={() => onEdit(item)}><Pencil className="h-3.5 w-3.5" /> Edit</Button>
+          </div>
         </div>
       </div>
     </div>
