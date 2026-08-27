@@ -8,6 +8,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     await requireAdmin(request);
     const { id } = await params;
     const supabase = getSupabaseAdmin();
+
+    // Restore from Trash: just clear deleted_at (don't re-validate the whole row).
+    if (new URL(request.url).searchParams.get("restore") === "true") {
+      const { data, error } = await supabase.from("portfolio").update({ deleted_at: null, updated_at: new Date().toISOString() }).eq("id", id).select().single();
+      if (error) throw error;
+      return NextResponse.json({ item: data });
+    }
+
     const payload = normalizePortfolioInput(await request.json());
     const row = {
       ...payload,
@@ -27,7 +35,15 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     await requireAdmin(request);
     const { id } = await params;
     const supabase = getSupabaseAdmin();
-    const { error } = await supabase.from("portfolio").delete().eq("id", id);
+    const permanent = new URL(request.url).searchParams.get("permanent") === "true";
+    if (permanent) {
+      // Delete Forever (from Trash) — actually removes the row.
+      const { error } = await supabase.from("portfolio").delete().eq("id", id);
+      if (error) throw error;
+      return NextResponse.json({ ok: true });
+    }
+    // Default: soft delete → moves the item to Trash (recoverable).
+    const { error } = await supabase.from("portfolio").update({ deleted_at: new Date().toISOString() }).eq("id", id);
     if (error) throw error;
     return NextResponse.json({ ok: true });
   } catch (error) {

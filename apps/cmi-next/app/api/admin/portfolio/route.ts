@@ -6,7 +6,8 @@ import { loadPortfolioItems, normalizePortfolioInput } from "@/lib/portfolio/dat
 export async function GET(request: Request) {
   try {
     await requireAdmin(request);
-    const items = await loadPortfolioItems();
+    const trashedOnly = new URL(request.url).searchParams.get("trashed") === "true";
+    const items = await loadPortfolioItems({ trashedOnly });
     return NextResponse.json({ items });
   } catch (error) {
     if (error instanceof AuthError) return NextResponse.json({ message: error.message }, { status: error.status });

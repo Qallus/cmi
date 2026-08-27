@@ -62,7 +62,7 @@ export function normalizePortfolioInput(input: Record<string, unknown>): Portfol
   };
 }
 
-export async function loadPortfolioItems(options: { publishedOnly?: boolean; featuredOnly?: boolean } = {}) {
+export async function loadPortfolioItems(options: { publishedOnly?: boolean; featuredOnly?: boolean; trashedOnly?: boolean } = {}) {
   const supabase = getSupabaseAdmin();
   let query = supabase
     .from("portfolio")
@@ -70,6 +70,11 @@ export async function loadPortfolioItems(options: { publishedOnly?: boolean; fea
     .order("sort_order", { ascending: true })
     .order("created_at", { ascending: false });
 
+  // Trash view returns only soft-deleted rows; everything else excludes them.
+  query = options.trashedOnly ? query.not("deleted_at", "is", null) : query.is("deleted_at", null);
+
+  // Public surfaces show only published, client-visible items (drafts, hidden,
+  // and archived are all excluded — archive keeps an item in the dashboard only).
   if (options.publishedOnly) query = query.eq("status", "published").eq("client_visible", true);
   if (options.featuredOnly) query = query.eq("is_featured", true);
 
@@ -86,6 +91,7 @@ export async function loadPortfolioItemBySlug(slug: string) {
     .eq("slug", slug)
     .eq("status", "published")
     .eq("client_visible", true)
+    .is("deleted_at", null)
     .single();
 
   if (error) throw error;

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { CheckCircle2, Columns2, Eye, EyeOff, GripVertical, Image, LayoutGrid, List, Loader2, Pencil, Plus, Share2, Table2, Trash2, Upload, Video, X } from "lucide-react";
+import { Archive, ArchiveRestore, AlertTriangle, CheckCircle2, Columns2, GripVertical, Image, LayoutGrid, List, Loader2, Pencil, Plus, RotateCcw, Share2, Table2, Trash2, Upload, Video, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 type ViewMode = "cards" | "list" | "table" | "kanban";
@@ -119,6 +119,56 @@ export function PortfolioClient({ initialItems, demoMode }: { initialItems: Port
   const [dragOverId, setDragOverId] = React.useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = React.useState<string | null>(null);
 
+  // Trash + confirm state
+  const [trashMode, setTrashMode] = React.useState(false);
+  const [trashItems, setTrashItems] = React.useState<PortfolioItem[]>([]);
+  const [trashLoading, setTrashLoading] = React.useState(false);
+  const [confirmDelete, setConfirmDelete] = React.useState<PortfolioItem | null>(null);
+  const [confirmPurge, setConfirmPurge] = React.useState<PortfolioItem | null>(null);
+
+  async function openTrash() {
+    setTrashMode(true);
+    if (demoMode) return;
+    setTrashLoading(true);
+    try {
+      const res = await fetch("/api/admin/portfolio?trashed=true");
+      const json = await res.json();
+      if (res.ok) setTrashItems(json.items || []);
+    } finally { setTrashLoading(false); }
+  }
+
+  async function doDelete(item: PortfolioItem) {
+    setConfirmDelete(null);
+    if (demoMode) { setItems(current => current.filter(row => row.id !== item.id)); return; }
+    const res = await fetch(`/api/admin/portfolio/${item.id}`, { method: "DELETE" });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) { setNotice(json.message || "Move to Trash failed."); return; }
+    setItems(current => current.filter(row => row.id !== item.id));
+    setNotice(`“${item.title}” moved to Trash.`);
+  }
+
+  async function restore(item: PortfolioItem) {
+    const res = await fetch(`/api/admin/portfolio/${item.id}?restore=true`, { method: "PATCH" });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) { setNotice(json.message || "Restore failed."); return; }
+    setTrashItems(current => current.filter(row => row.id !== item.id));
+    setNotice(`“${item.title}” restored.`);
+    void refresh();
+  }
+
+  async function deleteForever(item: PortfolioItem) {
+    setConfirmPurge(null);
+    const res = await fetch(`/api/admin/portfolio/${item.id}?permanent=true`, { method: "DELETE" });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) { setNotice(json.message || "Delete failed."); return; }
+    setTrashItems(current => current.filter(row => row.id !== item.id));
+    setNotice(`“${item.title}” permanently deleted.`);
+  }
+
+  async function toggleArchive(item: PortfolioItem) {
+    await quickStatus(item, item.status === "archived" ? "published" : "archived");
+  }
+
   const filtered = activeCategory === "All" ? items : items.filter(item => item.category === activeCategory);
   const categoryList = ["All", ...Array.from(new Set([...categories, ...items.map(item => item.category || "").filter(Boolean)]))];
 
@@ -170,19 +220,9 @@ export function PortfolioClient({ initialItems, demoMode }: { initialItems: Port
     }
   }
 
-  async function deletePortfolio(item: PortfolioItem) {
-    if (!confirm(`Delete ${item.title}?`)) return;
-    if (demoMode) {
-      setItems(current => current.filter(row => row.id !== item.id));
-      return;
-    }
-    const res = await fetch(`/api/admin/portfolio/${item.id}`, { method: "DELETE" });
-    const json = await res.json();
-    if (!res.ok) {
-      setNotice(json.message || "Portfolio delete failed.");
-      return;
-    }
-    setItems(current => current.filter(row => row.id !== item.id));
+  function deletePortfolio(item: PortfolioItem) {
+    // Opens a styled confirm; the actual soft-delete happens in doDelete().
+    setConfirmDelete(item);
   }
 
   async function quickStatus(item: PortfolioItem, status: PortfolioStatus) {
@@ -289,6 +329,10 @@ export function PortfolioClient({ initialItems, demoMode }: { initialItems: Port
               </button>
             ))}
           </div>
+          <Button variant="outline" onClick={() => void openTrash()} title="View trashed items">
+            <Trash2 className="h-4 w-4" />
+            Trash
+          </Button>
           <Button onClick={() => setDraft({ ...emptyDraft })}>
             <Plus className="h-4 w-4" />
             Add Portfolio
@@ -328,7 +372,7 @@ export function PortfolioClient({ initialItems, demoMode }: { initialItems: Port
                     <h2 className="truncate text-sm font-semibold">{item.title}</h2>
                     <p className="mt-1 truncate text-xs text-muted-foreground">{item.category || "Uncategorized"} · {item.year || "No year"}</p>
                   </div>
-                  <Badge tone={item.status === "published" ? "success" : item.status === "hidden" ? "warning" : "default"}>{item.status}</Badge>
+                  <Badge tone={item.status === "published" ? "success" : item.status === "archived" || item.status === "hidden" ? "warning" : "default"}>{item.status}</Badge>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-1">
                   {item.is_featured ? <Badge tone="accent">Featured</Badge> : null}
@@ -337,7 +381,7 @@ export function PortfolioClient({ initialItems, demoMode }: { initialItems: Port
                 <div className="mt-4 flex flex-wrap gap-2">
                   <Button size="sm" variant="outline" onClick={() => setDraft(itemToDraft(item))}><Pencil className="h-3.5 w-3.5" /> Edit</Button>
                   <Button size="sm" variant="outline" onClick={() => void share(item)}><Share2 className="h-3.5 w-3.5" /> Share</Button>
-                  <Button size="sm" variant="outline" onClick={() => void quickStatus(item, item.status === "hidden" ? "published" : "hidden")}>{item.status === "hidden" ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}{item.status === "hidden" ? " Show" : " Hide"}</Button>
+                  <Button size="sm" variant="outline" onClick={() => void toggleArchive(item)}>{item.status === "archived" ? <><ArchiveRestore className="h-3.5 w-3.5" /> Unarchive</> : <><Archive className="h-3.5 w-3.5" /> Archive</>}</Button>
                   <Button size="sm" variant="ghost" className="text-destructive" onClick={() => void deletePortfolio(item)}><Trash2 className="h-3.5 w-3.5" /> Delete</Button>
                 </div>
               </CardContent>
@@ -361,7 +405,7 @@ export function PortfolioClient({ initialItems, demoMode }: { initialItems: Port
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="font-semibold truncate">{item.title}</span>
-                  <Badge tone={item.status === "published" ? "success" : item.status === "hidden" ? "warning" : "default"}>{item.status}</Badge>
+                  <Badge tone={item.status === "published" ? "success" : item.status === "archived" || item.status === "hidden" ? "warning" : "default"}>{item.status}</Badge>
                   {item.is_featured && <Badge tone="accent">Featured</Badge>}
                 </div>
                 <p className="mt-0.5 text-xs text-muted-foreground">{item.category || "Uncategorized"} · {item.location || "Arizona"} · {item.year || "—"}</p>
@@ -369,7 +413,7 @@ export function PortfolioClient({ initialItems, demoMode }: { initialItems: Port
               <div className="flex shrink-0 items-center gap-1">
                 <Button size="sm" variant="outline" onClick={() => setDraft(itemToDraft(item))}><Pencil className="h-3.5 w-3.5" /></Button>
                 <Button size="sm" variant="outline" onClick={() => void share(item)}><Share2 className="h-3.5 w-3.5" /></Button>
-                <Button size="sm" variant="outline" onClick={() => void quickStatus(item, item.status === "hidden" ? "published" : "hidden")}>{item.status === "hidden" ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}</Button>
+                <Button size="sm" variant="outline" title={item.status === "archived" ? "Unarchive" : "Archive"} onClick={() => void toggleArchive(item)}>{item.status === "archived" ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}</Button>
                 <Button size="sm" variant="ghost" className="text-destructive" onClick={() => void deletePortfolio(item)}><Trash2 className="h-3.5 w-3.5" /></Button>
               </div>
             </div>
@@ -413,12 +457,12 @@ export function PortfolioClient({ initialItems, demoMode }: { initialItems: Port
                   <td className="px-4 py-3 text-muted-foreground">{item.category || "—"}</td>
                   <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">{item.location || "—"}</td>
                   <td className="hidden px-4 py-3 text-muted-foreground sm:table-cell">{item.year || "—"}</td>
-                  <td className="px-4 py-3"><Badge tone={item.status === "published" ? "success" : item.status === "hidden" ? "warning" : "default"}>{item.status}</Badge></td>
+                  <td className="px-4 py-3"><Badge tone={item.status === "published" ? "success" : item.status === "archived" || item.status === "hidden" ? "warning" : "default"}>{item.status}</Badge></td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1">
                       <Button size="sm" variant="outline" onClick={() => setDraft(itemToDraft(item))}><Pencil className="h-3.5 w-3.5" /></Button>
                       <Button size="sm" variant="outline" onClick={() => void share(item)}><Share2 className="h-3.5 w-3.5" /></Button>
-                      <Button size="sm" variant="outline" onClick={() => void quickStatus(item, item.status === "hidden" ? "published" : "hidden")}>{item.status === "hidden" ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}</Button>
+                      <Button size="sm" variant="outline" title={item.status === "archived" ? "Unarchive" : "Archive"} onClick={() => void toggleArchive(item)}>{item.status === "archived" ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}</Button>
                       <Button size="sm" variant="ghost" className="text-destructive" onClick={() => void deletePortfolio(item)}><Trash2 className="h-3.5 w-3.5" /></Button>
                     </div>
                   </td>
@@ -452,13 +496,13 @@ export function PortfolioClient({ initialItems, demoMode }: { initialItems: Port
                     <div className="p-3">
                       <div className="flex items-start justify-between gap-1">
                         <span className="text-xs font-semibold leading-snug">{item.title}</span>
-                        <Badge tone={item.status === "published" ? "success" : item.status === "hidden" ? "warning" : "default"}>{item.status}</Badge>
+                        <Badge tone={item.status === "published" ? "success" : item.status === "archived" || item.status === "hidden" ? "warning" : "default"}>{item.status}</Badge>
                       </div>
                       <p className="mt-1 text-[11px] text-muted-foreground">{item.year || "—"} · {item.location || "AZ"}</p>
                       <div className="mt-2 flex gap-1">
                         <Button size="sm" variant="outline" onClick={() => setDraft(itemToDraft(item))}><Pencil className="h-3 w-3" /></Button>
                         <Button size="sm" variant="outline" onClick={() => void share(item)}><Share2 className="h-3 w-3" /></Button>
-                        <Button size="sm" variant="outline" onClick={() => void quickStatus(item, item.status === "hidden" ? "published" : "hidden")}>{item.status === "hidden" ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}</Button>
+                        <Button size="sm" variant="outline" title={item.status === "archived" ? "Unarchive" : "Archive"} onClick={() => void toggleArchive(item)}>{item.status === "archived" ? <ArchiveRestore className="h-3 w-3" /> : <Archive className="h-3 w-3" />}</Button>
                         <Button size="sm" variant="ghost" className="text-destructive" onClick={() => void deletePortfolio(item)}><Trash2 className="h-3 w-3" /></Button>
                       </div>
                     </div>
@@ -477,6 +521,100 @@ export function PortfolioClient({ initialItems, demoMode }: { initialItems: Port
       {!filtered.length ? <div className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted-foreground">No portfolio items yet.</div> : null}
 
       {draft ? <PortfolioEditor draft={draft} saving={saving} onChange={setDraft} onClose={() => setDraft(null)} onSave={savePortfolio} /> : null}
+
+      {/* Trash dialog */}
+      {trashMode ? (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/45 p-4">
+          <div className="my-8 w-full max-w-2xl overflow-hidden rounded-lg border border-border bg-card shadow-xl">
+            <div className="flex items-center justify-between border-b border-border p-5">
+              <div className="flex items-center gap-2">
+                <Trash2 className="h-4 w-4 text-muted-foreground" />
+                <h2 className="font-display text-lg font-semibold">Trash</h2>
+                <span className="text-xs text-muted-foreground">Deleted items are kept here until you permanently delete them.</span>
+              </div>
+              <button type="button" onClick={() => setTrashMode(false)} className="rounded p-1 text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="max-h-[65vh] overflow-y-auto p-4">
+              {trashLoading ? (
+                <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
+              ) : trashItems.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted-foreground">Trash is empty.</div>
+              ) : (
+                <div className="divide-y divide-border">
+                  {trashItems.map(item => (
+                    <div key={item.id} className="flex items-center gap-3 py-3">
+                      {item.featured_image
+                        // eslint-disable-next-line @next/next/no-img-element
+                        ? <img src={item.featured_image} alt="" className="h-11 w-11 shrink-0 rounded-md border border-border object-cover" />
+                        : <span className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-border bg-muted text-muted-foreground"><Image className="h-4 w-4" /></span>}
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium">{item.title}</div>
+                        <div className="truncate text-xs text-muted-foreground">{[item.category, item.location].filter(Boolean).join(" · ") || "—"}</div>
+                      </div>
+                      <Button size="sm" variant="outline" onClick={() => void restore(item)}><RotateCcw className="h-3.5 w-3.5" /> Restore</Button>
+                      <Button size="sm" variant="ghost" className="text-destructive" onClick={() => setConfirmPurge(item)}><Trash2 className="h-3.5 w-3.5" /> Delete forever</Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Confirm: move to Trash */}
+      {confirmDelete ? (
+        <ConfirmDialog
+          icon={<Trash2 className="h-5 w-5 text-amber-500" />}
+          title="Move to Trash?"
+          body={<>“{confirmDelete.title}” will be moved to Trash. It stays out of the website and the dashboard list, but you can restore it anytime.</>}
+          confirmLabel="Move to Trash"
+          onCancel={() => setConfirmDelete(null)}
+          onConfirm={() => void doDelete(confirmDelete)}
+        />
+      ) : null}
+
+      {/* Confirm: permanent delete */}
+      {confirmPurge ? (
+        <ConfirmDialog
+          icon={<AlertTriangle className="h-5 w-5 text-destructive" />}
+          title="Delete permanently?"
+          body={<>“{confirmPurge.title}” will be permanently deleted. This can’t be undone.</>}
+          confirmLabel="Delete forever"
+          destructive
+          onCancel={() => setConfirmPurge(null)}
+          onConfirm={() => void deleteForever(confirmPurge)}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function ConfirmDialog({ icon, title, body, confirmLabel, destructive, onCancel, onConfirm }: {
+  icon: React.ReactNode; title: string; body: React.ReactNode; confirmLabel: string; destructive?: boolean;
+  onCancel: () => void; onConfirm: () => void;
+}) {
+  React.useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onCancel(); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onCancel]);
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" role="dialog" aria-modal="true">
+      <div className="absolute inset-0 bg-black/50" onClick={onCancel} />
+      <div className="relative z-10 w-full max-w-sm rounded-xl border border-border bg-card p-5 shadow-2xl">
+        <div className="flex items-start gap-3">
+          <div className="mt-0.5">{icon}</div>
+          <div className="min-w-0">
+            <h3 className="font-display text-lg font-semibold">{title}</h3>
+            <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{body}</p>
+          </div>
+        </div>
+        <div className="mt-5 flex justify-end gap-2">
+          <Button size="sm" variant="outline" onClick={onCancel}>Cancel</Button>
+          <Button size="sm" variant={destructive ? "outline" : "accent"} className={destructive ? "border-destructive/40 text-destructive hover:bg-destructive/10" : ""} onClick={onConfirm}>{confirmLabel}</Button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -484,6 +622,8 @@ export function PortfolioClient({ initialItems, demoMode }: { initialItems: Port
 function PortfolioEditor({ draft, saving, onChange, onClose, onSave }: { draft: Draft; saving: boolean; onChange: (draft: Draft) => void; onClose: () => void; onSave: (draft: Draft) => void }) {
   const [uploading, setUploading] = React.useState<string | null>(null);
   const [uploadError, setUploadError] = React.useState<string | null>(null);
+  // Slug is auto-generated from the title unless the user opts into a custom one.
+  const [customSlug, setCustomSlug] = React.useState(() => !!draft.slug && draft.slug !== slugify(draft.title));
 
   const update = <K extends keyof Draft>(key: K, value: Draft[K]) => onChange({ ...draft, [key]: value });
   const upload = async (field: "featured_image" | "gallery_images" | "video_urls", file: File | null) => {
@@ -536,15 +676,28 @@ function PortfolioEditor({ draft, saving, onChange, onClose, onSave }: { draft: 
         <div className="grid gap-5 p-5 lg:grid-cols-2">
           <label className="space-y-2">
             <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">Project Title *</span>
-            <Input value={draft.title} onChange={event => {
-              const title = event.target.value;
-              onChange({ ...draft, title, slug: draft.slug ? draft.slug : slugify(title) });
-            }} />
+            <Input value={draft.title} onChange={event => onChange({ ...draft, title: event.target.value })} />
           </label>
-          <label className="space-y-2">
-            <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">Slug</span>
-            <Input value={draft.slug || ""} onChange={event => update("slug", event.target.value)} placeholder="portfolio-page-url" />
-          </label>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">Page URL</span>
+              <label className="flex cursor-pointer items-center gap-1.5 text-[11px] text-muted-foreground">
+                <input type="checkbox" checked={customSlug} onChange={event => {
+                  const on = event.target.checked;
+                  setCustomSlug(on);
+                  onChange({ ...draft, slug: on ? (draft.slug || slugify(draft.title)) : "" });
+                }} />
+                Custom slug
+              </label>
+            </div>
+            {customSlug ? (
+              <Input value={draft.slug || ""} onChange={event => update("slug", event.target.value)} placeholder="portfolio-page-url" />
+            ) : (
+              <div className="truncate rounded-md border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground" title="Auto-generated from the title">
+                /portfolio/<span className="text-foreground">{slugify(draft.title) || "auto-generated-on-save"}</span>
+              </div>
+            )}
+          </div>
           <label className="space-y-2">
             <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">Subtitle</span>
             <Input value={draft.subtitle || ""} onChange={event => update("subtitle", event.target.value)} />
