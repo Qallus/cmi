@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Briefcase, CheckCircle2, Columns3, Copy, Download, FileText, Image, LayoutGrid, Loader2, Package, Pencil, Plus, Search, Share2, ShoppingCart, Sparkles, Table as TableIcon, Upload } from "lucide-react";
+import { Briefcase, CheckCircle2, Columns3, Copy, Download, FileText, Image, LayoutGrid, List as ListIcon, Loader2, Package, Pencil, Plus, Search, Share2, ShoppingCart, Sparkles, Table as TableIcon, Upload } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -192,7 +192,7 @@ export function SelectionsClient({ initialData, demoMode = false, setupMessage }
   const [projectFilter, setProjectFilter] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState("");
   const [search, setSearch] = React.useState("");
-  const [selView, setSelView] = React.useState<"table" | "cards" | "kanban">("table");
+  const [selView, setSelView] = React.useState<"list" | "table" | "cards" | "kanban">("table");
   const [viewing, setViewing] = React.useState<ProjectSelection | null>(null);
   const [saving, setSaving] = React.useState(false);
   const [notice, setNotice] = React.useState<string | null>(setupMessage || null);
@@ -201,7 +201,7 @@ export function SelectionsClient({ initialData, demoMode = false, setupMessage }
   React.useEffect(() => {
     const v = localStorage.getItem("cmi_sel_view");
     // eslint-disable-next-line -- one-time restore of saved preference on mount
-    if (v === "table" || v === "cards" || v === "kanban") setSelView(v);
+    if (v === "list" || v === "table" || v === "cards" || v === "kanban") setSelView(v);
   }, []);
   React.useEffect(() => { localStorage.setItem("cmi_sel_view", selView); }, [selView]);
 
@@ -344,7 +344,9 @@ export function SelectionsClient({ initialData, demoMode = false, setupMessage }
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Duplicate failed.");
       setSelections(current => [json.selection, ...current]);
-      setNotice(`Duplicated “${selection.name}” — edit the copy to change it.`);
+      // Open the copy in the editor immediately so the change is a quick edit.
+      setSelectionDraft(selectionToDraft(json.selection));
+      setNotice(`Duplicated “${selection.name}” — editing the copy.`);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Duplicate failed.");
     }
@@ -469,7 +471,7 @@ export function SelectionsClient({ initialData, demoMode = false, setupMessage }
                     <Input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search selections…" className="h-9 w-48 pl-8" />
                   </div>
                   <div className="inline-flex rounded-md border border-border bg-muted p-1">
-                    {([["table", TableIcon], ["cards", LayoutGrid], ["kanban", Columns3]] as const).map(([v, Icon]) => (
+                    {([["list", ListIcon], ["table", TableIcon], ["kanban", Columns3], ["cards", LayoutGrid]] as const).map(([v, Icon]) => (
                       <button key={v} type="button" title={v} onClick={() => setSelView(v)} className={cn("grid h-7 w-8 place-items-center rounded transition", selView === v ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
                         <Icon className="h-4 w-4" />
                       </button>
@@ -490,7 +492,9 @@ export function SelectionsClient({ initialData, demoMode = false, setupMessage }
         </CardHeader>
         <CardContent>
           {view === "selections" ? (
-            selView === "cards" ? (
+            selView === "list" ? (
+              <SelectionList selections={visibleSelections} onEdit={selection => setSelectionDraft(selectionToDraft(selection))} onAttach={openAttach} onView={setViewing} onDuplicate={duplicateSel} onShare={selection => setShareDraft(makeShareDraft("selection", selection.id, selection.name))} onCsv={selection => exportCsv("selection", [selection])} onPdf={selection => printPdf(`Selection - ${selection.name}`, [selection])} />
+            ) : selView === "cards" ? (
               <SelectionCards selections={visibleSelections} onEdit={selection => setSelectionDraft(selectionToDraft(selection))} onAttach={openAttach} onView={setViewing} onDuplicate={duplicateSel} />
             ) : selView === "kanban" ? (
               <SelectionKanban selections={visibleSelections} onEdit={selection => setSelectionDraft(selectionToDraft(selection))} onAttach={openAttach} onView={setViewing} onDuplicate={duplicateSel} />
@@ -601,8 +605,18 @@ function SelectionTable({
           {selections.map(selection => (
             <tr key={selection.id} className="hover:bg-muted/50">
               <td className="px-4 py-3">
-                <button type="button" onClick={() => onView(selection)} className="text-left font-medium hover:text-accent hover:underline">{selection.name}</button>
-                <div className="text-xs text-muted-foreground">{selection.category || "Uncategorized"} / {selection.custom_product_name || "Custom product"}</div>
+                <div className="flex items-center gap-3">
+                  <button type="button" onClick={() => onView(selection)} className="shrink-0" title="Preview card">
+                    {selection.image_url
+                      // eslint-disable-next-line @next/next/no-img-element
+                      ? <img src={selection.image_url} alt="" className="h-10 w-10 rounded-full border border-border object-cover" />
+                      : <span className="grid h-10 w-10 place-items-center rounded-full border border-border bg-muted text-muted-foreground"><Image className="h-4 w-4" /></span>}
+                  </button>
+                  <div className="min-w-0">
+                    <button type="button" onClick={() => onView(selection)} className="block truncate text-left font-medium hover:text-accent hover:underline">{selection.name}</button>
+                    <div className="truncate text-xs text-muted-foreground">{selection.category || "Uncategorized"} / {selection.custom_product_name || "Custom product"}</div>
+                  </div>
+                </div>
               </td>
               <td className="px-4 py-3 text-muted-foreground">
                 <div>{selection.project_name || "Project name needed"}</div>
@@ -635,10 +649,46 @@ function SelectionTable({
   );
 }
 
+function SelectionList({ selections, onEdit, onAttach, onView, onDuplicate, onShare, onCsv, onPdf }: {
+  selections: ProjectSelection[];
+  onEdit: (s: ProjectSelection) => void; onAttach: (s: ProjectSelection) => void; onView: (s: ProjectSelection) => void;
+  onDuplicate: (s: ProjectSelection) => void; onShare: (s: ProjectSelection) => void; onCsv: (s: ProjectSelection) => void; onPdf: (s: ProjectSelection) => void;
+}) {
+  if (!selections.length) return <div className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted-foreground">No selections match the current filters.</div>;
+  return (
+    <div className="divide-y divide-border overflow-hidden rounded-lg border border-border">
+      {selections.map(s => (
+        <div key={s.id} className="flex items-center gap-4 px-4 py-3 transition hover:bg-muted/40">
+          <button type="button" onClick={() => onView(s)} className="shrink-0" title="Preview card">
+            {s.image_url
+              // eslint-disable-next-line @next/next/no-img-element
+              ? <img src={s.image_url} alt="" className="h-12 w-12 rounded-full border border-border object-cover" />
+              : <span className="grid h-12 w-12 place-items-center rounded-full border border-border bg-muted text-muted-foreground"><Image className="h-4 w-4" /></span>}
+          </button>
+          <div className="min-w-0 flex-1">
+            <button type="button" onClick={() => onView(s)} className="block max-w-full truncate text-left font-medium hover:text-accent hover:underline">{s.name}</button>
+            <div className="truncate text-xs text-muted-foreground">{[s.vendor_name, s.category].filter(Boolean).join(" · ") || "—"}</div>
+          </div>
+          <div className="hidden w-24 shrink-0 text-right text-sm font-semibold sm:block">{money(s.client_price || s.estimated_cost)}</div>
+          <div className="hidden shrink-0 md:block"><StatusBadge value={s.approval_status} /></div>
+          <div className="flex shrink-0 items-center gap-1">
+            <Button size="sm" variant="outline" onClick={() => onEdit(s)}><Pencil className="h-3.5 w-3.5" /> Edit</Button>
+            <Button size="sm" variant="ghost" title="Duplicate" onClick={() => onDuplicate(s)}><Copy className="h-3.5 w-3.5" /></Button>
+            <Button size="sm" variant="ghost" title="Add to Job" onClick={() => onAttach(s)}><Briefcase className="h-3.5 w-3.5" /></Button>
+            <Button size="sm" variant="ghost" title="Share" onClick={() => onShare(s)}><Share2 className="h-3.5 w-3.5" /></Button>
+            <Button size="sm" variant="ghost" title="CSV" onClick={() => onCsv(s)}><Download className="h-3.5 w-3.5" /></Button>
+            <Button size="sm" variant="ghost" title="PDF" onClick={() => onPdf(s)}><FileText className="h-3.5 w-3.5" /></Button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function SelectionCards({ selections, onEdit, onAttach, onView, onDuplicate }: { selections: ProjectSelection[]; onEdit: (s: ProjectSelection) => void; onAttach: (s: ProjectSelection) => void; onView: (s: ProjectSelection) => void; onDuplicate: (s: ProjectSelection) => void }) {
   if (!selections.length) return <div className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted-foreground">No selections match the current filters.</div>;
   return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {selections.map(s => (
         <div key={s.id} className="flex flex-col overflow-hidden rounded-xl border border-border bg-card">
           <button type="button" onClick={() => onView(s)} className="flex h-40 items-center justify-center overflow-hidden border-b border-border bg-muted/30" title="Preview card">
@@ -779,6 +829,19 @@ function ProductModal({ draft, saving, onChange, onClose, onSave }: { draft: Pro
       setUploading(null);
     }
   };
+  const uploadManyGallery = async (files: File[]) => {
+    if (!files.length) return;
+    setUploading("gallery_urls"); setUploadError(null);
+    try {
+      const urls: string[] = [];
+      for (const f of files) urls.push(await uploadMedia(f, "products"));
+      update("gallery_urls", [draft.gallery_urls, ...urls].filter(Boolean).join("\n"));
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : "Upload failed.");
+    } finally {
+      setUploading(null);
+    }
+  };
   return (
     <div className="fixed inset-0 z-50 bg-black/35 p-4 backdrop-blur-sm">
       <div className="ml-auto flex h-full max-w-4xl flex-col rounded-lg border border-border bg-card shadow-lg">
@@ -811,6 +874,7 @@ function ProductModal({ draft, saving, onChange, onClose, onSave }: { draft: Pro
             videoUrl={draft.video_url}
             uploading={uploading}
             onUpload={upload}
+            onUploadMany={uploadManyGallery}
           />
           {uploadError ? <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{uploadError}</div> : null}
           <label className="inline-flex items-center gap-2 text-sm text-muted-foreground">
@@ -860,6 +924,19 @@ function SelectionModal({ data, products, draft, saving, onChange, onClose, onSa
       } else {
         update(field, url);
       }
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : "Upload failed.");
+    } finally {
+      setUploading(null);
+    }
+  };
+  const uploadManyGallery = async (files: File[]) => {
+    if (!files.length) return;
+    setUploading("gallery_urls"); setUploadError(null);
+    try {
+      const urls: string[] = [];
+      for (const f of files) urls.push(await uploadMedia(f, "selections"));
+      update("gallery_urls", [draft.gallery_urls, ...urls].filter(Boolean).join("\n"));
     } catch (error) {
       setUploadError(error instanceof Error ? error.message : "Upload failed.");
     } finally {
@@ -981,6 +1058,7 @@ function SelectionModal({ data, products, draft, saving, onChange, onClose, onSa
             videoUrl={draft.video_url}
             uploading={uploading}
             onUpload={upload}
+            onUploadMany={uploadManyGallery}
           />
           {uploadError ? <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{uploadError}</div> : null}
           <label className="inline-flex items-center gap-2 text-sm text-muted-foreground">
@@ -1101,13 +1179,15 @@ function MediaUploadPanel({
   galleryUrls,
   videoUrl,
   uploading,
-  onUpload
+  onUpload,
+  onUploadMany
 }: {
   imageUrl: string;
   galleryUrls: string;
   videoUrl: string;
   uploading: string | null;
   onUpload: (field: "image_url" | "gallery_urls" | "video_url", file: File | null) => void;
+  onUploadMany?: (files: File[]) => void;
 }) {
   const galleryCount = parseUrlList(galleryUrls).length;
   return (
@@ -1136,6 +1216,7 @@ function MediaUploadPanel({
           note={galleryCount ? `${galleryCount} image URL${galleryCount === 1 ? "" : "s"} attached` : "Add one or more gallery images"}
           uploading={uploading === "gallery_urls"}
           onFile={file => onUpload("gallery_urls", file)}
+          onFiles={files => onUploadMany?.(files)}
         />
         <UploadBox
           label="Video"
@@ -1158,7 +1239,8 @@ function UploadBox({
   previewUrl,
   multiple,
   uploading,
-  onFile
+  onFile,
+  onFiles
 }: {
   label: string;
   accept: string;
@@ -1168,6 +1250,7 @@ function UploadBox({
   multiple?: boolean;
   uploading?: boolean;
   onFile: (file: File | null) => void;
+  onFiles?: (files: File[]) => void;
 }) {
   return (
     <label className="group flex min-h-36 cursor-pointer flex-col justify-between rounded-lg border border-dashed border-border bg-background p-3 transition hover:border-accent hover:bg-accent/5 dark:bg-card">
@@ -1178,7 +1261,10 @@ function UploadBox({
         multiple={multiple}
         onChange={event => {
           const files = Array.from(event.target.files || []);
-          files.forEach(file => onFile(file));
+          // Multi-file (gallery) uploads all at once so appends don't race and
+          // clobber each other; single-file uses the per-file path.
+          if (multiple && onFiles) onFiles(files);
+          else files.forEach(file => onFile(file));
           event.currentTarget.value = "";
         }}
       />
