@@ -24,6 +24,18 @@ export class JobError extends Error {
   constructor(message: string, status = 400) { super(message); this.status = status; }
 }
 
+// Raised when an optimistic-concurrency save loses (the job changed on another
+// device/tab since it was loaded). Carries the current server row so the client
+// can show it and let the user reload or overwrite.
+export class JobConflictError extends JobError {
+  current: Job;
+  constructor(current: Job) {
+    super("This job was changed on another device.", 409);
+    this.name = "JobConflictError";
+    this.current = current;
+  }
+}
+
 function fullAddress(d: Partial<Job>): string | null {
   const s = [d.street_address, d.city, d.state, d.zip_code].map((x) => (x ?? "").trim()).filter(Boolean);
   return s.length ? s.join(", ") : null;
@@ -245,7 +257,12 @@ export async function createJob(draft: JobDraft, actor?: Actor): Promise<Job> {
   return job;
 }
 
-export async function updateJob(id: string, patch: Partial<JobDraft>, actor?: Actor): Promise<Job> {
+export async function updateJob(
+  id: string,
+  patch: Partial<JobDraft>,
+  actor?: Actor,
+  opts?: { expectedUpdatedAt?: string | null },
+): Promise<Job> {
   const sb = getSupabaseAdmin();
   const before = await sb.from("jobs").select("status,job_number,street_address,city,state,zip_code,latitude,longitude").eq("id", id).maybeSingle();
   const clean = sanitize(patch);
@@ -261,8 +278,18 @@ export async function updateJob(id: string, patch: Partial<JobDraft>, actor?: Ac
     }
   }
 
-  const { data, error } = await sb.from("jobs").update({ ...clean, updated_at: new Date().toISOString() }).eq("id", id).select().single();
+  // Optimistic concurrency: when the caller passes the version it loaded, only
+  // write if the row hasn't changed since. A mismatch → conflict (another device).
+  let q = sb.from("jobs").update({ ...clean, updated_at: new Date().toISOString() }).eq("id", id);
+  if (opts?.expectedUpdatedAt) q = q.eq("updated_at", opts.expectedUpdatedAt);
+  const { data, error } = await q.select().maybeSingle();
   if (error) throw new JobError(error.message);
+  if (!data) {
+    // No row updated: either it's gone, or the version moved (conflict).
+    const cur = await sb.from("jobs").select("*").eq("id", id).maybeSingle();
+    if (!cur.data) throw new JobError("Job not found.", 404);
+    throw new JobConflictError(cur.data as Job);
+  }
   const job = data as Job;
 
   if (before.data && clean.status && before.data.status !== clean.status) {

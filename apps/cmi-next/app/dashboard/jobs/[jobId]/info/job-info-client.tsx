@@ -7,13 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Select, Input, Textarea } from "@/components/ui/input";
 import { MoneyInput } from "@/components/ui/money-input";
 import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
+import { SearchableSelect, SearchableMultiSelect } from "@/components/ui/searchable-select";
 import { cn } from "@/lib/utils";
 import { ALL_JOB_STATUSES, JOB_STATUS_META } from "@/lib/jobs/status";
 
 // Job Type is limited to these two; the finer scope lives in Job Group.
 const JOB_TYPE_NAMES = ["Residential", "Commercial"];
 import { CONTRACT_TYPES, INSURANCE_STATUSES } from "@/lib/jobs/types";
-import type { JobWithRelations, JobType, JobGroup, JobStatus, JobContact, JobInternalUser, JobVendor, JobSettings, JobInsurance, ClientPermissions } from "@/lib/jobs/types";
+import type { Job, JobWithRelations, JobType, JobGroup, JobStatus, JobContact, JobInternalUser, JobVendor, JobSettings, JobInsurance, ClientPermissions } from "@/lib/jobs/types";
 import { JobDetailNav } from "../job-detail-nav";
 import { useSidebar } from "@/components/dashboard/sidebar-context";
 
@@ -74,8 +75,8 @@ export function JobInfoClient({ job, types, groups }: { job: JobWithRelations; t
 }
 
 // ─── Details ───────────────────────────────────────────────────
-function DetailsTab({ job, types, groups }: { job: JobWithRelations; types: JobType[]; groups: JobGroup[] }) {
-  const [d, setD] = React.useState({
+function toDetails(job: Job) {
+  return {
     job_name: job.job_name, prefix: job.prefix ?? "", job_type_id: job.job_type_id ?? "", job_group_id: job.job_group_id ?? "",
     status: job.status, job_color: job.job_color ?? "#c2410c", contract_type: job.contract_type ?? "", contract_price: job.contract_price?.toString() ?? "",
     street_address: job.street_address ?? "", city: job.city ?? "", state: job.state ?? "", zip_code: job.zip_code ?? "",
@@ -83,8 +84,12 @@ function DetailsTab({ job, types, groups }: { job: JobWithRelations; types: JobT
     projected_completion_date: job.projected_completion_date ?? "", actual_completion_date: job.actual_completion_date ?? "",
     square_feet: job.square_feet?.toString() ?? "", permit_number: job.permit_number ?? "", lot_info: job.lot_info ?? "",
     funded_by_construction_loan: !!job.funded_by_construction_loan, internal_notes: job.internal_notes ?? "", vendor_notes: job.vendor_notes ?? "",
-  });
-  const { saving, msg, save } = useSaver(`/api/jobs/${job.id}`, () => ({
+  };
+}
+
+function DetailsTab({ job, types, groups }: { job: JobWithRelations; types: JobType[]; groups: JobGroup[] }) {
+  const [d, setD] = React.useState(() => toDetails(job));
+  const saver = useJobAutoSaver(job.id, job.updated_at ?? null, () => ({
     ...d, contract_price: d.contract_price ? Number(d.contract_price) : null, square_feet: d.square_feet ? Number(d.square_feet) : null,
     contract_type: d.contract_type || null, job_type_id: d.job_type_id || null, job_group_id: d.job_group_id || null,
     projected_start_date: d.projected_start_date || null, actual_start_date: d.actual_start_date || null,
@@ -142,7 +147,7 @@ function DetailsTab({ job, types, groups }: { job: JobWithRelations; types: JobT
         <Field label="Notes for internal users" className="mt-3"><Textarea value={d.internal_notes} onChange={(e) => setD({ ...d, internal_notes: e.target.value })} /></Field>
         <Field label="Notes for subs / vendors" className="mt-3"><Textarea value={d.vendor_notes} onChange={(e) => setD({ ...d, vendor_notes: e.target.value })} /></Field>
       </Section>
-      <SaveBar saving={saving} msg={msg} onSave={save} />
+      <AutoSaveBar saver={saver} onLoadTheirs={(row) => setD(toDetails(row as unknown as Job))} />
     </div>
   );
 }
@@ -173,7 +178,7 @@ function ClientsTab({ job, contacts }: { job: JobWithRelations; contacts: Contac
   return (
     <div className="space-y-4">
       <div className="flex items-end gap-2">
-        <div className="flex-1"><Field label="Add existing contact"><Select value={addId} onChange={(e) => setAddId(e.target.value)}><option value="">— Choose contact —</option>{avail.map((c) => <option key={c.id} value={c.id}>{`${c.first_name} ${c.last_name}`.trim() || c.company || c.id}</option>)}</Select></Field></div>
+        <div className="flex-1"><Field label="Add existing contact"><SearchableSelect placeholder="— Choose contact —" value={addId} onChange={setAddId} options={avail.map((c) => ({ value: c.id, label: `${c.first_name} ${c.last_name}`.trim() || c.company || c.id, sublabel: c.company ?? undefined }))} /></Field></div>
         <Button size="sm" variant="accent" onClick={() => void add()} disabled={!addId}>Add</Button>
         <Link href="/dashboard/contacts" className="inline-flex h-8 items-center rounded-md border border-border px-3 text-xs font-medium text-muted-foreground hover:text-foreground">New contact</Link>
       </div>
@@ -207,12 +212,20 @@ function ClientsTab({ job, contacts }: { job: JobWithRelations; contacts: Contac
 // ─── Internal users ────────────────────────────────────────────
 function InternalTab({ job, staff }: { job: JobWithRelations; staff: StaffOpt[] }) {
   const [list, setList] = React.useState<JobInternalUser[]>(job.internal_users);
-  const [addId, setAddId] = React.useState("");
+  const [picked, setPicked] = React.useState<string[]>([]);
+  const [adding, setAdding] = React.useState(false);
   const avail = staff.filter((s) => !list.some((l) => l.staff_user_id === s.id));
   async function add() {
-    if (!addId) return;
-    const res = await fetch(`/api/jobs/${job.id}/internal-users`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ staff_user_id: addId }) });
-    if (res.ok) { const created = await res.json(); setList((l) => [...l, created]); setAddId(""); }
+    if (!picked.length) return;
+    setAdding(true);
+    const added: JobInternalUser[] = [];
+    for (const id of picked) {
+      const res = await fetch(`/api/jobs/${job.id}/internal-users`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ staff_user_id: id }) });
+      if (res.ok) added.push(await res.json());
+    }
+    setList((l) => [...l, ...added]);
+    setPicked([]);
+    setAdding(false);
   }
   async function remove(id: string) { if (await del(`/api/jobs/${job.id}/internal-users/${id}`)) setList((l) => l.filter((x) => x.id !== id)); }
   async function patch(id: string, body: Partial<JobInternalUser>) {
@@ -222,8 +235,8 @@ function InternalTab({ job, staff }: { job: JobWithRelations; staff: StaffOpt[] 
   return (
     <div className="space-y-4">
       <div className="flex items-end gap-2">
-        <div className="flex-1"><Field label="Add internal user"><Select value={addId} onChange={(e) => setAddId(e.target.value)}><option value="">— Choose staff —</option>{avail.map((s) => <option key={s.id} value={s.id}>{s.label} · {s.role}</option>)}</Select></Field></div>
-        <Button size="sm" variant="accent" onClick={() => void add()} disabled={!addId}>Add</Button>
+        <div className="flex-1"><Field label="Add internal users"><SearchableMultiSelect placeholder="Search staff to add…" values={picked} onChange={setPicked} options={avail.map((s) => ({ value: s.id, label: s.label, sublabel: s.role }))} /></Field></div>
+        <Button size="sm" variant="accent" onClick={() => void add()} disabled={!picked.length || adding}>{adding ? "Adding…" : picked.length ? `Add ${picked.length}` : "Add"}</Button>
       </div>
       {list.length === 0 ? <Empty>No internal users assigned.</Empty> : list.map((u) => (
         <div key={u.id} className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
@@ -364,6 +377,87 @@ function useSaver(url: string, build: () => Record<string, unknown>) {
 async function del(url: string): Promise<boolean> {
   const res = await fetch(url, { method: "DELETE" });
   return res.ok || res.status === 204;
+}
+
+type JobRow = { updated_at?: string | null } & Record<string, unknown>;
+
+// Auto-saves the job (debounced) with optimistic-concurrency protection: it
+// sends the version it loaded, so a save from another device/tab can't silently
+// overwrite. On a conflict the user chooses to load the other changes or keep
+// theirs.
+function useJobAutoSaver(jobId: string, initialUpdatedAt: string | null, build: () => Record<string, unknown>) {
+  const [baseUpdatedAt, setBaseUpdatedAt] = React.useState<string | null>(initialUpdatedAt);
+  const [status, setStatus] = React.useState<"idle" | "saving" | "saved" | "error" | "conflict">("idle");
+  const [errorText, setErrorText] = React.useState("");
+  const [conflict, setConflict] = React.useState<JobRow | null>(null);
+  const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const firstRun = React.useRef(true);
+  const baseRef = React.useRef(baseUpdatedAt);
+  baseRef.current = baseUpdatedAt;
+  const buildRef = React.useRef(build);
+  buildRef.current = build;
+
+  const payloadKey = JSON.stringify(build());
+
+  async function doSave(expectedOverride?: string | null) {
+    setStatus("saving"); setErrorText("");
+    try {
+      const expected = expectedOverride !== undefined ? expectedOverride : baseRef.current;
+      const res = await fetch(`/api/jobs/${jobId}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...buildRef.current(), base_updated_at: expected ?? undefined }),
+      });
+      const j = (await res.json().catch(() => ({}))) as { error?: string; current?: JobRow; updated_at?: string };
+      if (res.status === 409) { setConflict(j.current ?? null); setStatus("conflict"); return; }
+      if (!res.ok) throw new Error(j.error ?? `HTTP ${res.status}`);
+      setBaseUpdatedAt(j.updated_at ?? baseRef.current);
+      setStatus("saved");
+    } catch (e) {
+      setStatus("error"); setErrorText(e instanceof Error ? e.message : "Save failed.");
+    }
+  }
+
+  React.useEffect(() => {
+    if (firstRun.current) { firstRun.current = false; return; }
+    if (status === "conflict") return;
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => void doSave(), 1200);
+    return () => { if (timer.current) clearTimeout(timer.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payloadKey]);
+
+  return {
+    status, errorText, conflict,
+    saveNow: () => void doSave(),
+    overwrite: () => { const c = conflict; if (c) { setConflict(null); void doSave(c.updated_at ?? null); } },
+    acceptTheirs: (): JobRow | null => { const c = conflict; if (c) { setBaseUpdatedAt(c.updated_at ?? null); setConflict(null); setStatus("idle"); } return c; },
+  };
+}
+
+function AutoSaveBar({ saver, onLoadTheirs }: { saver: ReturnType<typeof useJobAutoSaver>; onLoadTheirs: (row: JobRow) => void }) {
+  if (saver.conflict) {
+    return (
+      <div className="sticky bottom-0 -mx-4 flex flex-wrap items-center justify-between gap-3 border-t border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm md:-mx-6 md:px-6">
+        <span className="text-amber-700 dark:text-amber-400">This job was changed on another device or tab. Choose which version to keep.</span>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => { const r = saver.acceptTheirs(); if (r) onLoadTheirs(r); }}>Load their changes</Button>
+          <Button size="sm" variant="accent" onClick={saver.overwrite}>Keep mine</Button>
+        </div>
+      </div>
+    );
+  }
+  const text =
+    saver.status === "saving" ? "Saving…" :
+    saver.status === "saved" ? "All changes saved" :
+    saver.status === "error" ? (saver.errorText || "Save failed") :
+    "Auto-save on";
+  const tone = saver.status === "error" ? "text-destructive" : "text-muted-foreground";
+  return (
+    <div className="sticky bottom-0 -mx-4 flex items-center justify-between gap-3 border-t border-border bg-card px-4 py-2.5 text-xs md:-mx-6 md:px-6">
+      <span className={tone}>{text}</span>
+      <Button size="sm" variant="outline" onClick={saver.saveNow} disabled={saver.status === "saving"}>Save now</Button>
+    </div>
+  );
 }
 function SaveBar({ saving, msg, onSave }: { saving: boolean; msg: { ok: boolean; text: string } | null; onSave: () => void }) {
   return (
