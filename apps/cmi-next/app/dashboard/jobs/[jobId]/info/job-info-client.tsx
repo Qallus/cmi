@@ -5,11 +5,17 @@ import Link from "next/link";
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, Input, Textarea } from "@/components/ui/input";
+import { MoneyInput } from "@/components/ui/money-input";
+import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
 import { cn } from "@/lib/utils";
 import { ALL_JOB_STATUSES, JOB_STATUS_META } from "@/lib/jobs/status";
+
+// Job Type is limited to these two; the finer scope lives in Job Group.
+const JOB_TYPE_NAMES = ["Residential", "Commercial"];
 import { CONTRACT_TYPES, INSURANCE_STATUSES } from "@/lib/jobs/types";
 import type { JobWithRelations, JobType, JobGroup, JobStatus, JobContact, JobInternalUser, JobVendor, JobSettings, JobInsurance, ClientPermissions } from "@/lib/jobs/types";
 import { JobDetailNav } from "../job-detail-nav";
+import { useSidebar } from "@/components/dashboard/sidebar-context";
 
 type TabKey = "details" | "clients" | "internal" | "vendors" | "advanced" | "insurance";
 const TABS: { key: TabKey; label: string }[] = [
@@ -29,6 +35,7 @@ const CLIENT_PERMS: { key: keyof ClientPermissions; label: string }[] = [
 ];
 
 export function JobInfoClient({ job, types, groups }: { job: JobWithRelations; types: JobType[]; groups: JobGroup[] }) {
+  const { collapsed } = useSidebar();
   const [tab, setTab] = React.useState<TabKey>("details");
   const [contacts, setContacts] = React.useState<Contact[]>([]);
   const [staff, setStaff] = React.useState<StaffOpt[]>([]);
@@ -38,7 +45,7 @@ export function JobInfoClient({ job, types, groups }: { job: JobWithRelations; t
   }, []);
 
   return (
-    <div className="flex h-[calc(100vh-56px)] flex-col">
+    <div className={`flex h-[calc(100vh-56px)] ${collapsed ? "flex-row" : "flex-col"}`}>
       <JobDetailNav jobId={job.id} active="info" />
       <div className="border-b border-border bg-card px-4 md:px-6">
         <div className="flex flex-wrap items-center gap-2 py-2">
@@ -100,15 +107,15 @@ function DetailsTab({ job, types, groups }: { job: JobWithRelations; types: JobT
           <Field label="Prefix"><input className={input} value={d.prefix} onChange={(e) => setD({ ...d, prefix: e.target.value })} /></Field>
           <Field label="Job Color"><input type="color" className="h-9 w-16 rounded-md border border-border bg-background" value={d.job_color} onChange={(e) => setD({ ...d, job_color: e.target.value })} /></Field>
           <Field label="Status"><Select value={d.status} onChange={(e) => setD({ ...d, status: e.target.value as JobStatus })}>{ALL_JOB_STATUSES.map((s) => <option key={s} value={s}>{JOB_STATUS_META[s].label}</option>)}</Select></Field>
-          <Field label="Job Type"><Select value={d.job_type_id} onChange={(e) => setD({ ...d, job_type_id: e.target.value })}><option value="">— Select —</option>{types.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</Select></Field>
+          <Field label="Job Type"><Select value={d.job_type_id} onChange={(e) => setD({ ...d, job_type_id: e.target.value })}><option value="">— Select —</option>{types.filter((t) => JOB_TYPE_NAMES.includes(t.name)).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</Select></Field>
           <Field label="Job Group"><Select value={d.job_group_id} onChange={(e) => setD({ ...d, job_group_id: e.target.value })}><option value="">— None —</option>{groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}</Select></Field>
           <Field label="Contract Type"><Select value={d.contract_type} onChange={(e) => setD({ ...d, contract_type: e.target.value })}><option value="">— Select —</option>{CONTRACT_TYPES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}</Select></Field>
-          <Field label="Contract Price ($)"><input type="number" className={input} value={d.contract_price} onChange={(e) => setD({ ...d, contract_price: e.target.value })} /></Field>
+          <Field label="Contract Price"><MoneyInput className={input} value={d.contract_price} onChange={(v) => setD({ ...d, contract_price: v })} placeholder="$0.00" /></Field>
         </div>
       </Section>
       <Section title="Address">
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Street" className="sm:col-span-2"><input className={input} value={d.street_address} onChange={(e) => setD({ ...d, street_address: e.target.value })} /></Field>
+          <Field label="Street" className="sm:col-span-2"><AddressAutocomplete className={input} value={d.street_address} onChange={(v) => setD({ ...d, street_address: v })} onPick={(a) => setD({ ...d, street_address: a.street, city: a.city || d.city, state: a.state || d.state, zip_code: a.zip || d.zip_code })} /></Field>
           <Field label="City"><input className={input} value={d.city} onChange={(e) => setD({ ...d, city: e.target.value })} /></Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="State"><input className={input} value={d.state} onChange={(e) => setD({ ...d, state: e.target.value })} /></Field>

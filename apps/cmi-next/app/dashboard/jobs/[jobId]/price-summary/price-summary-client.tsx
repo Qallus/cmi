@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import type { PriceSummary } from "@/lib/jobs/types";
 import { money, formatDate } from "../../job-ui";
 import { JobDetailNav } from "../job-detail-nav";
+import { useSidebar } from "@/components/dashboard/sidebar-context";
 
 // Printable job price summary. `print:hidden` hides app chrome (nav/header set in
 // the dashboard layout + the controls here) so the printout is client-ready.
@@ -14,10 +15,11 @@ export function PriceSummaryClient({ summary, client }: { summary: PriceSummary;
   const [showChangeOrders, setShowChangeOrders] = React.useState(true);
   const [showInvoices, setShowInvoices] = React.useState(true);
   const job = summary.job;
+  const { collapsed } = useSidebar();
 
   return (
-    <div className="flex h-[calc(100vh-56px)] flex-col print:block print:h-auto">
-      <div className="print:hidden">
+    <div className={`flex h-[calc(100vh-56px)] ${collapsed ? "flex-row" : "flex-col"} print:block print:h-auto`}>
+      <div className="contents print:hidden">
         <JobDetailNav jobId={job.id} active="price-summary" />
       </div>
       <div className="flex-1 overflow-auto p-4 md:p-6 print:overflow-visible print:p-0">

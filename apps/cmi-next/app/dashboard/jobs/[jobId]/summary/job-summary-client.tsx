@@ -9,10 +9,12 @@ import { cn } from "@/lib/utils";
 import type { JobWithRelations, JobStatus, JobInternalUser, JobStats } from "@/lib/jobs/types";
 import { JobStatusBadge, money, formatDate } from "../../job-ui";
 import { JobDetailNav } from "../job-detail-nav";
+import { useSidebar } from "@/components/dashboard/sidebar-context";
 
 type StaffOption = { id: string; label: string; email: string; role: string; job_title: string };
 
 export function JobSummaryClient({ job, stats }: { job: JobWithRelations; stats: JobStats }) {
+  const { collapsed } = useSidebar();
   const clients = job.contacts.filter((c) => c.contact);
   const [pms, setPms] = React.useState<JobInternalUser[]>(job.internal_users.filter((u) => u.user));
   const [manualPm, setManualPm] = React.useState<string | null>(job.project_manager);
@@ -32,8 +34,9 @@ export function JobSummaryClient({ job, stats }: { job: JobWithRelations; stats:
   }
 
   return (
-    <div className="flex h-[calc(100vh-56px)] flex-col">
-      {/* Single-row job header: back · tabs · Edit */}
+    <div className={`flex h-[calc(100vh-56px)] ${collapsed ? "flex-row" : "flex-col"}`}>
+      {/* Job header: back · tabs · Edit (horizontal when the sidebar is open,
+          a vertical rail when it's collapsed on job pages) */}
       <JobDetailNav
         jobId={job.id}
         active="summary"
@@ -48,9 +51,14 @@ export function JobSummaryClient({ job, stats }: { job: JobWithRelations; stats:
           {/* Summary card — job identity now lives here (moved out of the header) */}
           <div className="space-y-4 lg:col-span-1">
             <div className="rounded-lg border border-border bg-card p-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="font-display text-xl font-semibold tracking-tight">{job.job_name}</h1>
-                <JobStatusBadge status={job.status as JobStatus} />
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="font-display text-xl font-semibold tracking-tight">{job.job_name}</h1>
+                  <JobStatusBadge status={job.status as JobStatus} />
+                </div>
+                <Link href={`/dashboard/jobs/${job.id}/info`}>
+                  <Button size="sm" variant="outline"><Pencil className="h-3.5 w-3.5" /> Edit Job</Button>
+                </Link>
               </div>
               <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                 <span className="font-mono">{job.job_number ?? "—"}</span>

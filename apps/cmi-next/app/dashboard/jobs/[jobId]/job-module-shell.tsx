@@ -5,14 +5,16 @@
 import * as React from "react";
 import Link from "next/link";
 import { JobDetailNav } from "./job-detail-nav";
+import { useSidebar } from "@/components/dashboard/sidebar-context";
 
 export function JobModuleShell({
   jobId, jobName, active, title, action, children,
 }: {
   jobId: string; jobName: string; active: string; title: string; action?: React.ReactNode; children: React.ReactNode;
 }) {
+  const { collapsed } = useSidebar();
   return (
-    <div className="flex h-[calc(100vh-56px)] flex-col">
+    <div className={`flex h-[calc(100vh-56px)] ${collapsed ? "flex-row" : "flex-col"}`}>
       <JobDetailNav jobId={jobId} active={active} action={action} />
       <div className="flex-1 overflow-auto p-4 md:p-6">
         <div className="mb-4 flex flex-wrap items-center gap-2">

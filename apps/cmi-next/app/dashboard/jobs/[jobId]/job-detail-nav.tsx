@@ -6,6 +6,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { useSidebar } from "@/components/dashboard/sidebar-context";
 
 const TABS: { slug: string; label: string; href: (id: string) => string }[] = [
   { slug: "summary", label: "Summary", href: (id) => `/dashboard/jobs/${id}/summary` },
@@ -29,6 +30,35 @@ const TABS: { slug: string; label: string; href: (id: string) => string }[] = [
 // Single-row job header: back-to-all-jobs (left), the scrollable tab menu
 // (center), and an optional action such as "Edit Job Info" (right).
 export function JobDetailNav({ jobId, active, action }: { jobId: string; active: string; action?: React.ReactNode }) {
+  const { collapsed } = useSidebar();
+
+  // Vertical rail — used when the main sidebar is collapsed (job pages).
+  if (collapsed) {
+    return (
+      <nav className="flex h-full w-52 shrink-0 flex-col border-r border-border bg-card">
+        <div className="border-b border-border px-3 py-3">
+          <Link href="/dashboard/jobs" className="text-sm text-muted-foreground transition hover:text-foreground">← All jobs</Link>
+        </div>
+        <div className="flex-1 overflow-y-auto p-2">
+          {TABS.map((t) => (
+            <Link
+              key={t.slug}
+              href={t.href(jobId)}
+              className={cn(
+                "block rounded-md px-3 py-2 text-sm font-medium transition",
+                active === t.slug ? "bg-accent/10 text-accent" : "text-muted-foreground hover:bg-muted hover:text-foreground",
+              )}
+            >
+              {t.label}
+            </Link>
+          ))}
+        </div>
+        {action ? <div className="border-t border-border p-2">{action}</div> : null}
+      </nav>
+    );
+  }
+
+  // Horizontal bar — used when the main sidebar is expanded.
   return (
     <div className="flex items-center gap-3 border-b border-border bg-card px-4 md:px-6">
       <Link href="/dashboard/jobs" className="shrink-0 whitespace-nowrap text-sm text-muted-foreground transition hover:text-foreground">

@@ -11,7 +11,13 @@ import { ReviewFab } from "@/components/dashboard/review-fab";
 import { MobileBottomNav } from "@/components/dashboard/mobile-bottom-nav";
 import { GlobalSearch } from "@/components/dashboard/global-search";
 import { InstallAppButton } from "@/components/pwa/install-app-button";
+import { SidebarContext } from "@/components/dashboard/sidebar-context";
 import { cn } from "@/lib/utils";
+
+// A single job's detail pages (…/jobs/<id>/…), excluding the list/new/map routes.
+function isJobDetailPath(pathname: string): boolean {
+  return /^\/dashboard\/jobs\/[^/]+/.test(pathname) && !/^\/dashboard\/jobs\/(new|map|new-from-template|client-engagement)(\/|$)/.test(pathname);
+}
 
 type SessionUser = {
   display_name: string;
@@ -47,7 +53,16 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     setMobileNavOpen(false);
   }, [pathname]);
 
+  // On a job's pages, auto-collapse the main sidebar (which flips the job sub-nav
+  // to vertical); restore it when leaving. Fires only on that transition, so the
+  // user can still expand/collapse manually while staying on the page.
+  const onJobPage = isJobDetailPath(pathname);
+  React.useEffect(() => {
+    setCollapsed(onJobPage);
+  }, [onJobPage]);
+
   return (
+    <SidebarContext.Provider value={{ collapsed }}>
     <div className={cn("min-h-screen bg-background text-foreground lg:grid print:!block", collapsed ? "lg:grid-cols-[76px_1fr]" : "lg:grid-cols-[232px_1fr]")}>
       <aside className={cn("fixed inset-y-0 left-0 z-40 hidden flex-col border-r border-border bg-card transition-all lg:flex print:hidden", collapsed ? "w-[76px]" : "w-[232px]")}>
         <div className={cn("flex h-[104px] items-start border-b border-border pt-4", collapsed ? "justify-center px-2" : "px-4")}>
@@ -149,5 +164,6 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         </div>
       )}
     </div>
+    </SidebarContext.Provider>
   );
 }
