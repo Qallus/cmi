@@ -16,7 +16,6 @@ const JOB_TYPE_NAMES = ["Residential", "Commercial"];
 import { CONTRACT_TYPES, INSURANCE_STATUSES } from "@/lib/jobs/types";
 import type { Job, JobWithRelations, JobType, JobGroup, JobStatus, JobContact, JobInternalUser, JobVendor, JobSettings, JobInsurance, ClientPermissions } from "@/lib/jobs/types";
 import { JobDetailNav } from "../job-detail-nav";
-import { useSidebar } from "@/components/dashboard/sidebar-context";
 
 type TabKey = "details" | "clients" | "internal" | "vendors" | "advanced" | "insurance";
 const TABS: { key: TabKey; label: string }[] = [
@@ -36,7 +35,6 @@ const CLIENT_PERMS: { key: keyof ClientPermissions; label: string }[] = [
 ];
 
 export function JobInfoClient({ job, types, groups }: { job: JobWithRelations; types: JobType[]; groups: JobGroup[] }) {
-  const { collapsed } = useSidebar();
   const [tab, setTab] = React.useState<TabKey>("details");
   const [contacts, setContacts] = React.useState<Contact[]>([]);
   const [staff, setStaff] = React.useState<StaffOpt[]>([]);
@@ -46,7 +44,7 @@ export function JobInfoClient({ job, types, groups }: { job: JobWithRelations; t
   }, []);
 
   return (
-    <div className={`flex h-[calc(100vh-56px)] ${collapsed ? "flex-row" : "flex-col"}`}>
+    <div className="flex h-[calc(100vh-56px)] flex-col">
       <JobDetailNav jobId={job.id} active="info" />
       <div className="border-b border-border bg-card px-4 md:px-6">
         <div className="flex flex-wrap items-center gap-2 py-2">

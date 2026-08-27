@@ -9,12 +9,10 @@ import { cn } from "@/lib/utils";
 import type { JobWithRelations, JobStatus, JobInternalUser, JobStats } from "@/lib/jobs/types";
 import { JobStatusBadge, money, formatDate } from "../../job-ui";
 import { JobDetailNav } from "../job-detail-nav";
-import { useSidebar } from "@/components/dashboard/sidebar-context";
 
 type StaffOption = { id: string; label: string; email: string; role: string; job_title: string };
 
 export function JobSummaryClient({ job, stats }: { job: JobWithRelations; stats: JobStats }) {
-  const { collapsed } = useSidebar();
   const clients = job.contacts.filter((c) => c.contact);
   const [pms, setPms] = React.useState<JobInternalUser[]>(job.internal_users.filter((u) => u.user));
   const [manualPm, setManualPm] = React.useState<string | null>(job.project_manager);
@@ -34,9 +32,9 @@ export function JobSummaryClient({ job, stats }: { job: JobWithRelations; stats:
   }
 
   return (
-    <div className={`flex h-[calc(100vh-56px)] ${collapsed ? "flex-row" : "flex-col"}`}>
-      {/* Job header: back · tabs · Edit (horizontal when the sidebar is open,
-          a vertical rail when it's collapsed on job pages) */}
+    <div className="flex h-[calc(100vh-56px)] flex-col">
+      {/* Job header: back · tabs · Edit (horizontal, or a fixed vertical rail
+          when the sidebar is collapsed on job pages) */}
       <JobDetailNav
         jobId={job.id}
         active="summary"

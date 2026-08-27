@@ -125,7 +125,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             </button>
           </div>
         </header>
-        <div className="min-h-[calc(100vh-56px)] pb-24 lg:pb-0 print:pb-0">{children}</div>
+        <div className={cn("min-h-[calc(100vh-56px)] pb-24 lg:pb-0 print:pb-0", onJobPage && collapsed && "lg:pl-52")}>{children}</div>
       </main>
       {/* Leadership review FAB — Super Admin only, on every dashboard page. */}
       {sessionUser?.role === "super_admin" && <ReviewFab />}
