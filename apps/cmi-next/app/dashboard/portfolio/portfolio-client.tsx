@@ -501,6 +501,23 @@ function PortfolioEditor({ draft, saving, onChange, onClose, onSave }: { draft: 
       setUploading(null);
     }
   };
+  // Upload every selected file, then append them all in one update — so
+  // concurrent appends can't race and drop all but the last image.
+  const uploadMany = async (field: "gallery_images" | "video_urls", files: File[]) => {
+    if (!files.length) return;
+    setUploading(field);
+    setUploadError(null);
+    try {
+      const urls: string[] = [];
+      for (const f of files) urls.push((await uploadMedia(f, "portfolio")).url);
+      const current = (field === "gallery_images" ? draft.gallery_images : draft.video_urls) || [];
+      onChange({ ...draft, [field]: [...current, ...urls] });
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : "Upload failed.");
+    } finally {
+      setUploading(null);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-black/45 p-4">
@@ -562,8 +579,8 @@ function PortfolioEditor({ draft, saving, onChange, onClose, onSave }: { draft: 
           </label>
 
           <MediaUpload label="Featured Image" icon={Image} uploading={uploading === "featured_image"} url={draft.featured_image || ""} accept="image/*" onFile={file => upload("featured_image", file)} onUrl={value => update("featured_image", value)} />
-          <MediaUpload label="Gallery Images" icon={Upload} uploading={uploading === "gallery_images"} url={(draft.gallery_images || []).join("\n")} accept="image/*" multiple onFile={file => upload("gallery_images", file)} onUrl={value => update("gallery_images", lines(value))} textarea />
-          <MediaUpload label="Videos" icon={Video} uploading={uploading === "video_urls"} url={(draft.video_urls || []).join("\n")} accept="video/*" multiple onFile={file => upload("video_urls", file)} onUrl={value => update("video_urls", lines(value))} textarea />
+          <MediaUpload label="Gallery Images" icon={Upload} uploading={uploading === "gallery_images"} url={(draft.gallery_images || []).join("\n")} accept="image/*" multiple onFile={file => upload("gallery_images", file)} onFiles={files => uploadMany("gallery_images", files)} onUrl={value => update("gallery_images", lines(value))} textarea />
+          <MediaUpload label="Videos" icon={Video} uploading={uploading === "video_urls"} url={(draft.video_urls || []).join("\n")} accept="video/*" multiple onFile={file => upload("video_urls", file)} onFiles={files => uploadMany("video_urls", files)} onUrl={value => update("video_urls", lines(value))} textarea />
           {uploadError ? <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive lg:col-span-2">{uploadError}</div> : null}
 
           <TagPicker title="Services Used" values={draft.services_used || []} options={serviceOptions} onChange={value => update("services_used", value)} />
@@ -602,7 +619,7 @@ function PortfolioEditor({ draft, saving, onChange, onClose, onSave }: { draft: 
   );
 }
 
-function MediaUpload({ label, icon: Icon, uploading, url, accept, multiple, textarea, onFile, onUrl }: { label: string; icon: LucideIcon; uploading: boolean; url: string; accept: string; multiple?: boolean; textarea?: boolean; onFile: (file: File | null) => void; onUrl: (value: string) => void }) {
+function MediaUpload({ label, icon: Icon, uploading, url, accept, multiple, textarea, onFile, onFiles, onUrl }: { label: string; icon: LucideIcon; uploading: boolean; url: string; accept: string; multiple?: boolean; textarea?: boolean; onFile: (file: File | null) => void; onFiles?: (files: File[]) => void; onUrl: (value: string) => void }) {
   const [showUrl, setShowUrl] = React.useState(false);
   return (
     <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-4">
@@ -617,7 +634,12 @@ function MediaUpload({ label, icon: Icon, uploading, url, accept, multiple, text
         {uploading ? <Loader2 className="mb-2 h-5 w-5 animate-spin text-accent" /> : <Upload className="mb-2 h-5 w-5 text-accent" />}
         <span className="font-medium">Upload {label.toLowerCase()}</span>
         <span className="mt-1 text-xs text-muted-foreground">Supports light and dark mode previews through Supabase Storage URLs.</span>
-        <input type="file" className="sr-only" accept={accept} multiple={multiple} onChange={event => Array.from(event.target.files || []).forEach(file => onFile(file))} />
+        <input type="file" className="sr-only" accept={accept} multiple={multiple} onChange={event => {
+          const files = Array.from(event.target.files || []);
+          if (multiple && onFiles) onFiles(files);
+          else files.forEach(file => onFile(file));
+          event.currentTarget.value = "";
+        }} />
       </label>
       {showUrl ? textarea ? <Textarea value={url} onChange={event => onUrl(event.target.value)} placeholder="https://..." /> : <Input value={url} onChange={event => onUrl(event.target.value)} placeholder="https://..." /> : null}
       {url ? <pre className="max-h-24 overflow-auto rounded-md bg-card p-2 text-[11px] text-muted-foreground">{url}</pre> : null}
