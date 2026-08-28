@@ -389,7 +389,6 @@ export function PortfolioClient({ initialItems, demoMode }: { initialItems: Port
                   {(item.gallery_images || []).length ? <Badge>{item.gallery_images?.length} images</Badge> : null}
                 </div>
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <Button size="sm" variant="outline" onClick={() => setPreview(item)}><Eye className="h-3.5 w-3.5" /> Quick View</Button>
                   <Button size="sm" variant="outline" onClick={() => viewFrontend(item)}><ExternalLink className="h-3.5 w-3.5" /> View</Button>
                   <Button size="sm" variant="outline" onClick={() => void share(item)}><Share2 className="h-3.5 w-3.5" /> Share</Button>
                   <Button size="sm" variant="outline" onClick={() => setDraft(itemToDraft(item))}><Pencil className="h-3.5 w-3.5" /> Edit</Button>
