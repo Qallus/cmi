@@ -236,6 +236,12 @@ export function PortfolioClient({ initialItems, demoMode }: { initialItems: Port
     setNotice(`Copied portfolio link: ${url}`);
   }
 
+  // Opens the live public portfolio page in a new tab (published items render;
+  // drafts/archived won't be live — use Quick View for those).
+  function viewFrontend(item: PortfolioItem) {
+    window.open(`/portfolio/${item.slug || item.id}`, "_blank", "noopener");
+  }
+
   // ── Drag and drop ──────────────────────────────────────────────
   function onDragStart(e: React.DragEvent, id: string) {
     setDraggingId(id); e.dataTransfer.effectAllowed = "move";
@@ -366,8 +372,8 @@ export function PortfolioClient({ initialItems, demoMode }: { initialItems: Port
                 dragOverId === item.id ? "ring-2 ring-accent" : "")}>
               <div className="relative aspect-[4/3] bg-muted">
                 {item.featured_image ? <img src={item.featured_image} alt="" className="h-full w-full object-cover" /> : <div className="grid h-full place-items-center text-muted-foreground"><Image className="h-8 w-8" /></div>}
-                <button type="button" title="View" onClick={() => setPreview(item)} onMouseDown={(e) => e.stopPropagation()} className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-md bg-black/55 px-2 py-1 text-xs font-medium text-white shadow-md backdrop-blur transition hover:bg-black/75">
-                  <Eye className="h-3.5 w-3.5" /> View
+                <button type="button" title="Quick View" onClick={() => setPreview(item)} onMouseDown={(e) => e.stopPropagation()} className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-md bg-black/55 px-2 py-1 text-xs font-medium text-white shadow-md backdrop-blur transition hover:bg-black/75">
+                  <Eye className="h-3.5 w-3.5" /> Quick View
                 </button>
               </div>
               <CardContent className="p-4">
@@ -383,7 +389,8 @@ export function PortfolioClient({ initialItems, demoMode }: { initialItems: Port
                   {(item.gallery_images || []).length ? <Badge>{item.gallery_images?.length} images</Badge> : null}
                 </div>
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <Button size="sm" variant="outline" onClick={() => setPreview(item)}><Eye className="h-3.5 w-3.5" /> View</Button>
+                  <Button size="sm" variant="outline" onClick={() => setPreview(item)}><Eye className="h-3.5 w-3.5" /> Quick View</Button>
+                  <Button size="sm" variant="outline" onClick={() => viewFrontend(item)}><ExternalLink className="h-3.5 w-3.5" /> View</Button>
                   <Button size="sm" variant="outline" onClick={() => void share(item)}><Share2 className="h-3.5 w-3.5" /> Share</Button>
                   <Button size="sm" variant="outline" onClick={() => setDraft(itemToDraft(item))}><Pencil className="h-3.5 w-3.5" /> Edit</Button>
                   <Button size="sm" variant="outline" onClick={() => void toggleArchive(item)}>{item.status === "archived" ? <><ArchiveRestore className="h-3.5 w-3.5" /> Unarchive</> : <><Archive className="h-3.5 w-3.5" /> Archive</>}</Button>
@@ -416,7 +423,8 @@ export function PortfolioClient({ initialItems, demoMode }: { initialItems: Port
                 <p className="mt-0.5 text-xs text-muted-foreground">{item.category || "Uncategorized"} · {item.location || "Arizona"} · {item.year || "—"}</p>
               </div>
               <div className="flex shrink-0 items-center gap-1">
-                <Button size="sm" variant="outline" title="View" onClick={() => setPreview(item)}><Eye className="h-3.5 w-3.5" /></Button>
+                <Button size="sm" variant="outline" title="Quick View" onClick={() => setPreview(item)}><Eye className="h-3.5 w-3.5" /></Button>
+                <Button size="sm" variant="outline" title="View live page" onClick={() => viewFrontend(item)}><ExternalLink className="h-3.5 w-3.5" /></Button>
                 <Button size="sm" variant="outline" title="Share" onClick={() => void share(item)}><Share2 className="h-3.5 w-3.5" /></Button>
                 <Button size="sm" variant="outline" title="Edit" onClick={() => setDraft(itemToDraft(item))}><Pencil className="h-3.5 w-3.5" /></Button>
                 <Button size="sm" variant="outline" title={item.status === "archived" ? "Unarchive" : "Archive"} onClick={() => void toggleArchive(item)}>{item.status === "archived" ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}</Button>
@@ -466,7 +474,8 @@ export function PortfolioClient({ initialItems, demoMode }: { initialItems: Port
                   <td className="px-4 py-3"><Badge tone={item.status === "published" ? "success" : item.status === "archived" || item.status === "hidden" ? "warning" : "default"}>{item.status}</Badge></td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1">
-                      <Button size="sm" variant="outline" title="View" onClick={() => setPreview(item)}><Eye className="h-3.5 w-3.5" /></Button>
+                      <Button size="sm" variant="outline" title="Quick View" onClick={() => setPreview(item)}><Eye className="h-3.5 w-3.5" /></Button>
+                      <Button size="sm" variant="outline" title="View live page" onClick={() => viewFrontend(item)}><ExternalLink className="h-3.5 w-3.5" /></Button>
                       <Button size="sm" variant="outline" title="Share" onClick={() => void share(item)}><Share2 className="h-3.5 w-3.5" /></Button>
                       <Button size="sm" variant="outline" title="Edit" onClick={() => setDraft(itemToDraft(item))}><Pencil className="h-3.5 w-3.5" /></Button>
                       <Button size="sm" variant="outline" title={item.status === "archived" ? "Unarchive" : "Archive"} onClick={() => void toggleArchive(item)}>{item.status === "archived" ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}</Button>
@@ -506,8 +515,9 @@ export function PortfolioClient({ initialItems, demoMode }: { initialItems: Port
                         <Badge tone={item.status === "published" ? "success" : item.status === "archived" || item.status === "hidden" ? "warning" : "default"}>{item.status}</Badge>
                       </div>
                       <p className="mt-1 text-[11px] text-muted-foreground">{item.year || "—"} · {item.location || "AZ"}</p>
-                      <div className="mt-2 flex gap-1">
-                        <Button size="sm" variant="outline" title="View" onClick={() => setPreview(item)}><Eye className="h-3 w-3" /></Button>
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        <Button size="sm" variant="outline" title="Quick View" onClick={() => setPreview(item)}><Eye className="h-3 w-3" /></Button>
+                        <Button size="sm" variant="outline" title="View live page" onClick={() => viewFrontend(item)}><ExternalLink className="h-3 w-3" /></Button>
                         <Button size="sm" variant="outline" title="Share" onClick={() => void share(item)}><Share2 className="h-3 w-3" /></Button>
                         <Button size="sm" variant="outline" title="Edit" onClick={() => setDraft(itemToDraft(item))}><Pencil className="h-3 w-3" /></Button>
                         <Button size="sm" variant="outline" title={item.status === "archived" ? "Unarchive" : "Archive"} onClick={() => void toggleArchive(item)}>{item.status === "archived" ? <ArchiveRestore className="h-3 w-3" /> : <Archive className="h-3 w-3" />}</Button>
