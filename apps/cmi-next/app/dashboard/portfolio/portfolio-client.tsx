@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Archive, ArchiveRestore, AlertTriangle, CheckCircle2, Columns2, Eye, ExternalLink, GripVertical, Image, LayoutGrid, List, Loader2, Pencil, Plus, RotateCcw, Share2, Table2, Trash2, Upload, Video, X } from "lucide-react";
+import { Archive, ArchiveRestore, AlertTriangle, CheckCircle2, Columns2, Eye, ExternalLink, GripVertical, Image, LayoutGrid, List, Loader2, Pencil, Plus, RotateCcw, Share2, Star, Table2, Trash2, Upload, Video, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 type ViewMode = "cards" | "list" | "table" | "kanban";
@@ -829,7 +829,7 @@ function PortfolioEditor({ draft, saving, onChange, onClose, onSave }: { draft: 
           <div className="lg:col-span-2">
             <MediaUpload label="Featured Image" icon={Image} uploading={uploading === "featured_image"} url={draft.featured_image || ""} accept="image/*" onFile={file => upload("featured_image", file)} onUrl={value => update("featured_image", value)} />
           </div>
-          <GalleryEditor urls={draft.gallery_images || []} uploading={uploading === "gallery_images"} onChange={value => update("gallery_images", value)} onFiles={files => uploadMany("gallery_images", files)} />
+          <GalleryEditor urls={draft.gallery_images || []} uploading={uploading === "gallery_images"} featured={draft.featured_image || ""} onSetFeatured={value => update("featured_image", value)} onChange={value => update("gallery_images", value)} onFiles={files => uploadMany("gallery_images", files)} />
           <div className="lg:col-span-2">
             <MediaUpload label="Videos" icon={Video} uploading={uploading === "video_urls"} url={(draft.video_urls || []).join("\n")} accept="video/*" multiple onFile={file => upload("video_urls", file)} onFiles={files => uploadMany("video_urls", files)} onUrl={value => update("video_urls", lines(value))} textarea />
           </div>
@@ -873,8 +873,8 @@ function PortfolioEditor({ draft, saving, onChange, onClose, onSave }: { draft: 
 
 // Visual gallery editor: thumbnails you can drag to reorder, remove per-image,
 // and an inline "Add" tile for uploading more (multi-file).
-function GalleryEditor({ urls, uploading, onChange, onFiles }: {
-  urls: string[]; uploading: boolean; onChange: (urls: string[]) => void; onFiles: (files: File[]) => void;
+function GalleryEditor({ urls, uploading, featured, onSetFeatured, onChange, onFiles }: {
+  urls: string[]; uploading: boolean; featured?: string; onSetFeatured?: (url: string) => void; onChange: (urls: string[]) => void; onFiles: (files: File[]) => void;
 }) {
   const [dragIndex, setDragIndex] = React.useState<number | null>(null);
   const [overIndex, setOverIndex] = React.useState<number | null>(null);
@@ -905,20 +905,37 @@ function GalleryEditor({ urls, uploading, onChange, onFiles }: {
             className={cn(
               "group relative aspect-square cursor-grab overflow-hidden rounded-lg border bg-muted transition active:cursor-grabbing",
               dragIndex === i ? "opacity-40" : "",
-              overIndex === i && dragIndex !== i ? "border-accent ring-2 ring-accent" : "border-border",
+              overIndex === i && dragIndex !== i ? "border-accent ring-2 ring-accent"
+                : featured && url === featured ? "border-amber-400 ring-2 ring-amber-400"
+                : "border-border",
             )}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={url} alt="" className="pointer-events-none h-full w-full object-cover" />
             <span className="absolute left-1 top-1 rounded bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white">{i + 1}</span>
-            <button
-              type="button"
-              title="Remove image"
-              onClick={() => onChange(urls.filter((_, idx) => idx !== i))}
-              className="absolute right-1 top-1 rounded-full bg-black/60 p-1 text-white opacity-0 transition hover:bg-destructive group-hover:opacity-100"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
+            <div className="absolute right-1 top-1 flex gap-1">
+              {onSetFeatured ? (
+                <button
+                  type="button"
+                  title={url === featured ? "This is the featured image" : "Set as featured image"}
+                  onClick={() => onSetFeatured(url)}
+                  className={cn(
+                    "rounded-full p-1 text-white transition",
+                    url === featured ? "bg-amber-500 opacity-100" : "bg-black/60 opacity-0 hover:bg-amber-500 group-hover:opacity-100",
+                  )}
+                >
+                  <Star className={cn("h-3.5 w-3.5", url === featured ? "fill-current" : "")} />
+                </button>
+              ) : null}
+              <button
+                type="button"
+                title="Remove image"
+                onClick={() => onChange(urls.filter((_, idx) => idx !== i))}
+                className="rounded-full bg-black/60 p-1 text-white opacity-0 transition hover:bg-destructive group-hover:opacity-100"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
           </div>
         ))}
         <label className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-border text-muted-foreground transition hover:border-accent hover:bg-accent/5 hover:text-accent">
@@ -927,7 +944,7 @@ function GalleryEditor({ urls, uploading, onChange, onFiles }: {
           <span className="text-[11px] font-medium">Add</span>
         </label>
       </div>
-      <p className="text-[11px] text-muted-foreground">Drag thumbnails to reorder. Hover a thumbnail and click ✕ to remove it.</p>
+      <p className="text-[11px] text-muted-foreground">Drag thumbnails to reorder. Hover a thumbnail to set it as the featured image (★) or remove it (✕).</p>
     </div>
   );
 }
@@ -955,7 +972,16 @@ function MediaUpload({ label, icon: Icon, uploading, url, accept, multiple, text
         }} />
       </label>
       {showUrl ? textarea ? <Textarea value={url} onChange={event => onUrl(event.target.value)} placeholder="https://..." /> : <Input value={url} onChange={event => onUrl(event.target.value)} placeholder="https://..." /> : null}
-      {url ? <pre className="max-h-24 overflow-auto rounded-md bg-card p-2 text-[11px] text-muted-foreground">{url}</pre> : null}
+      {url && !textarea && accept.startsWith("image/") ? (
+        <div className="group relative overflow-hidden rounded-md border border-border bg-card">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={url} alt="Current featured image" className="max-h-48 w-full object-cover" />
+          <button type="button" title="Remove image" onClick={() => onUrl("")} className="absolute right-2 top-2 rounded-full bg-black/60 p-1.5 text-white opacity-0 transition hover:bg-destructive group-hover:opacity-100">
+            <X className="h-4 w-4" />
+          </button>
+          <span className="absolute bottom-2 left-2 rounded bg-black/55 px-2 py-0.5 text-[10px] font-medium text-white">Current image · upload above to replace</span>
+        </div>
+      ) : url ? <pre className="max-h-24 overflow-auto rounded-md bg-card p-2 text-[11px] text-muted-foreground">{url}</pre> : null}
     </div>
   );
 }
