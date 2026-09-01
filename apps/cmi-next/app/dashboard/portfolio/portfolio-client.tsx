@@ -112,6 +112,8 @@ export function PortfolioClient({ initialItems, demoMode }: { initialItems: Port
   const [view, setView] = React.useState<ViewMode>("cards");
   const [draft, setDraft] = React.useState<Draft | null>(null);
   const [saving, setSaving] = React.useState(false);
+  // Shown inside the editor modal (the page-level notice is hidden behind it).
+  const [saveError, setSaveError] = React.useState<string | null>(null);
   const [notice, setNotice] = React.useState<string | null>(demoMode ? "Demo mode: portfolio changes are local until Supabase is configured." : null);
 
   // Drag state
@@ -184,6 +186,7 @@ export function PortfolioClient({ initialItems, demoMode }: { initialItems: Port
   async function savePortfolio(nextDraft: Draft) {
     setSaving(true);
     setNotice(null);
+    setSaveError(null);
     const payload = {
       ...nextDraft,
       slug: nextDraft.slug || slugify(nextDraft.title),
@@ -209,13 +212,15 @@ export function PortfolioClient({ initialItems, demoMode }: { initialItems: Port
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
-      const json = await res.json();
+      const json = await res.json().catch(() => ({ message: `Save failed (HTTP ${res.status}).` }));
+      if (res.status === 401) throw new Error("Your session has expired. Please sign in again, then re-save.");
       if (!res.ok) throw new Error(json.message || "Portfolio save failed.");
       setDraft(null);
       setNotice(`${json.item.title} saved.`);
       await refresh();
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Portfolio save failed.");
+      // Surface inside the modal — the page-level notice is hidden behind it.
+      setSaveError(error instanceof Error ? error.message : "Portfolio save failed.");
     } finally {
       setSaving(false);
     }
@@ -537,7 +542,7 @@ export function PortfolioClient({ initialItems, demoMode }: { initialItems: Port
 
       {!filtered.length ? <div className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted-foreground">No portfolio items yet.</div> : null}
 
-      {draft ? <PortfolioEditor draft={draft} saving={saving} onChange={setDraft} onClose={() => setDraft(null)} onSave={savePortfolio} /> : null}
+      {draft ? <PortfolioEditor draft={draft} saving={saving} error={saveError} onChange={setDraft} onClose={() => { setDraft(null); setSaveError(null); }} onSave={savePortfolio} /> : null}
 
       {preview ? <PortfolioPreviewModal item={preview} onClose={() => setPreview(null)} onEdit={(it) => { setPreview(null); setDraft(itemToDraft(it)); }} /> : null}
 
@@ -713,7 +718,7 @@ function PortfolioPreviewModal({ item, onClose, onEdit }: { item: PortfolioItem;
   );
 }
 
-function PortfolioEditor({ draft, saving, onChange, onClose, onSave }: { draft: Draft; saving: boolean; onChange: (draft: Draft) => void; onClose: () => void; onSave: (draft: Draft) => void }) {
+function PortfolioEditor({ draft, saving, error, onChange, onClose, onSave }: { draft: Draft; saving: boolean; error?: string | null; onChange: (draft: Draft) => void; onClose: () => void; onSave: (draft: Draft) => void }) {
   const [uploading, setUploading] = React.useState<string | null>(null);
   const [uploadError, setUploadError] = React.useState<string | null>(null);
   // Slug is auto-generated from the title unless the user opts into a custom one.
@@ -868,12 +873,20 @@ function PortfolioEditor({ draft, saving, onChange, onClose, onSave }: { draft: 
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-3 border-t border-border p-5">
-          <Button onClick={() => onSave(draft)} disabled={saving || !draft.title}>
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-            Save Portfolio Item
-          </Button>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
+        <div className="space-y-3 border-t border-border p-5">
+          {error ? (
+            <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          ) : null}
+          <div className="flex flex-wrap items-center gap-3">
+            <Button onClick={() => onSave(draft)} disabled={saving || !draft.title}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+              {saving ? "Saving…" : "Save Portfolio Item"}
+            </Button>
+            <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
+          </div>
         </div>
       </div>
     </div>
