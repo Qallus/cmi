@@ -248,14 +248,14 @@ function toFeatured(item: PortfolioItem) {
 }
 
 export default async function HomePage() {
-  // Drive the slider from published items (featured ones first). Fall back to
-  // the curated demo list if the DB is empty or unavailable.
+  // The slider shows ONLY items marked "Featured" in the portfolio editor.
+  // Fall back to the curated demo list if nothing is featured yet or the DB
+  // is unavailable, so the homepage never renders an empty slider.
   let featured = FEATURED_PROJECTS;
   try {
-    const published = await loadPortfolioItems({ publishedOnly: true });
-    const withImages = published.filter(item => item.featured_image || (item.gallery_images || []).length);
-    const ordered = [...withImages].sort((a, b) => Number(b.is_featured) - Number(a.is_featured));
-    if (ordered.length) featured = ordered.slice(0, 8).map(toFeatured);
+    const items = await loadPortfolioItems({ publishedOnly: true, featuredOnly: true });
+    const withImages = items.filter(item => item.featured_image || (item.gallery_images || []).length);
+    if (withImages.length) featured = withImages.slice(0, 8).map(toFeatured);
   } catch {
     // keep the curated fallback
   }

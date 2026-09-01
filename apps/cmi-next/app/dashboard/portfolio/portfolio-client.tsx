@@ -838,7 +838,34 @@ function PortfolioEditor({ draft, saving, onChange, onClose, onSave }: { draft: 
           <TagPicker title="Services Used" values={draft.services_used || []} options={serviceOptions} onChange={value => update("services_used", value)} />
           <AttributesEditor values={draft.attributes_json || []} onChange={value => update("attributes_json", value)} />
 
-          <div className="grid gap-3 md:grid-cols-3 lg:col-span-2">
+          {/* Homepage slider gate — only "Featured" items appear in the
+              Featured Projects slider on the homepage. */}
+          <div className={cn(
+            "flex items-center justify-between gap-4 rounded-lg border p-4 lg:col-span-2 transition",
+            draft.is_featured ? "border-amber-400 bg-amber-400/5" : "border-border",
+          )}>
+            <div className="flex items-start gap-3">
+              <Star className={cn("mt-0.5 h-5 w-5 shrink-0", draft.is_featured ? "fill-amber-400 text-amber-400" : "text-muted-foreground")} />
+              <div>
+                <div className="text-sm font-semibold">Feature on homepage</div>
+                <p className="text-xs text-muted-foreground">When on, this project appears in the Featured Projects slider on the homepage. When off, it stays on the portfolio page and its own page only.</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={Boolean(draft.is_featured)}
+              onClick={() => update("is_featured", !draft.is_featured)}
+              className={cn(
+                "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition",
+                draft.is_featured ? "bg-amber-500" : "bg-muted-foreground/30",
+              )}
+            >
+              <span className={cn("inline-block h-5 w-5 transform rounded-full bg-white shadow transition", draft.is_featured ? "translate-x-5" : "translate-x-0.5")} />
+            </button>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2 lg:col-span-2">
             <label className="space-y-2">
               <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">Status</span>
               <Select value={draft.status || "draft"} onChange={event => update("status", event.target.value as PortfolioStatus)}>
@@ -847,10 +874,6 @@ function PortfolioEditor({ draft, saving, onChange, onClose, onSave }: { draft: 
                 <option value="hidden">Hidden</option>
                 <option value="archived">Archived</option>
               </Select>
-            </label>
-            <label className="flex items-center gap-2 rounded-md border border-border p-3 text-sm">
-              <input type="checkbox" checked={Boolean(draft.is_featured)} onChange={event => update("is_featured", event.target.checked)} />
-              Featured
             </label>
             <label className="flex items-center gap-2 rounded-md border border-border p-3 text-sm">
               <input type="checkbox" checked={draft.client_visible !== false} onChange={event => update("client_visible", event.target.checked)} />
