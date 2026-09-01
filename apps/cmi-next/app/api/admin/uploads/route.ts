@@ -51,22 +51,25 @@ export async function POST(request: Request) {
     const extension = file.name.includes(".") ? file.name.split(".").pop() : "bin";
     const path = `${folder}/${Date.now()}-${crypto.randomUUID()}-${safeName(file.name || `file.${extension}`)}`;
 
-    const { data: buckets, error: bucketsError } = await supabase.storage.listBuckets();
-    if (bucketsError) throw bucketsError;
-
-    if (!buckets?.some(bucket => bucket.name === BUCKET)) {
-      const { error: createError } = await supabase.storage.createBucket(BUCKET, {
-        public: true,
-        fileSizeLimit: 1024 * 1024 * 50
-      });
-      if (createError) throw createError;
-    }
-
-    const { error: uploadError } = await supabase.storage.from(BUCKET).upload(path, file, {
+    // Upload directly. Skipping a listBuckets() round-trip on every request
+    // keeps this fast; if the bucket is genuinely missing we create it once
+    // and retry, rather than probing on every upload.
+    const uploadOnce = () => supabase.storage.from(BUCKET).upload(path, file, {
       cacheControl: "3600",
       contentType: file.type || "application/octet-stream",
       upsert: false
     });
+
+    let { error: uploadError } = await uploadOnce();
+    if (uploadError && /bucket.*not.*found|not found/i.test(uploadError.message || "")) {
+      const { error: createError } = await supabase.storage.createBucket(BUCKET, {
+        public: true,
+        fileSizeLimit: 1024 * 1024 * 50
+      });
+      // Ignore "already exists" races; only fail on a real create error.
+      if (createError && !/already exists/i.test(createError.message || "")) throw createError;
+      ({ error: uploadError } = await uploadOnce());
+    }
     if (uploadError) throw uploadError;
 
     const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);

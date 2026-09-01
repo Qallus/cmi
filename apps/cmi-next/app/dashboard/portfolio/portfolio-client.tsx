@@ -742,8 +742,9 @@ function PortfolioEditor({ draft, saving, onChange, onClose, onSave }: { draft: 
     setUploading(field);
     setUploadError(null);
     try {
-      const urls: string[] = [];
-      for (const f of files) urls.push((await uploadMedia(f, "portfolio")).url);
+      // Upload all selected files at once, then append in a single update so
+      // concurrent appends can't race and drop all but the last image.
+      const urls = await Promise.all(files.map(f => uploadMedia(f, "portfolio").then(m => m.url)));
       const current = (field === "gallery_images" ? draft.gallery_images : draft.video_urls) || [];
       onChange({ ...draft, [field]: [...current, ...urls] });
     } catch (error) {
@@ -1005,8 +1006,22 @@ async function uploadMedia(file: File, folder: string) {
   const form = new FormData();
   form.append("file", file);
   form.append("folder", folder);
-  const res = await fetch("/api/admin/uploads", { method: "POST", body: form });
-  const json = await res.json().catch(() => ({ message: "Upload failed." }));
-  if (!res.ok) throw new Error(json.message || "Upload failed.");
+  // Abort a stalled request instead of spinning forever (e.g. a proxy that
+  // drops the connection without ever sending a response).
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 120_000);
+  let res: Response;
+  try {
+    res = await fetch("/api/admin/uploads", { method: "POST", body: form, signal: controller.signal });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error(`"${file.name}" timed out while uploading. Try a smaller file or check your connection.`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+  const json = await res.json().catch(() => ({ message: `Upload failed (HTTP ${res.status}).` }));
+  if (!res.ok) throw new Error(json.message || `Upload failed (HTTP ${res.status}).`);
   return json as { url: string };
 }
