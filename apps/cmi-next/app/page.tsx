@@ -21,8 +21,14 @@ import { SiteFooter } from "@/components/site/site-footer";
 import { HomeFeaturedProjects } from "./home-featured-projects";
 import { HeroCarousel } from "./home-hero";
 import { HomeVideoBackground } from "./home-video-background";
+import { loadPortfolioItems } from "@/lib/portfolio/data";
+import type { PortfolioItem } from "@/lib/portfolio/types";
 
 export const metadata = { title: "Constructed Matter — Building What Matters Most" };
+
+// Refresh the cached home page every 60s so newly published (and featured)
+// portfolio items appear in the Featured Projects slider without a redeploy.
+export const revalidate = 60;
 
 const HERO_IMAGES = [
   "https://wp-constructedmatter-com-985548.hostingersite.com/wp-content/uploads/2026/04/VW-Garage-1-scaled.jpg",
@@ -226,7 +232,34 @@ const REVIEWS = [
   },
 ];
 
-export default function HomePage() {
+// Map a DB portfolio row into the shape the Featured Projects slider expects.
+function toFeatured(item: PortfolioItem) {
+  const image = item.featured_image || (item.gallery_images || [])[0] || "";
+  const body = item.subtitle || item.description || "";
+  return {
+    title: item.title,
+    category: item.category || "Project",
+    location: item.location || "Arizona",
+    year: item.year ? String(item.year) : "",
+    body: body.length > 120 ? `${body.slice(0, 117)}…` : body,
+    image,
+    href: `/portfolio/${item.slug || item.id}`,
+  };
+}
+
+export default async function HomePage() {
+  // Drive the slider from published items (featured ones first). Fall back to
+  // the curated demo list if the DB is empty or unavailable.
+  let featured = FEATURED_PROJECTS;
+  try {
+    const published = await loadPortfolioItems({ publishedOnly: true });
+    const withImages = published.filter(item => item.featured_image || (item.gallery_images || []).length);
+    const ordered = [...withImages].sort((a, b) => Number(b.is_featured) - Number(a.is_featured));
+    if (ordered.length) featured = ordered.slice(0, 8).map(toFeatured);
+  } catch {
+    // keep the curated fallback
+  }
+
   return (
     <>
       <SiteHeader />
@@ -278,7 +311,7 @@ export default function HomePage() {
         </section>
 
         {/* ── Featured Projects ────────────────────────────────── */}
-        <HomeFeaturedProjects projects={FEATURED_PROJECTS} />
+        <HomeFeaturedProjects projects={featured} />
         <section className="hidden">
           <div className="mx-auto max-w-7xl px-5 lg:px-8">
             <div className="flex items-end justify-between">

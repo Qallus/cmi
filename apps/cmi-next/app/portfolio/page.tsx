@@ -6,6 +6,11 @@ import { demoPortfolioItems } from "@/lib/portfolio/demo-data";
 
 export const metadata = { title: "Portfolio — Constructed Matter" };
 
+// Rebuild the cached listing every 60s so newly published items appear
+// automatically without a redeploy (individual /portfolio/[slug] pages are
+// already rendered dynamically per request).
+export const revalidate = 60;
+
 export default async function PortfolioArchivePage() {
   let items = demoPortfolioItems;
   try {
