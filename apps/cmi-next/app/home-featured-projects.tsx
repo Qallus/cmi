@@ -71,13 +71,12 @@ export function HomeFeaturedProjects({ projects }: { projects: FeaturedProject[]
                   className="absolute inset-0"
                   style={{
                     background:
-                      "linear-gradient(to top, rgba(0,0,0,0.86) 0%, rgba(0,0,0,0.58) 26%, rgba(0,0,0,0.18) 54%, rgba(0,0,0,0) 82%)",
+                      "linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.82) 18%, rgba(0,0,0,0.5) 40%, rgba(0,0,0,0.12) 66%, rgba(0,0,0,0) 88%)",
                   }}
                 />
-                <div className="absolute inset-x-0 bottom-0 p-6 text-white">
-                  <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-accent">{project.category} - {project.location}</div>
-                  <h3 className="mt-2 font-display text-xl font-semibold">{project.title}</h3>
-                  <p className="mt-1 text-sm leading-6 text-white/75">{project.body}</p>
+                <div className="absolute inset-x-0 bottom-0 p-6 text-white" style={{ textShadow: "0 1px 3px rgba(0,0,0,0.7)" }}>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/90">{[project.category, project.location].filter(Boolean).join(" · ")}</div>
+                  <h3 className="mt-1.5 font-display text-2xl font-semibold">{project.title}</h3>
                 </div>
               </button>
             ))}
