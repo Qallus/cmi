@@ -838,47 +838,33 @@ function PortfolioEditor({ draft, saving, onChange, onClose, onSave }: { draft: 
           <TagPicker title="Services Used" values={draft.services_used || []} options={serviceOptions} onChange={value => update("services_used", value)} />
           <AttributesEditor values={draft.attributes_json || []} onChange={value => update("attributes_json", value)} />
 
-          {/* Homepage slider gate — only "Featured" items appear in the
-              Featured Projects slider on the homepage. */}
-          <div className={cn(
-            "flex items-center justify-between gap-4 rounded-lg border p-4 lg:col-span-2 transition",
-            draft.is_featured ? "border-amber-400 bg-amber-400/5" : "border-border",
-          )}>
-            <div className="flex items-start gap-3">
-              <Star className={cn("mt-0.5 h-5 w-5 shrink-0", draft.is_featured ? "fill-amber-400 text-amber-400" : "text-muted-foreground")} />
-              <div>
-                <div className="text-sm font-semibold">Feature on homepage</div>
-                <p className="text-xs text-muted-foreground">When on, this project appears in the Featured Projects slider on the homepage. When off, it stays on the portfolio page and its own page only.</p>
-              </div>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={Boolean(draft.is_featured)}
-              onClick={() => update("is_featured", !draft.is_featured)}
-              className={cn(
-                "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition",
-                draft.is_featured ? "bg-amber-500" : "bg-muted-foreground/30",
-              )}
-            >
-              <span className={cn("inline-block h-5 w-5 transform rounded-full bg-white shadow transition", draft.is_featured ? "translate-x-5" : "translate-x-0.5")} />
-            </button>
-          </div>
+          <label className="space-y-2 lg:col-span-2">
+            <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">Status</span>
+            <Select value={draft.status || "draft"} onChange={event => update("status", event.target.value as PortfolioStatus)}>
+              <option value="draft">Draft</option>
+              <option value="published">Published</option>
+              <option value="hidden">Hidden</option>
+              <option value="archived">Archived</option>
+            </Select>
+          </label>
 
+          {/* Featured gate (homepage slider) + public visibility, as a matched
+              pair of toggles so their state is obvious in both themes. */}
           <div className="grid gap-3 md:grid-cols-2 lg:col-span-2">
-            <label className="space-y-2">
-              <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">Status</span>
-              <Select value={draft.status || "draft"} onChange={event => update("status", event.target.value as PortfolioStatus)}>
-                <option value="draft">Draft</option>
-                <option value="published">Published</option>
-                <option value="hidden">Hidden</option>
-                <option value="archived">Archived</option>
-              </Select>
-            </label>
-            <label className="flex items-center gap-2 rounded-md border border-border p-3 text-sm">
-              <input type="checkbox" checked={draft.client_visible !== false} onChange={event => update("client_visible", event.target.checked)} />
-              Public visible
-            </label>
+            <FlagToggle
+              icon={Star}
+              title="Feature on homepage"
+              description="When on, this project appears in the Featured Projects slider on the homepage. When off, it stays on the portfolio page and its own page only."
+              checked={Boolean(draft.is_featured)}
+              onChange={value => update("is_featured", value)}
+            />
+            <FlagToggle
+              icon={Eye}
+              title="Public visible"
+              description="When on, this project is visible on the public portfolio page and its own page. When off, it stays in the dashboard only."
+              checked={draft.client_visible !== false}
+              onChange={value => update("client_visible", value)}
+            />
           </div>
         </div>
 
@@ -890,6 +876,41 @@ function PortfolioEditor({ draft, saving, onChange, onClose, onSave }: { draft: 
           <Button variant="outline" onClick={onClose}>Cancel</Button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// Labeled on/off toggle used for the portfolio flags (featured, public
+// visible). The card and the track both carry a visible fill so the control
+// reads clearly in light and dark mode, on or off.
+function FlagToggle({ icon: Icon, title, description, checked, onChange }: {
+  icon: LucideIcon; title: string; description: string; checked: boolean; onChange: (value: boolean) => void;
+}) {
+  return (
+    <div className={cn(
+      "flex items-center justify-between gap-4 rounded-lg border p-4 transition",
+      checked ? "border-accent bg-accent/10" : "border-border bg-muted/50",
+    )}>
+      <div className="flex items-start gap-3">
+        <Icon className={cn("mt-0.5 h-5 w-5 shrink-0", checked ? "fill-accent/20 text-accent" : "text-muted-foreground")} />
+        <div>
+          <div className="text-sm font-semibold">{title}</div>
+          <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
+        </div>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        aria-label={title}
+        onClick={() => onChange(!checked)}
+        className={cn(
+          "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition",
+          checked ? "border-accent bg-accent" : "border-border bg-zinc-300 dark:bg-zinc-600",
+        )}
+      >
+        <span className={cn("inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition", checked ? "translate-x-5" : "translate-x-0.5")} />
+      </button>
     </div>
   );
 }
