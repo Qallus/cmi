@@ -825,9 +825,13 @@ function PortfolioEditor({ draft, saving, onChange, onClose, onSave }: { draft: 
             <Textarea className="min-h-32" value={draft.description || ""} onChange={event => update("description", event.target.value)} />
           </label>
 
-          <MediaUpload label="Featured Image" icon={Image} uploading={uploading === "featured_image"} url={draft.featured_image || ""} accept="image/*" onFile={file => upload("featured_image", file)} onUrl={value => update("featured_image", value)} />
-          <MediaUpload label="Gallery Images" icon={Upload} uploading={uploading === "gallery_images"} url={(draft.gallery_images || []).join("\n")} accept="image/*" multiple onFile={file => upload("gallery_images", file)} onFiles={files => uploadMany("gallery_images", files)} onUrl={value => update("gallery_images", lines(value))} textarea />
-          <MediaUpload label="Videos" icon={Video} uploading={uploading === "video_urls"} url={(draft.video_urls || []).join("\n")} accept="video/*" multiple onFile={file => upload("video_urls", file)} onFiles={files => uploadMany("video_urls", files)} onUrl={value => update("video_urls", lines(value))} textarea />
+          <div className="lg:col-span-2">
+            <MediaUpload label="Featured Image" icon={Image} uploading={uploading === "featured_image"} url={draft.featured_image || ""} accept="image/*" onFile={file => upload("featured_image", file)} onUrl={value => update("featured_image", value)} />
+          </div>
+          <GalleryEditor urls={draft.gallery_images || []} uploading={uploading === "gallery_images"} onChange={value => update("gallery_images", value)} onFiles={files => uploadMany("gallery_images", files)} />
+          <div className="lg:col-span-2">
+            <MediaUpload label="Videos" icon={Video} uploading={uploading === "video_urls"} url={(draft.video_urls || []).join("\n")} accept="video/*" multiple onFile={file => upload("video_urls", file)} onFiles={files => uploadMany("video_urls", files)} onUrl={value => update("video_urls", lines(value))} textarea />
+          </div>
           {uploadError ? <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive lg:col-span-2">{uploadError}</div> : null}
 
           <TagPicker title="Services Used" values={draft.services_used || []} options={serviceOptions} onChange={value => update("services_used", value)} />
@@ -862,6 +866,67 @@ function PortfolioEditor({ draft, saving, onChange, onClose, onSave }: { draft: 
           <Button variant="outline" onClick={onClose}>Cancel</Button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// Visual gallery editor: thumbnails you can drag to reorder, remove per-image,
+// and an inline "Add" tile for uploading more (multi-file).
+function GalleryEditor({ urls, uploading, onChange, onFiles }: {
+  urls: string[]; uploading: boolean; onChange: (urls: string[]) => void; onFiles: (files: File[]) => void;
+}) {
+  const [dragIndex, setDragIndex] = React.useState<number | null>(null);
+  const [overIndex, setOverIndex] = React.useState<number | null>(null);
+
+  function move(from: number, to: number) {
+    if (from === to) return;
+    const next = [...urls];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    onChange(next);
+  }
+
+  return (
+    <div className="space-y-2 lg:col-span-2">
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">Gallery Images</span>
+        <span className="text-[11px] text-muted-foreground">{urls.length ? `${urls.length} image${urls.length === 1 ? "" : "s"} · drag to reorder` : "No gallery images yet"}</span>
+      </div>
+      <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5">
+        {urls.map((url, i) => (
+          <div
+            key={`${url}-${i}`}
+            draggable
+            onDragStart={() => setDragIndex(i)}
+            onDragOver={(e) => { e.preventDefault(); if (overIndex !== i) setOverIndex(i); }}
+            onDrop={(e) => { e.preventDefault(); if (dragIndex !== null) move(dragIndex, i); setDragIndex(null); setOverIndex(null); }}
+            onDragEnd={() => { setDragIndex(null); setOverIndex(null); }}
+            className={cn(
+              "group relative aspect-square cursor-grab overflow-hidden rounded-lg border bg-muted transition active:cursor-grabbing",
+              dragIndex === i ? "opacity-40" : "",
+              overIndex === i && dragIndex !== i ? "border-accent ring-2 ring-accent" : "border-border",
+            )}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={url} alt="" className="pointer-events-none h-full w-full object-cover" />
+            <span className="absolute left-1 top-1 rounded bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white">{i + 1}</span>
+            <button
+              type="button"
+              title="Remove image"
+              onClick={() => onChange(urls.filter((_, idx) => idx !== i))}
+              className="absolute right-1 top-1 rounded-full bg-black/60 p-1 text-white opacity-0 transition hover:bg-destructive group-hover:opacity-100"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ))}
+        <label className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-border text-muted-foreground transition hover:border-accent hover:bg-accent/5 hover:text-accent">
+          <input type="file" className="sr-only" accept="image/*" multiple onChange={(e) => { const files = Array.from(e.target.files || []); if (files.length) onFiles(files); e.currentTarget.value = ""; }} />
+          {uploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Plus className="h-5 w-5" />}
+          <span className="text-[11px] font-medium">Add</span>
+        </label>
+      </div>
+      <p className="text-[11px] text-muted-foreground">Drag thumbnails to reorder. Hover a thumbnail and click ✕ to remove it.</p>
     </div>
   );
 }
