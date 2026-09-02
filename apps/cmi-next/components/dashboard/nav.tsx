@@ -8,7 +8,7 @@ import {
   ArrowLeft, BookOpen, BriefcaseBusiness, CalendarClock, CalendarRange,
   CreditCard, FileText, FolderKanban, HardHat, Home, IdCard, Inbox, LayoutDashboard, LayoutGrid,
   Megaphone, MessageCircle, MessagesSquare, Mic, Minus, Newspaper, Package, Plus, Settings, ShieldCheck,
-  Sparkles, SquarePen, User, UserRoundCog, Users,
+  Sparkles, SquarePen, User, UserRoundCog, Users, Workflow,
 } from "lucide-react";
 
 export type UserRole =
@@ -39,6 +39,7 @@ const nav: NavItem[] = [
       { href: "/dashboard/canvas-briefs", label: "Canvas Briefs", icon: Inbox, roles: ["super_admin", "admin", "project_manager", "designer", "estimator", "superintendent"], flag: "project_canvas" },
     ],
   },
+  { href: "/dashboard/pipeline",       label: "Pipeline",       icon: Workflow,       roles: ["super_admin", "admin", "project_manager", "estimator"] },
   { href: "/dashboard/sales",          label: "Pre-Con",        icon: BriefcaseBusiness, roles: ["super_admin", "admin", "project_manager", "estimator"] },
   {
     href: "/dashboard/jobs",           label: "Jobs",           icon: HardHat,        roles: ["super_admin", "admin", "project_manager", "estimator", "superintendent", "designer"],
