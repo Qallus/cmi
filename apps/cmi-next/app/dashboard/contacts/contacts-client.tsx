@@ -717,8 +717,9 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
           }
         >
           <div className="space-y-4">
-            {/* Quick actions */}
-            <div className="flex flex-wrap gap-1">
+            {/* Quick actions — primary comms inline, the rest in a More menu so
+                everything stays on a single row (and works on mobile). */}
+            <div className="flex flex-wrap items-center gap-1">
               {viewContact.phone && (
                 <>
                   <QuickPill icon={Phone} label="Call" onClick={() => setContactAction({ type: "call", contact: viewContact })} />
@@ -726,10 +727,14 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
                 </>
               )}
               <QuickPill icon={Mail} label="Email" onClick={() => setContactAction({ type: "email", contact: viewContact })} />
-              <QuickPill icon={Workflow} label="Add to Pipeline" onClick={() => void addContactsToPipeline([viewContact.id])} />
-              <QuickPill icon={Pencil} label="Edit" onClick={() => { closeModal(); setTimeout(() => openEdit(viewContact), 50); }} />
-              <QuickPill icon={Archive} label="Archive" onClick={() => void applyBulkOne(viewContact.id, { status: "archived" })} />
-              <QuickPill icon={Trash2} label="Delete" danger onClick={() => setDeleteConfirm(viewContact.id)} />
+              <ActionMenu
+                items={[
+                  { icon: Workflow, label: "+ Pipeline", onClick: () => void addContactsToPipeline([viewContact.id]) },
+                  { icon: Pencil, label: "Edit", onClick: () => { closeModal(); setTimeout(() => openEdit(viewContact), 50); } },
+                  { icon: Archive, label: "Archive", onClick: () => void applyBulkOne(viewContact.id, { status: "archived" }) },
+                  { icon: Trash2, label: "Delete", danger: true, onClick: () => setDeleteConfirm(viewContact.id) },
+                ]}
+              />
             </div>
             {pipelineFlash && <div className="rounded-md bg-accent/10 px-3 py-2 text-xs font-medium text-accent">{pipelineFlash}</div>}
 
@@ -944,6 +949,55 @@ function QuickPill({ icon: Icon, label, onClick, danger }: { icon: React.Element
     >
       <Icon className="h-3.5 w-3.5" /> {label}
     </button>
+  );
+}
+
+type MenuItem = { icon: React.ElementType; label: string; onClick: () => void; danger?: boolean };
+
+// A compact "More" dropdown used to keep the contact modal actions on one row.
+function ActionMenu({ items }: { items: MenuItem[] }) {
+  const [open, setOpen] = React.useState(false);
+  const ref = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    if (!open) return;
+    function onDoc(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); }
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className={cn(
+          "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition hover:bg-muted",
+          open ? "border-accent/50 text-accent" : "border-border text-foreground hover:border-accent/50 hover:text-accent",
+        )}
+      >
+        <MoreHorizontal className="h-3.5 w-3.5" /> More
+      </button>
+      {open && (
+        <div role="menu" className="absolute right-0 z-20 mt-1 w-44 overflow-hidden rounded-lg border border-border bg-card py-1 shadow-lg">
+          {items.map(({ icon: Icon, label, onClick, danger }) => (
+            <button
+              key={label}
+              type="button"
+              role="menuitem"
+              onClick={() => { setOpen(false); onClick(); }}
+              className={cn(
+                "flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium transition",
+                danger ? "text-destructive hover:bg-destructive/10" : "text-foreground hover:bg-muted",
+              )}
+            >
+              <Icon className="h-3.5 w-3.5" /> {label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
