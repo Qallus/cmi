@@ -37,6 +37,7 @@ import {
   Trash2,
   User,
   UserPlus,
+  Workflow,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -270,6 +271,7 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [bulkType, setBulkType] = React.useState<ContactType | "">("");
   const [bulkBusy, setBulkBusy] = React.useState(false);
+  const [pipelineFlash, setPipelineFlash] = React.useState<string | null>(null);
   const [modalFull, setModalFull] = React.useState(false);
   const [contactView, setContactView] = React.useState<ContactView>("table");
 
@@ -425,6 +427,30 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
     }
   }
 
+  // Add one or more contacts to the Pipeline as deals (idempotent per contact).
+  async function addContactsToPipeline(ids: string[]) {
+    if (!ids.length) return;
+    setBulkBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/deals/add", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source_type: "contact", ids }),
+      });
+      const json = await res.json() as { created?: unknown[]; existing?: unknown[]; error?: string };
+      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+      const added = json.created?.length ?? 0;
+      const skipped = json.existing?.length ?? 0;
+      setPipelineFlash(`Added ${added} to Pipeline${skipped ? ` · ${skipped} already there` : ""}.`);
+      window.setTimeout(() => setPipelineFlash(null), 3500);
+      clearSelection();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Add to Pipeline failed.");
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
   // Single-record update (archive from the modal, etc).
   async function applyBulkOne(id: string, patch: { type?: ContactType; status?: string }) {
     try {
@@ -547,9 +573,13 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
               {bulkBusy ? "Applying…" : "Apply"}
             </Button>
           </div>
+          <Button size="sm" variant="outline" disabled={bulkBusy} onClick={() => void addContactsToPipeline(Array.from(selected))}>
+            <Workflow className="h-3.5 w-3.5" /> Add to Pipeline
+          </Button>
           <Button size="sm" variant="outline" disabled={bulkBusy} onClick={() => void applyBulk({ status: "archived" })}>
             <Archive className="h-3.5 w-3.5" /> Archive
           </Button>
+          {pipelineFlash && <span className="text-xs font-medium text-accent">{pipelineFlash}</span>}
           <Button size="sm" variant="ghost" className="ml-auto" onClick={clearSelection}>Clear</Button>
         </div>
       )}
@@ -696,10 +726,12 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
                 </>
               )}
               <QuickPill icon={Mail} label="Email" onClick={() => setContactAction({ type: "email", contact: viewContact })} />
+              <QuickPill icon={Workflow} label="Add to Pipeline" onClick={() => void addContactsToPipeline([viewContact.id])} />
               <QuickPill icon={Pencil} label="Edit" onClick={() => { closeModal(); setTimeout(() => openEdit(viewContact), 50); }} />
               <QuickPill icon={Archive} label="Archive" onClick={() => void applyBulkOne(viewContact.id, { status: "archived" })} />
               <QuickPill icon={Trash2} label="Delete" danger onClick={() => setDeleteConfirm(viewContact.id)} />
             </div>
+            {pipelineFlash && <div className="rounded-md bg-accent/10 px-3 py-2 text-xs font-medium text-accent">{pipelineFlash}</div>}
 
             <div className="flex items-center gap-3">
               <div className="flex h-14 w-14 items-center justify-center rounded-full bg-accent/15 text-xl font-semibold text-accent">{initials(viewContact)}</div>

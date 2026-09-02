@@ -6,6 +6,7 @@ import {
   CheckCircle2, XCircle, ArrowDownLeft, ArrowUpRight, X,
   ClipboardList, ChevronDown, UserRound, LayoutTemplate, Users, Eye, Printer,
   Check, HardHat, FolderKanban, BriefcaseBusiness, ExternalLink, Tag,
+  Workflow, Archive, Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -154,6 +155,10 @@ export function CommunicationsClient({
   const [selected, setSelected] = React.useState<Message | null>(null);
   const [selectedSubmission, setSelectedSubmission] = React.useState<ContactSubmission | null>(null);
   const [submissionFilter, setSubmissionFilter] = React.useState<ContactSubmissionStatus | "all">("all");
+  // Contact Form multi-select + action feedback.
+  const [subSelected, setSubSelected] = React.useState<Set<string>>(new Set());
+  const [subBusy, setSubBusy] = React.useState(false);
+  const [subToast, setSubToast] = React.useState<string | null>(null);
 
   // Compose: multi-recipient + template state
   const [recipientTags, setRecipientTags] = React.useState<string[]>([]);
@@ -296,6 +301,77 @@ export function CommunicationsClient({
     }
   }
 
+  // ── Contact Form multi-select ──
+  function toggleSub(id: string) {
+    setSubSelected((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  }
+  function toggleAllSubs() {
+    setSubSelected((prev) => prev.size === filteredSubmissions.length ? new Set() : new Set(filteredSubmissions.map((s) => s.id)));
+  }
+  function clearSubSelection() { setSubSelected(new Set()); }
+
+  function flashToast(msg: string) {
+    setSubToast(msg);
+    window.setTimeout(() => setSubToast((t) => (t === msg ? null : t)), 3500);
+  }
+
+  async function bulkSubStatus(ids: string[], status: ContactSubmissionStatus) {
+    if (!ids.length) return;
+    setSubBusy(true);
+    try {
+      const res = await fetch("/api/contact-submissions", {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids, status }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "Update failed.");
+      setSubmissions((prev) => prev.map((s) => ids.includes(s.id) ? { ...s, status } : s));
+      if (selectedSubmission && ids.includes(selectedSubmission.id)) setSelectedSubmission((p) => p ? { ...p, status } : p);
+      flashToast(`Marked ${ids.length} as ${status}.`);
+      clearSubSelection();
+    } catch (e) { flashToast(e instanceof Error ? e.message : "Update failed."); }
+    finally { setSubBusy(false); }
+  }
+
+  async function deleteSubs(ids: string[]) {
+    if (!ids.length) return;
+    if (!window.confirm(`Delete ${ids.length} submission${ids.length === 1 ? "" : "s"}? This cannot be undone.`)) return;
+    setSubBusy(true);
+    try {
+      const res = await fetch("/api/contact-submissions", {
+        method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "Delete failed.");
+      setSubmissions((prev) => prev.filter((s) => !ids.includes(s.id)));
+      if (selectedSubmission && ids.includes(selectedSubmission.id)) setSelectedSubmission(null);
+      flashToast(`Deleted ${ids.length} submission${ids.length === 1 ? "" : "s"}.`);
+      clearSubSelection();
+    } catch (e) { flashToast(e instanceof Error ? e.message : "Delete failed."); }
+    finally { setSubBusy(false); }
+  }
+
+  async function convertSubs(ids: string[], target: "contact" | "lead" | "deal") {
+    if (!ids.length) return;
+    setSubBusy(true);
+    try {
+      const res = await fetch("/api/contact-submissions/convert", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids, target }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Conversion failed.");
+      const label = target === "contact" ? "Contacts" : target === "lead" ? "Leads" : "Pipeline";
+      flashToast(`Added ${ids.length} to ${label}.`);
+      // Converting to a contact links contact_id — reflect that locally.
+      if (target === "contact") {
+        const map = new Map(ids.map((id, i) => [id, json.results?.[i]?.contactId as string | undefined]));
+        setSubmissions((prev) => prev.map((s) => map.get(s.id) ? { ...s, contact_id: map.get(s.id) as string } : s));
+        if (selectedSubmission && map.get(selectedSubmission.id)) {
+          setSelectedSubmission((p) => p ? { ...p, contact_id: map.get(p.id) as string } : p);
+        }
+      }
+      clearSubSelection();
+    } catch (e) { flashToast(e instanceof Error ? e.message : "Conversion failed."); }
+    finally { setSubBusy(false); }
+  }
+
   return (
     <div className="flex h-[calc(100vh-56px)] flex-col">
       {/* Header */}
@@ -361,7 +437,7 @@ export function CommunicationsClient({
       ) : tab === "contact_form" ? (
         <div className="flex flex-1 overflow-hidden">
           <div className="flex-1 overflow-y-auto">
-            {/* Sub-filter */}
+            {/* Sub-filter + toast */}
             <div className="flex items-center gap-2 border-b border-border px-5 py-3">
               <span className="text-xs text-muted-foreground">Filter:</span>
               {(["all", "new", "read", "archived"] as const).map((f) => (
@@ -379,7 +455,24 @@ export function CommunicationsClient({
                   {f === "all" ? "All" : f.charAt(0).toUpperCase() + f.slice(1)}
                 </button>
               ))}
+              {subToast && <span className="ml-auto rounded-md bg-accent/10 px-3 py-1 text-xs font-medium text-accent">{subToast}</span>}
             </div>
+
+            {/* Bulk action bar (shown when rows are selected) */}
+            {subSelected.size > 0 && (
+              <div className="flex flex-wrap items-center gap-2 border-b border-border bg-accent/5 px-5 py-2.5">
+                <span className="text-xs font-medium">{subSelected.size} selected</span>
+                <div className="h-4 w-px bg-border" />
+                <BulkBtn disabled={subBusy} onClick={() => convertSubs([...subSelected], "contact")} icon={UserRound}>To Contacts</BulkBtn>
+                <BulkBtn disabled={subBusy} onClick={() => convertSubs([...subSelected], "lead")} icon={BriefcaseBusiness}>To Leads</BulkBtn>
+                <BulkBtn disabled={subBusy} onClick={() => convertSubs([...subSelected], "deal")} icon={Workflow}>To Pipeline</BulkBtn>
+                <div className="h-4 w-px bg-border" />
+                <BulkBtn disabled={subBusy} onClick={() => bulkSubStatus([...subSelected], "read")} icon={Check}>Mark Read</BulkBtn>
+                <BulkBtn disabled={subBusy} onClick={() => bulkSubStatus([...subSelected], "archived")} icon={Archive}>Archive</BulkBtn>
+                <BulkBtn disabled={subBusy} onClick={() => deleteSubs([...subSelected])} icon={Trash2} danger>Delete</BulkBtn>
+                <button type="button" onClick={clearSubSelection} className="ml-auto text-xs text-muted-foreground hover:text-foreground">Clear</button>
+              </div>
+            )}
 
             {filteredSubmissions.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-24 text-center">
@@ -395,6 +488,14 @@ export function CommunicationsClient({
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border bg-muted/30 text-left text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+                    <th className="px-5 py-3 w-10">
+                      <input
+                        type="checkbox"
+                        aria-label="Select all"
+                        checked={filteredSubmissions.length > 0 && subSelected.size === filteredSubmissions.length}
+                        onChange={toggleAllSubs}
+                      />
+                    </th>
                     <th className="px-5 py-3">Status</th>
                     <th className="px-5 py-3">Name</th>
                     <th className="px-5 py-3">Email</th>
@@ -411,10 +512,13 @@ export function CommunicationsClient({
                       onClick={() => openSubmission(sub)}
                       className={cn(
                         "cursor-pointer transition hover:bg-muted/40",
-                        selectedSubmission?.id === sub.id && "bg-accent/5",
+                        (selectedSubmission?.id === sub.id || subSelected.has(sub.id)) && "bg-accent/5",
                         sub.status === "new" && "font-medium"
                       )}
                     >
+                      <td className="px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
+                        <input type="checkbox" aria-label={`Select ${sub.first_name} ${sub.last_name}`} checked={subSelected.has(sub.id)} onChange={() => toggleSub(sub.id)} />
+                      </td>
                       <td className="px-5 py-3.5">{submissionStatusBadge(sub.status)}</td>
                       <td className="px-5 py-3.5 whitespace-nowrap">
                         {sub.first_name} {sub.last_name}
@@ -843,11 +947,27 @@ export function CommunicationsClient({
                 </div>
               </div>
 
+              {/* Convert — transfer the full submission to a Contact / Lead / Deal */}
+              <div className="rounded-lg border border-border bg-muted/20 p-4">
+                <div className="mb-2.5 flex items-center gap-2">
+                  <Workflow className="h-3.5 w-3.5 text-accent" />
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Convert</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  <BulkBtn disabled={subBusy || !!selectedSubmission.contact_id} icon={UserRound} onClick={() => convertSubs([selectedSubmission.id], "contact")}>
+                    {selectedSubmission.contact_id ? "Contact linked" : "Add Contact"}
+                  </BulkBtn>
+                  <BulkBtn disabled={subBusy} icon={BriefcaseBusiness} onClick={() => convertSubs([selectedSubmission.id], "lead")}>Convert to Lead</BulkBtn>
+                  <BulkBtn disabled={subBusy} icon={Workflow} onClick={() => convertSubs([selectedSubmission.id], "deal")}>Add to Pipeline</BulkBtn>
+                </div>
+                {subToast && <p className="mt-2 text-xs font-medium text-accent">{subToast}</p>}
+              </div>
+
               {/* Assign / route */}
               <AssignPanel submission={selectedSubmission} />
 
               {/* Status actions */}
-              <div className="flex items-center justify-between border-t border-border pt-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-muted-foreground">Mark as:</span>
                   {(["new", "read", "archived"] as ContactSubmissionStatus[]).map((s) => (
@@ -867,28 +987,57 @@ export function CommunicationsClient({
                     </button>
                   ))}
                 </div>
-                <Button
-                  size="sm"
-                  variant="accent"
-                  onClick={() => {
-                    openCompose("email");
-                    setDraft({
-                      channel: "email",
-                      to: selectedSubmission.email,
-                      subject: `Re: ${selectedSubmission.subject}`,
-                      body: "",
-                    });
-                    setSelectedSubmission(null);
-                  }}
-                >
-                  <Send className="h-3.5 w-3.5" /> Reply by Email
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-destructive/30 text-destructive hover:bg-destructive/10"
+                    disabled={subBusy}
+                    onClick={() => void deleteSubs([selectedSubmission.id])}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" /> Delete
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="accent"
+                    onClick={() => {
+                      openCompose("email");
+                      setDraft({
+                        channel: "email",
+                        to: selectedSubmission.email,
+                        subject: `Re: ${selectedSubmission.subject}`,
+                        body: "",
+                      });
+                      setSelectedSubmission(null);
+                    }}
+                  >
+                    <Send className="h-3.5 w-3.5" /> Reply by Email
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
         </div>
       )}
     </div>
+  );
+}
+
+function BulkBtn({ children, icon: Icon, onClick, disabled, danger }: { children: React.ReactNode; icon: React.ElementType; onClick: () => void; disabled?: boolean; danger?: boolean }) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition disabled:opacity-50",
+        danger
+          ? "border-destructive/30 text-destructive hover:bg-destructive/10"
+          : "border-border text-foreground hover:border-accent/40 hover:text-accent",
+      )}
+    >
+      <Icon className="h-3.5 w-3.5" /> {children}
+    </button>
   );
 }
 
