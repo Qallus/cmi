@@ -265,7 +265,9 @@ export function DealDetailClient({
                           <span className="text-sm font-medium">{a.summary || M.label}</span>
                           <span className="shrink-0 text-[11px] text-muted-foreground">{fmtWhen(a.occurred_at)}</span>
                         </div>
-                        {a.body && <p className="mt-0.5 whitespace-pre-wrap text-sm text-muted-foreground">{a.body}</p>}
+                        {a.type === "voice_note" && (a.metadata?.audio_url || a.body)
+                          ? <audio controls src={String(a.metadata?.audio_url ?? a.body)} className="mt-1 h-8 w-full max-w-xs" />
+                          : a.body && <p className="mt-0.5 whitespace-pre-wrap text-sm text-muted-foreground">{a.body}</p>}
                         <div className="mt-0.5 text-[11px] text-muted-foreground">{M.label}{a.created_by_name ? ` · ${a.created_by_name}` : ""}</div>
                       </div>
                     </li>
@@ -421,6 +423,8 @@ function ActionSheet({
       </Drawer>
     );
   }
+  if (action === "schedule") return <ScheduleModal deal={deal} contact={contact} owners={owners} onClose={onClose} onDone={onDone} logActivity={logActivity} />;
+  if (action === "voice") return <VoiceNoteModal onClose={onClose} onDone={onDone} logActivity={logActivity} />;
   return <ActionModal action={action} deal={deal} contact={contact} owners={owners} ownerName={ownerName} onClose={onClose} onDone={onDone} logActivity={logActivity} />;
 }
 
@@ -549,6 +553,183 @@ function ActionModal({
       <div className="mt-4 flex justify-end gap-2">
         <Button variant="outline" onClick={onClose}>Cancel</Button>
         {action !== "invoice" && <Button variant="accent" onClick={submit} disabled={busy}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronRight className="h-4 w-4" />} {action === "email" || action === "text" ? "Send" : "Create"}</Button>}
+      </div>
+    </ModalShell>
+  );
+}
+
+// ─── Schedule: real availability slots → /api/admin/bookings ──────
+type ApptType = { id: string; name: string; duration_minutes: number };
+type Slot = { start: string; end: string; label: string };
+
+function ScheduleModal({
+  deal, contact, owners, onClose, onDone, logActivity,
+}: {
+  deal: Deal; contact: DealContact | null; owners: OwnerOption[];
+  onClose: () => void; onDone: () => Promise<void>; logActivity: (type: ActivityType, summary: string, body?: string, metadata?: Record<string, unknown>) => Promise<void>;
+}) {
+  const [types, setTypes] = React.useState<ApptType[]>([]);
+  const [typeId, setTypeId] = React.useState("");
+  const [date, setDate] = React.useState(() => new Date().toISOString().slice(0, 10));
+  const [slots, setSlots] = React.useState<Slot[]>([]);
+  const [slotStart, setSlotStart] = React.useState("");
+  const [assignee, setAssignee] = React.useState("");
+  const [notes, setNotes] = React.useState("");
+  const [loadingSlots, setLoadingSlots] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
+  const [err, setErr] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    (async () => {
+      const r = await fetch("/api/booking/appointment-types");
+      if (r.ok) { const j = await r.json(); const list = (j.appointmentTypes ?? []) as ApptType[]; setTypes(list); if (list[0]) setTypeId(list[0].id); }
+    })();
+  }, []);
+
+  // Fetch availability whenever the type/date changes. State is set inside the
+  // async task (after the tick), avoiding a synchronous setState in the effect.
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!typeId || !date) { if (!cancelled) setSlots([]); return; }
+      setLoadingSlots(true); setSlotStart("");
+      const r = await fetch(`/api/booking/availability?appointment_type_id=${typeId}&date=${date}`);
+      const j = r.ok ? await r.json() : { slots: [] };
+      if (!cancelled) { setSlots((j.slots ?? []) as Slot[]); setLoadingSlots(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [typeId, date]);
+
+  async function submit() {
+    setErr(null);
+    if (!contact?.email) { setErr("This deal's contact needs an email to book an appointment."); return; }
+    if (!slotStart) { setErr("Pick an available time slot."); return; }
+    setBusy(true);
+    try {
+      const [first, ...rest] = (contact.name || "Client").split(" ");
+      const r = await fetch("/api/admin/bookings", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          appointment_type_id: typeId,
+          start_time: slotStart,
+          first_name: first, last_name: rest.join(" ") || first,
+          email: contact.email, phone: contact.phone ?? undefined,
+          project_name: deal.title, notes: notes || undefined,
+          assigned_staff_user_id: assignee || undefined,
+        }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.message || "Booking failed.");
+      const typeName = types.find((t) => t.id === typeId)?.name ?? "Appointment";
+      const label = slots.find((s) => s.start === slotStart)?.label ?? fmtWhen(slotStart);
+      await logActivity("appointment", `${typeName} · ${label}`, notes || undefined, { start_time: slotStart });
+      await onDone();
+    } catch (e) { setErr(e instanceof Error ? e.message : "Booking failed."); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <ModalShell title="Schedule appointment" onClose={onClose}>
+      {!contact?.email ? (
+        <p className="text-sm text-muted-foreground">This deal needs a contact with an email to book an appointment. Add a contact first.</p>
+      ) : (
+        <div className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <L label="Appointment type"><Select value={typeId} onChange={(e) => setTypeId(e.target.value)}>{types.length === 0 && <option value="">Loading…</option>}{types.map((t) => <option key={t.id} value={t.id}>{t.name} ({t.duration_minutes}m)</option>)}</Select></L>
+            <L label="Date"><Input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></L>
+          </div>
+          <div>
+            <div className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Available times</div>
+            {loadingSlots ? <div className="py-4 text-center"><Loader2 className="mx-auto h-4 w-4 animate-spin text-muted-foreground" /></div>
+              : slots.length === 0 ? <p className="py-2 text-sm text-muted-foreground">No open slots for this day.</p>
+              : <div className="grid max-h-40 grid-cols-3 gap-1.5 overflow-auto sm:grid-cols-4">
+                  {slots.map((s) => (
+                    <button key={s.start} type="button" onClick={() => setSlotStart(s.start)}
+                      className={cn("rounded-md border px-2 py-1.5 text-xs font-medium transition", slotStart === s.start ? "border-accent bg-accent/10 text-accent" : "border-border hover:border-accent/40")}>
+                      {s.label}
+                    </button>
+                  ))}
+                </div>}
+          </div>
+          <L label="Assign to (optional)"><Select value={assignee} onChange={(e) => setAssignee(e.target.value)}><option value="">—</option>{owners.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}</Select></L>
+          <L label="Notes (optional)"><Textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="min-h-[60px]" /></L>
+          {err && <p className="text-xs text-destructive">{err}</p>}
+        </div>
+      )}
+      <div className="mt-4 flex justify-end gap-2">
+        <Button variant="outline" onClick={onClose}>Cancel</Button>
+        {contact?.email && <Button variant="accent" onClick={submit} disabled={busy || !slotStart}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarClock className="h-4 w-4" />} Book</Button>}
+      </div>
+    </ModalShell>
+  );
+}
+
+// ─── Voice note: record in-browser → upload → log ─────────────────
+function VoiceNoteModal({
+  onClose, onDone, logActivity,
+}: {
+  onClose: () => void; onDone: () => Promise<void>; logActivity: (type: ActivityType, summary: string, body?: string, metadata?: Record<string, unknown>) => Promise<void>;
+}) {
+  const [recording, setRecording] = React.useState(false);
+  const [audioUrl, setAudioUrl] = React.useState<string | null>(null);
+  const [blob, setBlob] = React.useState<Blob | null>(null);
+  const [title, setTitle] = React.useState("Voice note");
+  const [busy, setBusy] = React.useState(false);
+  const [err, setErr] = React.useState<string | null>(null);
+  const recRef = React.useRef<MediaRecorder | null>(null);
+  const chunksRef = React.useRef<Blob[]>([]);
+
+  async function start() {
+    setErr(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream);
+      chunksRef.current = [];
+      mr.ondataavailable = (e) => { if (e.data.size) chunksRef.current.push(e.data); };
+      mr.onstop = () => {
+        const b = new Blob(chunksRef.current, { type: "audio/webm" });
+        setBlob(b); setAudioUrl(URL.createObjectURL(b));
+        stream.getTracks().forEach((t) => t.stop());
+      };
+      recRef.current = mr; mr.start(); setRecording(true);
+    } catch { setErr("Microphone access denied or unavailable."); }
+  }
+  function stop() { recRef.current?.stop(); setRecording(false); }
+
+  async function save() {
+    if (!blob) return;
+    setBusy(true); setErr(null);
+    try {
+      const form = new FormData();
+      form.append("file", new File([blob], `voice-note-${Date.now()}.webm`, { type: "audio/webm" }));
+      form.append("folder", "deal-voice-notes");
+      const r = await fetch("/api/admin/uploads", { method: "POST", body: form });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.message || "Upload failed.");
+      await logActivity("voice_note", title || "Voice note", j.url, { audio_url: j.url });
+      await onDone();
+    } catch (e) { setErr(e instanceof Error ? e.message : "Save failed."); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <ModalShell title="Voice note" onClose={onClose}>
+      <div className="space-y-3">
+        <L label="Title"><Input value={title} onChange={(e) => setTitle(e.target.value)} /></L>
+        <div className="flex flex-col items-center gap-3 rounded-lg border border-border p-5">
+          {!recording ? (
+            <Button variant="accent" onClick={start}><Mic className="h-4 w-4" /> {audioUrl ? "Re-record" : "Start recording"}</Button>
+          ) : (
+            <Button variant="destructive" onClick={stop}><span className="h-2.5 w-2.5 rounded-sm bg-white" /> Stop</Button>
+          )}
+          {recording && <span className="flex items-center gap-1.5 text-xs text-destructive"><span className="h-2 w-2 animate-pulse rounded-full bg-destructive" /> Recording…</span>}
+          {audioUrl && !recording && <audio controls src={audioUrl} className="w-full" />}
+        </div>
+        {err && <p className="text-xs text-destructive">{err}</p>}
+      </div>
+      <div className="mt-4 flex justify-end gap-2">
+        <Button variant="outline" onClick={onClose}>Cancel</Button>
+        <Button variant="accent" onClick={save} disabled={busy || !blob}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Save voice note</Button>
       </div>
     </ModalShell>
   );
