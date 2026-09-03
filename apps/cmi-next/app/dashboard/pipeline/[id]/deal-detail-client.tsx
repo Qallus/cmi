@@ -215,6 +215,7 @@ export function DealDetailClient({
                 <Field label="Estimated amount">{money(deal.estimated_value)}</Field>
                 <Field label="Expected close">{fmtDate(deal.expected_close_date)}</Field>
                 <Field label="Job type">{deal.job_type || "—"}</Field>
+                <Field label="Location">{deal.full_address || "—"}</Field>
                 <Field label="Probability">{deal.probability != null ? `${deal.probability}%` : "—"}</Field>
                 <Field label="Last activity">{deal.last_activity_at ? `${daysSince(deal.last_activity_at)}d ago` : "—"}</Field>
                 <Field label="Days in stage">{`${daysSince(enteredStageAt) ?? 0}d`}</Field>
@@ -353,6 +354,10 @@ function EditKeyFieldsModal({ deal, owners, onClose, onSaved }: { deal: Deal; ow
     owner_id: deal.owner_id ?? "",
     next_action: deal.next_action ?? "",
     next_action_due: deal.next_action_due ?? "",
+    street_address: deal.street_address ?? "",
+    city: deal.city ?? "",
+    state: deal.state ?? "",
+    zip: deal.zip ?? "",
   });
   const [saving, setSaving] = React.useState(false);
   const set = (k: keyof typeof f, v: string) => setF((p) => ({ ...p, [k]: v }));
@@ -368,6 +373,10 @@ function EditKeyFieldsModal({ deal, owners, onClose, onSaved }: { deal: Deal; ow
         owner_id: f.owner_id || null,
         next_action: f.next_action || null,
         next_action_due: f.next_action_due || null,
+        street_address: f.street_address || null,
+        city: f.city || null,
+        state: f.state || null,
+        zip: f.zip || null,
       }),
     });
     setSaving(false);
@@ -383,7 +392,12 @@ function EditKeyFieldsModal({ deal, owners, onClose, onSaved }: { deal: Deal; ow
         <L label="Owner"><Select value={f.owner_id} onChange={(e) => set("owner_id", e.target.value)}><option value="">Unassigned</option>{owners.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}</Select></L>
         <L label="Next action due"><Input type="date" value={f.next_action_due} onChange={(e) => set("next_action_due", e.target.value)} /></L>
         <L label="Next action" full><Input value={f.next_action} onChange={(e) => set("next_action", e.target.value)} placeholder="e.g. Send proposal" /></L>
+        <L label="Project address" full><Input value={f.street_address} onChange={(e) => set("street_address", e.target.value)} placeholder="Street address" /></L>
+        <L label="City"><Input value={f.city} onChange={(e) => set("city", e.target.value)} /></L>
+        <L label="State"><Input value={f.state} onChange={(e) => set("state", e.target.value)} /></L>
+        <L label="ZIP"><Input value={f.zip} onChange={(e) => set("zip", e.target.value)} /></L>
       </div>
+      <p className="mt-2 text-[11px] text-muted-foreground">Saving an address geocodes the deal for the pipeline Map view.</p>
       <div className="mt-4 flex justify-end gap-2"><Button variant="outline" onClick={onClose}>Cancel</Button><Button variant="accent" onClick={save} disabled={saving}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Save</Button></div>
     </ModalShell>
   );

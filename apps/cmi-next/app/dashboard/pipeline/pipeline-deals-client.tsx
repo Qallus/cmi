@@ -208,7 +208,7 @@ export function PipelineDealsClient({
         ) : view === "calendar" ? (
           <CalendarView deals={filtered} onOpen={openDeal} />
         ) : (
-          <MapView />
+          <MapView deals={filtered} onOpen={openDeal} />
         )}
       </div>
 
@@ -389,13 +389,65 @@ function CalendarView({ deals, onOpen }: { deals: Deal[]; onOpen: (id: string) =
   );
 }
 
-// ─── Map view (needs deal geolocation — not captured yet) ─────────
-function MapView() {
+// ─── Map view (Leaflet, deal pins by geocoded location) ───────────
+const OSM_URL = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+const DEFAULT_CENTER: [number, number] = [33.4484, -112.074]; // Phoenix, AZ
+
+function MapView({ deals, onOpen }: { deals: Deal[]; onOpen: (id: string) => void }) {
+  const mapEl = React.useRef<HTMLDivElement>(null);
+  const mapRef = React.useRef<import("leaflet").Map | null>(null);
+  const markersRef = React.useRef<import("leaflet").LayerGroup | null>(null);
+  const [ready, setReady] = React.useState(false);
+  const openRef = React.useRef(onOpen);
+  React.useEffect(() => { openRef.current = onOpen; }, [onOpen]);
+
+  const mapped = React.useMemo(() => deals.filter((d) => d.latitude != null && d.longitude != null), [deals]);
+  const unmapped = deals.length - mapped.length;
+
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const L = (await import("leaflet")).default;
+      if (cancelled || !mapEl.current || mapRef.current) return;
+      const map = L.map(mapEl.current, { center: DEFAULT_CENTER, zoom: 10, scrollWheelZoom: true });
+      L.tileLayer(OSM_URL, { attribution: "© OpenStreetMap", maxZoom: 19 }).addTo(map);
+      markersRef.current = L.layerGroup().addTo(map);
+      mapRef.current = map;
+      setReady(true);
+    })();
+    return () => { cancelled = true; mapRef.current?.remove(); mapRef.current = null; };
+  }, []);
+
+  React.useEffect(() => {
+    if (!ready || !mapRef.current || !markersRef.current) return;
+    (async () => {
+      const L = (await import("leaflet")).default;
+      const group = markersRef.current!;
+      group.clearLayers();
+      const bounds: [number, number][] = [];
+      for (const d of mapped) {
+        const lat = d.latitude as number, lng = d.longitude as number;
+        bounds.push([lat, lng]);
+        const icon = L.divIcon({
+          className: "cmi-deal-pin",
+          html: `<span style="display:block;width:16px;height:16px;border-radius:9999px;background:#c2410c;border:2px solid white;box-shadow:0 0 0 1px rgba(0,0,0,.3)"></span>`,
+          iconSize: [16, 16], iconAnchor: [8, 8],
+        });
+        const m = L.marker([lat, lng], { icon }).addTo(group);
+        const btnId = `deal-open-${d.id}`;
+        m.bindPopup(`<strong>${d.title}</strong><br/>${d.full_address ?? ""}<br/>${money(d.estimated_value)}<br/><a href="#" id="${btnId}">Open deal →</a>`);
+        m.on("popupopen", () => { const el = document.getElementById(btnId); if (el) el.onclick = (e) => { e.preventDefault(); openRef.current(d.id); }; });
+      }
+      if (bounds.length) mapRef.current!.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
+    })();
+  }, [mapped, ready]);
+
   return (
-    <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-20 text-center">
-      <MapIcon className="mb-3 h-8 w-8 text-muted-foreground" />
-      <p className="text-sm font-medium">Map view needs deal locations</p>
-      <p className="mt-1 max-w-sm text-xs text-muted-foreground">Deals don&apos;t store a project address/coordinates yet. Once we add a location field to deals (and geocode it, like Jobs), pins will appear here.</p>
+    <div className="space-y-2">
+      <div ref={mapEl} className="h-[calc(100vh-260px)] min-h-[360px] w-full overflow-hidden rounded-lg border border-border" />
+      <p className="text-[11px] text-muted-foreground">
+        {mapped.length} of {deals.length} deals plotted.{unmapped > 0 && ` ${unmapped} without a geocoded location — add a project address on the deal to place it.`}
+      </p>
     </div>
   );
 }

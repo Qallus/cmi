@@ -30,6 +30,15 @@ export type Deal = {
   contact_id: string | null;
   company_id: string | null;
 
+  // Location (for the pipeline Map view; geocoded best-effort)
+  street_address: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
+  full_address: string | null;
+  latitude: number | null;
+  longitude: number | null;
+
   source_type: DealSourceType | null;
   source_id: string | null;
   source: string | null;

@@ -1,3 +1,4 @@
+import "leaflet/dist/leaflet.css";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { getSessionStaff } from "@/lib/auth/server-session";
 import { loadDeals } from "@/lib/deals/data";

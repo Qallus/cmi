@@ -3,6 +3,7 @@
 // the API routes), matching lib/pipeline/data.ts.
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { createOpportunity } from "@/lib/pipeline/data";
+import { geocodeAddress } from "@/lib/jobs/geocode";
 import { requiredFieldsForStage, DEAL_STAGE_META } from "./stages";
 import type {
   Actor, Activity, ActivityDraft, Deal, DealChecklistProgress, DealDraft, DealSourceType,
@@ -14,6 +15,21 @@ function sanitizeDraft<T extends Record<string, unknown>>(draft: Partial<T>): Pa
   const clone = { ...draft } as Record<string, unknown>;
   for (const k of ["id", "opportunity_id", "job_number", "created_at", "updated_at"]) delete clone[k];
   return clone as Partial<T>;
+}
+
+// Best-effort geocode + full_address when address parts are present and no
+// explicit coordinates were provided. Mirrors the jobs geocode-on-save behavior.
+async function withGeocode(draft: Partial<Deal>): Promise<Partial<Deal>> {
+  const hasAddressPart = draft.street_address || draft.city || draft.state || draft.zip;
+  if (!hasAddressPart) return draft;
+  const out: Partial<Deal> = { ...draft };
+  out.full_address = [draft.street_address, [draft.city, draft.state].filter(Boolean).join(", "), draft.zip]
+    .map((p) => (p ?? "").trim()).filter(Boolean).join(", ") || null;
+  if (draft.latitude == null && draft.longitude == null) {
+    const geo = await geocodeAddress({ street_address: draft.street_address, city: draft.city, state: draft.state, zip_code: draft.zip });
+    if (geo) { out.latitude = geo.latitude; out.longitude = geo.longitude; }
+  }
+  return out;
 }
 
 // ─── Deals CRUD ───────────────────────────────────────────────────
@@ -38,7 +54,7 @@ export async function getDeal(id: string): Promise<Deal | null> {
 export async function createDeal(draft: DealDraft, actor?: Actor): Promise<Deal> {
   const supabase = getSupabaseAdmin();
   const stage = (draft.stage ?? "new_working") as DealStage;
-  const insert = { ...sanitizeDraft(draft), stage, created_by: actor?.id ?? null };
+  const insert = { ...(await withGeocode(sanitizeDraft(draft))), stage, created_by: actor?.id ?? null };
   const { data, error } = await supabase.from("deals").insert(insert).select().single();
   if (error) throw new Error(error.message);
   const created = data as Deal;
@@ -48,9 +64,13 @@ export async function createDeal(draft: DealDraft, actor?: Actor): Promise<Deal>
 
 export async function updateDeal(id: string, patch: Partial<DealDraft>): Promise<Deal> {
   const supabase = getSupabaseAdmin();
+  // Re-geocode only when an address field is part of this update.
+  const addressTouched = ["street_address", "city", "state", "zip"].some((k) => k in patch);
+  const clean = sanitizeDraft(patch);
+  const finalPatch = addressTouched ? await withGeocode({ ...clean, latitude: null, longitude: null }) : clean;
   const { data, error } = await supabase
     .from("deals")
-    .update(sanitizeDraft(patch))
+    .update(finalPatch)
     .eq("id", id)
     .select()
     .single();
@@ -195,6 +215,10 @@ export async function addContactToPipeline(contactId: string, overrides: Partial
     source_type: "contact",
     source_id: contact.id,
     source: contact.source ?? null,
+    street_address: contact.address ?? null,
+    city: contact.city ?? null,
+    state: contact.state ?? null,
+    zip: contact.zip ?? null,
     ...overrides,
   }, actor);
   return { deal, created: true };
@@ -236,6 +260,10 @@ export async function addSubmissionToPipeline(submissionId: string, overrides: P
     source_id: sub.id,
     source: sub.how_heard ?? "website",
     notes: sub.message ?? null,
+    street_address: [sub.address_line1, sub.address_line2].filter(Boolean).join(", ") || null,
+    city: sub.city ?? null,
+    state: sub.state ?? null,
+    zip: sub.zip ?? null,
     ...overrides,
   }, actor);
   return { deal, created: true };
