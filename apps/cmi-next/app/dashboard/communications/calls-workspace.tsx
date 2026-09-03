@@ -95,9 +95,9 @@ function CallDirectionIcon({ direction, status }: { direction: string; status: s
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function CallsWorkspace({ onSmsTo }: { onSmsTo?: (phone: string) => void }) {
+export function CallsWorkspace({ onSmsTo, hideLog = false, initialNumber }: { onSmsTo?: (phone: string) => void; hideLog?: boolean; initialNumber?: string }) {
   // Dialer state
-  const [dialInput, setDialInput] = React.useState("");
+  const [dialInput, setDialInput] = React.useState(initialNumber ?? "");
   const [deviceStatus, setDeviceStatus] = React.useState<DeviceStatus>("unregistered");
   const [callState, setCallState] = React.useState<ActiveCallState>("idle");
   const [callDuration, setCallDuration] = React.useState(0);
@@ -360,8 +360,9 @@ export function CallsWorkspace({ onSmsTo }: { onSmsTo?: (phone: string) => void 
   const isCallActive = callState !== "idle";
 
   return (
-    <div className="flex-1 overflow-y-auto px-5 py-5">
-      {/* Stats bar */}
+    <div className={cn("flex-1 px-5 py-5", !hideLog && "overflow-y-auto")}>
+      {/* Stats bar (hidden in the compact dialer) */}
+      {!hideLog && (
       <div className="mb-5 flex snap-x gap-3 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] sm:grid sm:grid-cols-4 sm:overflow-visible sm:pb-0 xl:grid-cols-5 [&::-webkit-scrollbar]:hidden">
         <StatCard icon={PhoneOutgoing} label="Outbound today" value={stats ? String(stats.outboundToday) : "—"} tint="text-blue-500" />
         <StatCard icon={PhoneIncoming} label="Inbound today" value={stats ? String(stats.inboundToday) : "—"} tint="text-emerald-500" />
@@ -369,6 +370,7 @@ export function CallsWorkspace({ onSmsTo }: { onSmsTo?: (phone: string) => void 
         <StatCard icon={Hash} label="Total calls" value={stats ? String(stats.totalCalls) : "—"} tint="text-foreground" />
         <StatCard icon={DollarSign} label="Est. cost" value={stats ? `$${stats.totalCost.toFixed(2)}` : "—"} tint="text-emerald-600" />
       </div>
+      )}
 
       {/* Device error banner */}
       {deviceError && (
@@ -379,7 +381,7 @@ export function CallsWorkspace({ onSmsTo }: { onSmsTo?: (phone: string) => void 
         </div>
       )}
 
-      <div className="grid gap-5 lg:grid-cols-[360px_1fr]">
+      <div className={cn("grid gap-5", hideLog ? "max-w-sm" : "lg:grid-cols-[360px_1fr]")}>
         {/* ── Dialpad ── */}
         <div className="h-fit rounded-xl border border-border bg-card p-4">
           <div className="mb-3 flex items-center gap-2">
@@ -480,6 +482,7 @@ export function CallsWorkspace({ onSmsTo }: { onSmsTo?: (phone: string) => void 
             </div>
           )}
 
+          {!hideLog && (<>
           <div className="mb-3 flex items-center justify-between">
             <div className="flex items-center gap-1 rounded-lg border border-border bg-muted/40 p-1">
               <button onClick={() => { setHistoryTab("calls"); loadCalls(false); }} className={cn("flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition", historyTab === "calls" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
@@ -632,6 +635,7 @@ export function CallsWorkspace({ onSmsTo }: { onSmsTo?: (phone: string) => void 
               );
             })}
           </div>
+          </>)}
         </div>
       </div>
     </div>

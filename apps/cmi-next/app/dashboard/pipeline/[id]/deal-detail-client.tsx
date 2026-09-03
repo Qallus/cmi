@@ -6,15 +6,16 @@ import {
   ArrowLeft, Phone, Mail, MessageSquare, CalendarClock, StickyNote, Mic, Sparkles,
   FolderKanban, FileText, ScrollText, FileSignature, Package, ReceiptText, Trophy,
   Ban, Check, ChevronRight, Loader2, X, Pencil, CircleDot, Circle, CheckCircle2,
-  Clock, ArrowRight, Plus,
+  Clock, ArrowRight, Plus, Maximize2, Minimize2,
 } from "lucide-react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input, Select, Textarea } from "@/components/ui/input";
 import { MoneyInput } from "@/components/ui/money-input";
-import { Drawer } from "@/components/ui/drawer";
 import { BoltModal } from "@/components/dashboard/bolt-modal";
 import { CallsWorkspace } from "@/app/dashboard/communications/calls-workspace";
+import { RichTextEditor } from "@/components/notes/rich-text-editor";
 import { DEAL_STAGE_META, DEAL_STAGES, DEAL_STAGE_CHECKLIST, LOST_REASONS } from "@/lib/deals/stages";
 import type { Activity, ActivityType, Deal, DealChecklistProgress, DealStage, DealStageHistoryRow, DealTask } from "@/lib/deals/types";
 
@@ -126,6 +127,15 @@ export function DealDetailClient({
   const filteredActs = tab === "all" ? activities : activities.filter((a) => a.type === tab);
   const summaryCounts = (["call", "sms", "email", "note", "voice_note", "ai_agent", "appointment"] as ActivityType[])
     .map((t) => ({ t, n: activities.filter((a) => a.type === t).length }));
+
+  // Per-tab counts + "new since last viewed" (tracked per deal in localStorage).
+  const [seenAt] = React.useState<number>(() => { try { return Number(localStorage.getItem(`deal-acts-seen-${deal.id}`)) || 0; } catch { return 0; } });
+  React.useEffect(() => {
+    const t = setTimeout(() => { try { localStorage.setItem(`deal-acts-seen-${deal.id}`, String(Date.now())); } catch { /* ignore */ } }, 1500);
+    return () => clearTimeout(t);
+  }, [deal.id, activities.length]);
+  const countFor = (t: ActivityType | "all") => (t === "all" ? activities : activities.filter((a) => a.type === t)).length;
+  const newFor = (t: ActivityType | "all") => (t === "all" ? activities : activities.filter((a) => a.type === t)).filter((a) => new Date(a.occurred_at).getTime() > seenAt).length;
 
   return (
     <div className="min-h-[calc(100vh-56px)] bg-background">
@@ -246,11 +256,21 @@ export function DealDetailClient({
           {/* Activity timeline */}
           <Card title="Activity timeline" action={
             <div className="flex flex-wrap gap-1 text-xs">
-              {(["all", "call", "email", "sms", "note", "voice_note", "ai_agent", "appointment"] as const).map((t) => (
-                <button key={t} onClick={() => setTab(t)} className={cn("rounded-full px-2 py-0.5 font-medium transition", tab === t ? "bg-accent/15 text-accent" : "text-muted-foreground hover:text-foreground")}>
-                  {t === "all" ? "All" : ACTIVITY_META[t as ActivityType].label}
-                </button>
-              ))}
+              {(["all", "call", "email", "sms", "note", "voice_note", "ai_agent", "appointment"] as const).map((t) => {
+                const count = countFor(t);
+                const fresh = newFor(t);
+                return (
+                  <button key={t} onClick={() => setTab(t)} className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-medium transition", tab === t ? "bg-accent/15 text-accent" : "text-muted-foreground hover:text-foreground")}>
+                    {t === "all" ? "All" : ACTIVITY_META[t as ActivityType].label}
+                    {count > 0 && (
+                      <span className={cn("inline-flex min-w-[16px] items-center justify-center rounded-full px-1 text-[10px] font-semibold leading-4",
+                        fresh > 0 ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300" : "bg-muted text-muted-foreground")}>
+                        {count}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           }>
             {filteredActs.length === 0 ? <p className="text-sm text-muted-foreground">No activity yet.</p> : (
@@ -412,19 +432,21 @@ function ActionSheet({
   action: ActionKey; deal: Deal; contact: DealContact | null; owners: OwnerOption[]; ownerName: (id: string | null) => string;
   onClose: () => void; onDone: () => Promise<void>; logActivity: (type: ActivityType, summary: string, body?: string, metadata?: Record<string, unknown>) => Promise<void>;
 }) {
-  // Call opens the live browser dialer in a drawer.
+  // Call opens the live browser dialer (compact — no logs).
   if (action === "call") {
     return (
-      <Drawer open onClose={onClose} title={`Call ${contact?.name ?? ""}`} description={contact?.phone ? `Dial ${contact.phone} in the dialer below.` : "No phone on file."}>
+      <ModalShell title={`Call ${contact?.name ?? ""}`.trim()} onClose={onClose}>
         <div className="space-y-4">
-          <CallsWorkspace />
+          <CallsWorkspace hideLog initialNumber={contact?.phone ?? ""} />
           <QuickLog label="Log call outcome" onLog={async (summary, body) => { await logActivity("call", summary || "Call", body); await onDone(); }} />
         </div>
-      </Drawer>
+      </ModalShell>
     );
   }
   if (action === "schedule") return <ScheduleModal deal={deal} contact={contact} owners={owners} onClose={onClose} onDone={onDone} logActivity={logActivity} />;
   if (action === "voice") return <VoiceNoteModal onClose={onClose} onDone={onDone} logActivity={logActivity} />;
+  if (action === "selection") return <SelectionPickerModal onClose={onClose} onDone={onDone} logActivity={logActivity} />;
+  if (action === "note") return <NoteModal onClose={onClose} onDone={onDone} logActivity={logActivity} />;
   return <ActionModal action={action} deal={deal} contact={contact} owners={owners} ownerName={ownerName} onClose={onClose} onDone={onDone} logActivity={logActivity} />;
 }
 
@@ -456,6 +478,20 @@ function ActionModal({
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
   const set = (k: string, v: string) => setF((p) => ({ ...p, [k]: v }));
+
+  // Email templates (loaded for the Email action; selecting one fills the fields).
+  const [templates, setTemplates] = React.useState<{ id: string; name: string; subject: string | null }[]>([]);
+  const [templateId, setTemplateId] = React.useState("");
+  React.useEffect(() => {
+    if (action !== "email") return;
+    (async () => { const r = await fetch("/api/admin/email-templates"); if (r.ok) { const j = await r.json(); setTemplates(j.templates ?? []); } })();
+  }, [action]);
+  async function applyTemplate(id: string) {
+    setTemplateId(id);
+    if (!id) return;
+    const r = await fetch(`/api/admin/email-templates/${id}`);
+    if (r.ok) { const j = await r.json(); const t = j.template ?? {}; setF((p) => ({ ...p, subject: t.subject || p.subject, body: t.html || t.plain_text || p.body })); }
+  }
 
   const TITLES: Record<ActionKey, string> = {
     call: "Call", email: "Email", text: "Text", schedule: "Schedule", note: "Note", voice: "Voice note",
@@ -536,7 +572,17 @@ function ActionModal({
           <p className="text-sm text-muted-foreground">Invoices are created on a Job. Create or link a Job first (Project action), then add invoices from the job&apos;s Invoices tab.</p>
         ) : (
           <>
-            {(action === "email") && <L label="Subject" full><Input value={f.subject} onChange={(e) => set("subject", e.target.value)} placeholder="Subject" /></L>}
+            {(action === "email") && (
+              <div className="grid gap-3 sm:grid-cols-[1fr_200px]">
+                <L label="Subject"><Input value={f.subject} onChange={(e) => set("subject", e.target.value)} placeholder="Subject" /></L>
+                <L label="Template">
+                  <Select value={templateId} onChange={(e) => applyTemplate(e.target.value)}>
+                    <option value="">No template (manual)</option>
+                    {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </Select>
+                </L>
+              </div>
+            )}
             {(action === "text" || action === "email") && <p className="text-xs text-muted-foreground">To: {action === "email" ? (contact?.email ?? "—") : (contact?.phone ?? "—")}</p>}
             {(action === "note" || action === "voice" || action === "schedule" || action === "quote" || action === "contract" || action === "sow" || action === "project" || action === "selection") && (
               <L label={action === "quote" || action === "contract" || action === "sow" || action === "project" || action === "selection" ? "Title" : "Summary"} full>
@@ -629,7 +675,7 @@ function ScheduleModal({
   }
 
   return (
-    <ModalShell title="Schedule appointment" onClose={onClose}>
+    <ModalShell title="Schedule appointment" onClose={onClose} wide>
       {!contact?.email ? (
         <p className="text-sm text-muted-foreground">This deal needs a contact with an email to book an appointment. Add a contact first.</p>
       ) : (
@@ -735,12 +781,128 @@ function VoiceNoteModal({
   );
 }
 
-function ModalShell({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+// ─── Note: rich-text editor (Workspace-style) ─────────────────────
+function NoteModal({
+  onClose, onDone, logActivity,
+}: {
+  onClose: () => void; onDone: () => Promise<void>; logActivity: (type: ActivityType, summary: string, body?: string, metadata?: Record<string, unknown>) => Promise<void>;
+}) {
+  const [title, setTitle] = React.useState("");
+  const [body, setBody] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  const [err, setErr] = React.useState<string | null>(null);
+
+  async function save() {
+    const text = body.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    if (!title.trim() && !text) { setErr("Add a title or some content."); return; }
+    setBusy(true); setErr(null);
+    try {
+      await fetch("/api/notes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: title || "Note", body }) }).catch(() => {});
+      await logActivity("note", title || "Note", text || undefined);
+      await onDone();
+    } catch (e) { setErr(e instanceof Error ? e.message : "Save failed."); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <ModalShell title="Add a note" onClose={onClose} wide>
+      <div className="space-y-3">
+        <L label="Note title"><Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Discovery call recap" /></L>
+        <div>
+          <span className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Note</span>
+          <RichTextEditor value={body} onChange={setBody} placeholder="Write your note… format text, add links and images." />
+        </div>
+        {err && <p className="text-xs text-destructive">{err}</p>}
+      </div>
+      <div className="mt-4 flex items-center justify-between">
+        <Link href="/dashboard/documents" className="text-xs text-accent hover:underline">Open Workspace for a full document →</Link>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button variant="accent" onClick={save} disabled={busy}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Save note</Button>
+        </div>
+      </div>
+    </ModalShell>
+  );
+}
+
+// ─── Selection: multi-select from existing selections ─────────────
+function SelectionPickerModal({
+  onClose, onDone, logActivity,
+}: {
+  onClose: () => void; onDone: () => Promise<void>; logActivity: (type: ActivityType, summary: string, body?: string, metadata?: Record<string, unknown>) => Promise<void>;
+}) {
+  const [rows, setRows] = React.useState<{ id: string; name: string; project_name?: string | null; status?: string | null }[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [query, setQuery] = React.useState("");
+  const [picked, setPicked] = React.useState<Set<string>>(new Set());
+  const [busy, setBusy] = React.useState(false);
+
+  React.useEffect(() => {
+    (async () => {
+      const r = await fetch("/api/admin/selections");
+      const j = r.ok ? await r.json() : { selections: [] };
+      setRows(j.selections ?? []); setLoading(false);
+    })();
+  }, []);
+
+  const filtered = rows.filter((s) => !query || `${s.name} ${s.project_name ?? ""}`.toLowerCase().includes(query.toLowerCase()));
+  function toggle(id: string) { setPicked((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; }); }
+
+  async function attach() {
+    if (!picked.size) return;
+    setBusy(true);
+    const chosen = rows.filter((s) => picked.has(s.id));
+    await logActivity("selection", `Attached ${chosen.length} selection${chosen.length === 1 ? "" : "s"}`, chosen.map((s) => `• ${s.name}`).join("\n"), { selection_ids: [...picked] });
+    setBusy(false);
+    await onDone();
+  }
+
+  return (
+    <ModalShell title="Attach selections" onClose={onClose} wide>
+      <div className="relative mb-2">
+        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search selections…" className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-accent" />
+      </div>
+      <div className="max-h-[45vh] overflow-auto rounded-lg border border-border">
+        {loading ? <div className="py-10 text-center"><Loader2 className="mx-auto h-4 w-4 animate-spin text-muted-foreground" /></div>
+          : filtered.length === 0 ? <p className="p-6 text-center text-sm text-muted-foreground">No selections found.</p>
+          : filtered.map((s) => (
+            <label key={s.id} className="flex cursor-pointer items-center gap-3 border-b border-border px-3 py-2 last:border-0 hover:bg-muted/40">
+              <input type="checkbox" checked={picked.has(s.id)} onChange={() => toggle(s.id)} />
+              <div className="min-w-0 flex-1"><div className="truncate text-sm font-medium">{s.name}</div>{s.project_name && <div className="truncate text-[11px] text-muted-foreground">{s.project_name}</div>}</div>
+              {s.status && <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">{s.status}</span>}
+            </label>
+          ))}
+      </div>
+      <div className="mt-4 flex items-center justify-between">
+        <span className="text-sm text-muted-foreground">{picked.size} selected</span>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button variant="accent" onClick={attach} disabled={busy || !picked.size}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Package className="h-4 w-4" />} Attach {picked.size || ""}</Button>
+        </div>
+      </div>
+    </ModalShell>
+  );
+}
+
+function ModalShell({ title, onClose, wide, children }: { title: string; onClose: () => void; wide?: boolean; children: React.ReactNode }) {
+  const [expanded, setExpanded] = React.useState(false);
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="max-h-[90vh] w-full max-w-lg overflow-auto rounded-xl bg-card p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <div className="mb-4 flex items-center justify-between"><h2 className="font-display text-lg font-semibold">{title}</h2><button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-md hover:bg-muted"><X className="h-4 w-4" /></button></div>
-        {children}
+      <div
+        className={cn("flex flex-col overflow-hidden rounded-xl bg-card shadow-xl transition-all",
+          expanded ? "h-[95vh] w-[95vw] max-w-[95vw]" : cn("max-h-[90vh] w-full", wide ? "max-w-2xl" : "max-w-lg"))}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-border px-5 py-3">
+          <h2 className="font-display text-lg font-semibold">{title}</h2>
+          <div className="flex items-center gap-1">
+            <button onClick={() => setExpanded((v) => !v)} title={expanded ? "Minimize" : "Expand"} aria-label={expanded ? "Minimize" : "Expand"} className="grid h-8 w-8 place-items-center rounded-md hover:bg-muted">
+              {expanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            </button>
+            <button onClick={onClose} title="Close" aria-label="Close" className="grid h-8 w-8 place-items-center rounded-md hover:bg-muted"><X className="h-4 w-4" /></button>
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-5">{children}</div>
       </div>
     </div>
   );
