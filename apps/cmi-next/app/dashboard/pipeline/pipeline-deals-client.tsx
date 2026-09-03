@@ -30,10 +30,11 @@ const VIEWS: { key: ViewMode; label: string; icon: typeof ListIcon }[] = [
 const JOB_TYPES = ["Whole Home Remodel", "Kitchen", "Bathroom Remodel", "ADU/Casita", "Addition", "New Build", "Tenant Improvement", "Warranty", "Service Work", "Other"];
 
 const TONE_CLASS: Record<string, string> = {
-  info: "bg-blue-500/12 text-blue-600 dark:text-blue-300",
+  // Early stages: on-brand green chip (was blue) — matches the Pipeline Value accent.
+  info: "bg-emerald-500/12 text-emerald-700 dark:text-emerald-300",
   accent: "bg-accent/15 text-accent",
   warning: "bg-amber-500/15 text-amber-600 dark:text-amber-300",
-  success: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300",
+  success: "bg-emerald-600/18 text-emerald-700 dark:text-emerald-300",
   danger: "bg-destructive/15 text-destructive",
   muted: "bg-muted text-muted-foreground",
 };

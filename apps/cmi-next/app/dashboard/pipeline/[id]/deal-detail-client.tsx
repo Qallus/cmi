@@ -179,13 +179,13 @@ export function DealDetailClient({
       </div>
 
       {/* Body grid */}
-      <div className="grid gap-4 p-4 md:px-6 lg:grid-cols-[64px_minmax(0,1fr)_300px]">
+      <div className="grid gap-4 p-4 md:px-6 lg:grid-cols-[164px_minmax(0,1fr)_300px]">
         {/* Quick action rail */}
         <aside className="flex flex-row flex-wrap gap-1 lg:flex-col lg:gap-0.5">
           {ACTIONS.map(({ key, label, icon: Icon }) => (
             <button key={key} type="button" disabled={!canWrite} title={label}
               onClick={() => (key === "ai" ? setShowAI(true) : setAction(key))}
-              className="flex items-center gap-2 rounded-md px-2 py-2 text-xs font-medium text-muted-foreground transition hover:bg-muted hover:text-accent disabled:opacity-40">
+              className="flex items-center gap-2 whitespace-nowrap rounded-md px-2.5 py-2 text-xs font-medium text-muted-foreground transition hover:bg-muted hover:text-accent disabled:opacity-40 lg:w-full">
               <Icon className="h-4 w-4 shrink-0" /> <span className="hidden lg:inline">{label}</span>
             </button>
           ))}
