@@ -6,6 +6,7 @@ import {
   Plus, Search, UserPlus, X, Loader2, Phone, MessageSquare, Mail, StickyNote,
   Mic, Sparkles, Package, CalendarClock, Users2, MapPin, ScanLine, CheckCircle2,
   Circle, ArrowRight, Clock, TrendingUp, Trophy, CalendarDays,
+  List as ListIcon, Table2, Columns3, Map as MapIcon, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,16 @@ import type { Deal, DealStage, Activity, ActivityType, DealTask, DealStageHistor
 
 export type OwnerOption = { id: string; name: string };
 export type SourceRow = { id: string; label: string; sub: string };
+
+type ViewMode = "list" | "table" | "kanban" | "calendar" | "map";
+const VIEWS: { key: ViewMode; label: string; icon: typeof ListIcon }[] = [
+  { key: "list", label: "List", icon: ListIcon },
+  { key: "table", label: "Table", icon: Table2 },
+  { key: "kanban", label: "Kanban", icon: Columns3 },
+  { key: "calendar", label: "Calendar", icon: CalendarDays },
+  { key: "map", label: "Map", icon: MapIcon },
+];
+const JOB_TYPES = ["Whole Home Remodel", "Kitchen", "Bathroom Remodel", "ADU/Casita", "Addition", "New Build", "Tenant Improvement", "Warranty", "Service Work", "Other"];
 
 const TONE_CLASS: Record<string, string> = {
   info: "bg-blue-500/12 text-blue-600 dark:text-blue-300",
@@ -64,8 +75,13 @@ export function PipelineDealsClient({
 }) {
   const router = useRouter();
   const [deals, setDeals] = React.useState<Deal[]>(initialDeals);
+  const [view, setView] = React.useState<ViewMode>("list");
   const [query, setQuery] = React.useState("");
   const [ownerFilter, setOwnerFilter] = React.useState("all");
+  const [stageFilter, setStageFilter] = React.useState<DealStage | "all">("all");
+  const [jobTypeFilter, setJobTypeFilter] = React.useState("all");
+  const [dateFrom, setDateFrom] = React.useState("");
+  const [dateTo, setDateTo] = React.useState("");
   const [showCreate, setShowCreate] = React.useState(false);
   const [showAdd, setShowAdd] = React.useState(false);
 
@@ -76,14 +92,34 @@ export function PipelineDealsClient({
     if (res.ok) setDeals(await res.json());
   }, []);
 
+  const openDeal = React.useCallback((id: string) => router.push(`/dashboard/pipeline/${id}`), [router]);
+
   const filtered = React.useMemo(() => {
     const q = query.trim().toLowerCase();
     return deals.filter((d) => {
       if (ownerFilter !== "all" && d.owner_id !== ownerFilter) return false;
+      if (stageFilter !== "all" && d.stage !== stageFilter) return false;
+      if (jobTypeFilter !== "all" && (d.job_type ?? "") !== jobTypeFilter) return false;
+      if (dateFrom && (!d.expected_close_date || d.expected_close_date < dateFrom)) return false;
+      if (dateTo && (!d.expected_close_date || d.expected_close_date > dateTo)) return false;
       if (!q) return true;
-      return [d.title, d.job_number, d.next_action, d.source].some((v) => (v ?? "").toLowerCase().includes(q));
+      return [d.title, d.job_number, d.next_action, d.source, d.job_type].some((v) => (v ?? "").toLowerCase().includes(q));
     });
-  }, [deals, query, ownerFilter]);
+  }, [deals, query, ownerFilter, stageFilter, jobTypeFilter, dateFrom, dateTo]);
+
+  const filtersActive = ownerFilter !== "all" || stageFilter !== "all" || jobTypeFilter !== "all" || !!dateFrom || !!dateTo || !!query;
+  function clearFilters() { setOwnerFilter("all"); setStageFilter("all"); setJobTypeFilter("all"); setDateFrom(""); setDateTo(""); setQuery(""); }
+
+  // Kanban drag-to-move: optimistic stage update, then persist + refresh.
+  const moveStage = React.useCallback(async (id: string, to: DealStage) => {
+    setDeals((prev) => prev.map((d) => (d.id === id ? { ...d, stage: to } : d)));
+    const res = await fetch(`/api/deals/${id}/stage`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ to, patch: to === "lost_on_hold" ? { lost_reason: "moved on board" } : {} }),
+    });
+    if (!res.ok) { const j = await res.json().catch(() => ({})); alert(j.error || "Couldn't move deal."); }
+    await refresh();
+  }, [refresh]);
 
   const openDeals = deals.filter((d) => DEAL_STAGE_META[d.stage].open);
   const stats = {
@@ -117,66 +153,62 @@ export function PipelineDealsClient({
         </div>
       </div>
 
-      {/* Toolbar */}
-      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border px-4 py-2.5 md:px-6">
-        <div className="relative min-w-[220px] flex-1">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search deals…" className="pl-8" />
+      {/* Toolbar: view switcher + filters */}
+      <div className="shrink-0 space-y-2 border-b border-border px-4 py-2.5 md:px-6">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-0.5 rounded-lg border border-border p-0.5">
+            {VIEWS.map((v) => (
+              <button key={v.key} type="button" onClick={() => setView(v.key)} title={v.label}
+                className={cn("flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition", view === v.key ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground")}>
+                <v.icon className="h-3.5 w-3.5" /> <span className="hidden sm:inline">{v.label}</span>
+              </button>
+            ))}
+          </div>
+          <div className="relative min-w-[200px] flex-1">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search deals…" className="pl-8" />
+          </div>
         </div>
-        <Select value={ownerFilter} onChange={(e) => setOwnerFilter(e.target.value)} className="w-auto min-w-[150px]">
-          <option value="all">All Owners</option>
-          {owners.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-        </Select>
+        <div className="flex flex-wrap items-center gap-2">
+          <Select value={stageFilter} onChange={(e) => setStageFilter(e.target.value as DealStage | "all")} className="w-auto min-w-[130px]">
+            <option value="all">All Stages</option>
+            {DEAL_STAGES.map((s) => <option key={s} value={s}>{DEAL_STAGE_META[s].label}</option>)}
+          </Select>
+          <Select value={ownerFilter} onChange={(e) => setOwnerFilter(e.target.value)} className="w-auto min-w-[130px]">
+            <option value="all">All Owners</option>
+            {owners.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+          </Select>
+          <Select value={jobTypeFilter} onChange={(e) => setJobTypeFilter(e.target.value)} className="w-auto min-w-[130px]">
+            <option value="all">All Job Types</option>
+            {JOB_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+          </Select>
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            <span>Close</span>
+            <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-auto" />
+            <span>–</span>
+            <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-auto" />
+          </div>
+          {filtersActive && <button type="button" onClick={clearFilters} className="text-xs text-muted-foreground hover:text-foreground">Clear filters</button>}
+          <span className="ml-auto text-xs text-muted-foreground">{filtered.length} deal{filtered.length === 1 ? "" : "s"}</span>
+        </div>
       </div>
 
-      {/* List view */}
+      {/* View area */}
       <div className="flex-1 overflow-auto px-4 py-4 md:px-6">
         {filtered.length === 0 ? (
           <div className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
-            No deals yet. {canWrite && "Use “Add Deal” or “Add to Pipeline” to get started."}
+            {deals.length === 0 ? <>No deals yet. {canWrite && "Use “Add Deal” or “Add to Pipeline” to get started."}</> : "No deals match the current filters."}
           </div>
+        ) : view === "list" ? (
+          <ListView deals={filtered} ownerName={ownerName} onOpen={openDeal} />
+        ) : view === "table" ? (
+          <TableView deals={filtered} ownerName={ownerName} onOpen={openDeal} />
+        ) : view === "kanban" ? (
+          <KanbanView deals={filtered} onOpen={openDeal} canWrite={canWrite} onMove={moveStage} />
+        ) : view === "calendar" ? (
+          <CalendarView deals={filtered} onOpen={openDeal} />
         ) : (
-          <div className="overflow-hidden rounded-lg border border-border">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-2 font-medium">Deal</th>
-                  <th className="px-3 py-2 font-medium">Stage</th>
-                  <th className="px-3 py-2 font-medium text-right">Value</th>
-                  <th className="px-3 py-2 font-medium">Owner</th>
-                  <th className="px-3 py-2 font-medium">Last activity</th>
-                  <th className="px-3 py-2 font-medium">Next action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((d) => {
-                  const overdue = d.next_action_due && d.next_action_due < new Date().toISOString().slice(0, 10);
-                  return (
-                    <tr key={d.id} onClick={() => router.push(`/dashboard/pipeline/${d.id}`)} className="cursor-pointer border-t border-border transition hover:bg-muted/40">
-                      <td className="px-3 py-2.5">
-                        <div className="font-medium">{d.title}</div>
-                        {d.job_number && <div className="font-mono text-[11px] text-muted-foreground">{d.job_number}</div>}
-                      </td>
-                      <td className="px-3 py-2.5"><StageBadge stage={d.stage} /></td>
-                      <td className="px-3 py-2.5 text-right tabular-nums">{money(d.estimated_value)}</td>
-                      <td className="px-3 py-2.5 text-muted-foreground">{ownerName(d.owner_id)}</td>
-                      <td className="px-3 py-2.5 text-muted-foreground">
-                        {d.last_activity_at ? `${daysSince(d.last_activity_at)}d ago` : "—"}
-                      </td>
-                      <td className="px-3 py-2.5">
-                        {d.next_action ? (
-                          <div>
-                            <div className="truncate max-w-[220px]">{d.next_action}</div>
-                            {d.next_action_due && <div className={cn("text-[11px]", overdue ? "text-destructive" : "text-muted-foreground")}>{fmtDate(d.next_action_due)}{overdue ? " · overdue" : ""}</div>}
-                          </div>
-                        ) : <span className="text-muted-foreground">—</span>}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <MapView />
         )}
       </div>
 
@@ -194,6 +226,176 @@ export function PipelineDealsClient({
           onAdded={async () => { setShowAdd(false); await refresh(); }}
         />
       )}
+    </div>
+  );
+}
+
+// ─── List view (roomy rows) ───────────────────────────────────────
+function ListView({ deals, ownerName, onOpen }: { deals: Deal[]; ownerName: (id: string | null) => string; onOpen: (id: string) => void }) {
+  const today = new Date().toISOString().slice(0, 10);
+  return (
+    <div className="overflow-hidden rounded-lg border border-border">
+      <table className="w-full text-sm">
+        <thead className="bg-muted/50 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+          <tr>
+            <th className="px-3 py-2 font-medium">Deal</th>
+            <th className="px-3 py-2 font-medium">Stage</th>
+            <th className="px-3 py-2 font-medium text-right">Value</th>
+            <th className="px-3 py-2 font-medium">Owner</th>
+            <th className="px-3 py-2 font-medium">Last activity</th>
+            <th className="px-3 py-2 font-medium">Next action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {deals.map((d) => {
+            const overdue = d.next_action_due && d.next_action_due < today;
+            return (
+              <tr key={d.id} onClick={() => onOpen(d.id)} className="cursor-pointer border-t border-border transition hover:bg-muted/40">
+                <td className="px-3 py-2.5"><div className="font-medium">{d.title}</div>{d.job_number && <div className="font-mono text-[11px] text-muted-foreground">{d.job_number}</div>}</td>
+                <td className="px-3 py-2.5"><StageBadge stage={d.stage} /></td>
+                <td className="px-3 py-2.5 text-right tabular-nums">{money(d.estimated_value)}</td>
+                <td className="px-3 py-2.5 text-muted-foreground">{ownerName(d.owner_id)}</td>
+                <td className="px-3 py-2.5 text-muted-foreground">{d.last_activity_at ? `${daysSince(d.last_activity_at)}d ago` : "—"}</td>
+                <td className="px-3 py-2.5">{d.next_action ? <div><div className="max-w-[220px] truncate">{d.next_action}</div>{d.next_action_due && <div className={cn("text-[11px]", overdue ? "text-destructive" : "text-muted-foreground")}>{fmtDate(d.next_action_due)}{overdue ? " · overdue" : ""}</div>}</div> : <span className="text-muted-foreground">—</span>}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ─── Table view (compact, more columns) ───────────────────────────
+function TableView({ deals, ownerName, onOpen }: { deals: Deal[]; ownerName: (id: string | null) => string; onOpen: (id: string) => void }) {
+  return (
+    <div className="overflow-x-auto rounded-lg border border-border">
+      <table className="w-full text-sm">
+        <thead className="bg-muted/50 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+          <tr>
+            <th className="px-3 py-2 font-medium">Deal</th>
+            <th className="px-3 py-2 font-medium">Stage</th>
+            <th className="px-3 py-2 font-medium">Owner</th>
+            <th className="px-3 py-2 font-medium">Job type</th>
+            <th className="px-3 py-2 font-medium text-right">Value</th>
+            <th className="px-3 py-2 font-medium text-right">Prob.</th>
+            <th className="px-3 py-2 font-medium">Close</th>
+            <th className="px-3 py-2 font-medium">Source</th>
+          </tr>
+        </thead>
+        <tbody>
+          {deals.map((d) => (
+            <tr key={d.id} onClick={() => onOpen(d.id)} className="cursor-pointer border-t border-border transition hover:bg-muted/40">
+              <td className="px-3 py-2 font-medium">{d.title}</td>
+              <td className="px-3 py-2"><StageBadge stage={d.stage} /></td>
+              <td className="px-3 py-2 text-muted-foreground">{ownerName(d.owner_id)}</td>
+              <td className="px-3 py-2 text-muted-foreground">{d.job_type || "—"}</td>
+              <td className="px-3 py-2 text-right tabular-nums">{money(d.estimated_value)}</td>
+              <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{d.probability != null ? `${d.probability}%` : "—"}</td>
+              <td className="px-3 py-2 text-muted-foreground">{fmtDate(d.expected_close_date)}</td>
+              <td className="px-3 py-2 text-muted-foreground">{d.source || "—"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ─── Kanban view (drag a card between stages) ─────────────────────
+function KanbanView({ deals, onOpen, canWrite, onMove }: { deals: Deal[]; onOpen: (id: string) => void; canWrite: boolean; onMove: (id: string, to: DealStage) => void }) {
+  const [dragId, setDragId] = React.useState<string | null>(null);
+  const [overStage, setOverStage] = React.useState<DealStage | null>(null);
+  const cols = DEAL_STAGES;
+  return (
+    <div className="flex gap-3 overflow-x-auto pb-2">
+      {cols.map((s) => {
+        const m = DEAL_STAGE_META[s];
+        const items = deals.filter((d) => d.stage === s);
+        const total = items.reduce((sum, d) => sum + (d.estimated_value ?? 0), 0);
+        return (
+          <div key={s}
+            onDragOver={(e) => { if (canWrite && dragId) { e.preventDefault(); if (overStage !== s) setOverStage(s); } }}
+            onDrop={() => { if (canWrite && dragId) onMove(dragId, s); setDragId(null); setOverStage(null); }}
+            className={cn("flex w-64 shrink-0 flex-col rounded-lg border bg-muted/20", overStage === s ? "border-accent ring-1 ring-accent" : "border-border")}>
+            <div className="flex items-center justify-between border-b border-border px-3 py-2">
+              <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", TONE_CLASS[m.tone])}>{m.label}</span>
+              <span className="text-[11px] text-muted-foreground">{items.length} · {money(total)}</span>
+            </div>
+            <div className="flex-1 space-y-2 p-2">
+              {items.map((d) => (
+                <div key={d.id} draggable={canWrite} onDragStart={() => setDragId(d.id)} onDragEnd={() => { setDragId(null); setOverStage(null); }}
+                  onClick={() => onOpen(d.id)}
+                  className={cn("cursor-pointer rounded-md border border-border bg-card p-2.5 text-sm shadow-sm transition hover:border-accent/50", dragId === d.id && "opacity-40")}>
+                  <div className="font-medium leading-tight">{d.title}</div>
+                  <div className="mt-1 flex items-center justify-between text-[11px] text-muted-foreground">
+                    <span>{money(d.estimated_value)}</span>
+                    {d.expected_close_date && <span>{fmtDate(d.expected_close_date)}</span>}
+                  </div>
+                </div>
+              ))}
+              {items.length === 0 && <div className="rounded-md border border-dashed border-border py-6 text-center text-[11px] text-muted-foreground">Drop here</div>}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Calendar view (deals on their expected close date) ───────────
+function CalendarView({ deals, onOpen }: { deals: Deal[]; onOpen: (id: string) => void }) {
+  const [cursor, setCursor] = React.useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
+  const first = new Date(cursor.y, cursor.m, 1);
+  const startDay = first.getDay();
+  const daysInMonth = new Date(cursor.y, cursor.m + 1, 0).getDate();
+  const cells: (number | null)[] = [...Array(startDay).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
+  const byDay = new Map<number, Deal[]>();
+  for (const d of deals) {
+    if (!d.expected_close_date) continue;
+    const dt = new Date(d.expected_close_date);
+    if (dt.getFullYear() === cursor.y && dt.getMonth() === cursor.m) {
+      const day = dt.getDate();
+      byDay.set(day, [...(byDay.get(day) ?? []), d]);
+    }
+  }
+  const monthLabel = first.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  const shift = (delta: number) => setCursor((c) => { const m = c.m + delta; return { y: c.y + Math.floor(m / 12), m: ((m % 12) + 12) % 12 }; });
+  return (
+    <div>
+      <div className="mb-3 flex items-center justify-between">
+        <div className="font-display text-lg font-semibold">{monthLabel}</div>
+        <div className="flex items-center gap-1">
+          <button onClick={() => shift(-1)} className="grid h-8 w-8 place-items-center rounded-md border border-border hover:bg-muted"><ChevronLeft className="h-4 w-4" /></button>
+          <button onClick={() => setCursor(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; })} className="rounded-md border border-border px-2.5 py-1.5 text-xs hover:bg-muted">Today</button>
+          <button onClick={() => shift(1)} className="grid h-8 w-8 place-items-center rounded-md border border-border hover:bg-muted"><ChevronRight className="h-4 w-4" /></button>
+        </div>
+      </div>
+      <div className="grid grid-cols-7 gap-px overflow-hidden rounded-lg border border-border bg-border text-xs">
+        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => <div key={d} className="bg-muted/50 px-2 py-1.5 text-center font-medium text-muted-foreground">{d}</div>)}
+        {cells.map((day, i) => (
+          <div key={i} className="min-h-[92px] bg-card p-1.5">
+            {day && <div className="mb-1 text-[11px] text-muted-foreground">{day}</div>}
+            <div className="space-y-1">
+              {(byDay.get(day ?? -1) ?? []).map((d) => (
+                <button key={d.id} onClick={() => onOpen(d.id)} className="block w-full truncate rounded bg-accent/15 px-1.5 py-0.5 text-left text-[11px] font-medium text-accent hover:bg-accent/25" title={`${d.title} · ${money(d.estimated_value)}`}>{d.title}</button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      <p className="mt-2 text-[11px] text-muted-foreground">Deals are placed on their expected close date. Set a close date on a deal to see it here.</p>
+    </div>
+  );
+}
+
+// ─── Map view (needs deal geolocation — not captured yet) ─────────
+function MapView() {
+  return (
+    <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-20 text-center">
+      <MapIcon className="mb-3 h-8 w-8 text-muted-foreground" />
+      <p className="text-sm font-medium">Map view needs deal locations</p>
+      <p className="mt-1 max-w-sm text-xs text-muted-foreground">Deals don&apos;t store a project address/coordinates yet. Once we add a location field to deals (and geocode it, like Jobs), pins will appear here.</p>
     </div>
   );
 }
