@@ -36,6 +36,9 @@ export type Deal = {
 
   estimated_value: number | null;
   target_start_date: string | null;
+  expected_close_date: string | null;
+  job_type: string | null;
+  probability: number | null;
 
   owner_id: string | null;
 
@@ -127,6 +130,15 @@ export type DealTask = {
 };
 
 export type DealTaskDraft = Partial<Omit<DealTask, "id" | "created_at" | "updated_at">> & { title: string };
+
+// Per-deal completion of a code-defined stage checklist item.
+export type DealChecklistProgress = {
+  id: string;
+  deal_id: string;
+  item_key: string;
+  completed_at: string;
+  completed_by: string | null;
+};
 
 // Actor passed from API routes into the data layer for provenance.
 export type Actor = { name?: string | null; id?: string | null };

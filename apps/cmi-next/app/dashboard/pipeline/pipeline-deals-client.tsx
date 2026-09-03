@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import {
   Plus, Search, UserPlus, X, Loader2, Phone, MessageSquare, Mail, StickyNote,
   Mic, Sparkles, Package, CalendarClock, Users2, MapPin, ScanLine, CheckCircle2,
@@ -61,10 +62,10 @@ export function PipelineDealsClient({
 }: {
   initialDeals: Deal[]; owners: OwnerOption[]; contacts: SourceRow[]; quotes: SourceRow[]; submissions: SourceRow[]; canWrite: boolean;
 }) {
+  const router = useRouter();
   const [deals, setDeals] = React.useState<Deal[]>(initialDeals);
   const [query, setQuery] = React.useState("");
   const [ownerFilter, setOwnerFilter] = React.useState("all");
-  const [selectedId, setSelectedId] = React.useState<string | null>(null);
   const [showCreate, setShowCreate] = React.useState(false);
   const [showAdd, setShowAdd] = React.useState(false);
 
@@ -74,10 +75,6 @@ export function PipelineDealsClient({
     const res = await fetch("/api/deals");
     if (res.ok) setDeals(await res.json());
   }, []);
-
-  // Derive the open drawer's deal from the id so it always reflects the latest
-  // list after a refresh (no syncing effect needed).
-  const selected = React.useMemo(() => deals.find((d) => d.id === selectedId) ?? null, [deals, selectedId]);
 
   const filtered = React.useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -155,7 +152,7 @@ export function PipelineDealsClient({
                 {filtered.map((d) => {
                   const overdue = d.next_action_due && d.next_action_due < new Date().toISOString().slice(0, 10);
                   return (
-                    <tr key={d.id} onClick={() => setSelectedId(d.id)} className="cursor-pointer border-t border-border transition hover:bg-muted/40">
+                    <tr key={d.id} onClick={() => router.push(`/dashboard/pipeline/${d.id}`)} className="cursor-pointer border-t border-border transition hover:bg-muted/40">
                       <td className="px-3 py-2.5">
                         <div className="font-medium">{d.title}</div>
                         {d.job_number && <div className="font-mono text-[11px] text-muted-foreground">{d.job_number}</div>}
@@ -183,13 +180,6 @@ export function PipelineDealsClient({
         )}
       </div>
 
-      {selected && (
-        <DealDrawer
-          deal={selected} owners={owners} ownerName={ownerName} canWrite={canWrite}
-          onClose={() => setSelectedId(null)}
-          onChanged={refresh}
-        />
-      )}
       {showCreate && (
         <DealFormModal
           owners={owners} contacts={contacts} title="Add Deal"
@@ -219,270 +209,6 @@ function StatCard({ icon: Icon, label, value, tone }: { icon: typeof TrendingUp;
     </div>
   );
 }
-
-// ─── Deal detail drawer ───────────────────────────────────────────
-function DealDrawer({
-  deal, owners, ownerName, canWrite, onClose, onChanged,
-}: {
-  deal: Deal; owners: OwnerOption[]; ownerName: (id: string | null) => string; canWrite: boolean;
-  onClose: () => void; onChanged: () => Promise<void>;
-}) {
-  const [activities, setActivities] = React.useState<Activity[]>([]);
-  const [tasks, setTasks] = React.useState<DealTask[]>([]);
-  const [history, setHistory] = React.useState<DealStageHistoryRow[]>([]);
-  const [loading, setLoading] = React.useState(true);
-
-  // Fetch the drawer's sub-data. State is only set after the awaits resolve, so
-  // this is safe to call from the mount effect without cascading renders
-  // (loading starts true).
-  const load = React.useCallback(async () => {
-    const [a, t, h] = await Promise.all([
-      fetch(`/api/deals/${deal.id}/activities`).then((r) => (r.ok ? r.json() : [])),
-      fetch(`/api/deals/${deal.id}/tasks`).then((r) => (r.ok ? r.json() : [])),
-      fetch(`/api/deals/${deal.id}/stage`).then((r) => (r.ok ? r.json() : [])),
-    ]);
-    setActivities(a); setTasks(t); setHistory(h); setLoading(false);
-  }, [deal.id]);
-  // Load the drawer's sub-data when it opens. load() only sets state after its
-  // awaits, so this doesn't cascade — the lint rule can't see through the async.
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  React.useEffect(() => { load(); }, [load]);
-
-  // Days in stage = time since the most recent change INTO the current stage.
-  const enteredStageAt = React.useMemo(() => {
-    const entry = [...history].reverse().find((h) => h.to_stage === deal.stage);
-    return entry?.changed_at ?? deal.created_at;
-  }, [history, deal.stage, deal.created_at]);
-
-  async function toggleTask(task: DealTask) {
-    await fetch(`/api/deals/tasks/${task.id}`, {
-      method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ completed_at: task.completed_at ? null : new Date().toISOString() }),
-    });
-    await load();
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onClick={onClose}>
-      <div className="flex h-full w-full max-w-xl flex-col bg-card shadow-xl" onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
-        <div className="flex items-start justify-between gap-3 border-b border-border p-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <StageBadge stage={deal.stage} />
-              {deal.job_number && <span className="font-mono text-xs text-muted-foreground">{deal.job_number}</span>}
-            </div>
-            <h2 className="mt-2 font-display text-lg font-semibold">{deal.title}</h2>
-          </div>
-          <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-md hover:bg-muted"><X className="h-4 w-4" /></button>
-        </div>
-
-        <div className="flex-1 space-y-5 overflow-auto p-4">
-          {/* Facts */}
-          <div className="grid grid-cols-2 gap-3">
-            <Fact label="Estimated value" value={money(deal.estimated_value)} />
-            <Fact label="Owner" value={ownerName(deal.owner_id)} />
-            <Fact label="Last activity" value={deal.last_activity_at ? `${daysSince(deal.last_activity_at)}d ago` : "—"} />
-            <Fact label="Days in stage" value={`${daysSince(enteredStageAt) ?? 0}d`} />
-            <Fact label="Next action" value={deal.next_action || "—"} />
-            <Fact label="Next action due" value={fmtDate(deal.next_action_due)} />
-          </div>
-
-          {canWrite && <StageChanger deal={deal} onDone={async () => { await onChanged(); await load(); }} />}
-
-          {/* Activity log */}
-          <section>
-            <h3 className="mb-2 text-sm font-semibold">Activity</h3>
-            {canWrite && <ActivityQuickEntry dealId={deal.id} owners={owners} onLogged={async () => { await onChanged(); await load(); }} />}
-            {loading ? (
-              <div className="py-6 text-center text-sm text-muted-foreground"><Loader2 className="mx-auto h-4 w-4 animate-spin" /></div>
-            ) : activities.length === 0 ? (
-              <p className="py-3 text-sm text-muted-foreground">No activity yet.</p>
-            ) : (
-              <ul className="mt-3 space-y-3">
-                {activities.map((a) => {
-                  const Icon = ACTIVITY_ICON[a.type] ?? StickyNote;
-                  return (
-                    <li key={a.id} className="flex gap-3">
-                      <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-muted"><Icon className="h-3.5 w-3.5" /></span>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-sm font-medium">{a.summary || ACTIVITY_LABEL[a.type]}</span>
-                          <span className="shrink-0 text-[11px] text-muted-foreground">{fmtWhen(a.occurred_at)}</span>
-                        </div>
-                        {a.body && <p className="mt-0.5 whitespace-pre-wrap text-sm text-muted-foreground">{a.body}</p>}
-                        <div className="mt-0.5 text-[11px] text-muted-foreground">{ACTIVITY_LABEL[a.type]}{a.created_by_name ? ` · ${a.created_by_name}` : ""}</div>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </section>
-
-          {/* Tasks */}
-          <section>
-            <h3 className="mb-2 text-sm font-semibold">Tasks</h3>
-            {tasks.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No tasks.</p>
-            ) : (
-              <ul className="space-y-1.5">
-                {tasks.map((t) => (
-                  <li key={t.id} className="flex items-center gap-2 rounded-md border border-border px-2.5 py-2">
-                    <button onClick={() => canWrite && toggleTask(t)} disabled={!canWrite} className="shrink-0 text-accent disabled:opacity-50">
-                      {t.completed_at ? <CheckCircle2 className="h-4 w-4" /> : <Circle className="h-4 w-4 text-muted-foreground" />}
-                    </button>
-                    <span className={cn("flex-1 text-sm", t.completed_at && "text-muted-foreground line-through")}>{t.title}</span>
-                    {t.due_at && <span className="text-[11px] text-muted-foreground">{fmtDate(t.due_at)}</span>}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-
-          {/* Stage history */}
-          <section>
-            <h3 className="mb-2 text-sm font-semibold">Stage history</h3>
-            {history.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No stage changes recorded.</p>
-            ) : (
-              <ul className="space-y-2">
-                {history.map((h) => (
-                  <li key={h.id} className="flex items-center gap-2 text-sm">
-                    <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                    <span className="text-muted-foreground">{fmtWhen(h.changed_at)}</span>
-                    <span className="flex items-center gap-1">
-                      {h.from_stage && <><span className="text-muted-foreground">{DEAL_STAGE_META[h.from_stage as DealStage]?.label ?? h.from_stage}</span><ArrowRight className="h-3 w-3 text-muted-foreground" /></>}
-                      <span className="font-medium">{DEAL_STAGE_META[h.to_stage as DealStage]?.label ?? h.to_stage}</span>
-                    </span>
-                    {h.changed_by && <span className="text-[11px] text-muted-foreground">· {h.changed_by}</span>}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Fact({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-md border border-border p-2.5">
-      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className="mt-0.5 text-sm font-medium">{value}</div>
-    </div>
-  );
-}
-
-function StageChanger({ deal, onDone }: { deal: Deal; onDone: () => Promise<void> }) {
-  const [to, setTo] = React.useState<DealStage>(deal.stage);
-  const [note, setNote] = React.useState("");
-  const [lostReason, setLostReason] = React.useState("");
-  const [saving, setSaving] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
-
-  async function submit() {
-    if (to === deal.stage) return;
-    setSaving(true); setError(null);
-    const patch = to === "lost_on_hold" ? { lost_reason: lostReason } : {};
-    const res = await fetch(`/api/deals/${deal.id}/stage`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ to, note: note || null, patch }),
-    });
-    setSaving(false);
-    if (!res.ok) { setError((await res.json()).error || "Failed to change stage."); return; }
-    setNote(""); setLostReason("");
-    await onDone();
-  }
-
-  return (
-    <div className="rounded-lg border border-border bg-muted/30 p-3">
-      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Move stage</div>
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <Select value={to} onChange={(e) => setTo(e.target.value as DealStage)} className="w-auto min-w-[170px]">
-          {DEAL_STAGES.map((s) => <option key={s} value={s}>{DEAL_STAGE_META[s].label}</option>)}
-        </Select>
-        <Button size="sm" variant="accent" onClick={submit} disabled={saving || to === deal.stage}>
-          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />} Update
-        </Button>
-      </div>
-      {to === "lost_on_hold" && (
-        <Select value={lostReason} onChange={(e) => setLostReason(e.target.value)} className="mt-2">
-          <option value="">Select a reason…</option>
-          {LOST_REASONS.map((r) => <option key={r} value={r}>{r.replace(/_/g, " ")}</option>)}
-        </Select>
-      )}
-      {to === "closed_won" && deal.stage !== "closed_won" && (
-        <p className="mt-2 text-[11px] text-muted-foreground">Moving to Closed Won creates the Pre-Con record and assigns a number.</p>
-      )}
-      <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note (optional)" className="mt-2" />
-      {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
-    </div>
-  );
-}
-
-const ACTIVITY_TYPES: ActivityType[] = ["call", "sms", "email", "note", "voice_note", "meeting", "site_visit", "appointment", "selection", "scan_3d", "ai_agent"];
-
-function ActivityQuickEntry({ dealId, owners, onLogged }: { dealId: string; owners: OwnerOption[]; onLogged: () => Promise<void> }) {
-  const [type, setType] = React.useState<ActivityType>("note");
-  const [summary, setSummary] = React.useState("");
-  const [body, setBody] = React.useState("");
-  const [addTask, setAddTask] = React.useState(false);
-  const [taskTitle, setTaskTitle] = React.useState("");
-  const [taskDue, setTaskDue] = React.useState("");
-  const [taskOwner, setTaskOwner] = React.useState("");
-  const [saving, setSaving] = React.useState(false);
-
-  async function submit() {
-    if (!summary.trim() && !body.trim()) return;
-    setSaving(true);
-    const next_task = addTask && taskTitle.trim()
-      ? { title: taskTitle, due_at: taskDue ? new Date(taskDue).toISOString() : null, assigned_to: taskOwner || null }
-      : null;
-    const res = await fetch(`/api/deals/${dealId}/activities`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type, summary: summary || null, body: body || null, next_task }),
-    });
-    setSaving(false);
-    if (res.ok) {
-      setSummary(""); setBody(""); setAddTask(false); setTaskTitle(""); setTaskDue(""); setTaskOwner("");
-      await onLogged();
-    }
-  }
-
-  return (
-    <div className="rounded-lg border border-border p-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <Select value={type} onChange={(e) => setType(e.target.value as ActivityType)} className="w-auto min-w-[130px]">
-          {ACTIVITY_TYPES.map((t) => <option key={t} value={t}>{ACTIVITY_LABEL[t]}</option>)}
-        </Select>
-        <Input value={summary} onChange={(e) => setSummary(e.target.value)} placeholder="Summary…" className="min-w-[160px] flex-1" />
-      </div>
-      <Textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder="Details (optional)" className="mt-2 min-h-[60px]" />
-      <label className="mt-2 flex items-center gap-2 text-sm">
-        <input type="checkbox" checked={addTask} onChange={(e) => setAddTask(e.target.checked)} /> Create a follow-up task
-      </label>
-      {addTask && (
-        <div className="mt-2 grid gap-2 sm:grid-cols-3">
-          <Input value={taskTitle} onChange={(e) => setTaskTitle(e.target.value)} placeholder="Task title" className="sm:col-span-3" />
-          <Input type="date" value={taskDue} onChange={(e) => setTaskDue(e.target.value)} />
-          <Select value={taskOwner} onChange={(e) => setTaskOwner(e.target.value)} className="sm:col-span-2">
-            <option value="">Assign to…</option>
-            {owners.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-          </Select>
-        </div>
-      )}
-      <div className="mt-2 flex justify-end">
-        <Button size="sm" variant="accent" onClick={submit} disabled={saving || (!summary.trim() && !body.trim())}>
-          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Log activity
-        </Button>
-      </div>
-    </div>
-  );
-}
-
 // ─── Create-deal modal ────────────────────────────────────────────
 function DealFormModal({
   owners, contacts, title, onClose, onSaved,

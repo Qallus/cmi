@@ -5,7 +5,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { createOpportunity } from "@/lib/pipeline/data";
 import { requiredFieldsForStage, DEAL_STAGE_META } from "./stages";
 import type {
-  Actor, Activity, ActivityDraft, Deal, DealDraft, DealSourceType,
+  Actor, Activity, ActivityDraft, Deal, DealChecklistProgress, DealDraft, DealSourceType,
   DealStage, DealStageHistoryRow, DealTask, DealTaskDraft,
 } from "./types";
 
@@ -315,4 +315,26 @@ export async function updateDealTask(id: string, patch: Partial<DealTaskDraft>):
   const { data, error } = await supabase.from("deal_tasks").update(patch).eq("id", id).select().single();
   if (error) throw new Error(error.message);
   return data as DealTask;
+}
+
+// ─── Stage checklist progress ─────────────────────────────────────
+export async function loadChecklistProgress(dealId: string): Promise<DealChecklistProgress[]> {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase.from("deal_checklist_progress").select("*").eq("deal_id", dealId);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as DealChecklistProgress[];
+}
+
+// Toggle a checklist item on/off. Completion = a row exists.
+export async function setChecklistItem(dealId: string, itemKey: string, done: boolean, actor?: Actor): Promise<void> {
+  const supabase = getSupabaseAdmin();
+  if (done) {
+    const { error } = await supabase
+      .from("deal_checklist_progress")
+      .upsert({ deal_id: dealId, item_key: itemKey, completed_at: new Date().toISOString(), completed_by: actor?.id ?? null }, { onConflict: "deal_id,item_key" });
+    if (error) throw new Error(error.message);
+  } else {
+    const { error } = await supabase.from("deal_checklist_progress").delete().eq("deal_id", dealId).eq("item_key", itemKey);
+    if (error) throw new Error(error.message);
+  }
 }

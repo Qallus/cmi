@@ -19,6 +19,12 @@ function isJobDetailPath(pathname: string): boolean {
   return /^\/dashboard\/jobs\/[^/]+/.test(pathname) && !/^\/dashboard\/jobs\/(new|map|new-from-template|client-engagement)(\/|$)/.test(pathname);
 }
 
+// A single deal's detail page (…/pipeline/<id>) — collapse the sidebar to a rail
+// to give the deal workspace room, matching the job detail behavior.
+function isPipelineDetailPath(pathname: string): boolean {
+  return /^\/dashboard\/pipeline\/[^/]+/.test(pathname);
+}
+
 type SessionUser = {
   display_name: string;
   initials: string;
@@ -56,10 +62,13 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   // On a job's pages, auto-collapse the main sidebar (which flips the job sub-nav
   // to vertical); restore it when leaving. Fires only on that transition, so the
   // user can still expand/collapse manually while staying on the page.
+  // Job detail pages carry a vertical sub-nav rail (needs content padding);
+  // pipeline detail just collapses the sidebar for room (no rail).
   const onJobPage = isJobDetailPath(pathname);
+  const onDetailPage = onJobPage || isPipelineDetailPath(pathname);
   React.useEffect(() => {
-    setCollapsed(onJobPage);
-  }, [onJobPage]);
+    setCollapsed(onDetailPage);
+  }, [onDetailPage]);
 
   return (
     <SidebarContext.Provider value={{ collapsed }}>

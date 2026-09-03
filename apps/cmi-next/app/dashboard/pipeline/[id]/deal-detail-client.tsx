@@ -1,0 +1,555 @@
+"use client";
+
+import * as React from "react";
+import { useRouter } from "next/navigation";
+import {
+  ArrowLeft, Phone, Mail, MessageSquare, CalendarClock, StickyNote, Mic, Sparkles,
+  FolderKanban, FileText, ScrollText, FileSignature, Package, ReceiptText, Trophy,
+  Ban, Check, ChevronRight, Loader2, X, Pencil, CircleDot, Circle, CheckCircle2,
+  Clock, ArrowRight, Plus,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Input, Select, Textarea } from "@/components/ui/input";
+import { MoneyInput } from "@/components/ui/money-input";
+import { Drawer } from "@/components/ui/drawer";
+import { BoltModal } from "@/components/dashboard/bolt-modal";
+import { CallsWorkspace } from "@/app/dashboard/communications/calls-workspace";
+import { DEAL_STAGE_META, DEAL_STAGES, DEAL_STAGE_CHECKLIST, LOST_REASONS } from "@/lib/deals/stages";
+import type { Activity, ActivityType, Deal, DealChecklistProgress, DealStage, DealStageHistoryRow, DealTask } from "@/lib/deals/types";
+
+export type OwnerOption = { id: string; name: string };
+export type DealContact = { id: string; name: string; email: string | null; phone: string | null; company: string | null; role: string | null; tags: string[] | null };
+
+const JOB_TYPES = ["Whole Home Remodel", "Kitchen", "Bathroom Remodel", "ADU/Casita", "Addition", "New Build", "Tenant Improvement", "Warranty", "Service Work", "Other"];
+
+const money = (n: number | null | undefined) =>
+  n == null ? "—" : n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+const fmtDate = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—");
+const fmtWhen = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "");
+const daysSince = (iso: string | null | undefined) => (iso ? Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000)) : null);
+
+const ACTIVITY_META: Record<ActivityType, { icon: typeof Phone; label: string }> = {
+  call: { icon: Phone, label: "Call" }, sms: { icon: MessageSquare, label: "Text" }, email: { icon: Mail, label: "Email" },
+  note: { icon: StickyNote, label: "Note" }, voice_note: { icon: Mic, label: "Voice note" }, ai_agent: { icon: Sparkles, label: "AI Agent" },
+  selection: { icon: Package, label: "Selection" }, appointment: { icon: CalendarClock, label: "Appointment" }, meeting: { icon: CalendarClock, label: "Meeting" },
+  site_visit: { icon: FolderKanban, label: "Site visit" }, scan_3d: { icon: FolderKanban, label: "3D scan" },
+};
+
+// Quick-action rail definition.
+type ActionKey = "call" | "email" | "text" | "schedule" | "note" | "voice" | "ai" | "project" | "contract" | "sow" | "quote" | "selection" | "invoice";
+const ACTIONS: { key: ActionKey; label: string; icon: typeof Phone }[] = [
+  { key: "call", label: "Call", icon: Phone },
+  { key: "email", label: "Email", icon: Mail },
+  { key: "text", label: "Text", icon: MessageSquare },
+  { key: "schedule", label: "Schedule", icon: CalendarClock },
+  { key: "note", label: "Note", icon: StickyNote },
+  { key: "voice", label: "Voice note", icon: Mic },
+  { key: "ai", label: "AI Agent", icon: Sparkles },
+  { key: "project", label: "Project", icon: FolderKanban },
+  { key: "contract", label: "Contract", icon: FileSignature },
+  { key: "sow", label: "SOW", icon: ScrollText },
+  { key: "quote", label: "Quote", icon: FileText },
+  { key: "selection", label: "Selection", icon: Package },
+  { key: "invoice", label: "Invoice", icon: ReceiptText },
+];
+
+export function DealDetailClient({
+  deal: initialDeal, contact, owners, canWrite, initialActivities, initialTasks, initialHistory, initialChecklist,
+}: {
+  deal: Deal; contact: DealContact | null; owners: OwnerOption[]; canWrite: boolean;
+  initialActivities: Activity[]; initialTasks: DealTask[]; initialHistory: DealStageHistoryRow[]; initialChecklist: DealChecklistProgress[];
+}) {
+  const router = useRouter();
+  const [deal, setDeal] = React.useState(initialDeal);
+  const [activities, setActivities] = React.useState(initialActivities);
+  const [tasks, setTasks] = React.useState(initialTasks);
+  const [history, setHistory] = React.useState(initialHistory);
+  const [done, setDone] = React.useState<Set<string>>(new Set(initialChecklist.map((c) => c.item_key)));
+  const [action, setAction] = React.useState<ActionKey | null>(null);
+  const [showAI, setShowAI] = React.useState(false);
+  const [editKey, setEditKey] = React.useState(false);
+  const [tab, setTab] = React.useState<ActivityType | "all">("all");
+  const [busy, setBusy] = React.useState(false);
+
+  const ownerName = (id: string | null) => owners.find((o) => o.id === id)?.name ?? "Unassigned";
+
+  const refresh = React.useCallback(async () => {
+    const [d, a, t, h, c] = await Promise.all([
+      fetch(`/api/deals/${deal.id}`).then((r) => (r.ok ? r.json() : null)),
+      fetch(`/api/deals/${deal.id}/activities`).then((r) => (r.ok ? r.json() : [])),
+      fetch(`/api/deals/${deal.id}/tasks`).then((r) => (r.ok ? r.json() : [])),
+      fetch(`/api/deals/${deal.id}/stage`).then((r) => (r.ok ? r.json() : [])),
+      fetch(`/api/deals/${deal.id}/checklist`).then((r) => (r.ok ? r.json() : [])),
+    ]);
+    if (d) setDeal(d);
+    setActivities(a); setTasks(t); setHistory(h);
+    setDone(new Set((c as DealChecklistProgress[]).map((x) => x.item_key)));
+  }, [deal.id]);
+
+  async function changeStage(to: DealStage, extra: Record<string, unknown> = {}) {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/deals/${deal.id}/stage`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to, ...extra }),
+      });
+      if (!res.ok) { const j = await res.json(); alert(j.error || "Stage change failed."); return; }
+      await refresh();
+    } finally { setBusy(false); }
+  }
+
+  async function toggleItem(itemKey: string, next: boolean) {
+    setDone((prev) => { const n = new Set(prev); if (next) n.add(itemKey); else n.delete(itemKey); return n; });
+    await fetch(`/api/deals/${deal.id}/checklist`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ item_key: itemKey, done: next }),
+    });
+  }
+
+  async function logActivity(type: ActivityType, summary: string, body?: string, metadata?: Record<string, unknown>) {
+    await fetch(`/api/deals/${deal.id}/activities`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type, summary, body: body ?? null, metadata: metadata ?? {} }),
+    });
+    await refresh();
+  }
+
+  async function toggleTask(t: DealTask) {
+    await fetch(`/api/deals/tasks/${t.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ completed_at: t.completed_at ? null : new Date().toISOString() }) });
+    await refresh();
+  }
+
+  const meta = DEAL_STAGE_META[deal.stage];
+  const checklistItems = DEAL_STAGE_CHECKLIST[deal.stage] ?? [];
+  const doneCount = checklistItems.filter((i) => done.has(i.key)).length;
+  const nextStage = DEAL_STAGES.find((s) => DEAL_STAGE_META[s].order === meta.order + 1 && DEAL_STAGE_META[s].open !== false);
+  const enteredStageAt = [...history].reverse().find((h) => h.to_stage === deal.stage)?.changed_at ?? deal.created_at;
+
+  const filteredActs = tab === "all" ? activities : activities.filter((a) => a.type === tab);
+  const summaryCounts = (["call", "sms", "email", "note", "voice_note", "ai_agent", "appointment"] as ActivityType[])
+    .map((t) => ({ t, n: activities.filter((a) => a.type === t).length }));
+
+  return (
+    <div className="min-h-[calc(100vh-56px)] bg-background">
+      {/* Header */}
+      <div className="border-b border-border px-4 py-3 md:px-6">
+        <button onClick={() => router.push("/dashboard/pipeline")} className="mb-3 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Back to pipeline</button>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="grid h-10 w-10 place-items-center rounded-lg bg-accent/15 text-accent"><FolderKanban className="h-5 w-5" /></span>
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Deal</div>
+              <h1 className="font-display text-2xl font-semibold">{deal.title}</h1>
+            </div>
+          </div>
+          {canWrite && (
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" disabled={busy || deal.stage === "closed_won"} onClick={() => changeStage("closed_won")}><Trophy className="h-4 w-4" /> Closed Won</Button>
+              <Button size="sm" variant="outline" className="border-destructive/30 text-destructive hover:bg-destructive/10" disabled={busy || deal.stage === "lost_on_hold"} onClick={() => { const reason = window.prompt("Reason (lost / on hold):", ""); if (reason !== null) changeStage("lost_on_hold", { patch: { lost_reason: reason || "unspecified" } }); }}><Ban className="h-4 w-4" /> Closed Lost</Button>
+            </div>
+          )}
+        </div>
+        {/* Summary strip */}
+        <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 rounded-lg border border-border p-4 md:grid-cols-4 lg:grid-cols-5">
+          <Summary label="Account / Contact" value={contact?.name ?? "—"} />
+          <Summary label="Close date" value={fmtDate(deal.expected_close_date)} />
+          <Summary label="Amount" value={money(deal.estimated_value)} />
+          <Summary label="Owner" value={ownerName(deal.owner_id)} />
+          <Summary label="Stage" value={<span className="rounded-full bg-accent/15 px-2 py-0.5 text-xs font-medium text-accent">{meta.label}</span>} />
+        </div>
+      </div>
+
+      {/* Stage stepper */}
+      <div className="flex flex-wrap items-center gap-1.5 border-b border-border px-4 py-3 md:px-6">
+        {DEAL_STAGES.filter((s) => s !== "lost_on_hold").map((s) => {
+          const m = DEAL_STAGE_META[s];
+          const isCurrent = s === deal.stage;
+          const isPast = m.order < meta.order && meta.order !== 99;
+          return (
+            <button key={s} type="button" disabled={!canWrite || busy} onClick={() => changeStage(s)}
+              className={cn("flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-2 text-xs font-medium transition min-w-[110px]",
+                isCurrent ? "bg-accent text-accent-foreground" : isPast ? "bg-accent/10 text-accent" : "bg-muted text-muted-foreground hover:bg-muted/70")}>
+              {isPast && <Check className="h-3.5 w-3.5" />} {m.label}
+            </button>
+          );
+        })}
+        {canWrite && nextStage && (
+          <Button size="sm" variant="accent" disabled={busy || doneCount < checklistItems.filter((i) => i.required).length} onClick={() => changeStage(nextStage)}>
+            <Check className="h-4 w-4" /> Mark stage complete
+          </Button>
+        )}
+      </div>
+
+      {/* Body grid */}
+      <div className="grid gap-4 p-4 md:px-6 lg:grid-cols-[64px_minmax(0,1fr)_300px]">
+        {/* Quick action rail */}
+        <aside className="flex flex-row flex-wrap gap-1 lg:flex-col lg:gap-0.5">
+          {ACTIONS.map(({ key, label, icon: Icon }) => (
+            <button key={key} type="button" disabled={!canWrite} title={label}
+              onClick={() => (key === "ai" ? setShowAI(true) : setAction(key))}
+              className="flex items-center gap-2 rounded-md px-2 py-2 text-xs font-medium text-muted-foreground transition hover:bg-muted hover:text-accent disabled:opacity-40">
+              <Icon className="h-4 w-4 shrink-0" /> <span className="hidden lg:inline">{label}</span>
+            </button>
+          ))}
+        </aside>
+
+        {/* Center column */}
+        <div className="min-w-0 space-y-4">
+          {/* Contact + key fields */}
+          <div className="grid gap-4 md:grid-cols-2">
+            <Card title="Lead / Contact details" action={contact && <a href={`/dashboard/contacts?id=${contact.id}`} className="text-xs text-accent hover:underline">Open contact →</a>}>
+              {contact ? (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <span className="grid h-11 w-11 place-items-center rounded-full bg-accent/15 text-sm font-semibold text-accent">{contact.name.split(" ").map((n) => n[0]).slice(0, 2).join("")}</span>
+                    <div><div className="font-semibold">{contact.name}</div>{contact.role && <div className="text-xs text-muted-foreground">{contact.role}</div>}</div>
+                  </div>
+                  <Field label="Email">{contact.email ? <button onClick={() => canWrite && setAction("email")} className="text-accent hover:underline">{contact.email}</button> : "—"}</Field>
+                  <Field label="Phone">{contact.phone ? <button onClick={() => canWrite && setAction("call")} className="text-accent hover:underline">{contact.phone}</button> : "—"}</Field>
+                  {contact.company && <Field label="Company">{contact.company}</Field>}
+                  {contact.tags?.length ? <Field label="Tags"><span className="flex flex-wrap gap-1">{contact.tags.map((t) => <span key={t} className="rounded-full bg-muted px-2 py-0.5 text-[11px]">{t}</span>)}</span></Field> : null}
+                </div>
+              ) : <p className="text-sm text-muted-foreground">No contact linked to this deal.</p>}
+            </Card>
+
+            <Card title="Key fields" action={canWrite && <button onClick={() => setEditKey(true)} className="inline-flex items-center gap-1 text-xs text-accent hover:underline"><Pencil className="h-3 w-3" /> Edit</button>}>
+              <div className="space-y-2.5">
+                <Field label="Estimated amount">{money(deal.estimated_value)}</Field>
+                <Field label="Expected close">{fmtDate(deal.expected_close_date)}</Field>
+                <Field label="Job type">{deal.job_type || "—"}</Field>
+                <Field label="Probability">{deal.probability != null ? `${deal.probability}%` : "—"}</Field>
+                <Field label="Last activity">{deal.last_activity_at ? `${daysSince(deal.last_activity_at)}d ago` : "—"}</Field>
+                <Field label="Days in stage">{`${daysSince(enteredStageAt) ?? 0}d`}</Field>
+                <Field label="Next step">{deal.next_action ? <span>{deal.next_action}{deal.next_action_due ? ` · ${fmtDate(deal.next_action_due)}` : ""}</span> : <button onClick={() => canWrite && setEditKey(true)} className="text-accent hover:underline">Set a next step</button>}</Field>
+              </div>
+            </Card>
+          </div>
+
+          {/* Completion items */}
+          <Card title={`Completion items · ${doneCount}/${checklistItems.length}`}>
+            <ul className="space-y-1.5">
+              {checklistItems.map((item) => {
+                const isDone = done.has(item.key);
+                return (
+                  <li key={item.key} className="flex items-center gap-2">
+                    <button disabled={!canWrite} onClick={() => toggleItem(item.key, !isDone)} className="shrink-0 text-accent disabled:opacity-50">
+                      {isDone ? <CheckCircle2 className="h-4 w-4" /> : <Circle className="h-4 w-4 text-muted-foreground" />}
+                    </button>
+                    <span className={cn("flex-1 text-sm", isDone && "text-muted-foreground line-through")}>{item.label}</span>
+                    {item.required && !isDone && <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">Required</span>}
+                  </li>
+                );
+              })}
+              {checklistItems.length === 0 && <li className="text-sm text-muted-foreground">No items for this stage.</li>}
+            </ul>
+          </Card>
+
+          {/* Activity timeline */}
+          <Card title="Activity timeline" action={
+            <div className="flex flex-wrap gap-1 text-xs">
+              {(["all", "call", "email", "sms", "note", "voice_note", "ai_agent", "appointment"] as const).map((t) => (
+                <button key={t} onClick={() => setTab(t)} className={cn("rounded-full px-2 py-0.5 font-medium transition", tab === t ? "bg-accent/15 text-accent" : "text-muted-foreground hover:text-foreground")}>
+                  {t === "all" ? "All" : ACTIVITY_META[t as ActivityType].label}
+                </button>
+              ))}
+            </div>
+          }>
+            {filteredActs.length === 0 ? <p className="text-sm text-muted-foreground">No activity yet.</p> : (
+              <ul className="space-y-3">
+                {filteredActs.map((a) => {
+                  const M = ACTIVITY_META[a.type] ?? ACTIVITY_META.note;
+                  return (
+                    <li key={a.id} className="flex gap-3">
+                      <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-muted"><M.icon className="h-3.5 w-3.5" /></span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-medium">{a.summary || M.label}</span>
+                          <span className="shrink-0 text-[11px] text-muted-foreground">{fmtWhen(a.occurred_at)}</span>
+                        </div>
+                        {a.body && <p className="mt-0.5 whitespace-pre-wrap text-sm text-muted-foreground">{a.body}</p>}
+                        <div className="mt-0.5 text-[11px] text-muted-foreground">{M.label}{a.created_by_name ? ` · ${a.created_by_name}` : ""}</div>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </Card>
+        </div>
+
+        {/* Right rail */}
+        <div className="space-y-4">
+          <Card title="Activity summary">
+            <ul className="space-y-1.5 text-sm">
+              {summaryCounts.map(({ t, n }) => (
+                <li key={t} className="flex items-center justify-between"><span className="text-muted-foreground">{ACTIVITY_META[t].label}s</span><span className="font-semibold tabular-nums">{n}</span></li>
+              ))}
+            </ul>
+          </Card>
+
+          <Card title="Tasks">
+            {tasks.length === 0 ? <p className="text-sm text-muted-foreground">No tasks.</p> : (
+              <ul className="space-y-1.5">
+                {tasks.map((t) => (
+                  <li key={t.id} className="flex items-center gap-2">
+                    <button disabled={!canWrite} onClick={() => toggleTask(t)} className="shrink-0 text-accent disabled:opacity-50">{t.completed_at ? <CheckCircle2 className="h-4 w-4" /> : <Circle className="h-4 w-4 text-muted-foreground" />}</button>
+                    <span className={cn("flex-1 text-sm", t.completed_at && "text-muted-foreground line-through")}>{t.title}</span>
+                    {t.due_at && <span className="text-[11px] text-muted-foreground">{fmtDate(t.due_at)}</span>}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+
+          <Card title="Stage history">
+            {history.length === 0 ? <p className="text-sm text-muted-foreground">No changes recorded.</p> : (
+              <ul className="space-y-2">
+                {[...history].reverse().map((h) => (
+                  <li key={h.id} className="flex items-start gap-2 text-xs">
+                    <CircleDot className="mt-0.5 h-3 w-3 shrink-0 text-accent" />
+                    <div>
+                      <div className="font-medium">{DEAL_STAGE_META[h.to_stage as DealStage]?.label ?? h.to_stage}</div>
+                      <div className="text-muted-foreground">{fmtWhen(h.changed_at)}{h.changed_by ? ` · ${h.changed_by}` : ""}</div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+        </div>
+      </div>
+
+      {/* Action modals */}
+      {action && <ActionSheet action={action} deal={deal} contact={contact} owners={owners} ownerName={ownerName} onClose={() => setAction(null)} onDone={async () => { setAction(null); await refresh(); }} logActivity={logActivity} />}
+      {showAI && <BoltModal context={`Pipeline deal: ${deal.title}`} onClose={() => setShowAI(false)} />}
+      {editKey && <EditKeyFieldsModal deal={deal} owners={owners} onClose={() => setEditKey(false)} onSaved={async () => { setEditKey(false); await refresh(); }} />}
+    </div>
+  );
+}
+
+function Summary({ label, value }: { label: string; value: React.ReactNode }) {
+  return <div><div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div><div className="mt-0.5 text-sm font-medium">{value}</div></div>;
+}
+function Card({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <section className="rounded-lg border border-border bg-card p-4">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{title}</h3>
+        {action}
+      </div>
+      {children}
+    </section>
+  );
+}
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return <div className="flex items-start justify-between gap-3 text-sm"><span className="text-muted-foreground">{label}</span><span className="text-right font-medium">{children}</span></div>;
+}
+
+// ─── Edit key fields ──────────────────────────────────────────────
+function EditKeyFieldsModal({ deal, owners, onClose, onSaved }: { deal: Deal; owners: OwnerOption[]; onClose: () => void; onSaved: () => Promise<void> }) {
+  const [f, setF] = React.useState({
+    estimated_value: deal.estimated_value != null ? String(deal.estimated_value) : "",
+    expected_close_date: deal.expected_close_date ?? "",
+    job_type: deal.job_type ?? "",
+    probability: deal.probability != null ? String(deal.probability) : "",
+    owner_id: deal.owner_id ?? "",
+    next_action: deal.next_action ?? "",
+    next_action_due: deal.next_action_due ?? "",
+  });
+  const [saving, setSaving] = React.useState(false);
+  const set = (k: keyof typeof f, v: string) => setF((p) => ({ ...p, [k]: v }));
+  async function save() {
+    setSaving(true);
+    await fetch(`/api/deals/${deal.id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        estimated_value: f.estimated_value === "" ? null : Number(f.estimated_value),
+        expected_close_date: f.expected_close_date || null,
+        job_type: f.job_type || null,
+        probability: f.probability === "" ? null : Number(f.probability),
+        owner_id: f.owner_id || null,
+        next_action: f.next_action || null,
+        next_action_due: f.next_action_due || null,
+      }),
+    });
+    setSaving(false);
+    await onSaved();
+  }
+  return (
+    <ModalShell title="Edit deal details" onClose={onClose}>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <L label="Estimated amount"><MoneyInput value={f.estimated_value} onChange={(v) => set("estimated_value", v)} /></L>
+        <L label="Expected close"><Input type="date" value={f.expected_close_date} onChange={(e) => set("expected_close_date", e.target.value)} /></L>
+        <L label="Job type"><Select value={f.job_type} onChange={(e) => set("job_type", e.target.value)}><option value="">—</option>{JOB_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}</Select></L>
+        <L label="Probability (%)"><Input type="number" min={0} max={100} value={f.probability} onChange={(e) => set("probability", e.target.value)} /></L>
+        <L label="Owner"><Select value={f.owner_id} onChange={(e) => set("owner_id", e.target.value)}><option value="">Unassigned</option>{owners.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}</Select></L>
+        <L label="Next action due"><Input type="date" value={f.next_action_due} onChange={(e) => set("next_action_due", e.target.value)} /></L>
+        <L label="Next action" full><Input value={f.next_action} onChange={(e) => set("next_action", e.target.value)} placeholder="e.g. Send proposal" /></L>
+      </div>
+      <div className="mt-4 flex justify-end gap-2"><Button variant="outline" onClick={onClose}>Cancel</Button><Button variant="accent" onClick={save} disabled={saving}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Save</Button></div>
+    </ModalShell>
+  );
+}
+
+// ─── Action sheet (one component, per-action form) ────────────────
+function ActionSheet({
+  action, deal, contact, owners, ownerName, onClose, onDone, logActivity,
+}: {
+  action: ActionKey; deal: Deal; contact: DealContact | null; owners: OwnerOption[]; ownerName: (id: string | null) => string;
+  onClose: () => void; onDone: () => Promise<void>; logActivity: (type: ActivityType, summary: string, body?: string, metadata?: Record<string, unknown>) => Promise<void>;
+}) {
+  // Call opens the live browser dialer in a drawer.
+  if (action === "call") {
+    return (
+      <Drawer open onClose={onClose} title={`Call ${contact?.name ?? ""}`} description={contact?.phone ? `Dial ${contact.phone} in the dialer below.` : "No phone on file."}>
+        <div className="space-y-4">
+          <CallsWorkspace />
+          <QuickLog label="Log call outcome" onLog={async (summary, body) => { await logActivity("call", summary || "Call", body); await onDone(); }} />
+        </div>
+      </Drawer>
+    );
+  }
+  return <ActionModal action={action} deal={deal} contact={contact} owners={owners} ownerName={ownerName} onClose={onClose} onDone={onDone} logActivity={logActivity} />;
+}
+
+function QuickLog({ label, onLog }: { label: string; onLog: (summary: string, body: string) => Promise<void> }) {
+  const [s, setS] = React.useState(""); const [b, setB] = React.useState(""); const [busy, setBusy] = React.useState(false);
+  return (
+    <div className="rounded-lg border border-border p-3">
+      <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</div>
+      <Input value={s} onChange={(e) => setS(e.target.value)} placeholder="Summary (e.g. Left voicemail)" />
+      <Textarea value={b} onChange={(e) => setB(e.target.value)} placeholder="Details (optional)" className="mt-2 min-h-[60px]" />
+      <div className="mt-2 flex justify-end"><Button size="sm" variant="accent" disabled={busy || !s.trim()} onClick={async () => { setBusy(true); await onLog(s, b); setBusy(false); }}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Log</Button></div>
+    </div>
+  );
+}
+
+function ActionModal({
+  action, deal, contact, owners, ownerName, onClose, onDone, logActivity,
+}: {
+  action: ActionKey; deal: Deal; contact: DealContact | null; owners: OwnerOption[]; ownerName: (id: string | null) => string;
+  onClose: () => void; onDone: () => Promise<void>; logActivity: (type: ActivityType, summary: string, body?: string, metadata?: Record<string, unknown>) => Promise<void>;
+}) {
+  const [f, setF] = React.useState<Record<string, string>>({
+    subject: action === "email" ? "" : "",
+    body: "",
+    title: deal.title,
+    value: deal.estimated_value != null ? String(deal.estimated_value) : "",
+    when: "",
+  });
+  const [busy, setBusy] = React.useState(false);
+  const [err, setErr] = React.useState<string | null>(null);
+  const set = (k: string, v: string) => setF((p) => ({ ...p, [k]: v }));
+
+  const TITLES: Record<ActionKey, string> = {
+    call: "Call", email: "Email", text: "Text", schedule: "Schedule", note: "Note", voice: "Voice note",
+    ai: "AI Agent", project: "Create project", contract: "Create contract", sow: "Create SOW",
+    quote: "Create quote", selection: "Create selection", invoice: "Create invoice",
+  };
+
+  async function submit() {
+    setBusy(true); setErr(null);
+    try {
+      switch (action) {
+        case "email": {
+          if (!contact?.email) throw new Error("No email on file for this contact.");
+          const r = await fetch("/api/communications/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ channel: "email", to: contact.email, subject: f.subject, body: f.body }) });
+          if (!r.ok) throw new Error((await r.json()).error || "Send failed.");
+          await logActivity("email", f.subject || "Email sent", f.body);
+          break;
+        }
+        case "text": {
+          if (!contact?.phone) throw new Error("No phone on file for this contact.");
+          const r = await fetch("/api/communications/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ channel: "sms", to: contact.phone, body: f.body }) });
+          if (!r.ok) throw new Error((await r.json()).error || "Send failed.");
+          await logActivity("sms", "Text sent", f.body);
+          break;
+        }
+        case "note": {
+          await fetch("/api/notes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: f.title, body: f.body }) }).catch(() => {});
+          await logActivity("note", f.title || "Note", f.body);
+          break;
+        }
+        case "voice": {
+          await logActivity("voice_note", f.title || "Voice note", f.body);
+          break;
+        }
+        case "schedule": {
+          if (!f.when) throw new Error("Pick a date and time.");
+          await logActivity("appointment", f.title || "Appointment", f.body, { when: f.when });
+          break;
+        }
+        case "quote": {
+          const r = await fetch("/api/quotes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contact_id: contact?.id ?? null, name: f.title, email: contact?.email ?? null, phone: contact?.phone ?? null, estimated_value: f.value === "" ? null : Number(f.value), status: "New", description: f.body || null }) });
+          if (!r.ok) throw new Error((await r.json()).error || "Quote failed.");
+          await logActivity("note", `Quote created: ${f.title}`, f.body);
+          break;
+        }
+        case "contract":
+        case "sow": {
+          const r = await fetch("/api/documents", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: action, title: f.title, client: contact?.name ?? "", client_email: contact?.email ?? "", client_phone: contact?.phone ?? "", project: deal.title, value: f.value === "" ? null : Number(f.value) }) });
+          if (!r.ok) throw new Error((await r.json()).error || "Document failed.");
+          await logActivity("note", `${action === "sow" ? "SOW" : "Contract"} created: ${f.title}`, f.body);
+          break;
+        }
+        case "project": {
+          const r = await fetch("/api/jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ job_name: f.title }) });
+          if (!r.ok) throw new Error((await r.json()).error || "Job creation failed.");
+          await logActivity("note", `Project created: ${f.title}`, f.body);
+          break;
+        }
+        case "selection": {
+          const r = await fetch("/api/admin/selections", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: f.title, project_name: deal.title, client_id: contact?.id ?? null }) });
+          if (!r.ok) throw new Error((await r.json()).error || "Selection failed.");
+          await logActivity("selection", `Selection created: ${f.title}`, f.body);
+          break;
+        }
+        case "invoice": {
+          throw new Error("Invoices are created on a Job. Use the Project action to create/link a job first, then add invoices from the job.");
+        }
+      }
+      await onDone();
+    } catch (e) { setErr(e instanceof Error ? e.message : "Action failed."); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <ModalShell title={TITLES[action]} onClose={onClose}>
+      <div className="space-y-3">
+        {action === "invoice" ? (
+          <p className="text-sm text-muted-foreground">Invoices are created on a Job. Create or link a Job first (Project action), then add invoices from the job&apos;s Invoices tab.</p>
+        ) : (
+          <>
+            {(action === "email") && <L label="Subject" full><Input value={f.subject} onChange={(e) => set("subject", e.target.value)} placeholder="Subject" /></L>}
+            {(action === "text" || action === "email") && <p className="text-xs text-muted-foreground">To: {action === "email" ? (contact?.email ?? "—") : (contact?.phone ?? "—")}</p>}
+            {(action === "note" || action === "voice" || action === "schedule" || action === "quote" || action === "contract" || action === "sow" || action === "project" || action === "selection") && (
+              <L label={action === "quote" || action === "contract" || action === "sow" || action === "project" || action === "selection" ? "Title" : "Summary"} full>
+                <Input value={f.title} onChange={(e) => set("title", e.target.value)} />
+              </L>
+            )}
+            {action === "schedule" && <L label="When" full><Input type="datetime-local" value={f.when} onChange={(e) => set("when", e.target.value)} /></L>}
+            {(action === "quote" || action === "contract" || action === "sow") && <L label="Value" full><MoneyInput value={f.value} onChange={(v) => set("value", v)} /></L>}
+            <L label={action === "email" || action === "text" ? "Message" : "Details"} full><Textarea value={f.body} onChange={(e) => set("body", e.target.value)} className="min-h-[90px]" /></L>
+          </>
+        )}
+        {err && <p className="text-xs text-destructive">{err}</p>}
+      </div>
+      <div className="mt-4 flex justify-end gap-2">
+        <Button variant="outline" onClick={onClose}>Cancel</Button>
+        {action !== "invoice" && <Button variant="accent" onClick={submit} disabled={busy}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronRight className="h-4 w-4" />} {action === "email" || action === "text" ? "Send" : "Create"}</Button>}
+      </div>
+    </ModalShell>
+  );
+}
+
+function ModalShell({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="max-h-[90vh] w-full max-w-lg overflow-auto rounded-xl bg-card p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-4 flex items-center justify-between"><h2 className="font-display text-lg font-semibold">{title}</h2><button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-md hover:bg-muted"><X className="h-4 w-4" /></button></div>
+        {children}
+      </div>
+    </div>
+  );
+}
+function L({ label, children, full }: { label: string; children: React.ReactNode; full?: boolean }) {
+  return <label className={cn("block space-y-1", full && "sm:col-span-2")}><span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</span>{children}</label>;
+}

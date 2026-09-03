@@ -60,6 +60,54 @@ export const LOST_REASONS = [
   "other",
 ] as const;
 
+// Per-stage checklist items shown on the deal-detail page. Completion is tracked
+// per deal in deal_checklist_progress (by `key`). `required` items are what the
+// "Mark stage complete" action expects before advancing.
+export type ChecklistItem = { key: string; label: string; required?: boolean };
+
+export const DEAL_STAGE_CHECKLIST: Record<DealStage, ChecklistItem[]> = {
+  new_working: [
+    { key: "new_reviewed", label: "Inquiry reviewed", required: true },
+    { key: "new_owner", label: "Owner assigned", required: true },
+    { key: "new_contact_linked", label: "Contact record linked" },
+  ],
+  contacted: [
+    { key: "contacted_reached", label: "Made first contact", required: true },
+    { key: "contacted_channel", label: "Preferred channel noted" },
+    { key: "contacted_followup", label: "Follow-up scheduled" },
+  ],
+  qualified: [
+    { key: "qual_fit", label: "Business fit confirmed", required: true },
+    { key: "qual_decision_maker", label: "Decision-maker identified", required: true },
+    { key: "qual_type", label: "Job type selected", required: true },
+    { key: "qual_value", label: "Estimated value entered", required: true },
+    { key: "qual_close", label: "Expected close date entered", required: true },
+    { key: "qual_next", label: "Next action scheduled" },
+  ],
+  opportunity: [
+    { key: "opp_scope", label: "Scope documented", required: true },
+    { key: "opp_budget", label: "Budget reviewed", required: true },
+    { key: "opp_site", label: "Site visit / scan completed" },
+  ],
+  proposal: [
+    { key: "prop_drafted", label: "Proposal drafted", required: true },
+    { key: "prop_sent", label: "Proposal sent to client", required: true },
+    { key: "prop_reviewed", label: "Reviewed with client" },
+  ],
+  negotiation: [
+    { key: "nego_terms", label: "Terms discussed", required: true },
+    { key: "nego_pricing", label: "Pricing agreed" },
+    { key: "nego_verbal", label: "Verbal commitment" },
+  ],
+  closed_won: [
+    { key: "won_agreement", label: "Agreement signed", required: true },
+    { key: "won_precon", label: "Pre-Con record created" },
+  ],
+  lost_on_hold: [
+    { key: "lost_reason_logged", label: "Reason recorded", required: true },
+  ],
+};
+
 export const DEAL_SOURCES = [
   "website",
   "referral",
