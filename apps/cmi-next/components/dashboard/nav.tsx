@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Tooltip } from "@/components/ui/tooltip";
 import {
-  ArrowLeft, BookOpen, BriefcaseBusiness, CalendarClock, CalendarRange,
+  ArrowLeft, BookOpen, BriefcaseBusiness, CalendarClock, CalendarRange, Cloud,
   CreditCard, FileText, FolderKanban, HardHat, Home, IdCard, Inbox, LayoutDashboard, LayoutGrid,
   Megaphone, MessageCircle, MessagesSquare, Mic, Minus, Newspaper, Package, Plus, Settings, ShieldCheck,
   Sparkles, SquarePen, User, UserRoundCog, Users, Workflow,
@@ -49,6 +49,7 @@ const nav: NavItem[] = [
       { href: "/dashboard/client-engagement",       label: "Client Engagement", icon: Users,     roles: ["super_admin", "admin", "project_manager"] },
     ],
   },
+  { href: "/dashboard/cloud",          label: "Cloud",          icon: Cloud,          roles: ["super_admin", "admin", "project_manager", "estimator", "superintendent", "designer", "staff"] },
   { href: "/dashboard/schedules",      label: "Schedules",      icon: CalendarClock,  roles: ["super_admin", "admin", "project_manager", "superintendent", "estimator", "designer", "staff"] },
   { href: "/dashboard/billing",        label: "Billing",        icon: CreditCard,     roles: ["super_admin", "admin", "estimator", "client"] },
   { href: "/dashboard/bookings",       label: "Bookings",       icon: CalendarRange,  roles: ["super_admin", "admin", "project_manager", "estimator", "client"] },

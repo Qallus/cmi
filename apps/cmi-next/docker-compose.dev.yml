@@ -1,0 +1,16 @@
+# Local Garage (S3-compatible) for developing the Cloud file manager.
+#   docker compose -f docker-compose.dev.yml up -d
+#   bash scripts/garage-dev-init.sh   # one-time: layout + bucket + key
+# Then point .env.local at http://localhost:3900 with the printed key/secret.
+services:
+  garage:
+    image: dxflrs/garage:v1.0.1
+    container_name: cmi-garage-dev
+    restart: unless-stopped
+    ports:
+      - "3900:3900" # S3 API
+      - "3903:3903" # admin API
+    volumes:
+      - ./.garage-dev/meta:/var/lib/garage/meta
+      - ./.garage-dev/data:/var/lib/garage/data
+      - ./.garage-dev/garage.toml:/etc/garage.toml:ro
