@@ -75,6 +75,7 @@ export function DealDetailClient({
   const [editKey, setEditKey] = React.useState(false);
   const [showTask, setShowTask] = React.useState(false);
   const [showAddActivity, setShowAddActivity] = React.useState(false);
+  const [showContactEdit, setShowContactEdit] = React.useState(false);
   const [tab, setTab] = React.useState<ActivityType | "all" | "tasks">("all");
   const [busy, setBusy] = React.useState(false);
   const [newItem, setNewItem] = React.useState("");
@@ -253,18 +254,18 @@ export function DealDetailClient({
         <div className="min-w-0 space-y-4">
           {/* Contact + key fields */}
           <div className="grid gap-4 md:grid-cols-2">
-            <Card title="Lead / Contact details" action={contact && <a href={`/dashboard/contacts?id=${contact.id}`} className="text-xs text-accent hover:underline">Open contact →</a>}>
+            <Card title="Lead / Contact details" action={contact && <button onClick={() => setShowContactEdit(true)} className="text-xs text-accent hover:underline">Open contact →</button>}>
               {contact ? (
                 <div className="space-y-3">
                   <div className="flex items-center gap-3">
                     <span className="grid h-11 w-11 place-items-center rounded-full bg-accent/15 text-sm font-semibold text-accent">{contact.name.split(" ").map((n) => n[0]).slice(0, 2).join("")}</span>
                     <div><div className="font-semibold">{contact.name}</div>{contact.role && <div className="text-xs text-muted-foreground">{contact.role}</div>}</div>
                   </div>
-                  <Field label="Email"><Inline canWrite={canWrite} value={contact.email ?? ""} placeholder="Add email" onSave={(v) => saveContact({ email: v })} /></Field>
+                  <Field label="Email">{contact.email ? <EmailMenu email={contact.email} subject={`Re: ${deal.title}`} canWrite={canWrite} onComposeInApp={() => setAction("email")} /> : <span className="text-muted-foreground">—</span>}</Field>
                   <Field label="Phone"><Inline canWrite={canWrite} value={contact.phone ?? ""} placeholder="Add phone" onSave={(v) => saveContact({ phone: v })} /></Field>
                   <Field label="Company"><Inline canWrite={canWrite} value={contact.company ?? ""} placeholder="Add company" onSave={(v) => saveContact({ company: v })} /></Field>
                   <Field label="Role"><Inline canWrite={canWrite} kind="select" value={contact.role ?? ""} options={[{ value: "", label: "—" }, ...CONTACT_TYPES.map((t) => ({ value: t, label: t }))]} onSave={(v) => saveContact({ type: v || null })} /></Field>
-                  {contact.tags?.length ? <Field label="Tags"><span className="flex flex-wrap gap-1">{contact.tags.map((t) => <span key={t} className="rounded-full bg-muted px-2 py-0.5 text-[11px]">{t}</span>)}</span></Field> : null}
+                  {contact.tags?.length ? <div><div className="mb-1 text-[11px] uppercase tracking-wide text-muted-foreground">Tags</div><div className="flex gap-1 overflow-x-auto pb-0.5">{contact.tags.map((t) => <span key={t} className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px]">{t}</span>)}</div></div> : null}
                 </div>
               ) : <p className="text-sm text-muted-foreground">No contact linked to this deal.</p>}
             </Card>
@@ -421,12 +422,89 @@ export function DealDetailClient({
       </div>
 
       {/* Action modals */}
-      {action && <ActionSheet action={action} deal={deal} contact={contact} owners={owners} ownerName={ownerName} onClose={() => setAction(null)} onDone={async () => { setAction(null); await refresh(); }} logActivity={logActivity} />}
+      {action && <ActionSheet key={action} action={action} deal={deal} contact={contact} owners={owners} ownerName={ownerName} onClose={() => setAction(null)} onDone={async () => { setAction(null); await refresh(); }} logActivity={logActivity} />}
       {showAI && <BoltModal context={`Pipeline deal: ${deal.title}`} onClose={() => setShowAI(false)} />}
       {editKey && <EditKeyFieldsModal deal={deal} owners={owners} onClose={() => setEditKey(false)} onSaved={async () => { setEditKey(false); await refresh(); }} />}
       {showTask && <TaskModal dealId={deal.id} owners={owners} onClose={() => setShowTask(false)} onSaved={async () => { setShowTask(false); await refresh(); }} />}
       {showAddActivity && <AddActivityModal defaultType={tab === "all" || tab === "tasks" ? "note" : tab} onClose={() => setShowAddActivity(false)} onSubmit={async (type, summary, body, occurredAt) => { await logActivity(type, summary, body, undefined, occurredAt || undefined); setShowAddActivity(false); }} />}
+      {showContactEdit && contact && <ContactQuickEditModal contactId={contact.id} onClose={() => setShowContactEdit(false)} onSaved={async () => { setShowContactEdit(false); await refresh(); }} />}
     </div>
+  );
+}
+
+// ─── Email compose menu (in-app / default mail / Gmail) ───────────
+function EmailMenu({ email, subject, canWrite, onComposeInApp }: { email: string; subject: string; canWrite: boolean; onComposeInApp: () => void }) {
+  const [open, setOpen] = React.useState(false);
+  const ref = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => { if (!open) return; const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); }; document.addEventListener("mousedown", h); return () => document.removeEventListener("mousedown", h); }, [open]);
+  const su = encodeURIComponent(subject);
+  const mailto = `mailto:${email}?subject=${su}`;
+  const gmail = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(email)}&su=${su}`;
+  return (
+    <div ref={ref} className="relative inline-block text-left">
+      <button type="button" onClick={() => setOpen((v) => !v)} className="text-accent hover:underline">{email}</button>
+      {open && (
+        <div role="menu" className="absolute right-0 z-30 mt-1 w-52 overflow-hidden rounded-lg border border-border bg-card py-1 text-left shadow-lg">
+          {canWrite && <button onClick={() => { setOpen(false); onComposeInApp(); }} className="flex w-full items-center gap-2 px-3 py-2 text-xs font-medium hover:bg-muted"><Mail className="h-3.5 w-3.5" /> Compose in app</button>}
+          <a href={mailto} onClick={() => setOpen(false)} className="flex w-full items-center gap-2 px-3 py-2 text-xs font-medium hover:bg-muted"><Mail className="h-3.5 w-3.5" /> Default email app</a>
+          <a href={gmail} target="_blank" rel="noopener noreferrer" onClick={() => setOpen(false)} className="flex w-full items-center gap-2 px-3 py-2 text-xs font-medium hover:bg-muted"><Mail className="h-3.5 w-3.5" /> Gmail</a>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Contact quick-edit (opens in-place, not the full Contacts list) ──
+function ContactQuickEditModal({ contactId, onClose, onSaved }: { contactId: string; onClose: () => void; onSaved: () => Promise<void> }) {
+  const [f, setF] = React.useState<Record<string, string> | null>(null);
+  const [saving, setSaving] = React.useState(false);
+  const [err, setErr] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    (async () => {
+      const r = await fetch(`/api/contacts/${contactId}`);
+      const c = r.ok ? await r.json() : {};
+      setF({ first_name: c.first_name ?? "", last_name: c.last_name ?? "", email: c.email ?? "", phone: c.phone ?? "", company: c.company ?? "", type: c.type ?? "", address: c.address ?? "", city: c.city ?? "", state: c.state ?? "", zip: c.zip ?? "" });
+    })();
+  }, [contactId]);
+  const set = (k: string, v: string) => setF((p) => (p ? { ...p, [k]: v } : p));
+  async function save(extra?: Record<string, unknown>) {
+    if (!f) return;
+    setSaving(true); setErr(null);
+    const r = await fetch(`/api/contacts/${contactId}`, { method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ first_name: f.first_name, last_name: f.last_name, email: f.email || null, phone: f.phone || null, company: f.company || null, type: f.type || null, address: f.address || null, city: f.city || null, state: f.state || null, zip: f.zip || null, ...extra }) });
+    setSaving(false);
+    if (!r.ok) { setErr((await r.json()).error || "Save failed."); return; }
+    await onSaved();
+  }
+  return (
+    <ModalShell title="Edit contact" onClose={onClose} wide>
+      {!f ? <div className="py-10 text-center"><Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" /></div> : (
+        <>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <L label="First name"><Input value={f.first_name} onChange={(e) => set("first_name", e.target.value)} /></L>
+            <L label="Last name"><Input value={f.last_name} onChange={(e) => set("last_name", e.target.value)} /></L>
+            <L label="Email"><Input value={f.email} onChange={(e) => set("email", e.target.value)} /></L>
+            <L label="Phone"><Input value={f.phone} onChange={(e) => set("phone", e.target.value)} /></L>
+            <L label="Company"><Input value={f.company} onChange={(e) => set("company", e.target.value)} /></L>
+            <L label="Type"><Select value={f.type} onChange={(e) => set("type", e.target.value)}><option value="">—</option>{CONTACT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}</Select></L>
+            <L label="Address" full><Input value={f.address} onChange={(e) => set("address", e.target.value)} /></L>
+            <L label="City"><Input value={f.city} onChange={(e) => set("city", e.target.value)} /></L>
+            <div className="grid grid-cols-2 gap-3">
+              <L label="State"><Input value={f.state} onChange={(e) => set("state", e.target.value)} /></L>
+              <L label="ZIP"><Input value={f.zip} onChange={(e) => set("zip", e.target.value)} /></L>
+            </div>
+          </div>
+          {err && <p className="mt-2 text-xs text-destructive">{err}</p>}
+          <div className="mt-4 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <a href={`/dashboard/contacts?id=${contactId}`} className="text-xs text-muted-foreground hover:text-foreground">Full profile →</a>
+              {f.type !== "Lead" && <Button size="sm" variant="outline" disabled={saving} onClick={() => save({ type: "Lead" })}>Convert to Lead</Button>}
+            </div>
+            <div className="flex gap-2"><Button variant="outline" onClick={onClose}>Cancel</Button><Button variant="accent" onClick={() => save()} disabled={saving}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Save</Button></div>
+          </div>
+        </>
+      )}
+    </ModalShell>
   );
 }
 
