@@ -1104,6 +1104,19 @@ function ContactActionModal({
     }
   }
 
+  // Hand off to an external mail client with the typed subject/message prefilled.
+  // Templates are HTML, so external bodies use a plain-text fallback.
+  function openExternal(where: "default" | "gmail" | "outlook") {
+    const to = contact.email ?? "";
+    const bodyText = selectedTemplate ? selectedTemplate.html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim() : message;
+    const su = encodeURIComponent(subject);
+    const bd = encodeURIComponent(bodyText);
+    if (where === "default") { window.location.href = `mailto:${to}?subject=${su}&body=${bd}`; }
+    else if (where === "gmail") { window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(to)}&su=${su}&body=${bd}`, "_blank", "noopener"); }
+    else { window.open(`https://outlook.office.com/mail/deeplink/compose?to=${encodeURIComponent(to)}&subject=${su}&body=${bd}`, "_blank", "noopener"); }
+    onClose();
+  }
+
   return (
     <Modal title={title} onClose={onClose}>
       <div className="space-y-4">
@@ -1242,12 +1255,23 @@ function ContactActionModal({
           </>
         )}
 
-        <div className="flex justify-end gap-2">
-          <Button size="sm" variant="outline" onClick={onClose} disabled={busy}>Cancel</Button>
-          <Button size="sm" variant="accent" onClick={() => void submit()} disabled={busy}>
-            {action === "call" ? <Phone className="h-3.5 w-3.5" /> : <Mail className="h-3.5 w-3.5" />}
-            {busy ? "Working..." : action === "call" ? "Start Call" : "Send"}
-          </Button>
+        {action === "email" && (
+          <div className="flex flex-wrap items-center gap-1.5 border-t border-border pt-3">
+            <span className="mr-1 text-xs text-muted-foreground">Send from:</span>
+            <Button size="sm" variant="outline" onClick={() => openExternal("default")} disabled={busy}><Mail className="h-3.5 w-3.5" /> Default email</Button>
+            <Button size="sm" variant="outline" onClick={() => openExternal("gmail")} disabled={busy}>Gmail</Button>
+            <Button size="sm" variant="outline" onClick={() => openExternal("outlook")} disabled={busy}>Outlook</Button>
+          </div>
+        )}
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs text-muted-foreground">{action === "email" ? "In-app sends & logs to the contact" : ""}</span>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={onClose} disabled={busy}>Cancel</Button>
+            <Button size="sm" variant="accent" onClick={() => void submit()} disabled={busy}>
+              {action === "call" ? <Phone className="h-3.5 w-3.5" /> : <Mail className="h-3.5 w-3.5" />}
+              {busy ? "Working..." : action === "call" ? "Start Call" : action === "email" ? "Send in app" : "Send"}
+            </Button>
+          </div>
         </div>
       </div>
     </Modal>
