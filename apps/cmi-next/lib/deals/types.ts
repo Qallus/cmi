@@ -149,5 +149,18 @@ export type DealChecklistProgress = {
   completed_by: string | null;
 };
 
+// A custom (staff-added) per-deal completion item.
+export type DealChecklistItem = {
+  id: string;
+  deal_id: string;
+  label: string;
+  required: boolean;
+  sort_order: number;
+  completed_at: string | null;
+  completed_by: string | null;
+  created_by: string | null;
+  created_at: string;
+};
+
 // Actor passed from API routes into the data layer for provenance.
 export type Actor = { name?: string | null; id?: string | null };

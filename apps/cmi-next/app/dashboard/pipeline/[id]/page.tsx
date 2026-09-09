@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { getSessionStaff } from "@/lib/auth/server-session";
-import { getDeal, loadActivities, loadDealTasks, loadStageHistory, loadChecklistProgress } from "@/lib/deals/data";
-import type { Activity, Deal, DealChecklistProgress, DealStageHistoryRow, DealTask } from "@/lib/deals/types";
+import { getDeal, loadActivities, loadDealTasks, loadStageHistory, loadChecklistProgress, loadChecklistItems } from "@/lib/deals/data";
+import type { Activity, Deal, DealChecklistItem, DealChecklistProgress, DealStageHistoryRow, DealTask } from "@/lib/deals/types";
 import { DealDetailClient, type DealContact, type OwnerOption } from "./deal-detail-client";
 
 export const metadata = { title: "Deal — CMI Pipeline" };
@@ -25,13 +25,15 @@ export default async function DealDetailPage({ params }: { params: Promise<{ id:
   let tasks: DealTask[] = [];
   let history: DealStageHistoryRow[] = [];
   let checklist: DealChecklistProgress[] = [];
+  let customItems: DealChecklistItem[] = [];
 
   try {
-    [activities, tasks, history, checklist] = await Promise.all([
+    [activities, tasks, history, checklist, customItems] = await Promise.all([
       loadActivities({ dealId: id }),
       loadDealTasks({ dealId: id }),
       loadStageHistory(id),
       loadChecklistProgress(id),
+      loadChecklistItems(id),
     ]);
     const [{ data: staffRows }, contactRes] = await Promise.all([
       supabase.from("staff_users").select("id, display_name, first_name, last_name").eq("status", "active").order("display_name"),
@@ -66,6 +68,7 @@ export default async function DealDetailPage({ params }: { params: Promise<{ id:
       initialTasks={tasks}
       initialHistory={history}
       initialChecklist={checklist}
+      initialCustomItems={customItems}
     />
   );
 }

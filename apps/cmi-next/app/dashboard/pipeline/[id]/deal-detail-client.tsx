@@ -17,7 +17,8 @@ import { BoltModal } from "@/components/dashboard/bolt-modal";
 import { CallsWorkspace } from "@/app/dashboard/communications/calls-workspace";
 import { RichTextEditor } from "@/components/notes/rich-text-editor";
 import { DEAL_STAGE_META, DEAL_STAGES, DEAL_STAGE_CHECKLIST, LOST_REASONS } from "@/lib/deals/stages";
-import type { Activity, ActivityType, Deal, DealChecklistProgress, DealStage, DealStageHistoryRow, DealTask } from "@/lib/deals/types";
+import { CONTACT_TYPES } from "@/lib/contacts/types";
+import type { Activity, ActivityType, Deal, DealChecklistItem, DealChecklistProgress, DealStage, DealStageHistoryRow, DealTask } from "@/lib/deals/types";
 
 export type OwnerOption = { id: string; name: string };
 export type DealContact = { id: string; name: string; email: string | null; phone: string | null; company: string | null; role: string | null; tags: string[] | null };
@@ -56,37 +57,69 @@ const ACTIONS: { key: ActionKey; label: string; icon: typeof Phone }[] = [
 ];
 
 export function DealDetailClient({
-  deal: initialDeal, contact, owners, canWrite, initialActivities, initialTasks, initialHistory, initialChecklist,
+  deal: initialDeal, contact: initialContact, owners, canWrite, initialActivities, initialTasks, initialHistory, initialChecklist, initialCustomItems,
 }: {
   deal: Deal; contact: DealContact | null; owners: OwnerOption[]; canWrite: boolean;
-  initialActivities: Activity[]; initialTasks: DealTask[]; initialHistory: DealStageHistoryRow[]; initialChecklist: DealChecklistProgress[];
+  initialActivities: Activity[]; initialTasks: DealTask[]; initialHistory: DealStageHistoryRow[]; initialChecklist: DealChecklistProgress[]; initialCustomItems: DealChecklistItem[];
 }) {
   const router = useRouter();
   const [deal, setDeal] = React.useState(initialDeal);
+  const [contact, setContact] = React.useState(initialContact);
   const [activities, setActivities] = React.useState(initialActivities);
   const [tasks, setTasks] = React.useState(initialTasks);
   const [history, setHistory] = React.useState(initialHistory);
   const [done, setDone] = React.useState<Set<string>>(new Set(initialChecklist.map((c) => c.item_key)));
+  const [customItems, setCustomItems] = React.useState(initialCustomItems);
   const [action, setAction] = React.useState<ActionKey | null>(null);
   const [showAI, setShowAI] = React.useState(false);
   const [editKey, setEditKey] = React.useState(false);
+  const [showTask, setShowTask] = React.useState(false);
+  const [showAddActivity, setShowAddActivity] = React.useState(false);
   const [tab, setTab] = React.useState<ActivityType | "all">("all");
   const [busy, setBusy] = React.useState(false);
+  const [newItem, setNewItem] = React.useState("");
 
   const ownerName = (id: string | null) => owners.find((o) => o.id === id)?.name ?? "Unassigned";
 
   const refresh = React.useCallback(async () => {
-    const [d, a, t, h, c] = await Promise.all([
+    const [d, a, t, h, c, ci] = await Promise.all([
       fetch(`/api/deals/${deal.id}`).then((r) => (r.ok ? r.json() : null)),
       fetch(`/api/deals/${deal.id}/activities`).then((r) => (r.ok ? r.json() : [])),
       fetch(`/api/deals/${deal.id}/tasks`).then((r) => (r.ok ? r.json() : [])),
       fetch(`/api/deals/${deal.id}/stage`).then((r) => (r.ok ? r.json() : [])),
       fetch(`/api/deals/${deal.id}/checklist`).then((r) => (r.ok ? r.json() : [])),
+      fetch(`/api/deals/${deal.id}/checklist-items`).then((r) => (r.ok ? r.json() : [])),
     ]);
     if (d) setDeal(d);
-    setActivities(a); setTasks(t); setHistory(h);
+    setActivities(a); setTasks(t); setHistory(h); setCustomItems(ci);
     setDone(new Set((c as DealChecklistProgress[]).map((x) => x.item_key)));
   }, [deal.id]);
+
+  // Inline edits: deal fields → PATCH deal; contact fields → PATCH contact.
+  async function saveDeal(patch: Record<string, unknown>) {
+    const r = await fetch(`/api/deals/${deal.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
+    if (r.ok) setDeal(await r.json()); else await refresh();
+  }
+  async function saveContact(patch: Record<string, unknown>) {
+    if (!contact) return;
+    const r = await fetch(`/api/contacts/${contact.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
+    if (r.ok) { const c = await r.json(); setContact({ ...contact, name: `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || contact.name, email: c.email ?? null, phone: c.phone ?? null, company: c.company ?? null, role: c.type ?? null }); }
+  }
+
+  // Custom checklist items.
+  async function addCustomItem(label: string) {
+    if (!label.trim()) return;
+    await fetch(`/api/deals/${deal.id}/checklist-items`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ label }) });
+    setNewItem(""); await refresh();
+  }
+  async function toggleCustomItem(item: DealChecklistItem) {
+    await fetch(`/api/deals/checklist-items/${item.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ done: !item.completed_at }) });
+    await refresh();
+  }
+  async function deleteCustomItem(item: DealChecklistItem) {
+    await fetch(`/api/deals/checklist-items/${item.id}`, { method: "DELETE" });
+    await refresh();
+  }
 
   async function changeStage(to: DealStage, extra: Record<string, unknown> = {}) {
     setBusy(true);
@@ -106,9 +139,10 @@ export function DealDetailClient({
     });
   }
 
-  async function logActivity(type: ActivityType, summary: string, body?: string, metadata?: Record<string, unknown>) {
+  async function logActivity(type: ActivityType, summary: string, body?: string, metadata?: Record<string, unknown>, occurredAt?: string) {
     await fetch(`/api/deals/${deal.id}/activities`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type, summary, body: body ?? null, metadata: metadata ?? {} }),
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type, summary, body: body ?? null, metadata: metadata ?? {}, ...(occurredAt ? { occurred_at: occurredAt } : {}) }),
     });
     await refresh();
   }
@@ -120,7 +154,8 @@ export function DealDetailClient({
 
   const meta = DEAL_STAGE_META[deal.stage];
   const checklistItems = DEAL_STAGE_CHECKLIST[deal.stage] ?? [];
-  const doneCount = checklistItems.filter((i) => done.has(i.key)).length;
+  const totalDone = checklistItems.filter((i) => done.has(i.key)).length + customItems.filter((i) => i.completed_at).length;
+  const totalItems = checklistItems.length + customItems.length;
   const nextStage = DEAL_STAGES.find((s) => DEAL_STAGE_META[s].order === meta.order + 1 && DEAL_STAGE_META[s].open !== false);
   const enteredStageAt = [...history].reverse().find((h) => h.to_stage === deal.stage)?.changed_at ?? deal.created_at;
 
@@ -159,10 +194,10 @@ export function DealDetailClient({
         </div>
         {/* Summary strip */}
         <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 rounded-lg border border-border p-4 md:grid-cols-4 lg:grid-cols-5">
-          <Summary label="Account / Contact" value={contact?.name ?? "—"} />
-          <Summary label="Close date" value={fmtDate(deal.expected_close_date)} />
-          <Summary label="Amount" value={money(deal.estimated_value)} />
-          <Summary label="Owner" value={ownerName(deal.owner_id)} />
+          <Summary label="Account / Contact">{contact ? <a href={`/dashboard/contacts?id=${contact.id}`} className="hover:underline">{contact.name}</a> : "—"}</Summary>
+          <Summary label="Close date"><Inline canWrite={canWrite} kind="date" value={deal.expected_close_date ?? ""} display={fmtDate(deal.expected_close_date)} onSave={(x) => saveDeal({ expected_close_date: x || null })} /></Summary>
+          <Summary label="Amount"><Inline canWrite={canWrite} kind="number" value={deal.estimated_value != null ? String(deal.estimated_value) : ""} display={money(deal.estimated_value)} onSave={(x) => saveDeal({ estimated_value: x === "" ? null : Number(x) })} /></Summary>
+          <Summary label="Owner"><Inline canWrite={canWrite} kind="select" value={deal.owner_id ?? ""} display={ownerName(deal.owner_id)} options={[{ value: "", label: "Unassigned" }, ...owners.map((o) => ({ value: o.id, label: o.name }))]} onSave={(x) => saveDeal({ owner_id: x || null })} /></Summary>
           <Summary label="Stage" value={<span className="rounded-full bg-accent/15 px-2 py-0.5 text-xs font-medium text-accent">{meta.label}</span>} />
         </div>
       </div>
@@ -182,8 +217,8 @@ export function DealDetailClient({
           );
         })}
         {canWrite && nextStage && (
-          <Button size="sm" variant="accent" disabled={busy || doneCount < checklistItems.filter((i) => i.required).length} onClick={() => changeStage(nextStage)}>
-            <Check className="h-4 w-4" /> Mark stage complete
+          <Button size="sm" variant="accent" disabled={busy} onClick={() => changeStage(nextStage)}>
+            <ArrowRight className="h-4 w-4" /> Advance to {DEAL_STAGE_META[nextStage].label}
           </Button>
         )}
       </div>
@@ -212,9 +247,10 @@ export function DealDetailClient({
                     <span className="grid h-11 w-11 place-items-center rounded-full bg-accent/15 text-sm font-semibold text-accent">{contact.name.split(" ").map((n) => n[0]).slice(0, 2).join("")}</span>
                     <div><div className="font-semibold">{contact.name}</div>{contact.role && <div className="text-xs text-muted-foreground">{contact.role}</div>}</div>
                   </div>
-                  <Field label="Email">{contact.email ? <button onClick={() => canWrite && setAction("email")} className="text-accent hover:underline">{contact.email}</button> : "—"}</Field>
-                  <Field label="Phone">{contact.phone ? <button onClick={() => canWrite && setAction("call")} className="text-accent hover:underline">{contact.phone}</button> : "—"}</Field>
-                  {contact.company && <Field label="Company">{contact.company}</Field>}
+                  <Field label="Email"><Inline canWrite={canWrite} value={contact.email ?? ""} placeholder="Add email" onSave={(v) => saveContact({ email: v })} /></Field>
+                  <Field label="Phone"><Inline canWrite={canWrite} value={contact.phone ?? ""} placeholder="Add phone" onSave={(v) => saveContact({ phone: v })} /></Field>
+                  <Field label="Company"><Inline canWrite={canWrite} value={contact.company ?? ""} placeholder="Add company" onSave={(v) => saveContact({ company: v })} /></Field>
+                  <Field label="Role"><Inline canWrite={canWrite} kind="select" value={contact.role ?? ""} options={[{ value: "", label: "—" }, ...CONTACT_TYPES.map((t) => ({ value: t, label: t }))]} onSave={(v) => saveContact({ type: v || null })} /></Field>
                   {contact.tags?.length ? <Field label="Tags"><span className="flex flex-wrap gap-1">{contact.tags.map((t) => <span key={t} className="rounded-full bg-muted px-2 py-0.5 text-[11px]">{t}</span>)}</span></Field> : null}
                 </div>
               ) : <p className="text-sm text-muted-foreground">No contact linked to this deal.</p>}
@@ -222,20 +258,20 @@ export function DealDetailClient({
 
             <Card title="Key fields" action={canWrite && <button onClick={() => setEditKey(true)} className="inline-flex items-center gap-1 text-xs text-accent hover:underline"><Pencil className="h-3 w-3" /> Edit</button>}>
               <div className="space-y-2.5">
-                <Field label="Estimated amount">{money(deal.estimated_value)}</Field>
-                <Field label="Expected close">{fmtDate(deal.expected_close_date)}</Field>
-                <Field label="Job type">{deal.job_type || "—"}</Field>
+                <Field label="Estimated amount"><Inline canWrite={canWrite} kind="number" value={deal.estimated_value != null ? String(deal.estimated_value) : ""} display={money(deal.estimated_value)} onSave={(v) => saveDeal({ estimated_value: v === "" ? null : Number(v) })} /></Field>
+                <Field label="Expected close"><Inline canWrite={canWrite} kind="date" value={deal.expected_close_date ?? ""} display={fmtDate(deal.expected_close_date)} onSave={(v) => saveDeal({ expected_close_date: v || null })} /></Field>
+                <Field label="Job type"><Inline canWrite={canWrite} kind="select" value={deal.job_type ?? ""} options={[{ value: "", label: "—" }, ...JOB_TYPES.map((t) => ({ value: t, label: t }))]} onSave={(v) => saveDeal({ job_type: v || null })} /></Field>
                 <Field label="Location">{deal.full_address || "—"}</Field>
-                <Field label="Probability">{deal.probability != null ? `${deal.probability}%` : "—"}</Field>
+                <Field label="Probability"><Inline canWrite={canWrite} kind="number" value={deal.probability != null ? String(deal.probability) : ""} display={deal.probability != null ? `${deal.probability}%` : undefined} placeholder="—" onSave={(v) => saveDeal({ probability: v === "" ? null : Number(v) })} /></Field>
                 <Field label="Last activity">{deal.last_activity_at ? `${daysSince(deal.last_activity_at)}d ago` : "—"}</Field>
                 <Field label="Days in stage">{`${daysSince(enteredStageAt) ?? 0}d`}</Field>
-                <Field label="Next step">{deal.next_action ? <span>{deal.next_action}{deal.next_action_due ? ` · ${fmtDate(deal.next_action_due)}` : ""}</span> : <button onClick={() => canWrite && setEditKey(true)} className="text-accent hover:underline">Set a next step</button>}</Field>
+                <Field label="Next step"><Inline canWrite={canWrite} value={deal.next_action ?? ""} placeholder="Set a next step" onSave={(v) => saveDeal({ next_action: v || null })} /></Field>
               </div>
             </Card>
           </div>
 
           {/* Completion items */}
-          <Card title={`Completion items · ${doneCount}/${checklistItems.length}`}>
+          <Card title={`Completion items · ${totalDone}/${totalItems}`}>
             <ul className="space-y-1.5">
               {checklistItems.map((item) => {
                 const isDone = done.has(item.key);
@@ -249,13 +285,29 @@ export function DealDetailClient({
                   </li>
                 );
               })}
-              {checklistItems.length === 0 && <li className="text-sm text-muted-foreground">No items for this stage.</li>}
+              {customItems.map((item) => (
+                <li key={item.id} className="group flex items-center gap-2">
+                  <button disabled={!canWrite} onClick={() => toggleCustomItem(item)} className="shrink-0 text-accent disabled:opacity-50">
+                    {item.completed_at ? <CheckCircle2 className="h-4 w-4" /> : <Circle className="h-4 w-4 text-muted-foreground" />}
+                  </button>
+                  <span className={cn("flex-1 text-sm", item.completed_at && "text-muted-foreground line-through")}>{item.label}</span>
+                  {canWrite && <button onClick={() => deleteCustomItem(item)} className="opacity-0 transition group-hover:opacity-100" title="Remove item"><X className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" /></button>}
+                </li>
+              ))}
+              {checklistItems.length === 0 && customItems.length === 0 && <li className="text-sm text-muted-foreground">No items yet.</li>}
             </ul>
+            {canWrite && (
+              <div className="mt-2.5 flex items-center gap-2">
+                <input value={newItem} onChange={(e) => setNewItem(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void addCustomItem(newItem); }} placeholder="Add a completion item…" className="h-8 flex-1 rounded-md border border-border bg-background px-2.5 text-sm outline-none focus:border-accent" />
+                <Button size="sm" variant="outline" disabled={!newItem.trim()} onClick={() => void addCustomItem(newItem)}><Plus className="h-4 w-4" /> Add</Button>
+              </div>
+            )}
           </Card>
 
           {/* Activity timeline */}
           <Card title="Activity timeline" action={
-            <div className="flex flex-wrap gap-1 text-xs">
+            <div className="flex flex-wrap items-center gap-1 text-xs">
+              {canWrite && <button onClick={() => setShowAddActivity(true)} className="mr-1 inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 font-medium hover:border-accent/40 hover:text-accent"><Plus className="h-3 w-3" /> Add</button>}
               {(["all", "call", "email", "sms", "note", "voice_note", "ai_agent", "appointment"] as const).map((t) => {
                 const count = countFor(t);
                 const fresh = newFor(t);
@@ -308,8 +360,8 @@ export function DealDetailClient({
             </ul>
           </Card>
 
-          <Card title="Tasks">
-            {tasks.length === 0 ? <p className="text-sm text-muted-foreground">No tasks.</p> : (
+          <Card title="Tasks" action={canWrite && <button onClick={() => setShowTask(true)} className="inline-flex items-center gap-1 text-xs text-accent hover:underline"><Plus className="h-3 w-3" /> Add Task</button>}>
+            {tasks.length === 0 ? <p className="text-sm text-muted-foreground">No tasks yet.</p> : (
               <ul className="space-y-1.5">
                 {tasks.map((t) => (
                   <li key={t.id} className="flex items-center gap-2">
@@ -344,12 +396,36 @@ export function DealDetailClient({
       {action && <ActionSheet action={action} deal={deal} contact={contact} owners={owners} ownerName={ownerName} onClose={() => setAction(null)} onDone={async () => { setAction(null); await refresh(); }} logActivity={logActivity} />}
       {showAI && <BoltModal context={`Pipeline deal: ${deal.title}`} onClose={() => setShowAI(false)} />}
       {editKey && <EditKeyFieldsModal deal={deal} owners={owners} onClose={() => setEditKey(false)} onSaved={async () => { setEditKey(false); await refresh(); }} />}
+      {showTask && <TaskModal dealId={deal.id} owners={owners} onClose={() => setShowTask(false)} onSaved={async () => { setShowTask(false); await refresh(); }} />}
+      {showAddActivity && <AddActivityModal defaultType={tab === "all" ? "note" : tab} onClose={() => setShowAddActivity(false)} onSubmit={async (type, summary, body, occurredAt) => { await logActivity(type, summary, body, undefined, occurredAt || undefined); setShowAddActivity(false); }} />}
     </div>
   );
 }
 
-function Summary({ label, value }: { label: string; value: React.ReactNode }) {
-  return <div><div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div><div className="mt-0.5 text-sm font-medium">{value}</div></div>;
+function Summary({ label, value, children }: { label: string; value?: React.ReactNode; children?: React.ReactNode }) {
+  return <div><div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div><div className="mt-0.5 text-sm font-medium">{children ?? value}</div></div>;
+}
+
+// Click-to-edit field: shows a value; click turns it into an input/select that
+// saves on blur/Enter (Esc cancels). Read-only when canWrite is false.
+function Inline({ value, display, onSave, canWrite, kind = "text", options, placeholder = "—" }: {
+  value: string; display?: React.ReactNode; onSave: (v: string) => void | Promise<void>; canWrite: boolean;
+  kind?: "text" | "number" | "date" | "select"; options?: { value: string; label: string }[]; placeholder?: string;
+}) {
+  const [editing, setEditing] = React.useState(false);
+  const [v, setV] = React.useState(value);
+  const [saving, setSaving] = React.useState(false);
+  const shown = display ?? (value || <span className="text-muted-foreground">{placeholder}</span>);
+  if (!canWrite) return <span>{shown}</span>;
+  if (!editing) return <button type="button" onClick={() => { setV(value); setEditing(true); }} className="rounded px-1 -mx-1 text-left transition hover:bg-muted">{shown || <span className="text-accent">Set</span>}</button>;
+  const commit = async () => { setSaving(true); try { if (v !== value) await onSave(v); } finally { setSaving(false); setEditing(false); } };
+  const common = "h-8 rounded-md border border-accent bg-background px-2 text-sm outline-none";
+  if (kind === "select") return (
+    <select autoFocus value={v} disabled={saving} onChange={(e) => setV(e.target.value)} onBlur={commit} onKeyDown={(e) => { if (e.key === "Escape") setEditing(false); }} className={cn(common, "w-full")}>
+      {(options ?? []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+    </select>
+  );
+  return <input autoFocus type={kind} value={v} disabled={saving} onChange={(e) => setV(e.target.value)} onBlur={commit} onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") setEditing(false); }} className={cn(common, "w-full")} />;
 }
 function Card({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -880,6 +956,70 @@ function SelectionPickerModal({
           <Button variant="accent" onClick={attach} disabled={busy || !picked.size}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Package className="h-4 w-4" />} Attach {picked.size || ""}</Button>
         </div>
       </div>
+    </ModalShell>
+  );
+}
+
+// ─── Add task ─────────────────────────────────────────────────────
+function TaskModal({ dealId, owners, onClose, onSaved }: { dealId: string; owners: OwnerOption[]; onClose: () => void; onSaved: () => Promise<void> }) {
+  const [title, setTitle] = React.useState("");
+  const [desc, setDesc] = React.useState("");
+  const [assignee, setAssignee] = React.useState("");
+  const [due, setDue] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  const [err, setErr] = React.useState<string | null>(null);
+  async function save() {
+    if (!title.trim()) { setErr("Task title is required."); return; }
+    setBusy(true); setErr(null);
+    const r = await fetch(`/api/deals/${dealId}/tasks`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title, description: desc || null, assigned_to: assignee || null, due_at: due ? new Date(due).toISOString() : null }),
+    });
+    setBusy(false);
+    if (!r.ok) { setErr((await r.json()).error || "Failed to add task."); return; }
+    await onSaved();
+  }
+  return (
+    <ModalShell title="Add task" onClose={onClose}>
+      <div className="space-y-3">
+        <L label="Task title" full><Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Send proposal follow-up" /></L>
+        <L label="Details" full><Textarea value={desc} onChange={(e) => setDesc(e.target.value)} className="min-h-[70px]" /></L>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <L label="Assign to"><Select value={assignee} onChange={(e) => setAssignee(e.target.value)}><option value="">Unassigned</option>{owners.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}</Select></L>
+          <L label="Due"><Input type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} /></L>
+        </div>
+        {err && <p className="text-xs text-destructive">{err}</p>}
+      </div>
+      <div className="mt-4 flex justify-end gap-2"><Button variant="outline" onClick={onClose}>Cancel</Button><Button variant="accent" onClick={save} disabled={busy}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Add task</Button></div>
+    </ModalShell>
+  );
+}
+
+// ─── Add activity (manual) ────────────────────────────────────────
+function AddActivityModal({ defaultType, onClose, onSubmit }: { defaultType: ActivityType; onClose: () => void; onSubmit: (type: ActivityType, summary: string, body: string | undefined, occurredAt: string) => Promise<void> }) {
+  const TYPES: ActivityType[] = ["call", "email", "sms", "note", "voice_note", "ai_agent", "appointment", "meeting", "site_visit", "scan_3d", "selection"];
+  const [type, setType] = React.useState<ActivityType>(defaultType);
+  const [summary, setSummary] = React.useState("");
+  const [body, setBody] = React.useState("");
+  const [when, setWhen] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  async function submit() {
+    if (!summary.trim() && !body.trim()) return;
+    setBusy(true);
+    await onSubmit(type, summary || ACTIVITY_META[type].label, body || undefined, when ? new Date(when).toISOString() : "");
+    setBusy(false);
+  }
+  return (
+    <ModalShell title="Add activity" onClose={onClose}>
+      <div className="space-y-3">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <L label="Type"><Select value={type} onChange={(e) => setType(e.target.value as ActivityType)}>{TYPES.map((t) => <option key={t} value={t}>{ACTIVITY_META[t].label}</option>)}</Select></L>
+          <L label="When (optional)"><Input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} /></L>
+        </div>
+        <L label="Summary" full><Input value={summary} onChange={(e) => setSummary(e.target.value)} placeholder={`e.g. ${ACTIVITY_META[type].label} with client`} /></L>
+        <L label="Details (optional)" full><Textarea value={body} onChange={(e) => setBody(e.target.value)} className="min-h-[80px]" /></L>
+      </div>
+      <div className="mt-4 flex justify-end gap-2"><Button variant="outline" onClick={onClose}>Cancel</Button><Button variant="accent" onClick={submit} disabled={busy || (!summary.trim() && !body.trim())}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Log activity</Button></div>
     </ModalShell>
   );
 }

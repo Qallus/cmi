@@ -6,7 +6,7 @@ import { createOpportunity } from "@/lib/pipeline/data";
 import { geocodeAddress } from "@/lib/jobs/geocode";
 import { requiredFieldsForStage, DEAL_STAGE_META } from "./stages";
 import type {
-  Actor, Activity, ActivityDraft, Deal, DealChecklistProgress, DealDraft, DealSourceType,
+  Actor, Activity, ActivityDraft, Deal, DealChecklistItem, DealChecklistProgress, DealDraft, DealSourceType,
   DealStage, DealStageHistoryRow, DealTask, DealTaskDraft,
 } from "./types";
 
@@ -365,4 +365,30 @@ export async function setChecklistItem(dealId: string, itemKey: string, done: bo
     const { error } = await supabase.from("deal_checklist_progress").delete().eq("deal_id", dealId).eq("item_key", itemKey);
     if (error) throw new Error(error.message);
   }
+}
+
+// ─── Custom (staff-added) checklist items ─────────────────────────
+export async function loadChecklistItems(dealId: string): Promise<DealChecklistItem[]> {
+  const { data, error } = await getSupabaseAdmin().from("deal_checklist_items").select("*").eq("deal_id", dealId).order("sort_order").order("created_at");
+  if (error) throw new Error(error.message);
+  return (data ?? []) as DealChecklistItem[];
+}
+export async function createChecklistItem(dealId: string, input: { label: string; required?: boolean }, actor?: Actor): Promise<DealChecklistItem> {
+  const { data, error } = await getSupabaseAdmin().from("deal_checklist_items")
+    .insert({ deal_id: dealId, label: input.label.trim(), required: !!input.required, created_by: actor?.id ?? null })
+    .select().single();
+  if (error) throw new Error(error.message);
+  return data as DealChecklistItem;
+}
+export async function updateChecklistItem(id: string, patch: { label?: string; done?: boolean }, actor?: Actor): Promise<DealChecklistItem> {
+  const row: Record<string, unknown> = {};
+  if (typeof patch.label === "string") row.label = patch.label.trim();
+  if (typeof patch.done === "boolean") { row.completed_at = patch.done ? new Date().toISOString() : null; row.completed_by = patch.done ? (actor?.id ?? null) : null; }
+  const { data, error } = await getSupabaseAdmin().from("deal_checklist_items").update(row).eq("id", id).select().single();
+  if (error) throw new Error(error.message);
+  return data as DealChecklistItem;
+}
+export async function deleteChecklistItem(id: string): Promise<void> {
+  const { error } = await getSupabaseAdmin().from("deal_checklist_items").delete().eq("id", id);
+  if (error) throw new Error(error.message);
 }
