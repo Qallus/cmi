@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   Plus, Search, UserPlus, X, Loader2, Phone, MessageSquare, Mail, StickyNote,
   Mic, Sparkles, Package, CalendarClock, Users2, MapPin, ScanLine, CheckCircle2,
-  Circle, ArrowRight, Clock, TrendingUp, Trophy, CalendarDays,
+  Circle, ArrowRight, Clock, TrendingUp, Trophy, CalendarDays, ListChecks,
   List as ListIcon, Table2, Columns3, Map as MapIcon, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -70,9 +70,9 @@ function StageBadge({ stage }: { stage: DealStage }) {
 }
 
 export function PipelineDealsClient({
-  initialDeals, owners, contacts, quotes, submissions, canWrite,
+  initialDeals, owners, contacts, quotes, submissions, openTasks = 0, canWrite,
 }: {
-  initialDeals: Deal[]; owners: OwnerOption[]; contacts: SourceRow[]; quotes: SourceRow[]; submissions: SourceRow[]; canWrite: boolean;
+  initialDeals: Deal[]; owners: OwnerOption[]; contacts: SourceRow[]; quotes: SourceRow[]; submissions: SourceRow[]; openTasks?: number; canWrite: boolean;
 }) {
   const router = useRouter();
   const [deals, setDeals] = React.useState<Deal[]>(initialDeals);
@@ -146,7 +146,8 @@ export function PipelineDealsClient({
             </div>
           )}
         </div>
-        <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
+          <StatCard icon={ListChecks} label="Tasks" value={String(openTasks)} tone={openTasks ? "warning" : "muted"} />
           <StatCard icon={TrendingUp} label="Open deals" value={String(stats.open)} tone="accent" />
           <StatCard icon={TrendingUp} label="Pipeline value" value={money(stats.value)} tone="success" />
           <StatCard icon={Trophy} label="Closed Won" value={String(stats.won)} tone="success" />

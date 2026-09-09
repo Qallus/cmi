@@ -22,16 +22,19 @@ export default async function PipelinePage() {
   let contacts: SourceRow[] = [];
   let quotes: SourceRow[] = [];
   let submissions: SourceRow[] = [];
+  let openTasks = 0;
 
   try {
-    const [dealsRes, staffRes, contactsRes, quotesRes, subsRes] = await Promise.all([
+    const [dealsRes, staffRes, contactsRes, quotesRes, subsRes, tasksRes] = await Promise.all([
       loadDeals(),
       supabase.from("staff_users").select("id, display_name, first_name, last_name").eq("status", "active").order("display_name"),
       supabase.from("contacts").select("id, first_name, last_name, email, company").order("created_at", { ascending: false }).limit(500),
       supabase.from("quotes").select("id, name, email, project_type").order("created_at", { ascending: false }).limit(500),
       supabase.from("contact_submissions").select("id, first_name, last_name, email, subject").neq("status", "archived").order("submitted_at", { ascending: false }).limit(500),
+      supabase.from("deal_tasks").select("id", { count: "exact", head: true }).is("completed_at", null),
     ]);
     deals = dealsRes;
+    openTasks = tasksRes.count ?? 0;
     owners = (staffRes.data ?? []).map((s) => ({
       id: s.id,
       name: s.display_name || `${s.first_name ?? ""} ${s.last_name ?? ""}`.trim() || "Staff",
@@ -58,6 +61,7 @@ export default async function PipelinePage() {
       contacts={contacts}
       quotes={quotes}
       submissions={submissions}
+      openTasks={openTasks}
       canWrite={canWrite}
     />
   );

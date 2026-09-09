@@ -283,8 +283,8 @@ export function DealDetailClient({
             </Card>
           </div>
 
-          {/* Completion items */}
-          <Card title={`Completion items · ${totalDone}/${totalItems}`}>
+          {/* To-Do items */}
+          <Card title={`To-Do Items · ${totalDone}/${totalItems}`}>
             <ul className="space-y-1.5">
               {checklistItems.map((item) => {
                 const isDone = done.has(item.key);
@@ -311,7 +311,7 @@ export function DealDetailClient({
             </ul>
             {canWrite && (
               <div className="mt-2.5 flex items-center gap-2">
-                <input value={newItem} onChange={(e) => setNewItem(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void addCustomItem(newItem); }} placeholder="Add a completion item…" className="h-8 flex-1 rounded-md border border-border bg-background px-2.5 text-sm outline-none focus:border-accent" />
+                <input value={newItem} onChange={(e) => setNewItem(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void addCustomItem(newItem); }} placeholder="Add a to-do item…" className="h-8 flex-1 rounded-md border border-border bg-background px-2.5 text-sm outline-none focus:border-accent" />
                 <Button size="sm" variant="outline" disabled={!newItem.trim()} onClick={() => void addCustomItem(newItem)}><Plus className="h-4 w-4" /> Add</Button>
               </div>
             )}
