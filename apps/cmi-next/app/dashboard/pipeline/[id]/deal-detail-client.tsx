@@ -75,7 +75,7 @@ export function DealDetailClient({
   const [editKey, setEditKey] = React.useState(false);
   const [showTask, setShowTask] = React.useState(false);
   const [showAddActivity, setShowAddActivity] = React.useState(false);
-  const [tab, setTab] = React.useState<ActivityType | "all">("all");
+  const [tab, setTab] = React.useState<ActivityType | "all" | "tasks">("all");
   const [busy, setBusy] = React.useState(false);
   const [newItem, setNewItem] = React.useState("");
 
@@ -159,7 +159,20 @@ export function DealDetailClient({
   const nextStage = DEAL_STAGES.find((s) => DEAL_STAGE_META[s].order === meta.order + 1 && DEAL_STAGE_META[s].open !== false);
   const enteredStageAt = [...history].reverse().find((h) => h.to_stage === deal.stage)?.changed_at ?? deal.created_at;
 
-  const filteredActs = tab === "all" ? activities : activities.filter((a) => a.type === tab);
+  // Unified timeline feed: activities + tasks, chronological. Tasks appear in
+  // "All" and their own "Tasks" tab; activity tabs show only that type.
+  type TimelineItem = { kind: "activity"; a: Activity; time: string } | { kind: "task"; t: DealTask; time: string };
+  const timelineItems: TimelineItem[] = React.useMemo(() => {
+    if (tab === "tasks") return tasks.map((t) => ({ kind: "task" as const, t, time: t.created_at }));
+    if (tab === "all") {
+      return [
+        ...activities.map((a) => ({ kind: "activity" as const, a, time: a.occurred_at })),
+        ...tasks.map((t) => ({ kind: "task" as const, t, time: t.created_at })),
+      ].sort((x, y) => new Date(y.time).getTime() - new Date(x.time).getTime());
+    }
+    return activities.filter((a) => a.type === tab).map((a) => ({ kind: "activity" as const, a, time: a.occurred_at }));
+  }, [tab, activities, tasks]);
+
   const summaryCounts = (["call", "sms", "email", "note", "voice_note", "ai_agent", "appointment"] as ActivityType[])
     .map((t) => ({ t, n: activities.filter((a) => a.type === t).length }));
 
@@ -308,12 +321,13 @@ export function DealDetailClient({
           <Card title="Activity timeline" action={
             <div className="flex flex-wrap items-center gap-1 text-xs">
               {canWrite && <button onClick={() => setShowAddActivity(true)} className="mr-1 inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 font-medium hover:border-accent/40 hover:text-accent"><Plus className="h-3 w-3" /> Add</button>}
-              {(["all", "call", "email", "sms", "note", "voice_note", "ai_agent", "appointment"] as const).map((t) => {
-                const count = countFor(t);
-                const fresh = newFor(t);
+              {(["all", "call", "email", "sms", "note", "voice_note", "ai_agent", "appointment", "tasks"] as const).map((t) => {
+                const count = t === "tasks" ? tasks.length : countFor(t);
+                const fresh = t === "tasks" ? tasks.filter((x) => new Date(x.created_at).getTime() > seenAt).length : newFor(t);
+                const label = t === "all" ? "All" : t === "tasks" ? "Tasks" : ACTIVITY_META[t].label;
                 return (
                   <button key={t} onClick={() => setTab(t)} className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-medium transition", tab === t ? "bg-accent/15 text-accent" : "text-muted-foreground hover:text-foreground")}>
-                    {t === "all" ? "All" : ACTIVITY_META[t as ActivityType].label}
+                    {label}
                     {count > 0 && (
                       <span className={cn("inline-flex min-w-[16px] items-center justify-center rounded-full px-1 text-[10px] font-semibold leading-4",
                         fresh > 0 ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300" : "bg-muted text-muted-foreground")}>
@@ -325,10 +339,24 @@ export function DealDetailClient({
               })}
             </div>
           }>
-            {filteredActs.length === 0 ? <p className="text-sm text-muted-foreground">No activity yet.</p> : (
+            {timelineItems.length === 0 ? <p className="text-sm text-muted-foreground">{tab === "tasks" ? "No tasks yet." : "No activity yet."}</p> : (
               <ul className="space-y-3">
-                {filteredActs.map((a) => {
-                  const M = ACTIVITY_META[a.type] ?? ACTIVITY_META.note;
+                {timelineItems.map((item) => item.kind === "task" ? (
+                  <li key={`task-${item.t.id}`} className="flex gap-3">
+                    <button disabled={!canWrite} onClick={() => toggleTask(item.t)} className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-muted text-accent disabled:opacity-50" title={item.t.completed_at ? "Mark incomplete" : "Mark complete"}>
+                      {item.t.completed_at ? <CheckCircle2 className="h-4 w-4" /> : <Circle className="h-3.5 w-3.5 text-muted-foreground" />}
+                    </button>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={cn("text-sm font-medium", item.t.completed_at && "text-muted-foreground line-through")}>{item.t.title}</span>
+                        <span className="shrink-0 text-[11px] text-muted-foreground">{fmtWhen(item.t.created_at)}</span>
+                      </div>
+                      {item.t.description && <p className="mt-0.5 whitespace-pre-wrap text-sm text-muted-foreground">{item.t.description}</p>}
+                      <div className="mt-0.5 text-[11px] text-muted-foreground">Task{item.t.due_at ? ` · due ${fmtDate(item.t.due_at)}` : ""}{item.t.assigned_to ? ` · ${ownerName(item.t.assigned_to)}` : ""}</div>
+                    </div>
+                  </li>
+                ) : (() => {
+                  const a = item.a; const M = ACTIVITY_META[a.type] ?? ACTIVITY_META.note;
                   return (
                     <li key={a.id} className="flex gap-3">
                       <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-muted"><M.icon className="h-3.5 w-3.5" /></span>
@@ -344,7 +372,7 @@ export function DealDetailClient({
                       </div>
                     </li>
                   );
-                })}
+                })())}
               </ul>
             )}
           </Card>
@@ -397,7 +425,7 @@ export function DealDetailClient({
       {showAI && <BoltModal context={`Pipeline deal: ${deal.title}`} onClose={() => setShowAI(false)} />}
       {editKey && <EditKeyFieldsModal deal={deal} owners={owners} onClose={() => setEditKey(false)} onSaved={async () => { setEditKey(false); await refresh(); }} />}
       {showTask && <TaskModal dealId={deal.id} owners={owners} onClose={() => setShowTask(false)} onSaved={async () => { setShowTask(false); await refresh(); }} />}
-      {showAddActivity && <AddActivityModal defaultType={tab === "all" ? "note" : tab} onClose={() => setShowAddActivity(false)} onSubmit={async (type, summary, body, occurredAt) => { await logActivity(type, summary, body, undefined, occurredAt || undefined); setShowAddActivity(false); }} />}
+      {showAddActivity && <AddActivityModal defaultType={tab === "all" || tab === "tasks" ? "note" : tab} onClose={() => setShowAddActivity(false)} onSubmit={async (type, summary, body, occurredAt) => { await logActivity(type, summary, body, undefined, occurredAt || undefined); setShowAddActivity(false); }} />}
     </div>
   );
 }
