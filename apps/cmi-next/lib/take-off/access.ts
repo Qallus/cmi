@@ -4,6 +4,7 @@ export const TAKE_OFF_ROLES = [
   "super_admin",
   "admin",
   "project_manager",
+  "staff",
   "estimator",
 ] as const;
 

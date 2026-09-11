@@ -41,7 +41,7 @@ const nav: NavItem[] = [
   },
   { href: "/dashboard/pipeline",       label: "Pipeline",       icon: Workflow,       roles: ["super_admin", "admin", "project_manager", "estimator"] },
   { href: "/dashboard/sales",          label: "Pre-Con",        icon: BriefcaseBusiness, roles: ["super_admin", "admin", "project_manager", "estimator"] },
-  { href: "/dashboard/take-off",       label: "Take-Off",       icon: Ruler, roles: ["super_admin", "admin", "project_manager", "estimator"], flag: "take_off" },
+  { href: "/dashboard/take-off",       label: "Take-Off",       icon: Ruler, roles: ["super_admin", "admin", "project_manager", "staff", "estimator"], flag: "take_off" },
   {
     href: "/dashboard/jobs",           label: "Jobs",           icon: HardHat,        roles: ["super_admin", "admin", "project_manager", "estimator", "superintendent", "designer"],
     children: [

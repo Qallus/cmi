@@ -17,8 +17,8 @@ function evaluate(file, dependencies = {}) {
   return exports;
 }
 const access = evaluate('lib/take-off/access.ts');
-const allowed = ['super_admin', 'admin', 'project_manager', 'estimator'];
-const denied = ['staff', 'designer', 'superintendent', 'subcontractor', 'vendor', 'client', 'viewer', 'unknown', '', null, undefined];
+const allowed = ['super_admin', 'admin', 'project_manager', 'staff', 'estimator'];
+const denied = ['designer', 'superintendent', 'subcontractor', 'vendor', 'client', 'viewer', 'unknown', '', null, undefined];
 async function invoke(staff, enabled) {
   let flagReads = 0;
   const page = evaluate('app/dashboard/take-off/page.tsx', {
