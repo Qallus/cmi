@@ -275,7 +275,7 @@ export function PortfolioClient({ initialItems, demoMode }: { initialItems: Port
     const lastInCol = [...without].reverse().find((i) => i.category === toCategory);
     const insertAt = lastInCol ? without.findIndex((i) => i.id === lastInCol.id) + 1 : without.length;
     without.splice(insertAt, 0, { ...from, category: toCategory });
-    persistReorder(without, fromId, toCategory);
+    void persistReorder(without, fromId, toCategory);
   }
 
   function reorder(fromId: string, toId: string, newCategory?: string) {
@@ -285,29 +285,31 @@ export function PortfolioClient({ initialItems, demoMode }: { initialItems: Port
     const next = [...items];
     const [dragged] = next.splice(fromIdx, 1);
     next.splice(toIdx, 0, newCategory !== undefined ? { ...dragged, category: newCategory } : dragged);
-    persistReorder(next, fromId, newCategory);
+    void persistReorder(next, fromId, newCategory);
   }
 
-  function persistReorder(ordered: PortfolioItem[], changedCatId?: string, newCat?: string) {
+  // Saves the full dashboard order (sort_order 1..N) — the public archive
+  // renders in this same order. Rolls back on failure.
+  async function persistReorder(ordered: PortfolioItem[], changedCatId?: string, newCat?: string) {
+    const previous = items;
     const withOrder = ordered.map((item, i) => ({ ...item, sort_order: i + 1 }));
     setItems(withOrder);
     if (demoMode) return;
-    void Promise.all(
-      withOrder
-        .filter((item) => {
-          const orig = items.find((o) => o.id === item.id);
-          return orig && (orig.sort_order !== item.sort_order || (item.id === changedCatId && newCat !== undefined));
-        })
-        .map((item) => {
-          const body: Record<string, unknown> = { sort_order: item.sort_order };
-          if (item.id === changedCatId && newCat !== undefined) body.category = newCat;
-          return fetch(`/api/admin/portfolio/${item.id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
-          });
-        })
-    );
+    const body: Record<string, unknown> = { order: withOrder.map(item => item.id) };
+    if (changedCatId && newCat !== undefined) body.moved = { id: changedCatId, category: newCat };
+    try {
+      const res = await fetch("/api/admin/portfolio/reorder", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.message || "Saving portfolio order failed.");
+      setNotice("Portfolio order saved — the public portfolio page now matches.");
+    } catch (error) {
+      setItems(previous);
+      setNotice(error instanceof Error ? error.message : "Saving portfolio order failed.");
+    }
   }
 
   const kanbanCols = React.useMemo(() => {

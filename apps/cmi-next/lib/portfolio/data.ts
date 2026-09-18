@@ -83,6 +83,21 @@ export async function loadPortfolioItems(options: { publishedOnly?: boolean; fea
   return (data || []) as PortfolioItem[];
 }
 
+// Persists the dashboard drag order: ids in display order become sort_order
+// 1..N, which the public archive sorts by. `moved` carries a kanban column drop.
+export async function reorderPortfolio(orderedIds: string[], moved?: { id: string; category: string | null }) {
+  const supabase = getSupabaseAdmin();
+  const results = await Promise.all(
+    orderedIds.map((id, i) => {
+      const patch: Record<string, unknown> = { sort_order: i + 1 };
+      if (moved && moved.id === id) patch.category = moved.category;
+      return supabase.from("portfolio").update(patch).eq("id", id);
+    })
+  );
+  const failed = results.find(result => result.error);
+  if (failed?.error) throw failed.error;
+}
+
 export async function loadPortfolioItemBySlug(slug: string) {
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
