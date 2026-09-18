@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 import { loadPortfolioItemBySlug } from "@/lib/portfolio/data";
 import { demoPortfolioItems } from "@/lib/portfolio/demo-data";
+import { portfolioTeam } from "@/lib/portfolio/team";
 import { SiteHeader } from "@/components/site/site-header";
 import { SiteFooter } from "@/components/site/site-footer";
 import { PortfolioGallery } from "./portfolio-detail-client";
@@ -22,6 +23,7 @@ export default async function PortfolioDetailPage({ params }: { params: Promise<
   const gallery = Array.from(new Set([item.featured_image, ...(item.gallery_images || [])].filter(Boolean))) as string[];
   const hero = item.featured_image || gallery[0];
   const attributes = item.attributes_json || [];
+  const team = portfolioTeam(item);
 
   return (
     <>
@@ -66,6 +68,12 @@ export default async function PortfolioDetailPage({ params }: { params: Promise<
           <DetailField label="Timeline" value={item.timeline} />
           <DetailField label="Square Footage" value={item.square_feet ? `${item.square_feet.toLocaleString()} sq ft` : null} />
           {attributes.map(attribute => <DetailField key={`${attribute.label}-${attribute.value}`} label={attribute.label} value={attribute.value} />)}
+          {team.length ? (
+            <div className="mb-7 border-t border-border pt-6">
+              <div className="mb-5 text-[11px] font-semibold uppercase tracking-[0.24em] text-accent">Project Team</div>
+              {team.map((member, index) => <DetailField key={`${member.role}-${member.name}-${index}`} label={member.role} value={member.name} />)}
+            </div>
+          ) : null}
           <div className="mt-7 border-t border-border pt-6">
             <Link href="/contact" className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-accent px-4 py-3 text-sm font-semibold text-accent-foreground">
               Start Your Project

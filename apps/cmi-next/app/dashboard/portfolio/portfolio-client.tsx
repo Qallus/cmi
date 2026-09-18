@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Archive, ArchiveRestore, AlertTriangle, CheckCircle2, Columns2, Eye, ExternalLink, GripVertical, Image, LayoutGrid, List, Loader2, Pencil, Plus, RotateCcw, Share2, Star, Table2, Trash2, Upload, Video, X } from "lucide-react";
+import { Archive, ArchiveRestore, AlertTriangle, CheckCircle2, Columns2, Eye, ExternalLink, GripVertical, Image, LayoutGrid, List, Loader2, Pencil, Plus, RotateCcw, Share2, Star, Table2, Trash2, Upload, Users, Video, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 type ViewMode = "cards" | "list" | "table" | "kanban";
@@ -11,7 +11,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input, Select, Textarea } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { slugify } from "@/lib/portfolio/data";
-import type { PortfolioAttribute, PortfolioInput, PortfolioItem, PortfolioStatus } from "@/lib/portfolio/types";
+import { portfolioTeam } from "@/lib/portfolio/team";
+import type { PortfolioAttribute, PortfolioInput, PortfolioItem, PortfolioParticipant, PortfolioStatus } from "@/lib/portfolio/types";
 
 type Draft = PortfolioInput & { id?: string };
 
@@ -30,6 +31,10 @@ const emptyDraft: Draft = {
   video_urls: [],
   services_used: [],
   attributes_json: [],
+  architect: "",
+  interior_designer: "",
+  show_participants: false,
+  participants: [],
   tags: [],
   status: "draft",
   is_featured: false,
@@ -59,6 +64,10 @@ function itemToDraft(item: PortfolioItem): Draft {
     video_urls: item.video_urls || [],
     services_used: item.services_used || [],
     attributes_json: item.attributes_json || [],
+    architect: item.architect || "",
+    interior_designer: item.interior_designer || "",
+    show_participants: Boolean(item.show_participants),
+    participants: item.participants || [],
     tags: item.tags || [],
     status: item.status,
     is_featured: item.is_featured,
@@ -89,6 +98,10 @@ function draftToItem(draft: Draft): PortfolioItem {
     video_urls: draft.video_urls || [],
     services_used: draft.services_used || [],
     attributes_json: draft.attributes_json || [],
+    architect: draft.architect || null,
+    interior_designer: draft.interior_designer || null,
+    show_participants: Boolean(draft.show_participants),
+    participants: draft.participants || [],
     tags: draft.tags || [],
     status: draft.status || "draft",
     is_featured: Boolean(draft.is_featured),
@@ -194,7 +207,8 @@ export function PortfolioClient({ initialItems, demoMode }: { initialItems: Port
       video_urls: nextDraft.video_urls || [],
       services_used: nextDraft.services_used || [],
       tags: nextDraft.tags || [],
-      attributes_json: nextDraft.attributes_json || []
+      attributes_json: nextDraft.attributes_json || [],
+      participants: nextDraft.participants || []
     };
 
     if (demoMode) {
@@ -655,6 +669,7 @@ function PortfolioPreviewModal({ item, onClose, onEdit }: { item: PortfolioItem;
   }, [onClose]);
   const meta = [item.category, item.location, item.year ? String(item.year) : null, item.timeline, item.square_feet ? `${item.square_feet.toLocaleString()} sq ft` : null].filter(Boolean);
   const gallery = (item.gallery_images || []).filter(Boolean);
+  const team = portfolioTeam(item);
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 backdrop-blur-sm" onClick={onClose}>
       <div className="my-8 w-full max-w-3xl overflow-hidden rounded-2xl border border-border bg-card shadow-2xl" onClick={(e) => e.stopPropagation()}>
@@ -684,6 +699,14 @@ function PortfolioPreviewModal({ item, onClose, onEdit }: { item: PortfolioItem;
             <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-3">
               {item.attributes_json!.map((a, i) => (
                 <div key={i}><dt className="text-xs text-muted-foreground">{a.label}</dt><dd className="text-foreground">{a.value}</dd></div>
+              ))}
+            </dl>
+          ) : null}
+
+          {team.length ? (
+            <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-3">
+              {team.map((member, i) => (
+                <div key={i}><dt className="text-xs text-muted-foreground">{member.role}</dt><dd className="text-foreground">{member.name}</dd></div>
               ))}
             </dl>
           ) : null}
@@ -844,6 +867,35 @@ function PortfolioEditor({ draft, saving, error, onChange, onClose, onSave }: { 
 
           <TagPicker title="Services Used" values={draft.services_used || []} options={serviceOptions} onChange={value => update("services_used", value)} />
           <AttributesEditor values={draft.attributes_json || []} onChange={value => update("attributes_json", value)} />
+
+          {/* Project team credits — shown on the public project page. */}
+          <div className="space-y-3 lg:col-span-2">
+            <div className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">Project Team</div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="space-y-2">
+                <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">Architect</span>
+                <Input value={draft.architect || ""} placeholder="Architect name or firm" onChange={event => update("architect", event.target.value)} />
+              </label>
+              <label className="space-y-2">
+                <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">Interior Designer</span>
+                <Input value={draft.interior_designer || ""} placeholder="Interior designer name or firm" onChange={event => update("interior_designer", event.target.value)} />
+              </label>
+            </div>
+            <FlagToggle
+              icon={Users}
+              title="Additional participants"
+              description="When on, list other people who worked on this project (e.g. Painter — Jeremy Waters). They appear on the public project page."
+              checked={Boolean(draft.show_participants)}
+              onChange={value => {
+                update("show_participants", value);
+                // Start with one blank row so there's something to fill in.
+                if (value && !(draft.participants || []).length) update("participants", [{ role: "", name: "" }]);
+              }}
+            />
+            {draft.show_participants ? (
+              <ParticipantsEditor values={draft.participants || []} onChange={value => update("participants", value)} />
+            ) : null}
+          </div>
 
           <label className="space-y-2 lg:col-span-2">
             <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">Status</span>
@@ -1079,6 +1131,21 @@ function AttributesEditor({ values, onChange }: { values: PortfolioAttribute[]; 
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+function ParticipantsEditor({ values, onChange }: { values: PortfolioParticipant[]; onChange: (values: PortfolioParticipant[]) => void }) {
+  return (
+    <div className="space-y-2">
+      {values.map((row, index) => (
+        <div key={index} className="grid gap-2 md:grid-cols-[1fr_1fr_auto]">
+          <Input value={row.role} placeholder="Participant type (e.g. Painter)" onChange={event => onChange(values.map((item, itemIndex) => itemIndex === index ? { ...item, role: event.target.value } : item))} />
+          <Input value={row.name} placeholder="Name (e.g. Jeremy Waters)" onChange={event => onChange(values.map((item, itemIndex) => itemIndex === index ? { ...item, name: event.target.value } : item))} />
+          <Button variant="outline" title="Remove participant" onClick={() => onChange(values.filter((_, itemIndex) => itemIndex !== index))}><X className="h-4 w-4" /></Button>
+        </div>
+      ))}
+      <Button size="sm" variant="outline" onClick={() => onChange([...values, { role: "", name: "" }])}><Plus className="h-3.5 w-3.5" /> Add Participant</Button>
     </div>
   );
 }

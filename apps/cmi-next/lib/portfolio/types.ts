@@ -5,6 +5,13 @@ export type PortfolioAttribute = {
   value: string;
 };
 
+// Additional project team member shown on the public project page,
+// e.g. { role: "Painter", name: "Jeremy Waters" }.
+export type PortfolioParticipant = {
+  role: string;
+  name: string;
+};
+
 export type PortfolioItem = {
   id: string;
   project_id: string | null;
@@ -23,6 +30,10 @@ export type PortfolioItem = {
   video_urls: string[] | null;
   services_used: string[] | null;
   attributes_json: PortfolioAttribute[] | null;
+  architect?: string | null;
+  interior_designer?: string | null;
+  show_participants?: boolean | null;
+  participants?: PortfolioParticipant[] | null;
   tags: string[] | null;
   status: PortfolioStatus;
   is_featured: boolean;
@@ -54,6 +65,10 @@ export type PortfolioInput = {
   video_urls?: string[];
   services_used?: string[];
   attributes_json?: PortfolioAttribute[];
+  architect?: string | null;
+  interior_designer?: string | null;
+  show_participants?: boolean;
+  participants?: PortfolioParticipant[];
   tags?: string[];
   status?: PortfolioStatus;
   is_featured?: boolean;

@@ -36,6 +36,17 @@ export function normalizePortfolioInput(input: Record<string, unknown>): Portfol
     })
     .filter(Boolean) as PortfolioInput["attributes_json"];
 
+  const rawParticipants = Array.isArray(input.participants) ? input.participants : [];
+  const participants = rawParticipants
+    .map(item => {
+      if (!item || typeof item !== "object") return null;
+      const row = item as Record<string, unknown>;
+      const role = String(row.role || "").trim();
+      const name = String(row.name || "").trim();
+      return role && name ? { role, name } : null;
+    })
+    .filter(Boolean) as PortfolioInput["participants"];
+
   const status = statuses.has(String(input.status) as PortfolioStatus) ? String(input.status) as PortfolioStatus : "draft";
   const slug = String(input.slug || "").trim() || slugify(title);
 
@@ -54,6 +65,10 @@ export function normalizePortfolioInput(input: Record<string, unknown>): Portfol
     video_urls: parseLines(input.video_urls),
     services_used: parseLines(input.services_used),
     attributes_json,
+    architect: String(input.architect || "").trim() || null,
+    interior_designer: String(input.interior_designer || "").trim() || null,
+    show_participants: Boolean(input.show_participants),
+    participants,
     tags: parseLines(input.tags),
     status,
     is_featured: Boolean(input.is_featured),
