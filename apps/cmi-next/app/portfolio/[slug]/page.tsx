@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowRight } from "lucide-react";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 import { loadPortfolioItemBySlug } from "@/lib/portfolio/data";
 import { demoPortfolioItems } from "@/lib/portfolio/demo-data";
 import { portfolioTeam } from "@/lib/portfolio/team";
@@ -34,7 +34,11 @@ export default async function PortfolioDetailPage({ params }: { params: Promise<
         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/25 to-black/10" />
         <div className="relative mx-auto flex min-h-[72vh] max-w-7xl items-end px-6 pb-16">
           <div>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-accent">Portfolio / {item.subtitle || item.category || "Constructed Matter"} {item.location ? `- ${item.location}` : ""}</div>
+            <Link href="/portfolio" className="mb-8 inline-flex items-center gap-2 text-sm font-semibold text-white/75 transition hover:text-accent">
+              <ArrowLeft className="h-4 w-4" />
+              Back to Portfolio
+            </Link>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-accent"><Link href="/portfolio" className="hover:underline">Portfolio</Link> / {item.subtitle || item.category || "Constructed Matter"} {item.location ? `- ${item.location}` : ""}</div>
             <h1 className="mt-4 font-display text-6xl font-semibold tracking-tight">{item.title}</h1>
             {item.year ? <p className="mt-4 text-lg text-white/80">{item.year}</p> : null}
           </div>
@@ -82,6 +86,15 @@ export default async function PortfolioDetailPage({ params }: { params: Promise<
           </div>
         </aside>
       </section>
+
+      <div className="mx-auto max-w-7xl px-6 pb-16">
+        <div className="border-t border-border pt-8">
+          <Link href="/portfolio" className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground transition hover:text-accent">
+            <ArrowLeft className="h-4 w-4" />
+            Back to all projects
+          </Link>
+        </div>
+      </div>
       </main>
       <SiteFooter />
     </>
