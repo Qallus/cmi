@@ -32,3 +32,15 @@ export function initials(value?: string | null) {
     .map(part => part[0]?.toUpperCase())
     .join("") || "CM";
 }
+
+// Whole-dollar currency ("$12,345"); compact form for dense grids ("$12.3k", "$1.2M").
+export function formatMoney(value: number | null | undefined, opts?: { compact?: boolean }) {
+  if (value === null || value === undefined || Number.isNaN(value)) return "—";
+  const sign = value < 0 ? "-" : "";
+  const abs = Math.abs(value);
+  if (opts?.compact && abs >= 1000) {
+    const [n, suffix] = abs >= 1_000_000 ? [abs / 1_000_000, "M"] : [abs / 1000, "k"];
+    return `${sign}$${n.toFixed(n >= 100 ? 0 : 1).replace(/\.0$/, "")}${suffix}`;
+  }
+  return `${sign}$${Math.round(abs).toLocaleString("en-US")}`;
+}
