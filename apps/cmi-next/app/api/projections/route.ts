@@ -1,9 +1,8 @@
 // Projections board: GET the 12-month grid (?start=YYYY-MM), POST to add jobs
 // ({ job_ids: string[] } or { all_active: true }). Admin / Super Admin only.
 import { NextResponse } from "next/server";
-import { AuthError } from "@/lib/auth/require-admin";
-import { requireProjections } from "@/lib/projections/guard";
-import { loadBoard, addJobs, activeJobIds, ProjectionError } from "@/lib/projections/data";
+import { requireProjections, projectionErrorResponse as errorResponse } from "@/lib/projections/guard";
+import { loadBoard, addJobs, activeJobIds } from "@/lib/projections/data";
 
 export const dynamic = "force-dynamic";
 
@@ -29,9 +28,4 @@ export async function POST(request: Request) {
   } catch (err) {
     return errorResponse(err);
   }
-}
-
-function errorResponse(err: unknown) {
-  if (err instanceof ProjectionError || err instanceof AuthError) return NextResponse.json({ error: err.message }, { status: err.status });
-  return NextResponse.json({ error: (err as Error)?.message ?? "Something went wrong." }, { status: 500 });
 }

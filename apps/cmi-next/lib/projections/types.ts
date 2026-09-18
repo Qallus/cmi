@@ -94,6 +94,32 @@ export type ProjectionBoard = {
   anyActuals: boolean;
 };
 
+// Detail panel: official (source) vs forecast values, months, history.
+export type ProjectionDetail = {
+  row: ProjectionRow;
+  currentMonth: string;
+  official: {
+    status: ProjectionStatus | null;
+    start: string | null;
+    finish: string | null;
+    revenue: number | null;
+    pms: string[];
+    supers: string[];
+  };
+  overrides: {
+    status: ProjectionStatus | null;
+    forecast_start: string | null;
+    forecast_finish: string | null;
+    revenue_override: number | null;
+    pm_staff_id: string | null;
+    super_staff_id: string | null;
+    include: boolean;
+    notes: string | null;
+  };
+  months: { month: string; projected: number; original: number | null; actual: number }[];
+  activity: { id: string; action: string; detail: Record<string, unknown>; actor_name: string | null; created_at: string }[];
+};
+
 export type AddableJob = {
   id: string;
   job_name: string;

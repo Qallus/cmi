@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   monthOf, addMonths, monthRange, monthsBetween, evenSpread, spreadMonths,
-  allocation, statusFromJob, monthTotals, beyondByYear,
+  allocation, statusFromJob, monthTotals, beyondByYear, applyMonthEdit, respreadFuture,
 } from "./calc.ts";
 
 test("month helpers", () => {
@@ -65,4 +65,40 @@ test("month totals: included rows only, variance only for started months", () =>
 test("beyond-window forecast sums by year", () => {
   const months = { "2027-07-01": 100, "2027-08-01": 200, "2027-12-01": 50, "2028-01-01": 25, "2026-12-01": 999 };
   assert.deepEqual(beyondByYear(months, "2027-07-01"), { 2027: 250, 2028: 25 });
+});
+
+test("month edit: leave alone changes only that month", () => {
+  const existing = { "2026-09-01": 100, "2026-10-01": 100, "2026-11-01": 100 };
+  assert.deepEqual(
+    applyMonthEdit({ existing, month: "2026-10-01", amount: 250, mode: "leave", remaining: 300, targets: Object.keys(existing), currentMonth: "2026-09-01" }),
+    { "2026-10-01": 250 },
+  );
+});
+
+test("month edit: redistribute spreads the rest over the other future months", () => {
+  const existing = { "2026-08-01": 500, "2026-09-01": 100, "2026-10-01": 100, "2026-11-01": 100, "2027-03-01": 40 };
+  const targets = ["2026-09-01", "2026-10-01", "2026-11-01"];
+  // 300 remaining, Oct set to 101 → 199 over Sep + Nov (99 / 100); past Aug kept; Mar (outside window) zeroed.
+  assert.deepEqual(
+    applyMonthEdit({ existing, month: "2026-10-01", amount: 101, mode: "redistribute", remaining: 300, targets, currentMonth: "2026-09-01" }),
+    { "2026-10-01": 101, "2026-09-01": 99, "2026-11-01": 100, "2027-03-01": 0 },
+  );
+  // Edited amount above what's remaining → other months go to zero, never negative.
+  assert.deepEqual(
+    applyMonthEdit({ existing: {}, month: "2026-09-01", amount: 400, mode: "redistribute", remaining: 300, targets, currentMonth: "2026-09-01" }),
+    { "2026-09-01": 400, "2026-10-01": 0, "2026-11-01": 0 },
+  );
+  // Editing a past month doesn't eat into the future spread.
+  assert.deepEqual(
+    applyMonthEdit({ existing: {}, month: "2026-08-01", amount: 50, mode: "redistribute", remaining: 300, targets, currentMonth: "2026-09-01" }),
+    { "2026-08-01": 50, "2026-09-01": 100, "2026-10-01": 100, "2026-11-01": 100 },
+  );
+});
+
+test("respread replaces the future forecast only", () => {
+  const existing = { "2026-08-01": 500, "2026-09-01": 100, "2026-12-01": 100 };
+  assert.deepEqual(
+    respreadFuture(existing, 300, ["2026-10-01", "2026-11-01"], "2026-09-01"),
+    { "2026-10-01": 150, "2026-11-01": 150, "2026-09-01": 0, "2026-12-01": 0 },
+  );
 });

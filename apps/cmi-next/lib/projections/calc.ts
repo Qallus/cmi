@@ -20,6 +20,13 @@ export function addMonths(month: string, n: number): string {
   return `${yy}-${String(mm + 1).padStart(2, "0")}-01`;
 }
 
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+// "2026-09-01" → "Sep 26".
+export function monthLabel(month: string): string {
+  return `${MONTH_NAMES[Number(month.slice(5, 7)) - 1]} ${month.slice(2, 4)}`;
+}
+
 export function monthRange(start: string, count: number): string[] {
   return Array.from({ length: count }, (_, i) => addMonths(start, i));
 }
@@ -52,6 +59,48 @@ export function spreadMonths(start: string | null, finish: string | null, curren
   const from = monthOf(start) > currentMonth ? monthOf(start) : currentMonth;
   const to = monthOf(finish) >= from ? monthOf(finish) : from;
   return monthsBetween(from, to);
+}
+
+// Apply a single-month edit. Returns the full new month → amount map for the
+// months that change (callers upsert it).
+//  - "leave": only the edited month changes.
+//  - "redistribute": past months and the edited month are kept; what's left of
+//    `remaining` is spread evenly over the other forecast months from the
+//    current month on (`targets`). Any other future month is zeroed so the
+//    forecast stays inside the window. Negative leftovers spread as zero.
+export function applyMonthEdit(input: {
+  existing: Record<string, number>;
+  month: string;
+  amount: number;
+  mode: "leave" | "redistribute";
+  remaining: number;
+  targets: string[];
+  currentMonth: string;
+}): Record<string, number> {
+  const { existing, month, amount, mode, remaining, currentMonth } = input;
+  const next: Record<string, number> = { [month]: round2(amount) };
+  if (mode === "leave") return next;
+
+  const others = input.targets.filter((m) => m !== month && m >= currentMonth);
+  const keptFuture = month >= currentMonth ? amount : 0;
+  const spread = evenSpread(Math.max(remaining - keptFuture, 0), others);
+  for (const m of others) next[m] = spread[m] ?? 0;
+  for (const [m, v] of Object.entries(existing)) {
+    if (m >= currentMonth && m !== month && !(m in next) && v !== 0) next[m] = 0;
+  }
+  return next;
+}
+
+// Replace the future forecast with an even spread of `remaining` over the
+// window (used when dates change and the user asks to respread). Past months
+// are untouched; future months outside the new window are zeroed.
+export function respreadFuture(existing: Record<string, number>, remaining: number, months: string[], currentMonth: string): Record<string, number> {
+  const next: Record<string, number> = evenSpread(Math.max(remaining, 0), months);
+  for (const m of months) if (!(m in next)) next[m] = 0;
+  for (const [m, v] of Object.entries(existing)) {
+    if (m >= currentMonth && !(m in next) && v !== 0) next[m] = 0;
+  }
+  return next;
 }
 
 // ── Allocation ────────────────────────────────────────────────────────────

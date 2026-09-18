@@ -2,24 +2,34 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { AlertTriangle, ChevronLeft, ChevronRight, Plus, X } from "lucide-react";
+import { AlertTriangle, ChevronLeft, ChevronRight, ExternalLink, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn, formatMoney } from "@/lib/utils";
-import { addMonths, monthOf } from "@/lib/projections/calc";
+import { addMonths, monthLabel, monthOf } from "@/lib/projections/calc";
 import { ACTIVE_JOB_STATUSES, PROJECTION_STATUS_META, type ProjectionBoard, type ProjectionRow, type AddableJob } from "@/lib/projections/types";
 import { JOB_STATUS_META } from "@/lib/jobs/status";
 import type { JobStatus } from "@/lib/jobs/types";
-
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const monthLabel = (m: string) => `${MONTHS[Number(m.slice(5, 7)) - 1]} ${m.slice(2, 4)}`;
+import { ProjectionDetailPanel } from "./projection-detail-panel";
 
 export function ProjectionsClient({ initialBoard }: { initialBoard: ProjectionBoard }) {
   const [board, setBoard] = React.useState(initialBoard);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [adding, setAdding] = React.useState(false);
+  const [editing, setEditing] = React.useState<Editing>(null);
+  const [detailId, setDetailId] = React.useState<string | null>(null);
   const start = board.window[0];
+  const closeDetail = React.useCallback(() => setDetailId(null), []);
+  const reload = React.useCallback(() => { void load(start); }, [start]);
+
+  async function saveMonth(rowId: string, month: string, amount: number, mode: "leave" | "redistribute") {
+    const res = await fetch(`/api/projections/${rowId}/months`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ month: month.slice(0, 7), amount, mode }) });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(json.error ?? "Could not save.");
+    setEditing(null);
+    await load(start);
+  }
 
   async function load(nextStart: string) {
     setLoading(true); setError(null);
@@ -83,7 +93,7 @@ export function ProjectionsClient({ initialBoard }: { initialBoard: ProjectionBo
             <Button className="mt-4" size="sm" variant="accent" onClick={() => setAdding(true)}><Plus className="h-3.5 w-3.5" /> Add Jobs</Button>
           </div>
         ) : (
-          <Grid board={board} />
+          <Grid board={board} editing={editing} onEdit={setEditing} onSaveMonth={saveMonth} onOpen={setDetailId} />
         )}
       </div>
 
@@ -93,6 +103,7 @@ export function ProjectionsClient({ initialBoard }: { initialBoard: ProjectionBo
           onAdded={() => { setAdding(false); void load(start); }}
         />
       )}
+      {detailId && <ProjectionDetailPanel key={detailId} id={detailId} onClose={closeDetail} onChanged={reload} />}
     </div>
   );
 }
@@ -109,7 +120,7 @@ function Tile({ label, value, sub, tone }: { label: string; value: string; sub?:
 
 // ── Grid ──────────────────────────────────────────────────────────────────
 
-function Grid({ board }: { board: ProjectionBoard }) {
+function Grid({ board, ...handlers }: { board: ProjectionBoard } & GridHandlers) {
   const { window, currentMonth, totals } = board;
   const beyondYears = Object.keys(board.beyondTotals).sort();
   const th = "px-2 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-muted-foreground";
@@ -129,7 +140,7 @@ function Grid({ board }: { board: ProjectionBoard }) {
           </tr>
         </thead>
         <tbody className="divide-y divide-border">
-          {board.rows.map((r) => <Row key={r.id} row={r} board={board} />)}
+          {board.rows.map((r) => <Row key={r.id} row={r} board={board} {...handlers} />)}
         </tbody>
         <tfoot className="border-t-2 border-border bg-muted/40 text-xs">
           <FootRow label="Projected" cells={totals.map((t) => (t.projected ? formatMoney(t.projected, { compact: true }) : "—"))} beyond={formatMoney(beyondYears.reduce((s, y) => s + board.beyondTotals[y], 0), { compact: true })} total={formatMoney(board.summary.projected12, { compact: true })} window={window} currentMonth={currentMonth} strong />
@@ -164,7 +175,15 @@ function FootRow({ label, cells, beyond, total, window, currentMonth, strong }: 
   );
 }
 
-function Row({ row, board }: { row: ProjectionRow; board: ProjectionBoard }) {
+type Editing = { rowId: string; month: string } | null;
+type GridHandlers = {
+  editing: Editing;
+  onEdit: (e: Editing) => void;
+  onSaveMonth: (rowId: string, month: string, amount: number, mode: "leave" | "redistribute") => Promise<void>;
+  onOpen: (id: string) => void;
+};
+
+function Row({ row, board, editing, onEdit, onSaveMonth, onOpen }: { row: ProjectionRow; board: ProjectionBoard } & GridHandlers) {
   const { window, currentMonth } = board;
   const fs = row.forecast_start ? monthOf(row.forecast_start) : null;
   const ff = row.forecast_finish ? monthOf(row.forecast_finish) : null;
@@ -176,11 +195,12 @@ function Row({ row, board }: { row: ProjectionRow; board: ProjectionBoard }) {
       <td className="sticky left-0 z-10 w-[300px] min-w-[300px] border-r border-border bg-card px-3 py-2">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            {row.job_id ? (
-              <Link href={`/dashboard/jobs/${row.job_id}/summary`} className="block truncate font-medium hover:text-accent hover:underline">{row.name}</Link>
-            ) : (
-              <span className="block truncate font-medium">{row.name}</span>
-            )}
+            <div className="flex items-center gap-1.5">
+              <button type="button" onClick={() => onOpen(row.id)} className="min-w-0 truncate text-left font-medium hover:text-accent hover:underline" title="Open forecast details">{row.name}</button>
+              {row.job_id && (
+                <Link href={`/dashboard/jobs/${row.job_id}/summary`} aria-label={`Open job ${row.name}`} title="Open job" className="shrink-0 text-muted-foreground hover:text-accent"><ExternalLink className="h-3 w-3" /></Link>
+              )}
+            </div>
             <div className="truncate text-[11px] text-muted-foreground">{[row.job_number, row.client_name].filter(Boolean).join(" · ") || "Anticipated"}</div>
           </div>
           <Badge tone={status.tone} className="h-5 shrink-0 px-1.5 text-[10px]" title={row.status_overridden ? "Forecast status (overridden)" : row.job_status ? `From job: ${JOB_STATUS_META[row.job_status as JobStatus]?.label ?? row.job_status}` : undefined}>{status.label}</Badge>
@@ -204,8 +224,23 @@ function Row({ row, board }: { row: ProjectionRow; board: ProjectionBoard }) {
         const showActual = board.anyActuals && m <= currentMonth && (cell.actual > 0 || cell.projected > 0);
         const variance = cell.actual - cell.projected;
         return (
-          <td key={m} className={cn("px-2 py-2 text-right tabular-nums", inForecast && "bg-accent/[0.06]", m === currentMonth && "bg-accent/10")}>
-            <div className={cn(cell.projected > 0 ? "font-medium" : "text-muted-foreground/40")}>{cell.projected > 0 ? formatMoney(cell.projected, { compact: true }) : "·"}</div>
+          <td key={m} className={cn("relative px-2 py-2 text-right tabular-nums", inForecast && "bg-accent/[0.06]", m === currentMonth && "bg-accent/10")}>
+            {editing?.rowId === row.id && editing.month === m ? (
+              <CellEditor
+                initial={cell.projected}
+                onCancel={() => onEdit(null)}
+                onSave={(amount, mode) => onSaveMonth(row.id, m, amount, mode)}
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => onEdit({ rowId: row.id, month: m })}
+                aria-label={`Edit ${row.name} forecast for ${monthLabel(m)}`}
+                className={cn("-mx-1 w-[calc(100%+0.5rem)] rounded px-1 text-right hover:bg-muted hover:ring-1 hover:ring-border", cell.projected > 0 ? "font-medium" : "text-muted-foreground/40")}
+              >
+                {cell.projected > 0 ? formatMoney(cell.projected, { compact: true }) : "·"}
+              </button>
+            )}
             {showActual && (
               <div className="text-[10px] text-muted-foreground">
                 act {formatMoney(cell.actual, { compact: true })}
@@ -220,6 +255,68 @@ function Row({ row, board }: { row: ProjectionRow; board: ProjectionBoard }) {
       </td>
       <td className="border-l border-border px-2 py-2 text-right font-medium tabular-nums">{formatMoney(row.window_projected, { compact: true })}</td>
     </tr>
+  );
+}
+
+// Inline month editor: type an amount, then choose whether the rest of the
+// remaining revenue is redistributed or only this month changes.
+function CellEditor({ initial, onCancel, onSave }: { initial: number; onCancel: () => void; onSave: (amount: number, mode: "leave" | "redistribute") => Promise<void> }) {
+  const [value, setValue] = React.useState(initial ? String(initial) : "");
+  const [choosing, setChoosing] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const amount = value.trim() === "" ? 0 : Number(value.replace(/[$,\s]/g, ""));
+  const valid = Number.isFinite(amount) && amount >= 0;
+
+  function confirm() {
+    if (!valid) { setError("Enter an amount of 0 or more."); return; }
+    if (amount === initial) { onCancel(); return; }
+    setChoosing(true);
+  }
+
+  async function save(mode: "leave" | "redistribute") {
+    setBusy(true); setError(null);
+    try { await onSave(amount, mode); } catch (e) { setError((e as Error).message); setBusy(false); }
+  }
+
+  return (
+    <div className="relative">
+      <input
+        autoFocus
+        inputMode="decimal"
+        aria-label="Forecast amount"
+        value={value}
+        disabled={busy}
+        onChange={(e) => { setValue(e.target.value); setChoosing(false); setError(null); }}
+        onFocus={(e) => e.currentTarget.select()}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") { e.preventDefault(); confirm(); }
+          if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); onCancel(); }
+        }}
+        className="h-7 w-full rounded border border-accent bg-background px-1.5 text-right text-xs outline-none ring-2 ring-ring"
+      />
+      {(choosing || error) && (
+        <div className="absolute right-0 top-8 z-30 w-56 rounded-md border border-border bg-card p-2 text-left text-xs shadow-lg">
+          {error && <div role="alert" className="mb-1.5 text-destructive">{error}</div>}
+          {choosing && (
+            <>
+              <div className="mb-1.5 font-medium">Set to {formatMoney(amount)}. And the other months?</div>
+              <div className="flex flex-col gap-1">
+                <Button size="sm" variant="accent" disabled={busy} onClick={() => void save("redistribute")}>Redistribute the rest</Button>
+                <Button size="sm" variant="outline" disabled={busy} onClick={() => void save("leave")}>Change only this month</Button>
+                <button type="button" disabled={busy} onClick={onCancel} className="py-0.5 text-muted-foreground hover:text-foreground">Cancel</button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+      {!choosing && !error && (
+        <div className="mt-0.5 flex justify-end gap-1 text-[10px]">
+          <button type="button" onClick={confirm} className="text-accent hover:underline">OK</button>
+          <button type="button" onClick={onCancel} className="text-muted-foreground hover:underline">Esc</button>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -273,7 +370,7 @@ function AddJobsModal({ onClose, onAdded }: { onClose: () => void; onAdded: () =
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={onClose} />
       <div role="dialog" aria-modal="true" aria-labelledby="add-jobs-title" className="relative z-10 flex max-h-[85vh] w-full max-w-lg flex-col rounded-xl border border-border bg-card shadow-xl">
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
