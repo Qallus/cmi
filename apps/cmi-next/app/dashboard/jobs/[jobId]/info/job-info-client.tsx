@@ -10,6 +10,7 @@ import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
 import { SearchableSelect, SearchableMultiSelect } from "@/components/ui/searchable-select";
 import { cn } from "@/lib/utils";
 import { ALL_JOB_STATUSES, JOB_STATUS_META } from "@/lib/jobs/status";
+import { JOB_TEAM_ROLES, jobTeamRole, jobTeamRoleValue, type JobTeamRole } from "@/lib/jobs/team-roles";
 
 // Job Type is limited to these two; the finer scope lives in Job Group.
 const JOB_TYPE_NAMES = ["Residential", "Commercial"];
@@ -243,6 +244,14 @@ function InternalTab({ job, staff }: { job: JobWithRelations; staff: StaffOpt[] 
             <div className="text-xs text-muted-foreground">{u.user?.role_slug}</div>
           </div>
           <div className="flex items-center gap-4">
+            <select
+              aria-label="Job role"
+              className="h-8 rounded-md border border-border bg-background px-2 text-xs outline-none focus:border-accent"
+              value={jobTeamRole(u.role)}
+              onChange={(e) => void patch(u.id, { role: jobTeamRoleValue(e.target.value as JobTeamRole) })}
+            >
+              {JOB_TEAM_ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+            </select>
             <label className="flex items-center gap-1.5 text-xs"><input type="checkbox" checked={u.notifications_enabled} onChange={() => void patch(u.id, { notifications_enabled: !u.notifications_enabled })} /> Notifications</label>
             <button type="button" onClick={() => void remove(u.id)} className="text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></button>
           </div>

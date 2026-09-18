@@ -9,26 +9,32 @@ import { cn } from "@/lib/utils";
 import type { JobWithRelations, JobStatus, JobInternalUser, JobStats } from "@/lib/jobs/types";
 import { JobStatusBadge, money, formatDate } from "../../job-ui";
 import { JobDetailNav } from "../job-detail-nav";
+import { jobTeamRole, type JobTeamRole } from "@/lib/jobs/team-roles";
 
 type StaffOption = { id: string; label: string; email: string; role: string; job_title: string };
+type LeadRole = Exclude<JobTeamRole, "Other">;
+const ROLE_ORDER: Record<JobTeamRole, number> = { "Project Manager": 0, Superintendent: 1, Other: 2 };
+// Manual (non-staff) names live on the job row itself.
+const MANUAL_FIELD: Record<LeadRole, "project_manager" | "superintendent"> = { "Project Manager": "project_manager", Superintendent: "superintendent" };
 
 export function JobSummaryClient({ job, stats }: { job: JobWithRelations; stats: JobStats }) {
   const clients = job.contacts.filter((c) => c.contact);
-  const [pms, setPms] = React.useState<JobInternalUser[]>(job.internal_users.filter((u) => u.user));
-  const [manualPm, setManualPm] = React.useState<string | null>(job.project_manager);
-  const [pmModal, setPmModal] = React.useState(false);
+  const [team, setTeam] = React.useState<JobInternalUser[]>(job.internal_users.filter((u) => u.user));
+  const [manual, setManual] = React.useState<Record<LeadRole, string | null>>({ "Project Manager": job.project_manager, Superintendent: job.superintendent });
+  const [addRole, setAddRole] = React.useState<LeadRole | null>(null);
+  const sortedTeam = [...team].sort((a, b) => ROLE_ORDER[jobTeamRole(a.role)] - ROLE_ORDER[jobTeamRole(b.role)]);
 
-  async function addTeamPm(staff: StaffOption) {
-    const res = await fetch(`/api/jobs/${job.id}/internal-users`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ staff_user_id: staff.id, role: "Project Manager" }) });
-    if (res.ok) { const created = await res.json(); setPms((p) => [...p, created]); setPmModal(false); }
+  async function addTeamMember(staff: StaffOption, role: LeadRole) {
+    const res = await fetch(`/api/jobs/${job.id}/internal-users`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ staff_user_id: staff.id, role }) });
+    if (res.ok) { const created = await res.json(); setTeam((t) => [...t, created]); setAddRole(null); }
   }
-  async function addManualPm(text: string) {
-    const res = await fetch(`/api/jobs/${job.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ project_manager: text }) });
-    if (res.ok) { setManualPm(text); setPmModal(false); }
+  async function addManual(text: string, role: LeadRole) {
+    const res = await fetch(`/api/jobs/${job.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ [MANUAL_FIELD[role]]: text }) });
+    if (res.ok) { setManual((m) => ({ ...m, [role]: text })); setAddRole(null); }
   }
-  async function clearManualPm() {
-    await fetch(`/api/jobs/${job.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ project_manager: null }) }).catch(() => {});
-    setManualPm(null);
+  async function clearManual(role: LeadRole) {
+    await fetch(`/api/jobs/${job.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ [MANUAL_FIELD[role]]: null }) }).catch(() => {});
+    setManual((m) => ({ ...m, [role]: null }));
   }
 
   return (
@@ -93,26 +99,43 @@ export function JobSummaryClient({ job, stats }: { job: JobWithRelations; stats:
               ))}
             </Card>
 
-            <Card title="Project Managers" action={<button type="button" onClick={() => setPmModal(true)} className="text-xs text-accent hover:underline">Add</button>}>
-              {pms.length === 0 && !manualPm ? <Empty>No project managers yet.</Empty> : (
+            <Card
+              title="Project Team"
+              action={
+                <span className="flex items-center gap-2 text-xs">
+                  <button type="button" onClick={() => setAddRole("Project Manager")} className="text-accent hover:underline">Add PM</button>
+                  <span className="text-muted-foreground">·</span>
+                  <button type="button" onClick={() => setAddRole("Superintendent")} className="text-accent hover:underline">Add Super</button>
+                </span>
+              }
+            >
+              {sortedTeam.length === 0 && !manual["Project Manager"] && !manual.Superintendent ? <Empty>No project manager or superintendent yet.</Empty> : (
                 <>
-                  {pms.map((u) => (
-                    <div key={u.id} className="flex items-center gap-2 py-1 text-sm">
-                      <Avatar name={u.user?.display_name ?? u.user?.email ?? "?"} />
-                      <span>{u.user?.display_name ?? u.user?.email}</span>
-                      <span className="text-xs text-muted-foreground">{u.role ?? u.user?.role_slug}</span>
-                    </div>
-                  ))}
-                  {manualPm && (
-                    <div className="flex items-center gap-2 py-1 text-sm">
-                      <Avatar name={manualPm} />
-                      <span>{manualPm}</span>
-                      <span className="text-xs text-muted-foreground">Manual</span>
-                      <button type="button" onClick={() => void clearManualPm()} className="ml-auto text-muted-foreground hover:text-destructive" title="Remove"><X className="h-3.5 w-3.5" /></button>
-                    </div>
-                  )}
+                  {sortedTeam.map((u) => {
+                    const role = jobTeamRole(u.role);
+                    return (
+                      <div key={u.id} className="flex items-center gap-2 py-1 text-sm">
+                        <Avatar name={u.user?.display_name ?? u.user?.email ?? "?"} />
+                        <span className="min-w-0 truncate">{u.user?.display_name ?? u.user?.email}</span>
+                        <span className="ml-auto shrink-0 text-xs text-muted-foreground">{role === "Other" ? "Team" : role}</span>
+                      </div>
+                    );
+                  })}
+                  {(["Project Manager", "Superintendent"] as LeadRole[]).map((role) => {
+                    const name = manual[role];
+                    if (!name) return null;
+                    return (
+                      <div key={role} className="flex items-center gap-2 py-1 text-sm">
+                        <Avatar name={name} />
+                        <span className="min-w-0 truncate">{name}</span>
+                        <span className="ml-auto shrink-0 text-xs text-muted-foreground">{role} · Manual</span>
+                        <button type="button" onClick={() => void clearManual(role)} className="text-muted-foreground hover:text-destructive" title="Remove"><X className="h-3.5 w-3.5" /></button>
+                      </div>
+                    );
+                  })}
                 </>
               )}
+              <p className="mt-2 text-[11px] text-muted-foreground">Change anyone&apos;s role in <Link href={`/dashboard/jobs/${job.id}/info`} className="text-accent hover:underline">Job Info → Internal Users</Link>.</p>
             </Card>
 
             <Card title="Subs / Vendors" action={<Link href={`/dashboard/jobs/${job.id}/info`} className="text-xs text-accent hover:underline">Manage</Link>}>
@@ -144,21 +167,22 @@ export function JobSummaryClient({ job, stats }: { job: JobWithRelations; stats:
         </p>
       </div>
 
-      {pmModal && (
-        <AddPmModal
-          existingIds={new Set(pms.map((p) => p.staff_user_id).filter(Boolean) as string[])}
-          onTeam={addTeamPm}
-          onManual={addManualPm}
-          onClose={() => setPmModal(false)}
+      {addRole && (
+        <AddLeadModal
+          role={addRole}
+          existingIds={new Set(team.map((p) => p.staff_user_id).filter(Boolean) as string[])}
+          onTeam={(s) => void addTeamMember(s, addRole)}
+          onManual={(text) => void addManual(text, addRole)}
+          onClose={() => setAddRole(null)}
         />
       )}
     </div>
   );
 }
 
-// Add a project manager: pick from the team (filtered to PMs by role/job title)
-// or add one manually via "Other".
-function AddPmModal({ existingIds, onTeam, onManual, onClose }: { existingIds: Set<string>; onTeam: (s: StaffOption) => void; onManual: (text: string) => void; onClose: () => void }) {
+// Add a project manager or superintendent: pick from the team (filtered by
+// staff role / job title) or add one manually via "Other".
+function AddLeadModal({ role, existingIds, onTeam, onManual, onClose }: { role: LeadRole; existingIds: Set<string>; onTeam: (s: StaffOption) => void; onManual: (text: string) => void; onClose: () => void }) {
   const [staff, setStaff] = React.useState<StaffOption[] | null>(null);
   const [showAll, setShowAll] = React.useState(false);
   const [other, setOther] = React.useState(false);
@@ -175,9 +199,11 @@ function AddPmModal({ existingIds, onTeam, onManual, onClose }: { existingIds: S
   }, [onClose]);
 
   const isPm = (s: StaffOption) => s.role === "project_manager" || /project\s*manager|proj\s*mgr|\bpm\b/i.test(s.job_title);
+  const isSuper = (s: StaffOption) => s.role === "superintendent" || /superintendent|supervisor|foreman|\bsuper\b/i.test(s.job_title);
+  const matches = role === "Superintendent" ? isSuper : isPm;
+  const plural = role === "Superintendent" ? "superintendents" : "project managers";
   const available = (staff ?? []).filter((s) => !existingIds.has(s.id));
-  const pmList = available.filter(isPm);
-  const list = showAll ? available : pmList;
+  const list = showAll ? available : available.filter(matches);
 
   function submitManual() {
     if (!form.name.trim()) return;
@@ -191,7 +217,7 @@ function AddPmModal({ existingIds, onTeam, onManual, onClose }: { existingIds: S
       <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={onClose} />
       <div className="relative z-10 max-h-[85vh] w-full max-w-md overflow-y-auto rounded-xl border border-border bg-card shadow-xl">
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
-          <h2 className="font-semibold">Add Project Manager</h2>
+          <h2 className="font-semibold">Add {role}</h2>
           <button type="button" className="rounded p-1 text-muted-foreground hover:text-foreground" onClick={onClose}><X className="h-4 w-4" /></button>
         </div>
         <div className="p-5">
@@ -199,13 +225,13 @@ function AddPmModal({ existingIds, onTeam, onManual, onClose }: { existingIds: S
             <>
               <div className="mb-2 flex items-center justify-between">
                 <div className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">From your team</div>
-                <button type="button" onClick={() => setShowAll((v) => !v)} className="text-[11px] text-accent hover:underline">{showAll ? "Show project managers only" : "Show all team members"}</button>
+                <button type="button" onClick={() => setShowAll((v) => !v)} className="text-[11px] text-accent hover:underline">{showAll ? `Show ${plural} only` : "Show all team members"}</button>
               </div>
               {staff === null ? (
                 <div className="py-6 text-center text-sm text-muted-foreground">Loading…</div>
               ) : list.length === 0 ? (
                 <div className="rounded-md border border-dashed border-border px-3 py-5 text-center text-xs text-muted-foreground">
-                  {showAll ? "No team members available." : <>No project managers found. <button type="button" onClick={() => setShowAll(true)} className="text-accent hover:underline">Show all team members</button></>}
+                  {showAll ? "No team members available." : <>No {plural} found. <button type="button" onClick={() => setShowAll(true)} className="text-accent hover:underline">Show all team members</button></>}
                 </div>
               ) : (
                 <div className="space-y-1.5">
@@ -234,7 +260,7 @@ function AddPmModal({ existingIds, onTeam, onManual, onClose }: { existingIds: S
               </div>
               <div className="flex justify-between gap-2 pt-1">
                 <Button size="sm" variant="outline" onClick={() => setOther(false)}>← Team</Button>
-                <Button size="sm" variant="accent" onClick={submitManual} disabled={busy || !form.name.trim()}>Add Project Manager</Button>
+                <Button size="sm" variant="accent" onClick={submitManual} disabled={busy || !form.name.trim()}>Add {role}</Button>
               </div>
             </div>
           )}

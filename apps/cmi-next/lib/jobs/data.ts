@@ -3,6 +3,7 @@
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { geocodeAddress } from "./geocode";
 import { opportunityStageToJobStatus } from "./status";
+import { jobTeamRole } from "./team-roles";
 import type {
   Job, JobDraft, JobType, JobGroup, JobContact, JobInternalUser, JobVendor,
   JobSettings, JobInsurance, JobWithRelations, JobStats, PriceSummary, JobStatus,
@@ -106,7 +107,7 @@ export async function loadJobList(opts?: { includeTemplates?: boolean; includeAr
     sb.from("job_types").select("id,name,color"),
     sb.from("job_groups").select("id,name"),
     sb.from("job_contacts").select("job_id,is_primary,contact:contacts(first_name,last_name,phone)").in("job_id", jobIds),
-    sb.from("job_internal_users").select("job_id,user:staff_users(display_name)").in("job_id", jobIds),
+    sb.from("job_internal_users").select("job_id,role,user:staff_users(display_name)").in("job_id", jobIds),
   ]);
 
   const typeMap = new Map((types ?? []).map((t) => [t.id, t]));
@@ -121,9 +122,10 @@ export async function loadJobList(opts?: { includeTemplates?: boolean; includeAr
     else list.push({ name, phone: c.phone ?? null });
     clientsByJob.set(row.job_id, list);
   }
+  // PM column/filter: only team members with the Project Manager role.
   const pmByJob = new Map<string, string[]>();
-  for (const row of (jus ?? []) as { job_id: string; user: { display_name?: string | null } | null }[]) {
-    if (!row.user?.display_name) continue;
+  for (const row of (jus ?? []) as { job_id: string; role: string | null; user: { display_name?: string | null } | null }[]) {
+    if (!row.user?.display_name || jobTeamRole(row.role) !== "Project Manager") continue;
     const list = pmByJob.get(row.job_id) ?? [];
     list.push(row.user.display_name);
     pmByJob.set(row.job_id, list);
@@ -135,7 +137,8 @@ export async function loadJobList(opts?: { includeTemplates?: boolean; includeAr
     type_color: j.job_type_id ? typeMap.get(j.job_type_id)?.color ?? null : null,
     group_name: j.job_group_id ? groupMap.get(j.job_group_id)?.name ?? null : null,
     clients: clientsByJob.get(j.id) ?? [],
-    project_managers: pmByJob.get(j.id) ?? [],
+    // Manual PM text is "Name — email · phone"; the list shows just the name.
+    project_managers: [...(pmByJob.get(j.id) ?? []), ...(j.project_manager ? [j.project_manager.split(" — ")[0]] : [])],
   }));
 }
 
