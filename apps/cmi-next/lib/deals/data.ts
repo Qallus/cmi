@@ -3,6 +3,7 @@
 // the API routes), matching lib/pipeline/data.ts.
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { createOpportunity } from "@/lib/pipeline/data";
+import { linkDealToOpportunity } from "@/lib/projections/links";
 import { geocodeAddress } from "@/lib/jobs/geocode";
 import { requiredFieldsForStage, DEAL_STAGE_META } from "./stages";
 import type {
@@ -183,6 +184,8 @@ export async function closeWonToPreCon(deal: Deal, actor?: Actor): Promise<Deal>
     .select()
     .single();
   if (error) throw new Error(error.message);
+  // A deal already in Projections follows the work into Pre-Con.
+  await linkDealToOpportunity(deal.id, opp.id, actor);
   return data as Deal;
 }
 

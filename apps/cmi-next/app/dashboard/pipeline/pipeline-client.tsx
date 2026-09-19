@@ -15,6 +15,7 @@ import {
   type Opportunity, type OpportunityDraft, type PipelineStage,
 } from "@/lib/pipeline/types";
 import type { PipelineReport } from "@/lib/pipeline/reporting";
+import { ProjectionLinkButton } from "@/components/projections/projection-link-button";
 
 // Reason/status option lists that are also selectable at the Active Project /
 // Pre-Con transitions.
@@ -665,6 +666,7 @@ function DetailModal({
         )}
 
         <div className="flex flex-wrap justify-end gap-2 pt-1">
+          <ProjectionLinkButton kind="opportunity" id={opp.id} className="mr-auto" />
           <Button size="sm" variant="accent" onClick={() => void promoteToJob()} disabled={promoting}>{promoting ? "Promoting…" : "Promote to Job"}</Button>
           <Button size="sm" variant="outline" onClick={onEdit}>Edit</Button>
           <Button size="sm" variant="outline" className="text-destructive" onClick={onDelete}>Delete</Button>

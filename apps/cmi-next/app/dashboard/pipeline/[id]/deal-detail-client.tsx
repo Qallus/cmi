@@ -18,6 +18,7 @@ import { CallsWorkspace } from "@/app/dashboard/communications/calls-workspace";
 import { RichTextEditor } from "@/components/notes/rich-text-editor";
 import { DEAL_STAGE_META, DEAL_STAGES, DEAL_STAGE_CHECKLIST, LOST_REASONS } from "@/lib/deals/stages";
 import { CONTACT_TYPES } from "@/lib/contacts/types";
+import { ProjectionLinkButton } from "@/components/projections/projection-link-button";
 import type { Activity, ActivityType, Deal, DealChecklistItem, DealChecklistProgress, DealStage, DealStageHistoryRow, DealTask } from "@/lib/deals/types";
 
 export type OwnerOption = { id: string; name: string };
@@ -199,12 +200,16 @@ export function DealDetailClient({
               <h1 className="font-display text-2xl font-semibold">{deal.title}</h1>
             </div>
           </div>
+          <div className="flex items-center gap-2">
+          {/* Self-hides unless the viewer can use Projections (Admin + flag). */}
+          <ProjectionLinkButton kind={deal.opportunity_id ? "opportunity" : "deal"} id={deal.opportunity_id ?? deal.id} />
           {canWrite && (
             <div className="flex items-center gap-2">
               <Button size="sm" variant="outline" disabled={busy || deal.stage === "closed_won"} onClick={() => changeStage("closed_won")}><Trophy className="h-4 w-4" /> Closed Won</Button>
               <Button size="sm" variant="outline" className="border-destructive/30 text-destructive hover:bg-destructive/10" disabled={busy || deal.stage === "lost_on_hold"} onClick={() => { const reason = window.prompt("Reason (lost / on hold):", ""); if (reason !== null) changeStage("lost_on_hold", { patch: { lost_reason: reason || "unspecified" } }); }}><Ban className="h-4 w-4" /> Closed Lost</Button>
             </div>
           )}
+          </div>
         </div>
         {/* Summary strip */}
         <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 rounded-lg border border-border p-4 md:grid-cols-4 lg:grid-cols-5">

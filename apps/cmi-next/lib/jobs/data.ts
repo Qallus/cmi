@@ -4,6 +4,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { geocodeAddress } from "./geocode";
 import { opportunityStageToJobStatus } from "./status";
 import { jobTeamRole } from "./team-roles";
+import { linkOpportunityToJob } from "@/lib/projections/links";
 import type {
   Job, JobDraft, JobType, JobGroup, JobContact, JobInternalUser, JobVendor,
   JobSettings, JobInsurance, JobWithRelations, JobStats, PriceSummary, JobStatus,
@@ -424,6 +425,8 @@ export async function convertOpportunityToJob(
     await sb.from("job_contacts").insert({ job_id: job.id, contact_id: opp.contact_id, role: "client", is_primary: true }).select("id").maybeSingle();
   }
   await logJobActivity(job.id, "converted_from_opportunity", `Promoted from opportunity ${opp.job_number ?? opportunityId}`, actor);
+  // An anticipated projection for this opportunity (or its deal) becomes the job's.
+  await linkOpportunityToJob(opportunityId, job.id, job.contract_price ?? null, actor);
   return job;
 }
 

@@ -10,6 +10,8 @@ import type { JobWithRelations, JobStatus, JobInternalUser, JobStats } from "@/l
 import { JobStatusBadge, money, formatDate } from "../../job-ui";
 import { JobDetailNav } from "../job-detail-nav";
 import { jobTeamRole, type JobTeamRole } from "@/lib/jobs/team-roles";
+import type { JobForecast } from "@/lib/projections/data";
+import { ForecastCard } from "./forecast-card";
 
 type StaffOption = { id: string; label: string; email: string; role: string; job_title: string };
 type LeadRole = Exclude<JobTeamRole, "Other">;
@@ -17,7 +19,8 @@ const ROLE_ORDER: Record<JobTeamRole, number> = { "Project Manager": 0, Superint
 // Manual (non-staff) names live on the job row itself.
 const MANUAL_FIELD: Record<LeadRole, "project_manager" | "superintendent"> = { "Project Manager": "project_manager", Superintendent: "superintendent" };
 
-export function JobSummaryClient({ job, stats }: { job: JobWithRelations; stats: JobStats }) {
+// `forecast` is null unless the viewer can use Projections (server-gated).
+export function JobSummaryClient({ job, stats, forecast = null }: { job: JobWithRelations; stats: JobStats; forecast?: JobForecast | null }) {
   const clients = job.contacts.filter((c) => c.contact);
   const [team, setTeam] = React.useState<JobInternalUser[]>(job.internal_users.filter((u) => u.user));
   const [manual, setManual] = React.useState<Record<LeadRole, string | null>>({ "Project Manager": job.project_manager, Superintendent: job.superintendent });
@@ -150,6 +153,8 @@ export function JobSummaryClient({ job, stats }: { job: JobWithRelations; stats:
                 );
               })}
             </Card>
+
+            {forecast && <ForecastCard jobId={job.id} forecast={forecast} />}
           </div>
 
           {/* Dashboard cards */}

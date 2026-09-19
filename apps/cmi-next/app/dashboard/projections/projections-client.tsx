@@ -2,34 +2,53 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { AlertTriangle, ChevronLeft, ChevronRight, ExternalLink, Plus, X } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, FileDown, Plus, Settings2, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn, formatMoney } from "@/lib/utils";
-import { addMonths, monthLabel, monthOf } from "@/lib/projections/calc";
-import { ACTIVE_JOB_STATUSES, PROJECTION_STATUS_META, type ProjectionBoard, type ProjectionRow, type AddableJob } from "@/lib/projections/types";
+import { addMonths, filterRows, monthLabel, monthOf, NO_FILTERS, summarize, type ProjectionFilters } from "@/lib/projections/calc";
+import { ACTIVE_JOB_STATUSES, PROJECTION_STATUS_META, type ProjectionBoard, type ProjectionRow, type ProjectionStatus, type AddableJob } from "@/lib/projections/types";
+import type { ProjectionSettings } from "@/lib/projections/data";
 import { JOB_STATUS_META } from "@/lib/jobs/status";
 import type { JobStatus } from "@/lib/jobs/types";
 import { ProjectionDetailPanel } from "./projection-detail-panel";
+import { AnticipatedModal } from "./anticipated-modal";
+import { ImportActualsModal } from "./import-actuals-modal";
+import { WorkloadView } from "./workload-view";
 
-export function ProjectionsClient({ initialBoard }: { initialBoard: ProjectionBoard }) {
+export type InitialAction = { open?: string | null; addDeal?: string | null; addOpportunity?: string | null };
+
+export function ProjectionsClient({ initialBoard, initialSettings, initialAction }: {
+  initialBoard: ProjectionBoard;
+  initialSettings: ProjectionSettings;
+  initialAction?: InitialAction;
+}) {
   const [board, setBoard] = React.useState(initialBoard);
+  const [settings, setSettings] = React.useState(initialSettings);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [notice, setNotice] = React.useState<string | null>(null);
   const [adding, setAdding] = React.useState(false);
+  const [anticipated, setAnticipated] = React.useState<{ mode: "manual" | "pipeline"; preselect?: { kind: "deal" | "opportunity"; id: string } | null } | null>(() =>
+    initialAction?.addDeal ? { mode: "pipeline", preselect: { kind: "deal", id: initialAction.addDeal } }
+    : initialAction?.addOpportunity ? { mode: "pipeline", preselect: { kind: "opportunity", id: initialAction.addOpportunity } }
+    : null);
+  const [importing, setImporting] = React.useState(false);
+  const [menu, setMenu] = React.useState<"add" | "settings" | null>(null);
+  const [view, setView] = React.useState<"grid" | "workload">("grid");
+  const [filters, setFilters] = React.useState<ProjectionFilters>(NO_FILTERS);
   const [editing, setEditing] = React.useState<Editing>(null);
-  const [detailId, setDetailId] = React.useState<string | null>(null);
+  const [detailId, setDetailId] = React.useState<string | null>(initialAction?.open ?? null);
   const start = board.window[0];
   const closeDetail = React.useCallback(() => setDetailId(null), []);
   const reload = React.useCallback(() => { void load(start); }, [start]);
 
-  async function saveMonth(rowId: string, month: string, amount: number, mode: "leave" | "redistribute") {
-    const res = await fetch(`/api/projections/${rowId}/months`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ month: month.slice(0, 7), amount, mode }) });
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(json.error ?? "Could not save.");
-    setEditing(null);
-    await load(start);
-  }
+  // Deep links (?open= / ?add_deal= / ?add_opportunity=) are one-shot.
+  React.useEffect(() => {
+    if (initialAction && (initialAction.open || initialAction.addDeal || initialAction.addOpportunity)) {
+      window.history.replaceState(null, "", "/dashboard/projections");
+    }
+  }, [initialAction]);
 
   async function load(nextStart: string) {
     setLoading(true); setError(null);
@@ -45,8 +64,27 @@ export function ProjectionsClient({ initialBoard }: { initialBoard: ProjectionBo
     }
   }
 
-  const { summary } = board;
+  async function saveMonth(rowId: string, month: string, amount: number, mode: "leave" | "redistribute") {
+    const res = await fetch(`/api/projections/${rowId}/months`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ month: month.slice(0, 7), amount, mode }) });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(json.error ?? "Could not save.");
+    setEditing(null);
+    await load(start);
+  }
+
+  // Filtered view: rows, totals and tiles all follow the filters.
+  const shown = React.useMemo(() => {
+    const rows = filterRows(board.rows, filters, board.currentMonth);
+    return { ...board, rows, ...summarize(rows, board.window, board.currentMonth, board.today) };
+  }, [board, filters]);
+  const people = (key: "pms" | "supers") => [...new Set(board.rows.flatMap((r) => r[key]))].sort();
+  const filtered = JSON.stringify(filters) !== JSON.stringify(NO_FILTERS);
+  const setFilter = <K extends keyof ProjectionFilters>(k: K, v: ProjectionFilters[K]) => setFilters((f) => ({ ...f, [k]: v }));
+  const pdfHref = `/api/projections/pdf?${new URLSearchParams({ start: start.slice(0, 7), ...Object.fromEntries(Object.entries(filters).filter(([, v]) => v && v !== "all")) }).toString()}`;
+
+  const { summary } = shown;
   const windowLabel = `${monthLabel(board.window[0])} – ${monthLabel(board.window[board.window.length - 1])}`;
+  const reviewCount = board.rows.filter((r) => r.new_actuals).length;
 
   return (
     <div className="flex min-h-[calc(100vh-56px)] flex-col">
@@ -63,37 +101,94 @@ export function ProjectionsClient({ initialBoard }: { initialBoard: ProjectionBo
               <button type="button" disabled={loading || start === board.currentMonth} onClick={() => void load(board.currentMonth)} className="border-x border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground disabled:opacity-50">This month</button>
               <button type="button" aria-label="Next month" disabled={loading} onClick={() => void load(addMonths(start, 1))} className="px-2 py-1.5 text-muted-foreground hover:text-foreground disabled:opacity-50"><ChevronRight className="h-4 w-4" /></button>
             </div>
-            <Button size="sm" variant="accent" onClick={() => setAdding(true)}><Plus className="h-3.5 w-3.5" /> Add Jobs</Button>
+            <Button size="sm" variant="outline" onClick={() => setImporting(true)}><Upload className="h-3.5 w-3.5" /> Import Actuals</Button>
+            <a href={pdfHref} target="_blank" rel="noopener noreferrer" className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs font-medium hover:bg-muted"><FileDown className="h-3.5 w-3.5" /> PDF</a>
+            <div className="relative">
+              <Button size="sm" variant="outline" aria-label="Projections settings" onClick={() => setMenu((m) => (m === "settings" ? null : "settings"))}><Settings2 className="h-3.5 w-3.5" /></Button>
+              {menu === "settings" && <SettingsPopover settings={settings} onClose={() => setMenu(null)} onSaved={(s) => { setSettings(s); setMenu(null); setNotice("Settings saved."); }} />}
+            </div>
+            <div className="relative">
+              <Button size="sm" variant="accent" onClick={() => setMenu((m) => (m === "add" ? null : "add"))}><Plus className="h-3.5 w-3.5" /> Add <ChevronDown className="h-3 w-3" /></Button>
+              {menu === "add" && (
+                <div className="absolute right-0 top-10 z-30 w-60 rounded-md border border-border bg-card p-1 text-sm shadow-lg">
+                  <MenuItem onClick={() => { setMenu(null); setAdding(true); }} title="Jobs" sub="Forecast a job's remaining contract value" />
+                  <MenuItem onClick={() => { setMenu(null); setAnticipated({ mode: "pipeline" }); }} title="From Pipeline" sub="A deal or Pre-Con opportunity" />
+                  <MenuItem onClick={() => { setMenu(null); setAnticipated({ mode: "manual" }); }} title="Anticipated project" sub="Work that isn't in the system yet" />
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
 
       <div className={cn("flex-1 space-y-4 p-4 md:p-6", loading && "opacity-60")}>
         {error && <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
+        {notice && (
+          <div role="status" className="flex items-center justify-between rounded-md border border-success/40 bg-success/10 px-3 py-2 text-sm">
+            <span>{notice}</span><button type="button" aria-label="Dismiss" onClick={() => setNotice(null)}><X className="h-3.5 w-3.5" /></button>
+          </div>
+        )}
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           <Tile label="12-Mo Projected" value={formatMoney(summary.projected12)} />
-          <Tile label="12-Mo Actual" value={board.anyActuals ? formatMoney(summary.actual12) : "—"} sub={board.anyActuals ? undefined : "No billing recorded"} />
+          <Tile label="12-Mo Actual" value={shown.anyActuals ? formatMoney(summary.actual12) : "—"} sub={shown.anyActuals ? undefined : "No billing recorded"} />
           <Tile label="Variance to Date" value={summary.varianceToDate === null ? "—" : formatMoney(summary.varianceToDate)} tone={summary.varianceToDate === null ? undefined : summary.varianceToDate < 0 ? "danger" : "success"} />
           <Tile label="Remaining Backlog" value={formatMoney(summary.remainingBacklog)} sub={`${formatMoney(summary.contractedBacklog, { compact: true })} contracted · ${formatMoney(summary.potentialBacklog, { compact: true })} potential`} />
-          <Tile label="Beyond Window" value={formatMoney(summary.beyondBacklog)} sub={Object.keys(board.beyondTotals).length ? Object.entries(board.beyondTotals).map(([y, v]) => `${y}: ${formatMoney(v, { compact: true })}`).join(" · ") : "Nothing scheduled later"} />
+          <Tile label="Beyond Window" value={formatMoney(summary.beyondBacklog)} sub={Object.keys(shown.beyondTotals).length ? Object.entries(shown.beyondTotals).map(([y, v]) => `${y}: ${formatMoney(v, { compact: true })}`).join(" · ") : "Nothing scheduled later"} />
           <Tile label="Projects" value={String(summary.activeProjects)} sub={`${summary.startingSoon} starting · ${summary.endingSoon} ending in 30 days`} />
         </div>
 
-        {!board.anyActuals && board.rows.length > 0 && (
+        {board.rows.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex overflow-hidden rounded-md border border-border text-xs">
+              {(["grid", "workload"] as const).map((v) => (
+                <button key={v} type="button" onClick={() => setView(v)} className={cn("px-3 py-1.5 font-medium", view === v ? "bg-accent/15 text-accent" : "text-muted-foreground hover:text-foreground")}>{v === "grid" ? "Grid" : "Workload"}</button>
+              ))}
+            </div>
+            <div className="flex overflow-hidden rounded-md border border-border text-xs">
+              {(["all", "committed", "potential"] as const).map((s) => (
+                <button key={s} type="button" onClick={() => setFilter("scope", s)} className={cn("px-3 py-1.5 font-medium", filters.scope === s ? "bg-accent/15 text-accent" : "text-muted-foreground hover:text-foreground")}>
+                  {s === "all" ? "Combined" : s === "committed" ? "Committed" : "Potential"}
+                </button>
+              ))}
+            </div>
+            <FilterSelect label="Status" value={filters.status} onChange={(v) => setFilter("status", v)}
+              options={(Object.keys(PROJECTION_STATUS_META) as ProjectionStatus[]).map((s) => [s, PROJECTION_STATUS_META[s].label])} />
+            <FilterSelect label="PM" value={filters.pm} onChange={(v) => setFilter("pm", v)} options={[...people("pms").map((n) => [n, n] as [string, string]), ["Unassigned", "Unassigned"]]} />
+            <FilterSelect label="Super" value={filters.sup} onChange={(v) => setFilter("sup", v)} options={[...people("supers").map((n) => [n, n] as [string, string]), ["Unassigned", "Unassigned"]]} />
+            <FilterSelect label="Allocation" value={filters.allocation} onChange={(v) => setFilter("allocation", v)} options={[["balanced", "Balanced"], ["under", "Unallocated"], ["over", "Over-forecast"]]} />
+            <FilterSelect label="Show" value={filters.flag} onChange={(v) => setFilter("flag", v)}
+              options={[["warnings", "Has warnings"], ["variance", "Has variance"], ["new_actuals", "New billing to review"], ["excluded", "Excluded"]]} />
+            {filtered && <button type="button" onClick={() => setFilters(NO_FILTERS)} className="text-xs text-accent hover:underline">Clear filters</button>}
+            {reviewCount > 0 && filters.flag !== "new_actuals" && (
+              <button type="button" onClick={() => setFilter("flag", "new_actuals")} className="ml-auto"><Badge tone="info">{reviewCount} with new billing to review</Badge></button>
+            )}
+          </div>
+        )}
+
+        {!shown.anyActuals && board.rows.length > 0 && (
           <p className="text-xs text-muted-foreground">
-            No billing recorded yet, so actuals and variance are blank. They fill in once invoices are issued in CMI (drafts don&apos;t count) or external billing is imported.
+            No billing recorded yet, so actuals and variance are blank. They fill in once invoices are issued in CMI (drafts don&apos;t count) or external billing is entered or imported.
           </p>
         )}
 
         {board.rows.length === 0 ? (
           <div className="rounded-lg border border-dashed border-border bg-card px-6 py-16 text-center">
             <h2 className="font-semibold">No projects in Projections yet</h2>
-            <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">Add jobs to forecast their remaining contract value month by month. Nothing on the job itself changes.</p>
-            <Button className="mt-4" size="sm" variant="accent" onClick={() => setAdding(true)}><Plus className="h-3.5 w-3.5" /> Add Jobs</Button>
+            <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">Add jobs to forecast their remaining contract value month by month, or add anticipated work from the Pipeline. Nothing on the job or deal itself changes.</p>
+            <div className="mt-4 flex justify-center gap-2">
+              <Button size="sm" variant="accent" onClick={() => setAdding(true)}><Plus className="h-3.5 w-3.5" /> Add Jobs</Button>
+              <Button size="sm" variant="outline" onClick={() => setAnticipated({ mode: "pipeline" })}>Add from Pipeline</Button>
+            </div>
           </div>
+        ) : shown.rows.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-border bg-card px-6 py-12 text-center text-sm text-muted-foreground">
+            No projects match these filters. <button type="button" className="text-accent hover:underline" onClick={() => setFilters(NO_FILTERS)}>Clear filters</button>
+          </div>
+        ) : view === "workload" ? (
+          <WorkloadView rows={shown.rows} window={board.window} currentMonth={board.currentMonth} threshold={settings.workload_threshold} />
         ) : (
-          <Grid board={board} editing={editing} onEdit={setEditing} onSaveMonth={saveMonth} onOpen={setDetailId} />
+          <Grid board={shown} editing={editing} onEdit={setEditing} onSaveMonth={saveMonth} onOpen={setDetailId} />
         )}
       </div>
 
@@ -103,7 +198,75 @@ export function ProjectionsClient({ initialBoard }: { initialBoard: ProjectionBo
           onAdded={() => { setAdding(false); void load(start); }}
         />
       )}
-      {detailId && <ProjectionDetailPanel key={detailId} id={detailId} onClose={closeDetail} onChanged={reload} />}
+      {anticipated && (
+        <AnticipatedModal
+          mode={anticipated.mode}
+          preselect={anticipated.preselect}
+          onClose={() => setAnticipated(null)}
+          onCreated={(id) => { setAnticipated(null); void load(start); setDetailId(id); }}
+        />
+      )}
+      {importing && (
+        <ImportActualsModal
+          projections={board.rows.map((r) => ({ id: r.id, name: r.name }))}
+          onClose={() => setImporting(false)}
+          onImported={(msg) => { setImporting(false); setNotice(msg); void load(start); }}
+        />
+      )}
+      {detailId && <ProjectionDetailPanel key={detailId} id={detailId} onClose={closeDetail} onChanged={reload} onOpen={setDetailId} />}
+    </div>
+  );
+}
+
+function MenuItem({ title, sub, onClick }: { title: string; sub: string; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} className="block w-full rounded px-3 py-2 text-left hover:bg-muted">
+      <div className="font-medium">{title}</div>
+      <div className="text-[11px] text-muted-foreground">{sub}</div>
+    </button>
+  );
+}
+
+function FilterSelect({ label, value, onChange, options }: { label: string; value: string; onChange: (v: string) => void; options: [string, string][] }) {
+  return (
+    <select aria-label={label} value={value} onChange={(e) => onChange(e.target.value)}
+      className={cn("h-8 rounded-md border bg-background px-2 text-xs outline-none focus:border-accent", value ? "border-accent text-accent" : "border-border text-muted-foreground")}>
+      <option value="">{label}: All</option>
+      {options.map(([v, l]) => <option key={v} value={v}>{label}: {l}</option>)}
+    </select>
+  );
+}
+
+function SettingsPopover({ settings, onClose, onSaved }: { settings: ProjectionSettings; onClose: () => void; onSaved: (s: ProjectionSettings) => void }) {
+  const [source, setSource] = React.useState(settings.default_actuals_source);
+  const [threshold, setThreshold] = React.useState(String(settings.workload_threshold));
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  async function save() {
+    setBusy(true); setError(null);
+    const res = await fetch("/api/projections/settings", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ default_actuals_source: source, workload_threshold: Number(threshold) }) });
+    const json = await res.json().catch(() => ({}));
+    if (res.ok) onSaved(json); else { setError(json.error ?? "Could not save."); setBusy(false); }
+  }
+  return (
+    <div className="absolute right-0 top-10 z-30 w-72 space-y-3 rounded-md border border-border bg-card p-3 text-xs shadow-lg">
+      <div className="font-semibold">Projections settings</div>
+      {error && <div role="alert" className="text-destructive">{error}</div>}
+      <label className="block space-y-1">
+        <span className="font-medium">Default billing source for new projects</span>
+        <select value={source} onChange={(e) => setSource(e.target.value as ProjectionSettings["default_actuals_source"])} className="h-8 w-full rounded-md border border-border bg-background px-2 outline-none focus:border-accent">
+          <option value="cmi_invoices">CMI invoices</option>
+          <option value="external">External (Adaptive / QuickBooks)</option>
+        </select>
+      </label>
+      <label className="block space-y-1">
+        <span className="font-medium">Workload highlight at</span>
+        <span className="flex items-center gap-2"><input type="number" min={1} max={50} value={threshold} onChange={(e) => setThreshold(e.target.value)} className="h-8 w-20 rounded-md border border-border bg-background px-2 outline-none focus:border-accent" /> concurrent projects</span>
+      </label>
+      <div className="flex justify-end gap-2">
+        <Button size="sm" variant="ghost" onClick={onClose}>Cancel</Button>
+        <Button size="sm" variant="accent" disabled={busy} onClick={() => void save()}>Save</Button>
+      </div>
     </div>
   );
 }
@@ -144,7 +307,7 @@ function Grid({ board, ...handlers }: { board: ProjectionBoard } & GridHandlers)
         </tbody>
         <tfoot className="border-t-2 border-border bg-muted/40 text-xs">
           <FootRow label="Projected" cells={totals.map((t) => (t.projected ? formatMoney(t.projected, { compact: true }) : "—"))} beyond={formatMoney(beyondYears.reduce((s, y) => s + board.beyondTotals[y], 0), { compact: true })} total={formatMoney(board.summary.projected12, { compact: true })} window={window} currentMonth={currentMonth} strong />
-          <FootRow label="Actual" cells={totals.map((t) => (board.anyActuals && t.month <= currentMonth ? formatMoney(t.actual, { compact: true }) : "—"))} window={window} currentMonth={currentMonth} total={board.anyActuals ? formatMoney(board.summary.actual12, { compact: true }) : "—"} />
+          <FootRow label="Actual" cells={totals.map((t) => (board.anyActuals && (t.month <= currentMonth || t.actual) ? formatMoney(t.actual, { compact: true }) : "—"))} window={window} currentMonth={currentMonth} total={board.anyActuals ? formatMoney(board.summary.actual12, { compact: true }) : "—"} />
           <tr>
             <td className={cn("sticky left-0 z-10 bg-muted px-3 py-1.5 font-medium")}>Variance</td>
             {totals.map((t) => (
@@ -201,7 +364,10 @@ function Row({ row, board, editing, onEdit, onSaveMonth, onOpen }: { row: Projec
                 <Link href={`/dashboard/jobs/${row.job_id}/summary`} aria-label={`Open job ${row.name}`} title="Open job" className="shrink-0 text-muted-foreground hover:text-accent"><ExternalLink className="h-3 w-3" /></Link>
               )}
             </div>
-            <div className="truncate text-[11px] text-muted-foreground">{[row.job_number, row.client_name].filter(Boolean).join(" · ") || "Anticipated"}</div>
+            <div className="truncate text-[11px] text-muted-foreground">
+              {row.source === "job" ? [row.job_number, row.client_name].filter(Boolean).join(" · ")
+                : [`Anticipated${row.source === "deal" ? " · Deal" : row.source === "opportunity" ? " · Pre-Con" : ""}`, row.client_name].filter(Boolean).join(" · ")}
+            </div>
           </div>
           <Badge tone={status.tone} className="h-5 shrink-0 px-1.5 text-[10px]" title={row.status_overridden ? "Forecast status (overridden)" : row.job_status ? `From job: ${JOB_STATUS_META[row.job_status as JobStatus]?.label ?? row.job_status}` : undefined}>{status.label}</Badge>
         </div>
@@ -211,6 +377,7 @@ function Row({ row, board, editing, onEdit, onSaveMonth, onOpen }: { row: Projec
         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
           <span className="text-muted-foreground">Remaining <span className="font-medium text-foreground tabular-nums">{formatMoney(row.remaining)}</span> of {formatMoney(row.total_revenue)}</span>
           <AllocationBadge row={row} />
+          {row.new_actuals && <button type="button" onClick={() => onOpen(row.id)}><Badge tone="info" className="h-5 px-1.5 text-[10px]">New billing — review</Badge></button>}
         </div>
         {row.warnings.length > 0 && (
           <div className="mt-1 flex items-center gap-1 text-[11px] text-yellow-800 dark:text-warning">
@@ -221,7 +388,8 @@ function Row({ row, board, editing, onEdit, onSaveMonth, onOpen }: { row: Projec
       {window.map((m) => {
         const cell = row.months[m];
         const inForecast = fs && ff && m >= fs && m <= ff;
-        const showActual = board.anyActuals && m <= currentMonth && (cell.actual > 0 || cell.projected > 0);
+        // Started months always show actuals; later months only when billing is already recorded.
+        const showActual = board.anyActuals && (cell.actual !== 0 || (m <= currentMonth && cell.projected > 0));
         const variance = cell.actual - cell.projected;
         return (
           <td key={m} className={cn("relative px-2 py-2 text-right tabular-nums", inForecast && "bg-accent/[0.06]", m === currentMonth && "bg-accent/10")}>

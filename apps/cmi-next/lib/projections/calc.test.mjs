@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   monthOf, addMonths, monthRange, monthsBetween, evenSpread, spreadMonths,
-  allocation, statusFromJob, monthTotals, beyondByYear, applyMonthEdit, respreadFuture,
+  allocation, statusFromJob, monthTotals, beyondByYear, applyMonthEdit, respreadFuture, workload, summarize, filterRows, NO_FILTERS,
 } from "./calc.ts";
 
 test("month helpers", () => {
@@ -101,4 +101,52 @@ test("respread replaces the future forecast only", () => {
     respreadFuture(existing, 300, ["2026-10-01", "2026-11-01"], "2026-09-01"),
     { "2026-10-01": 150, "2026-11-01": 150, "2026-09-01": 0, "2026-12-01": 0 },
   );
+});
+
+test("workload counts concurrent projects and revenue per person", () => {
+  const window = ["2026-09-01", "2026-10-01"];
+  const rows = [
+    { include: true, pms: ["Ben"], supers: [], months: { "2026-09-01": { projected: 100, actual: 0 }, "2026-10-01": { projected: 50, actual: 0 } } },
+    { include: true, pms: ["Ben"], supers: ["Joe"], months: { "2026-09-01": { projected: 200, actual: 0 }, "2026-10-01": { projected: 0, actual: 0 } } },
+    { include: false, pms: ["Ben"], supers: [], months: { "2026-09-01": { projected: 999, actual: 0 } } },
+  ];
+  const pm = workload(rows, window, "pm");
+  assert.equal(pm.length, 1);
+  assert.deepEqual(pm[0].months["2026-09-01"], { projects: 2, revenue: 300 });
+  assert.deepEqual(pm[0].months["2026-10-01"], { projects: 1, revenue: 50 });
+  assert.equal(pm[0].peak, 2);
+  assert.equal(pm[0].revenue, 350);
+  assert.deepEqual(workload(rows, window, "super").map((p) => p.name), ["Joe", "Unassigned"]);
+});
+
+test("summarize: backlog split and 30-day windows", () => {
+  const base = { include: true, beyond: {}, has_actuals: false, months: { "2026-09-01": { projected: 100, actual: 0 } }, window_projected: 100 };
+  const rows = [
+    { ...base, status: "contracted", remaining: 1000, forecast_start: "2026-09-25", forecast_finish: "2027-01-01" },
+    { ...base, status: "likely", remaining: 500, forecast_start: "2026-12-01", forecast_finish: "2026-10-10" },
+    { ...base, include: false, status: "likely", remaining: 999, forecast_start: null, forecast_finish: null },
+  ];
+  const { summary } = summarize(rows, ["2026-09-01"], "2026-09-01", "2026-09-18");
+  assert.equal(summary.contractedBacklog, 1000);
+  assert.equal(summary.potentialBacklog, 500);
+  assert.equal(summary.startingSoon, 1);
+  assert.equal(summary.endingSoon, 1);
+  assert.equal(summary.varianceToDate, null); // no billing source → no false variance
+});
+
+test("filters: scope, people and flags", () => {
+  const mk = (o) => ({ status: "contracted", pms: [], supers: [], allocation: "balanced", warnings: [], new_actuals: false, include: true, has_actuals: false, months: {}, ...o });
+  const rows = [
+    mk({ id: 1, pms: ["Ben"] }),
+    mk({ id: 2, status: "likely", allocation: "under", warnings: ["No forecast dates"] }),
+    mk({ id: 3, has_actuals: true, months: { "2026-08-01": { projected: 100, actual: 60 } } }),
+  ];
+  const ids = (f) => filterRows(rows, { ...NO_FILTERS, ...f }, "2026-09-01").map((r) => r.id);
+  assert.deepEqual(ids({}), [1, 2, 3]);
+  assert.deepEqual(ids({ scope: "potential" }), [2]);
+  assert.deepEqual(ids({ pm: "Ben" }), [1]);
+  assert.deepEqual(ids({ pm: "Unassigned" }), [2, 3]);
+  assert.deepEqual(ids({ allocation: "under" }), [2]);
+  assert.deepEqual(ids({ flag: "warnings" }), [2]);
+  assert.deepEqual(ids({ flag: "variance" }), [3]);
 });

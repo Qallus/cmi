@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireAdmin, AuthError } from "@/lib/auth/require-admin";
 import { buildSystemPrompt } from "@/lib/agent/prompt";
 import { loadTrainingContext } from "@/lib/agent/training";
-import { TOOL_DEFS, dispatchTool } from "@/lib/agent/tools";
+import { toolDefsFor, dispatchTool } from "@/lib/agent/tools";
 import type { ChatMessage, PendingAction, StaffContext, ToolActivity } from "@/lib/agent/types";
 
 const ADMIN_ROLES = ["super_admin", "admin"];
@@ -51,13 +51,14 @@ export async function POST(req: NextRequest) {
 
   const activities: ToolActivity[] = [];
   const pendingActions: PendingAction[] = [];
+  const tools = await toolDefsFor(ctx);
 
   try {
     for (let i = 0; i < MAX_ITERATIONS; i++) {
       const res = await fetch(upstream, {
         method: "POST",
         headers,
-        body: JSON.stringify({ model: hermesModel, messages: convo, tools: TOOL_DEFS, tool_choice: "auto" }),
+        body: JSON.stringify({ model: hermesModel, messages: convo, tools, tool_choice: "auto" }),
       });
       if (!res.ok) {
         const text = await res.text();

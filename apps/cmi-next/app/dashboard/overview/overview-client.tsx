@@ -94,7 +94,8 @@ function StatCardItem({ card }: { card: StatCard }) {
   );
 }
 
-export function OverviewClient({ data, demoMode }: { data: OverviewData; demoMode: boolean }) {
+// `outlookCard` is server-rendered and only present for Projections users.
+export function OverviewClient({ data, demoMode, outlookCard = null }: { data: OverviewData; demoMode: boolean; outlookCard?: React.ReactNode }) {
   const { stats, recent, upcoming } = data;
 
   const statCards: StatCard[] = [
@@ -170,6 +171,7 @@ export function OverviewClient({ data, demoMode }: { data: OverviewData; demoMod
 
         {/* Right column */}
         <div className="space-y-4">
+          {outlookCard}
           {/* Quick Actions */}
           <Card>
             <CardHeader>

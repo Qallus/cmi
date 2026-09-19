@@ -7,11 +7,12 @@ import { JOB_STATUS_META } from "@/lib/jobs/status";
 import type { JobStatus } from "@/lib/jobs/types";
 import {
   monthOf, monthRange, monthsBetween, evenSpread, spreadMonths, allocation, statusFromJob,
-  isCommitted, monthTotals, beyondByYear, applyMonthEdit, respreadFuture, round2,
+  beyondByYear, applyMonthEdit, respreadFuture, summarize, round2,
 } from "./calc";
 import {
   ACTIVE_JOB_STATUSES,
   type Projection, type ProjectionRow, type ProjectionBoard, type ProjectionDetail, type ProjectionStatus, type AddableJob,
+  type ActualsSource, type PipelineCandidate,
 } from "./types";
 
 type Actor = { id: string; name: string | null };
@@ -176,9 +177,14 @@ function resolveRow(p: Projection, ctx: Context, window: string[], currentMonth:
   else if (fFinish < todayIso && remaining > 0) warnings.push("Finish date passed");
   if (official === null && p.revenue_override === null) warnings.push("No contract value");
 
+  const latestActual = actuals.reduce<string | null>((max, a) => (a.amount && (!max || a.month > max) ? a.month : max), null);
+
   return {
     id: p.id,
+    source: p.job_id ? "job" : p.opportunity_id ? "opportunity" : p.deal_id ? "deal" : "manual",
     job_id: p.job_id,
+    opportunity_id: p.opportunity_id,
+    deal_id: p.deal_id,
     job_number: job?.job_number ?? null,
     job_status: job?.status ?? null,
     name: job?.job_name ?? p.name ?? "Untitled projection",
@@ -199,6 +205,7 @@ function resolveRow(p: Projection, ctx: Context, window: string[], currentMonth:
     allocation: alloc.state,
     actuals_source: p.actuals_source,
     has_actuals: actuals.length > 0,
+    new_actuals: !!latestActual && latestActual <= currentMonth && (!p.actuals_reviewed_through || latestActual > monthOf(p.actuals_reviewed_through)),
     months: cells,
     window_projected: round2(window.reduce((s, m) => s + cells[m].projected, 0)),
     beyond: beyondByYear(projected, window[window.length - 1]),
@@ -220,40 +227,10 @@ export async function loadBoard(opts?: { start?: string | null; today?: Date }):
   const projections = (projData ?? []) as Projection[];
   const ctx = await loadContext(projections);
 
-  const soon = new Date(today); soon.setDate(soon.getDate() + 30);
-  const todayIso = isoDate(today), soonIso = isoDate(soon);
-
+  const todayIso = isoDate(today);
   const rows = projections.map((p) => resolveRow(p, ctx, window, currentMonth, todayIso));
   rows.sort((a, b) => (a.forecast_start ?? "9999").localeCompare(b.forecast_start ?? "9999") || a.name.localeCompare(b.name));
-
-  const included = rows.filter((r) => r.include);
-  const totals = monthTotals(rows, window, currentMonth);
-  const beyondTotals: Record<string, number> = {};
-  for (const r of included) for (const [y, v] of Object.entries(r.beyond)) beyondTotals[y] = round2((beyondTotals[y] ?? 0) + v);
-  const anyActuals = included.some((r) => r.has_actuals);
-  const backlog = (pred: (r: ProjectionRow) => boolean) => round2(included.filter(pred).reduce((s, r) => s + Math.max(r.remaining, 0), 0));
-  const started = totals.filter((t) => t.variance !== null);
-
-  return {
-    window,
-    currentMonth,
-    rows,
-    totals,
-    beyondTotals,
-    anyActuals,
-    summary: {
-      projected12: round2(totals.reduce((s, t) => s + t.projected, 0)),
-      actual12: round2(totals.reduce((s, t) => s + t.actual, 0)),
-      varianceToDate: anyActuals && started.length ? round2(started.reduce((s, t) => s + (t.variance ?? 0), 0)) : null,
-      remainingBacklog: backlog(() => true),
-      contractedBacklog: backlog((r) => isCommitted(r.status)),
-      potentialBacklog: backlog((r) => !isCommitted(r.status)),
-      beyondBacklog: round2(Object.values(beyondTotals).reduce((s, v) => s + v, 0)),
-      activeProjects: included.filter((r) => r.window_projected > 0).length,
-      startingSoon: included.filter((r) => r.forecast_start && r.forecast_start >= todayIso && r.forecast_start <= soonIso).length,
-      endingSoon: included.filter((r) => r.forecast_finish && r.forecast_finish >= todayIso && r.forecast_finish <= soonIso).length,
-    },
-  };
+  return { window, currentMonth, today: todayIso, rows, ...summarize(rows, window, currentMonth, todayIso) };
 }
 
 // ── Detail + edits ────────────────────────────────────────────────────────
@@ -279,6 +256,8 @@ export async function loadDetail(id: string, today = new Date()): Promise<Projec
   const row = resolveRow(p, ctx, window, currentMonth, isoDate(today));
   const job = p.job_id ? ctx.src.jobs.get(p.job_id) : undefined;
 
+  const { data: billing } = await getSupabaseAdmin().from("projection_actuals")
+    .select("id,month,amount,source,external_ref,note,created_at").eq("projection_id", id).order("month", { ascending: false });
   const { data: activity } = await getSupabaseAdmin().from("projection_activity")
     .select("id,action,detail,actor_name,created_at").eq("projection_id", id).order("created_at", { ascending: false }).limit(50);
 
@@ -297,7 +276,12 @@ export async function loadDetail(id: string, today = new Date()): Promise<Projec
       status: p.status, forecast_start: p.forecast_start, forecast_finish: p.forecast_finish,
       revenue_override: p.revenue_override === null ? null : Number(p.revenue_override),
       pm_staff_id: p.pm_staff_id, super_staff_id: p.super_staff_id, include: p.include, notes: p.notes,
+      actuals_source: p.actuals_source,
     },
+    name: p.name,
+    client_name: p.client_name,
+    billing: ((billing ?? []) as { id: string; month: string; amount: number; source: string; external_ref: string | null; note: string | null; created_at: string }[])
+      .map((b) => ({ ...b, month: monthOf(b.month), amount: Number(b.amount) })),
     months: window.map((m) => ({ month: m, projected: projected[m] ?? 0, original: original[m] ?? null, actual: row.months[m]?.actual ?? 0 })),
     activity: (activity ?? []) as ProjectionDetail["activity"],
   };
@@ -357,7 +341,7 @@ export async function setMonth(id: string, input: { month: string; amount: numbe
 const STATUSES: ProjectionStatus[] = ["contracted", "preconstruction", "likely", "proposal", "on_hold"];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-export type ProjectionPatch = Partial<ProjectionDetail["overrides"]> & { respread?: boolean };
+export type ProjectionPatch = Partial<ProjectionDetail["overrides"]> & { name?: string; client_name?: string | null; respread?: boolean };
 
 // Update forecast overrides (null = back to the source value). With
 // `respread`, the future forecast is replaced by an even spread of the
@@ -392,7 +376,17 @@ export async function updateProjection(id: string, patch: ProjectionPatch, actor
     if (key in patch) set(key, patch[key] || null);
   }
   if ("include" in patch && typeof patch.include === "boolean") set("include", patch.include);
+  // Name / client only matter for anticipated work (a job supplies its own).
+  if ("name" in patch && !p.job_id) {
+    if (!patch.name?.trim()) throw new ProjectionError("Name is required.");
+    set("name", patch.name.trim());
+  }
+  if ("client_name" in patch && !p.job_id) set("client_name", patch.client_name?.trim() || null);
   if ("notes" in patch) set("notes", patch.notes?.trim() ? patch.notes.trim() : null);
+  if ("actuals_source" in patch) {
+    if (!["cmi_invoices", "external"].includes(String(patch.actuals_source))) throw new ProjectionError("Invalid actuals source.");
+    set("actuals_source", patch.actuals_source);
+  }
 
   const start = (update.forecast_start ?? p.forecast_start) as string | null;
   const finish = (update.forecast_finish ?? p.forecast_finish) as string | null;
@@ -472,7 +466,7 @@ export async function addJobs(jobIds: string[], actor: Actor, today = new Date()
     }
 
     const { data: created, error } = await sb.from("projections")
-      .insert({ job_id: jobId, created_by: actor.id, updated_by: actor.id })
+      .insert({ job_id: jobId, actuals_source: await defaultActualsSource(), created_by: actor.id, updated_by: actor.id })
       .select("id").single();
     if (error || !created) {
       // Unique job_id race (added in another tab) — treat as already present.
@@ -504,4 +498,385 @@ export async function activeJobIds(): Promise<string[]> {
 
 function isoDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+// ── Anticipated work (not yet a job) ──────────────────────────────────────
+
+export type AnticipatedInput = {
+  name: string;
+  client_name?: string | null;
+  revenue: number;
+  status?: ProjectionStatus | null;
+  forecast_start?: string | null;
+  forecast_finish?: string | null;
+  pm_staff_id?: string | null;
+  super_staff_id?: string | null;
+  notes?: string | null;
+  deal_id?: string | null;
+  opportunity_id?: string | null;
+  contact_id?: string | null;
+};
+
+// Create a projection for work that isn't a job yet (manual or from the
+// Pipeline). Revenue lives in revenue_override; it's spread evenly over the
+// forecast dates. Relinks to the job automatically on Promote to Job.
+export async function createAnticipated(input: AnticipatedInput, actor: Actor, today = new Date()): Promise<{ id: string }> {
+  const sb = getSupabaseAdmin();
+  const name = input.name?.trim();
+  if (!name) throw new ProjectionError("Name is required.");
+  if (!Number.isFinite(input.revenue) || input.revenue < 0) throw new ProjectionError("Anticipated value must be zero or more.");
+  if (input.status && !STATUSES.includes(input.status)) throw new ProjectionError("Invalid status.");
+  for (const d of [input.forecast_start, input.forecast_finish]) if (d && !DATE_RE.test(d)) throw new ProjectionError("Dates must be YYYY-MM-DD.");
+  if (input.forecast_start && input.forecast_finish && input.forecast_finish < input.forecast_start) throw new ProjectionError("Forecast finish must be on or after the start.");
+
+  // One projection per pipeline record.
+  for (const [col, val] of [["deal_id", input.deal_id], ["opportunity_id", input.opportunity_id]] as const) {
+    if (!val) continue;
+    const { data } = await sb.from("projections").select("id").eq(col, val).is("archived_at", null).limit(1);
+    if (data?.length) throw new ProjectionError("That pipeline record is already in Projections.", 409);
+  }
+
+  const { data: created, error } = await sb.from("projections").insert({
+    name,
+    client_name: input.client_name?.trim() || null,
+    revenue_override: round2(input.revenue),
+    status: input.status ?? "likely",
+    forecast_start: input.forecast_start || null,
+    forecast_finish: input.forecast_finish || null,
+    pm_staff_id: input.pm_staff_id || null,
+    super_staff_id: input.super_staff_id || null,
+    notes: input.notes?.trim() || null,
+    deal_id: input.deal_id || null,
+    opportunity_id: input.opportunity_id || null,
+    contact_id: input.contact_id || null,
+    actuals_source: await defaultActualsSource(),
+    created_by: actor.id,
+    updated_by: actor.id,
+  }).select("id").single();
+  if (error || !created) throw new Error(error?.message ?? "Could not create projection.");
+
+  const spread = evenSpread(input.revenue, spreadMonths(input.forecast_start ?? null, input.forecast_finish ?? null, monthOf(today)));
+  const months = await writeMonths(created.id, spread, {});
+  await logActivity({
+    projectionId: created.id, action: "added", actor,
+    detail: { anticipated: true, name, total: round2(input.revenue), billed: 0, months, deal_id: input.deal_id ?? null, opportunity_id: input.opportunity_id ?? null },
+  });
+  return { id: created.id };
+}
+
+// Copy an anticipated projection (scenario planning). Job-linked projections
+// can't be duplicated — a job has exactly one projection.
+export async function duplicateProjection(id: string, actor: Actor): Promise<{ id: string }> {
+  const sb = getSupabaseAdmin();
+  const p = await getProjection(id);
+  if (p.job_id) throw new ProjectionError("Job projections can't be duplicated. Duplicate anticipated projects only.");
+  const { data: created, error } = await sb.from("projections").insert({
+    name: `${p.name ?? "Untitled projection"} (copy)`,
+    client_name: p.client_name, revenue_override: p.revenue_override, status: p.status,
+    forecast_start: p.forecast_start, forecast_finish: p.forecast_finish,
+    pm_staff_id: p.pm_staff_id, super_staff_id: p.super_staff_id, include: p.include,
+    actuals_source: p.actuals_source, notes: p.notes, contact_id: p.contact_id,
+    created_by: actor.id, updated_by: actor.id,
+  }).select("id").single();
+  if (error || !created) throw new Error(error?.message ?? "Could not duplicate.");
+  const { data: months } = await sb.from("projection_months").select("month,projected_amount").eq("projection_id", id);
+  const copy = Object.fromEntries((months ?? []).map((m) => [monthOf(m.month as string), Number(m.projected_amount ?? 0)]));
+  await writeMonths(created.id, copy, {});
+  await logActivity({ projectionId: created.id, action: "duplicated", actor, detail: { from: id } });
+  return { id: created.id };
+}
+
+// ── Settings (company-wide) ───────────────────────────────────────────────
+
+export type ProjectionSettings = { default_actuals_source: ActualsSource; workload_threshold: number };
+const SETTING_DEFAULTS: ProjectionSettings = { default_actuals_source: "cmi_invoices", workload_threshold: 3 };
+
+export async function loadSettings(): Promise<ProjectionSettings> {
+  const { data } = await getSupabaseAdmin().from("projection_settings").select("key,value");
+  const map = Object.fromEntries((data ?? []).map((r) => [r.key as string, r.value]));
+  return {
+    default_actuals_source: map.default_actuals_source === "external" ? "external" : "cmi_invoices",
+    workload_threshold: Number.isFinite(Number(map.workload_threshold)) && Number(map.workload_threshold) > 0 ? Number(map.workload_threshold) : SETTING_DEFAULTS.workload_threshold,
+  };
+}
+
+export async function saveSettings(patch: Partial<ProjectionSettings>, actor: Actor): Promise<ProjectionSettings> {
+  const rows: { key: string; value: unknown; updated_by: string; updated_at: string }[] = [];
+  const now = new Date().toISOString();
+  if (patch.default_actuals_source !== undefined) {
+    if (!["cmi_invoices", "external"].includes(patch.default_actuals_source)) throw new ProjectionError("Invalid actuals source.");
+    rows.push({ key: "default_actuals_source", value: patch.default_actuals_source, updated_by: actor.id, updated_at: now });
+  }
+  if (patch.workload_threshold !== undefined) {
+    const n = Math.round(Number(patch.workload_threshold));
+    if (!Number.isFinite(n) || n < 1 || n > 50) throw new ProjectionError("Threshold must be between 1 and 50.");
+    rows.push({ key: "workload_threshold", value: n, updated_by: actor.id, updated_at: now });
+  }
+  if (rows.length) {
+    const { error } = await getSupabaseAdmin().from("projection_settings").upsert(rows, { onConflict: "key" });
+    if (error) throw new Error(error.message);
+    await logActivity({ projectionId: null, action: "settings_updated", actor, detail: patch as Record<string, unknown> });
+  }
+  return loadSettings();
+}
+
+async function defaultActualsSource(): Promise<ActualsSource> {
+  try { return (await loadSettings()).default_actuals_source; } catch { return "cmi_invoices"; }
+}
+
+// ── Pipeline candidates ───────────────────────────────────────────────────
+
+const DEAL_CANDIDATE_STAGES = ["qualified", "opportunity", "proposal", "negotiation"];
+const OPP_EXCLUDED_STAGES = ["closed", "not_moving_forward"];
+
+function statusFromDealStage(stage: string): ProjectionStatus {
+  return stage === "proposal" ? "proposal" : stage === "lost_on_hold" ? "on_hold" : "likely";
+}
+function statusFromOpportunityStage(stage: string): ProjectionStatus {
+  switch (stage) {
+    case "active_budget": return "proposal";
+    case "pre_construction_design": return "preconstruction";
+    case "active_project": case "warranty": return "contracted";
+    case "long_lead": return "on_hold";
+    default: return "likely";
+  }
+}
+
+// Deals (Qualified → Negotiation, not yet Pre-Con) and Pre-Con opportunities
+// (not yet a job) that aren't in Projections, prefilled for the Anticipated form.
+export async function listPipelineCandidates(): Promise<PipelineCandidate[]> {
+  const sb = getSupabaseAdmin();
+  const [deals, opps, taken, jobs, staff] = await Promise.all([
+    sb.from("deals").select("id,title,stage,contact_id,estimated_value,target_start_date,expected_close_date,owner_id")
+      .in("stage", DEAL_CANDIDATE_STAGES).is("opportunity_id", null),
+    sb.from("pipeline_opportunities").select("id,opportunity_name,stage,contact_id,projected_construction_value,current_budget_total,estimated_project_value,projected_construction_start_date,start_date,projected_completion_date,project_manager,superintendent,job_number")
+      .not("stage", "in", `(${OPP_EXCLUDED_STAGES.join(",")})`),
+    sb.from("projections").select("deal_id,opportunity_id").is("archived_at", null),
+    sb.from("jobs").select("related_opportunity_id").not("related_opportunity_id", "is", null).is("archived_at", null),
+    sb.from("staff_users").select("id,display_name").in("status", ["active", "invited"]),
+  ]);
+  const takenDeals = new Set((taken.data ?? []).map((t) => t.deal_id).filter(Boolean));
+  const takenOpps = new Set([...(taken.data ?? []).map((t) => t.opportunity_id), ...(jobs.data ?? []).map((j) => j.related_opportunity_id)].filter(Boolean));
+  const contactIds = [...new Set([...(deals.data ?? []), ...(opps.data ?? [])].map((r) => r.contact_id).filter(Boolean))] as string[];
+  const { data: contacts } = contactIds.length ? await sb.from("contacts").select("id,first_name,last_name").in("id", contactIds) : { data: [] };
+  const contactName = new Map((contacts ?? []).map((c) => [c.id, [c.first_name, c.last_name].filter(Boolean).join(" ")]));
+  // Opportunity PM/Super are free-text names; best-effort match to staff.
+  const staffByName = new Map((staff.data ?? []).filter((s) => s.display_name).map((s) => [String(s.display_name).trim().toLowerCase(), s.id as string]));
+  const matchStaff = (name: string | null) => (name ? staffByName.get(name.split(" — ")[0].trim().toLowerCase()) ?? null : null);
+
+  const out: PipelineCandidate[] = [];
+  for (const d of deals.data ?? []) {
+    if (takenDeals.has(d.id)) continue;
+    out.push({
+      kind: "deal", id: d.id, name: d.title ?? "Untitled deal", client_name: contactName.get(d.contact_id) || null, contact_id: d.contact_id,
+      value: Number(d.estimated_value ?? 0), start: d.target_start_date ?? null, finish: null,
+      status: statusFromDealStage(d.stage), stage: d.stage, pm_staff_id: null, super_staff_id: null,
+    });
+  }
+  for (const o of opps.data ?? []) {
+    if (takenOpps.has(o.id)) continue;
+    out.push({
+      kind: "opportunity", id: o.id, name: o.opportunity_name ?? o.job_number ?? "Untitled opportunity", client_name: contactName.get(o.contact_id) || null, contact_id: o.contact_id,
+      value: Number(o.projected_construction_value ?? o.current_budget_total ?? o.estimated_project_value ?? 0),
+      start: o.projected_construction_start_date ?? o.start_date ?? null, finish: o.projected_completion_date ?? null,
+      status: statusFromOpportunityStage(o.stage), stage: o.stage,
+      pm_staff_id: matchStaff(o.project_manager), super_staff_id: matchStaff(o.superintendent),
+    });
+  }
+  return out.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+// Where a deal / opportunity / job sits in Projections (for "In Projections"
+// badges and buttons on other pages).
+export async function findLink(by: { deal_id?: string | null; opportunity_id?: string | null; job_id?: string | null }): Promise<string | null> {
+  const col = by.job_id ? "job_id" : by.opportunity_id ? "opportunity_id" : by.deal_id ? "deal_id" : null;
+  const val = by.job_id ?? by.opportunity_id ?? by.deal_id;
+  if (!col || !val) return null;
+  const { data } = await getSupabaseAdmin().from("projections").select("id").eq(col, val).is("archived_at", null).limit(1);
+  return (data?.[0]?.id as string | undefined) ?? null;
+}
+
+// ── Actuals (external billing) ────────────────────────────────────────────
+
+export async function addActual(id: string, input: { month: string; amount: number; note?: string | null }, actor: Actor) {
+  await getProjection(id);
+  if (!/^\d{4}-\d{2}/.test(input.month ?? "")) throw new ProjectionError("Month is required.");
+  if (!Number.isFinite(input.amount) || input.amount === 0) throw new ProjectionError("Enter a non-zero amount.");
+  const month = monthOf(input.month);
+  const { error } = await getSupabaseAdmin().from("projection_actuals").insert({
+    projection_id: id, month, amount: round2(input.amount), source: "manual", note: input.note?.trim() || null, created_by: actor.id,
+  });
+  if (error) throw new Error(error.message);
+  await logActivity({ projectionId: id, action: "actual_added", actor, detail: { month, amount: round2(input.amount), source: "manual" } });
+}
+
+export async function deleteActual(id: string, actualId: string, actor: Actor) {
+  const sb = getSupabaseAdmin();
+  const { data } = await sb.from("projection_actuals").select("month,amount,source").eq("id", actualId).eq("projection_id", id).maybeSingle();
+  if (!data) throw new ProjectionError("Billing entry not found.", 404);
+  const { error } = await sb.from("projection_actuals").delete().eq("id", actualId);
+  if (error) throw new Error(error.message);
+  await logActivity({ projectionId: id, action: "actual_deleted", actor, detail: data as Record<string, unknown> });
+}
+
+// "New actuals — review forecast": keep the forecast as is, or respread what's
+// remaining over the future forecast months. Either way the latest billed
+// month is marked reviewed.
+export async function reviewActuals(id: string, mode: "keep" | "redistribute", actor: Actor, today = new Date()) {
+  const p = await getProjection(id);
+  const ctx = await loadContext([p]);
+  const currentMonth = monthOf(today);
+  const actuals = actualsFor(p, ctx);
+  const latest = actuals.map((a) => a.month).filter((m) => m <= currentMonth).sort().pop() ?? currentMonth;
+  if (mode === "redistribute") {
+    const existing = ctx.projectedBy.get(id) ?? {};
+    const row = resolveRow(p, ctx, [currentMonth], currentMonth, isoDate(today));
+    const months = spreadTargets(row, existing, currentMonth);
+    if (!months.length) throw new ProjectionError("Set forecast dates before redistributing.");
+    await writeMonths(id, respreadFuture(existing, Math.max(row.remaining, 0), months, currentMonth), existing);
+  }
+  const { error } = await getSupabaseAdmin().from("projections").update({ actuals_reviewed_through: latest, updated_by: actor.id, updated_at: new Date().toISOString() }).eq("id", id);
+  if (error) throw new Error(error.message);
+  await logActivity({ projectionId: id, action: "actuals_reviewed", actor, detail: { mode, through: latest } });
+}
+
+// ── CSV import (Adaptive / QuickBooks billing exports) ────────────────────
+
+export type ImportRowInput = { customer?: string | null; job?: string | null; date: string; amount: number; ref?: string | null; memo?: string | null };
+export type ImportPreviewRow = ImportRowInput & {
+  index: number;
+  month: string | null;
+  projection_id: string | null;
+  projection_name: string | null;
+  matched_by: "accounting_customer_id" | "job_number" | "name" | null;
+  actuals_source: ActualsSource | null;
+  external_ref: string;
+  duplicate: boolean;
+  error: string | null;
+};
+
+const norm = (v: string | null | undefined) => (v ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+const externalRef = (r: ImportRowInput) => (r.ref?.trim() ? `ref:${r.ref.trim()}` : `row:${r.date}|${round2(r.amount)}|${norm(r.customer || r.job)}`);
+
+type MatchTarget = Pick<Projection, "id" | "job_id" | "name" | "actuals_source">;
+
+// Match billing rows to projections: accounting customer id first, then job
+// number, then job / project name. Unmatched rows come back for review.
+export async function previewImport(rows: ImportRowInput[]): Promise<ImportPreviewRow[]> {
+  const sb = getSupabaseAdmin();
+  const { data: projData } = await sb.from("projections").select("id,job_id,name,actuals_source").is("archived_at", null);
+  const projections = (projData ?? []) as MatchTarget[];
+  const jobIds = projections.map((p) => p.job_id).filter(Boolean) as string[];
+  const { data: jobs } = jobIds.length ? await sb.from("jobs").select("id,job_name,job_number,accounting_customer_id").in("id", jobIds) : { data: [] };
+  const jobById = new Map((jobs ?? []).map((j) => [j.id as string, j as { job_name: string; job_number: string | null; accounting_customer_id: string | null }]));
+  const shortNumber = (v: string) => v.split("_").slice(0, 2).join("_");
+  const byCustomer = new Map<string, MatchTarget>();
+  const byNumber = new Map<string, MatchTarget>();
+  const byName = new Map<string, MatchTarget>();
+  for (const p of projections) {
+    const j = p.job_id ? jobById.get(p.job_id) : undefined;
+    if (j?.accounting_customer_id) byCustomer.set(norm(j.accounting_customer_id), p);
+    if (j?.job_number) { byNumber.set(norm(j.job_number), p); byNumber.set(norm(shortNumber(j.job_number)), p); }
+    const name = j?.job_name ?? p.name;
+    if (name) byName.set(norm(name), p);
+  }
+  const nameOf = (p: MatchTarget) => (p.job_id ? jobById.get(p.job_id)?.job_name : null) ?? p.name ?? "Untitled";
+
+  const refs = rows.map(externalRef);
+  const { data: existing } = refs.length ? await sb.from("projection_actuals").select("external_ref").in("external_ref", refs) : { data: [] };
+  const seen = new Set((existing ?? []).map((e) => e.external_ref));
+
+  return rows.map((r, index) => {
+    const valid = DATE_RE.test(r.date ?? "") && Number.isFinite(r.amount) && r.amount !== 0;
+    const keys = [r.customer, r.job].map(norm).filter(Boolean);
+    let hit: MatchTarget | undefined;
+    let matched_by: ImportPreviewRow["matched_by"] = null;
+    for (const k of keys) { hit = byCustomer.get(k); if (hit) { matched_by = "accounting_customer_id"; break; } }
+    if (!hit) for (const k of keys) { hit = byNumber.get(k) ?? byNumber.get(shortNumber(k)); if (hit) { matched_by = "job_number"; break; } }
+    if (!hit) for (const k of keys) { hit = byName.get(k); if (hit) { matched_by = "name"; break; } }
+    return {
+      ...r, index, month: valid ? monthOf(r.date) : null,
+      projection_id: hit?.id ?? null, projection_name: hit ? nameOf(hit) : null, matched_by,
+      actuals_source: hit?.actuals_source ?? null,
+      external_ref: refs[index], duplicate: seen.has(refs[index]),
+      error: valid ? null : "Needs a date and a non-zero amount",
+    };
+  });
+}
+
+// Save confirmed rows as csv_import actuals. Re-imports are skipped by
+// external_ref. With switchSource, matched projections that read CMI invoices
+// move to external billing so nothing is counted twice.
+export async function importActuals(rows: { projection_id: string; date: string; amount: number; external_ref: string; note?: string | null }[], switchSource: boolean, actor: Actor) {
+  const sb = getSupabaseAdmin();
+  const clean = rows.filter((r) => r.projection_id && DATE_RE.test(r.date) && Number.isFinite(r.amount) && r.amount !== 0 && r.external_ref);
+  if (!clean.length) throw new ProjectionError("No valid rows to import.");
+  const ids = [...new Set(clean.map((r) => r.projection_id))];
+  const { data: valid } = await sb.from("projections").select("id,actuals_source").in("id", ids).is("archived_at", null);
+  const validIds = new Map((valid ?? []).map((p) => [p.id as string, p.actuals_source as ActualsSource]));
+  const { data: existing } = await sb.from("projection_actuals").select("projection_id,external_ref").in("projection_id", ids).eq("source", "csv_import");
+  const seen = new Set((existing ?? []).map((e) => `${e.projection_id}|${e.external_ref}`));
+  const insert = clean
+    .filter((r) => validIds.has(r.projection_id) && !seen.has(`${r.projection_id}|${r.external_ref}`))
+    .filter((r, i, all) => all.findIndex((x) => x.projection_id === r.projection_id && x.external_ref === r.external_ref) === i)
+    .map((r) => ({ projection_id: r.projection_id, month: monthOf(r.date), amount: round2(r.amount), source: "csv_import", external_ref: r.external_ref, note: r.note?.trim() || null, created_by: actor.id }));
+  if (insert.length) {
+    const { error } = await sb.from("projection_actuals").insert(insert);
+    if (error) throw new Error(error.message);
+  }
+  const switched: string[] = [];
+  if (switchSource) {
+    const toSwitch = [...new Set(insert.map((r) => r.projection_id))].filter((id) => validIds.get(id) === "cmi_invoices");
+    if (toSwitch.length) {
+      const { error } = await sb.from("projections").update({ actuals_source: "external", updated_by: actor.id, updated_at: new Date().toISOString() }).in("id", toSwitch);
+      if (error) throw new Error(error.message);
+      switched.push(...toSwitch);
+    }
+  }
+  for (const id of new Set(insert.map((r) => r.projection_id))) {
+    const mine = insert.filter((r) => r.projection_id === id);
+    await logActivity({ projectionId: id, action: "actuals_imported", actor, detail: { rows: mine.length, total: round2(mine.reduce((s, r) => s + r.amount, 0)), switched_source: switched.includes(id) } });
+  }
+  return { imported: insert.length, skipped: clean.length - insert.length, invalid: rows.length - clean.length, switched: switched.length };
+}
+
+// ── Read models for other surfaces (all callers must be admin-gated) ──────
+
+export type JobForecast =
+  | { projection_id: null }
+  | {
+      projection_id: string; include: boolean; status: ProjectionStatus; forecast_start: string | null; forecast_finish: string | null;
+      total: number; billed: number; remaining: number; allocation: ProjectionRow["allocation"]; unallocated: number;
+      next3: { month: string; projected: number }[];
+    };
+
+// Job Summary "Forecast" card.
+export async function loadJobForecast(jobId: string, today = new Date()): Promise<JobForecast> {
+  const id = await findLink({ job_id: jobId });
+  if (!id) return { projection_id: null };
+  const detail = await loadDetail(id, today);
+  const r = detail.row;
+  return {
+    projection_id: id, include: r.include, status: r.status, forecast_start: r.forecast_start, forecast_finish: r.forecast_finish,
+    total: r.total_revenue, billed: r.billed_to_date, remaining: r.remaining, allocation: r.allocation, unallocated: r.unallocated,
+    next3: monthRange(detail.currentMonth, 3).map((m) => ({ month: m, projected: detail.months.find((x) => x.month === m)?.projected ?? 0 })),
+  };
+}
+
+export type Outlook = {
+  anyActuals: boolean;
+  next3: { month: string; projected: number; actual: number }[];
+  summary: ProjectionBoard["summary"];
+  projects: number;
+};
+
+// Overview "Revenue Outlook" card and the Bolt summary tool.
+export async function loadOutlook(today = new Date()): Promise<Outlook> {
+  const board = await loadBoard({ today });
+  return {
+    anyActuals: board.anyActuals,
+    next3: board.totals.slice(0, 3).map((t) => ({ month: t.month, projected: t.projected, actual: t.actual })),
+    summary: board.summary,
+    projects: board.rows.filter((r) => r.include).length,
+  };
 }

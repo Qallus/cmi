@@ -41,9 +41,14 @@ export type Projection = {
 };
 
 // One resolved grid row: projection overrides merged with live source data.
+export type ProjectionSource = "job" | "opportunity" | "deal" | "manual";
+
 export type ProjectionRow = {
   id: string;
+  source: ProjectionSource;
   job_id: string | null;
+  opportunity_id: string | null;
+  deal_id: string | null;
   job_number: string | null;
   job_status: string | null;
   name: string;
@@ -65,6 +70,8 @@ export type ProjectionRow = {
   allocation: AllocationState;
   actuals_source: ActualsSource;
   has_actuals: boolean;
+  // Billing landed in a month the forecast hasn't been reviewed against yet.
+  new_actuals: boolean;
   months: Record<string, { projected: number; actual: number }>;
   window_projected: number;
   beyond: Record<string, number>;
@@ -87,6 +94,7 @@ export type ProjectionSummary = {
 export type ProjectionBoard = {
   window: string[];
   currentMonth: string;
+  today: string;
   rows: ProjectionRow[];
   totals: MonthTotal[];
   beyondTotals: Record<string, number>;
@@ -115,9 +123,31 @@ export type ProjectionDetail = {
     super_staff_id: string | null;
     include: boolean;
     notes: string | null;
+    actuals_source: ActualsSource;
   };
+  // Anticipated-only fields (a linked job supplies its own).
+  name: string | null;
+  client_name: string | null;
+  // External billing entries (manual / CSV import). CMI invoice actuals are live.
+  billing: { id: string; month: string; amount: number; source: string; external_ref: string | null; note: string | null; created_at: string }[];
   months: { month: string; projected: number; original: number | null; actual: number }[];
   activity: { id: string; action: string; detail: Record<string, unknown>; actor_name: string | null; created_at: string }[];
+};
+
+// A deal or Pre-Con opportunity that can become an anticipated projection.
+export type PipelineCandidate = {
+  kind: "deal" | "opportunity";
+  id: string;
+  name: string;
+  client_name: string | null;
+  contact_id: string | null;
+  value: number;
+  start: string | null;
+  finish: string | null;
+  status: ProjectionStatus;
+  stage: string;
+  pm_staff_id: string | null;
+  super_staff_id: string | null;
 };
 
 export type AddableJob = {

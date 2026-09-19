@@ -7,6 +7,10 @@ import {
   createRecord, deleteRecord, getRecord, listRecords, sendMessage, updateRecord,
 } from "./registry";
 import type { PendingAction, StaffContext, ToolActivity, ToolResult } from "./types";
+import { isFeatureEnabled } from "@/lib/flags";
+import { canUseProjections, PROJECTIONS_FLAG } from "@/lib/projections/access";
+import { loadBoard } from "@/lib/projections/data";
+import { monthLabel } from "@/lib/projections/calc";
 
 const entityEnum = ENTITIES.map((e) => e.key);
 
@@ -136,6 +140,47 @@ export const TOOL_DEFS: any[] = [
   },
 ];
 
+// Projections (revenue forecast) is financial and Admin-only. It is NOT a
+// generic entity (entity reads skip role checks); the tool is offered only to
+// Admin / Super Admin with the flag on, and re-checks inside dispatch.
+const PROJECTIONS_TOOL_DEF = {
+  type: "function",
+  function: {
+    name: "get_projections_summary",
+    description: "Read-only 12-month revenue forecast (Projections): monthly projected vs actual billing totals, remaining backlog (contracted vs potential), and the largest projects with their PM/Superintendent, remaining value and next months. Admin only. Use when asked about upcoming revenue, backlog, workload or the forecast.",
+    parameters: { type: "object", properties: {}, required: [] },
+  },
+};
+
+async function projectionsAllowed(ctx: StaffContext): Promise<boolean> {
+  return canUseProjections(ctx.role) && (await isFeatureEnabled(PROJECTIONS_FLAG).catch(() => false));
+}
+
+// Tool list for this staff member (adds role-gated tools).
+export async function toolDefsFor(ctx: StaffContext): Promise<any[]> {
+  return (await projectionsAllowed(ctx)) ? [...TOOL_DEFS, PROJECTIONS_TOOL_DEF] : TOOL_DEFS;
+}
+
+async function projectionsSummary() {
+  const board = await loadBoard();
+  const rows = board.rows.filter((r) => r.include);
+  return {
+    window: `${monthLabel(board.window[0])} – ${monthLabel(board.window[board.window.length - 1])}`,
+    billing_recorded: board.anyActuals,
+    summary: board.summary,
+    months: board.totals.map((t) => ({ month: monthLabel(t.month), projected: t.projected, actual: board.anyActuals ? t.actual : null, projects: t.projects })),
+    beyond_window_by_year: board.beyondTotals,
+    top_projects: [...rows].sort((a, b) => b.remaining - a.remaining).slice(0, 15).map((r) => ({
+      name: r.name, job_number: r.job_number, status: r.status, anticipated: r.source !== "job",
+      pm: r.pms.join(", ") || null, superintendent: r.supers.join(", ") || null,
+      remaining: r.remaining, forecast_start: r.forecast_start, forecast_finish: r.forecast_finish,
+      next_3_months: board.window.slice(0, 3).map((m) => ({ month: monthLabel(m), projected: r.months[m]?.projected ?? 0 })),
+      warnings: r.warnings,
+    })),
+    total_projects: rows.length,
+  };
+}
+
 function uid(): string {
   try { return crypto.randomUUID(); } catch { return `pa-${Date.now()}-${Math.round(Math.random() * 1e6)}`; }
 }
@@ -154,6 +199,11 @@ export async function dispatchTool(name: string, args: Record<string, unknown>, 
         const e = getEntity(String(args.entity));
         if (!e) return { result: { error: `Unknown entity "${args.entity}".` }, activity: act(`Unknown entity ${args.entity}`, false) };
         return { result: { key: e.key, label: e.label, description: e.description, writeRoles: e.writeRoles, fields: e.fields }, activity: act(`Described ${e.label} fields`) };
+      }
+
+      case "get_projections_summary": {
+        if (!(await projectionsAllowed(ctx))) return { result: { error: "Projections are available to Admins only." }, activity: act("Projections: not permitted", false) };
+        return { result: await projectionsSummary(), activity: act("Loaded the revenue forecast (Projections)") };
       }
 
       case "get_job_overview": {
