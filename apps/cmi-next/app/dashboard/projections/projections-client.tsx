@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, FileDown, Plus, Settings2, Upload, X } from "lucide-react";
+import { AlertTriangle, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, FileDown, Grid3x3, LayoutGrid, List, Map as MapIcon, Plus, Settings2, Table2, Upload, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn, formatMoney } from "@/lib/utils";
@@ -11,17 +11,31 @@ import { ACTIVE_JOB_STATUSES, PROJECTION_STATUS_META, type ProjectionBoard, type
 import type { ProjectionSettings } from "@/lib/projections/data";
 import { JOB_STATUS_META } from "@/lib/jobs/status";
 import type { JobStatus } from "@/lib/jobs/types";
-import { ProjectionDetailPanel } from "./projection-detail-panel";
+import { ProjectionQuickView } from "./projection-quick-view";
+import { ProjectionActions } from "./projection-actions";
+import { ListView, TableView, CardView, CalendarView, MapView } from "./projection-views";
 import { AnticipatedModal } from "./anticipated-modal";
 import { ImportActualsModal } from "./import-actuals-modal";
 import { WorkloadView } from "./workload-view";
 
 export type InitialAction = { open?: string | null; addDeal?: string | null; addOpportunity?: string | null };
 
-export function ProjectionsClient({ initialBoard, initialSettings, initialAction }: {
+type ViewKey = "grid" | "list" | "table" | "cards" | "calendar" | "map" | "workload";
+const VIEWS: { key: ViewKey; label: string; icon: typeof LayoutGrid }[] = [
+  { key: "grid", label: "Grid", icon: Grid3x3 },
+  { key: "list", label: "List", icon: List },
+  { key: "table", label: "Table", icon: Table2 },
+  { key: "cards", label: "Cards", icon: LayoutGrid },
+  { key: "calendar", label: "Calendar", icon: CalendarDays },
+  { key: "map", label: "Map", icon: MapIcon },
+  { key: "workload", label: "Workload", icon: Users },
+];
+
+export function ProjectionsClient({ initialBoard, initialSettings, initialAction, isSuperAdmin = false }: {
   initialBoard: ProjectionBoard;
   initialSettings: ProjectionSettings;
   initialAction?: InitialAction;
+  isSuperAdmin?: boolean;
 }) {
   const [board, setBoard] = React.useState(initialBoard);
   const [settings, setSettings] = React.useState(initialSettings);
@@ -35,12 +49,13 @@ export function ProjectionsClient({ initialBoard, initialSettings, initialAction
     : null);
   const [importing, setImporting] = React.useState(false);
   const [menu, setMenu] = React.useState<"add" | "settings" | null>(null);
-  const [view, setView] = React.useState<"grid" | "workload">("grid");
+  const [view, setView] = React.useState<ViewKey>("grid");
   const [filters, setFilters] = React.useState<ProjectionFilters>(NO_FILTERS);
   const [editing, setEditing] = React.useState<Editing>(null);
-  const [detailId, setDetailId] = React.useState<string | null>(initialAction?.open ?? null);
+  const [quick, setQuick] = React.useState<{ id: string; expanded: boolean } | null>(initialAction?.open ? { id: initialAction.open, expanded: false } : null);
+  const openQuick = React.useCallback((id: string, expanded = false) => setQuick({ id, expanded }), []);
   const start = board.window[0];
-  const closeDetail = React.useCallback(() => setDetailId(null), []);
+  const closeQuick = React.useCallback(() => setQuick(null), []);
   const reload = React.useCallback(() => { void load(start); }, [start]);
 
   // Deep links (?open= / ?add_deal= / ?add_opportunity=) are one-shot.
@@ -77,6 +92,11 @@ export function ProjectionsClient({ initialBoard, initialSettings, initialAction
     const rows = filterRows(board.rows, filters, board.currentMonth);
     return { ...board, rows, ...summarize(rows, board.window, board.currentMonth, board.today) };
   }, [board, filters]);
+  const quickRow = quick ? board.rows.find((r) => r.id === quick.id) ?? null : null;
+  const actionsFor = (row: ProjectionRow) => (
+    <ProjectionActions row={row} variant="menu" isSuperAdmin={isSuperAdmin} onChanged={reload}
+      onRemoved={() => setQuick((q) => (q?.id === row.id ? null : q))} onOpen={(id) => openQuick(id)} onEdit={() => openQuick(row.id, true)} />
+  );
   const people = (key: "pms" | "supers") => [...new Set(board.rows.flatMap((r) => r[key]))].sort();
   const filtered = JSON.stringify(filters) !== JSON.stringify(NO_FILTERS);
   const setFilter = <K extends keyof ProjectionFilters>(k: K, v: ProjectionFilters[K]) => setFilters((f) => ({ ...f, [k]: v }));
@@ -140,9 +160,12 @@ export function ProjectionsClient({ initialBoard, initialSettings, initialAction
 
         {board.rows.length > 0 && (
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex overflow-hidden rounded-md border border-border text-xs">
-              {(["grid", "workload"] as const).map((v) => (
-                <button key={v} type="button" onClick={() => setView(v)} className={cn("px-3 py-1.5 font-medium", view === v ? "bg-accent/15 text-accent" : "text-muted-foreground hover:text-foreground")}>{v === "grid" ? "Grid" : "Workload"}</button>
+            <div className="flex overflow-hidden rounded-md border border-border text-xs" role="tablist" aria-label="View">
+              {VIEWS.map((v) => (
+                <button key={v.key} type="button" role="tab" aria-selected={view === v.key} title={v.label} onClick={() => setView(v.key)}
+                  className={cn("flex items-center gap-1.5 px-2.5 py-1.5 font-medium", view === v.key ? "bg-accent/15 text-accent" : "text-muted-foreground hover:text-foreground")}>
+                  <v.icon className="h-3.5 w-3.5" /><span className="hidden xl:inline">{v.label}</span>
+                </button>
               ))}
             </div>
             <div className="flex overflow-hidden rounded-md border border-border text-xs">
@@ -187,8 +210,18 @@ export function ProjectionsClient({ initialBoard, initialSettings, initialAction
           </div>
         ) : view === "workload" ? (
           <WorkloadView rows={shown.rows} window={board.window} currentMonth={board.currentMonth} threshold={settings.workload_threshold} />
+        ) : view === "list" ? (
+          <ListView rows={shown.rows} onOpen={openQuick} actions={actionsFor} />
+        ) : view === "table" ? (
+          <TableView rows={shown.rows} onOpen={openQuick} actions={actionsFor} />
+        ) : view === "cards" ? (
+          <CardView rows={shown.rows} onOpen={openQuick} actions={actionsFor} />
+        ) : view === "calendar" ? (
+          <CalendarView rows={shown.rows} onOpen={openQuick} today={board.today} />
+        ) : view === "map" ? (
+          <MapView rows={shown.rows} onOpen={openQuick} />
         ) : (
-          <Grid board={shown} editing={editing} onEdit={setEditing} onSaveMonth={saveMonth} onOpen={setDetailId} />
+          <Grid board={shown} editing={editing} onEdit={setEditing} onSaveMonth={saveMonth} onOpen={openQuick} actions={actionsFor} />
         )}
       </div>
 
@@ -203,7 +236,7 @@ export function ProjectionsClient({ initialBoard, initialSettings, initialAction
           mode={anticipated.mode}
           preselect={anticipated.preselect}
           onClose={() => setAnticipated(null)}
-          onCreated={(id) => { setAnticipated(null); void load(start); setDetailId(id); }}
+          onCreated={(id) => { setAnticipated(null); void load(start); openQuick(id, true); }}
         />
       )}
       {importing && (
@@ -213,7 +246,10 @@ export function ProjectionsClient({ initialBoard, initialSettings, initialAction
           onImported={(msg) => { setImporting(false); setNotice(msg); void load(start); }}
         />
       )}
-      {detailId && <ProjectionDetailPanel key={detailId} id={detailId} onClose={closeDetail} onChanged={reload} onOpen={setDetailId} />}
+      {quickRow && (
+        <ProjectionQuickView key={quickRow.id} row={quickRow} isSuperAdmin={isSuperAdmin} initialExpanded={quick?.expanded}
+          onClose={closeQuick} onChanged={reload} onOpen={openQuick} />
+      )}
     </div>
   );
 }
@@ -340,13 +376,14 @@ function FootRow({ label, cells, beyond, total, window, currentMonth, strong }: 
 
 type Editing = { rowId: string; month: string } | null;
 type GridHandlers = {
+  actions: (row: ProjectionRow) => React.ReactNode;
   editing: Editing;
   onEdit: (e: Editing) => void;
   onSaveMonth: (rowId: string, month: string, amount: number, mode: "leave" | "redistribute") => Promise<void>;
   onOpen: (id: string) => void;
 };
 
-function Row({ row, board, editing, onEdit, onSaveMonth, onOpen }: { row: ProjectionRow; board: ProjectionBoard } & GridHandlers) {
+function Row({ row, board, editing, onEdit, onSaveMonth, onOpen, actions }: { row: ProjectionRow; board: ProjectionBoard } & GridHandlers) {
   const { window, currentMonth } = board;
   const fs = row.forecast_start ? monthOf(row.forecast_start) : null;
   const ff = row.forecast_finish ? monthOf(row.forecast_finish) : null;
@@ -369,7 +406,10 @@ function Row({ row, board, editing, onEdit, onSaveMonth, onOpen }: { row: Projec
                 : [`Anticipated${row.source === "deal" ? " · Deal" : row.source === "opportunity" ? " · Pre-Con" : ""}`, row.client_name].filter(Boolean).join(" · ")}
             </div>
           </div>
+          <div className="flex shrink-0 items-center gap-0.5">
+          {actions(row)}
           <Badge tone={status.tone} className="h-5 shrink-0 px-1.5 text-[10px]" title={row.status_overridden ? "Forecast status (overridden)" : row.job_status ? `From job: ${JOB_STATUS_META[row.job_status as JobStatus]?.label ?? row.job_status}` : undefined}>{status.label}</Badge>
+          </div>
         </div>
         <div className="mt-1 truncate text-[11px] text-muted-foreground">
           PM {row.pms.join(", ") || "—"} · Super {row.supers.join(", ") || "—"}
@@ -540,7 +580,7 @@ function AddJobsModal({ onClose, onAdded }: { onClose: () => void; onAdded: () =
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={onClose} />
-      <div role="dialog" aria-modal="true" aria-labelledby="add-jobs-title" className="relative z-10 flex max-h-[85vh] w-full max-w-lg flex-col rounded-xl border border-border bg-card shadow-xl">
+      <div role="dialog" aria-modal="true" aria-labelledby="add-jobs-title" className="relative z-10 flex max-h-[95vh] w-full max-w-[40rem] flex-col rounded-xl border border-border bg-card shadow-xl">
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <h2 id="add-jobs-title" className="font-semibold">Add Jobs to Projections</h2>
           <button type="button" aria-label="Close" className="rounded p-1 text-muted-foreground hover:text-foreground" onClick={onClose}><X className="h-4 w-4" /></button>

@@ -1,8 +1,9 @@
 // One projection: GET detail (official vs forecast, months, history), PATCH
-// forecast overrides (optionally respreading), DELETE = remove (archive).
+// forecast overrides (optionally respreading), DELETE = archive, or with
+// ?permanent=1 delete for good (Super Admin only).
 import { NextResponse } from "next/server";
 import { requireProjections, projectionErrorResponse } from "@/lib/projections/guard";
-import { loadDetail, updateProjection, archiveProjection } from "@/lib/projections/data";
+import { loadDetail, updateProjection, archiveProjection, deleteProjectionPermanently } from "@/lib/projections/data";
 
 export const dynamic = "force-dynamic";
 
@@ -33,8 +34,13 @@ export async function PATCH(request: Request, { params }: Ctx) {
 
 export async function DELETE(request: Request, { params }: Ctx) {
   try {
-    const { actor } = await requireProjections(request);
+    const { actor, staff } = await requireProjections(request);
     const { id } = await params;
+    if (new URL(request.url).searchParams.get("permanent") === "1") {
+      if (staff.role_slug !== "super_admin") return NextResponse.json({ error: "Only a Super Admin can permanently delete a projection." }, { status: 403 });
+      await deleteProjectionPermanently(id, actor);
+      return NextResponse.json({ ok: true, deleted: true });
+    }
     await archiveProjection(id, actor);
     return NextResponse.json({ ok: true });
   } catch (err) {

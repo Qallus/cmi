@@ -36,6 +36,13 @@ export type Projection = {
   actuals_reviewed_through: string | null;
   notes: string | null;
   archived_at: string | null;
+  street_address: string | null;
+  city: string | null;
+  state: string | null;
+  zip_code: string | null;
+  full_address: string | null;
+  latitude: number | null;
+  longitude: number | null;
   created_at: string;
   updated_at: string;
 };
@@ -49,6 +56,12 @@ export type ProjectionRow = {
   job_id: string | null;
   opportunity_id: string | null;
   deal_id: string | null;
+  links: {
+    job: { id: string; label: string } | null;
+    deal: { id: string; label: string; stage: string } | null;
+    opportunity: { id: string; label: string; stage: string } | null;
+  };
+  location: { address: string | null; lat: number | null; lng: number | null; from: "job" | "deal" | "projection" | null };
   job_number: string | null;
   job_status: string | null;
   name: string;
@@ -128,6 +141,7 @@ export type ProjectionDetail = {
   // Anticipated-only fields (a linked job supplies its own).
   name: string | null;
   client_name: string | null;
+  address: { street_address: string | null; city: string | null; state: string | null; zip_code: string | null };
   // External billing entries (manual / CSV import). CMI invoice actuals are live.
   billing: { id: string; month: string; amount: number; source: string; external_ref: string | null; note: string | null; created_at: string }[];
   months: { month: string; projected: number; original: number | null; actual: number }[];

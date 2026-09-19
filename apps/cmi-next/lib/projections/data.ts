@@ -2,6 +2,7 @@
 // live and merges them with the forecast overrides in the projections tables.
 // Never writes to jobs, invoices or pipeline records.
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { geocodeAddress } from "@/lib/jobs/geocode";
 import { jobTeamRole } from "@/lib/jobs/team-roles";
 import { JOB_STATUS_META } from "@/lib/jobs/status";
 import type { JobStatus } from "@/lib/jobs/types";
@@ -39,6 +40,7 @@ type JobSource = {
   id: string; job_name: string; job_number: string | null; status: JobStatus;
   contract_price: number | null; projected_start_date: string | null; projected_completion_date: string | null;
   project_manager: string | null; superintendent: string | null;
+  full_address: string | null; latitude: number | null; longitude: number | null;
 };
 
 type Sources = {
@@ -58,7 +60,7 @@ async function loadSources(jobIds: string[]): Promise<Sources> {
   if (jobIds.length === 0) return out;
   const sb = getSupabaseAdmin();
   const [jobs, cos, invs, team, contacts] = await Promise.all([
-    sb.from("jobs").select("id,job_name,job_number,status,contract_price,projected_start_date,projected_completion_date,project_manager,superintendent").in("id", jobIds),
+    sb.from("jobs").select("id,job_name,job_number,status,contract_price,projected_start_date,projected_completion_date,project_manager,superintendent,full_address,latitude,longitude").in("id", jobIds),
     sb.from("change_orders").select("job_id,amount").in("job_id", jobIds).eq("status", "approved"),
     // Billed = issued invoices; drafts aren't billing yet and voids never count.
     sb.from("invoices").select("job_id,amount,issue_date,status").in("job_id", jobIds).not("status", "in", "(void,draft)"),
@@ -105,8 +107,13 @@ function officialRevenue(job: JobSource | undefined, src: Sources): number | nul
 
 // ── Row resolution ────────────────────────────────────────────────────────
 
+type DealRef = { id: string; title: string | null; stage: string; full_address: string | null; latitude: number | null; longitude: number | null };
+type OppRef = { id: string; opportunity_name: string | null; job_number: string | null; stage: string; project_address: string | null; city: string | null; state: string | null; zip_code: string | null };
+
 type Context = {
   src: Sources;
+  deals: Map<string, DealRef>;
+  opps: Map<string, OppRef>;
   projectedBy: Map<string, Record<string, number>>;
   originalBy: Map<string, Record<string, number | null>>;
   externalBy: Map<string, { month: string; amount: number }[]>;
@@ -118,14 +125,20 @@ async function loadContext(projections: Projection[]): Promise<Context> {
   const sb = getSupabaseAdmin();
   const ids = projections.map((p) => p.id);
   const staffIds = [...new Set(projections.flatMap((p) => [p.pm_staff_id, p.super_staff_id]).filter(Boolean) as string[])];
-  const [src, months, externals, staff] = await Promise.all([
+  const dealIds = [...new Set(projections.map((p) => p.deal_id).filter(Boolean) as string[])];
+  const oppIds = [...new Set(projections.map((p) => p.opportunity_id).filter(Boolean) as string[])];
+  const [src, months, externals, staff, deals, opps] = await Promise.all([
     loadSources(projections.map((p) => p.job_id).filter(Boolean) as string[]),
     ids.length ? sb.from("projection_months").select("projection_id,month,projected_amount,original_amount").in("projection_id", ids) : Promise.resolve({ data: [] }),
     ids.length ? sb.from("projection_actuals").select("projection_id,month,amount").in("projection_id", ids) : Promise.resolve({ data: [] }),
     staffIds.length ? sb.from("staff_users").select("id,display_name,email").in("id", staffIds) : Promise.resolve({ data: [] }),
+    dealIds.length ? sb.from("deals").select("id,title,stage,full_address,latitude,longitude").in("id", dealIds) : Promise.resolve({ data: [] }),
+    oppIds.length ? sb.from("pipeline_opportunities").select("id,opportunity_name,job_number,stage,project_address,city,state,zip_code").in("id", oppIds) : Promise.resolve({ data: [] }),
   ]);
   const ctx: Context = {
     src,
+    deals: new Map(((deals.data ?? []) as DealRef[]).map((d) => [d.id, d])),
+    opps: new Map(((opps.data ?? []) as OppRef[]).map((o) => [o.id, o])),
     projectedBy: new Map(),
     originalBy: new Map(),
     externalBy: new Map(),
@@ -177,6 +190,16 @@ function resolveRow(p: Projection, ctx: Context, window: string[], currentMonth:
   else if (fFinish < todayIso && remaining > 0) warnings.push("Finish date passed");
   if (official === null && p.revenue_override === null) warnings.push("No contract value");
 
+  const deal = p.deal_id ? ctx.deals.get(p.deal_id) : undefined;
+  const opp = p.opportunity_id ? ctx.opps.get(p.opportunity_id) : undefined;
+  const oppAddress = opp ? [opp.project_address, opp.city, [opp.state, opp.zip_code].filter(Boolean).join(" ")].filter(Boolean).join(", ") || null : null;
+  // Location: the job's, else the deal's, else the projection's own (anticipated).
+  const location: ProjectionRow["location"] =
+    job && job.latitude != null && job.longitude != null ? { address: job.full_address, lat: job.latitude, lng: job.longitude, from: "job" }
+    : deal && deal.latitude != null && deal.longitude != null ? { address: deal.full_address, lat: deal.latitude, lng: deal.longitude, from: "deal" }
+    : p.latitude != null && p.longitude != null ? { address: p.full_address, lat: p.latitude, lng: p.longitude, from: "projection" }
+    : { address: job?.full_address ?? deal?.full_address ?? oppAddress ?? p.full_address ?? null, lat: null, lng: null, from: null };
+
   const latestActual = actuals.reduce<string | null>((max, a) => (a.amount && (!max || a.month > max) ? a.month : max), null);
 
   return {
@@ -185,6 +208,12 @@ function resolveRow(p: Projection, ctx: Context, window: string[], currentMonth:
     job_id: p.job_id,
     opportunity_id: p.opportunity_id,
     deal_id: p.deal_id,
+    links: {
+      job: job ? { id: job.id, label: job.job_number ?? job.job_name } : null,
+      deal: deal ? { id: deal.id, label: deal.title ?? "Deal", stage: deal.stage } : null,
+      opportunity: opp ? { id: opp.id, label: opp.opportunity_name ?? opp.job_number ?? "Opportunity", stage: opp.stage } : null,
+    },
+    location,
     job_number: job?.job_number ?? null,
     job_status: job?.status ?? null,
     name: job?.job_name ?? p.name ?? "Untitled projection",
@@ -280,6 +309,7 @@ export async function loadDetail(id: string, today = new Date()): Promise<Projec
     },
     name: p.name,
     client_name: p.client_name,
+    address: { street_address: p.street_address, city: p.city, state: p.state, zip_code: p.zip_code },
     billing: ((billing ?? []) as { id: string; month: string; amount: number; source: string; external_ref: string | null; note: string | null; created_at: string }[])
       .map((b) => ({ ...b, month: monthOf(b.month), amount: Number(b.amount) })),
     months: window.map((m) => ({ month: m, projected: projected[m] ?? 0, original: original[m] ?? null, actual: row.months[m]?.actual ?? 0 })),
@@ -341,7 +371,10 @@ export async function setMonth(id: string, input: { month: string; amount: numbe
 const STATUSES: ProjectionStatus[] = ["contracted", "preconstruction", "likely", "proposal", "on_hold"];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-export type ProjectionPatch = Partial<ProjectionDetail["overrides"]> & { name?: string; client_name?: string | null; respread?: boolean };
+export type ProjectionPatch = Partial<ProjectionDetail["overrides"]> & {
+  name?: string; client_name?: string | null; respread?: boolean;
+  street_address?: string | null; city?: string | null; state?: string | null; zip_code?: string | null;
+};
 
 // Update forecast overrides (null = back to the source value). With
 // `respread`, the future forecast is replaced by an even spread of the
@@ -382,6 +415,15 @@ export async function updateProjection(id: string, patch: ProjectionPatch, actor
     set("name", patch.name.trim());
   }
   if ("client_name" in patch && !p.job_id) set("client_name", patch.client_name?.trim() || null);
+  if (!p.job_id && ["street_address", "city", "state", "zip_code"].some((k) => k in patch)) {
+    const next = await addressColumns({
+      street_address: "street_address" in patch ? patch.street_address : p.street_address,
+      city: "city" in patch ? patch.city : p.city,
+      state: "state" in patch ? patch.state : p.state,
+      zip_code: "zip_code" in patch ? patch.zip_code : p.zip_code,
+    });
+    for (const [k, v] of Object.entries(next)) set(k as keyof Projection, v);
+  }
   if ("notes" in patch) set("notes", patch.notes?.trim() ? patch.notes.trim() : null);
   if ("actuals_source" in patch) {
     if (!["cmi_invoices", "external"].includes(String(patch.actuals_source))) throw new ProjectionError("Invalid actuals source.");
@@ -515,7 +557,19 @@ export type AnticipatedInput = {
   deal_id?: string | null;
   opportunity_id?: string | null;
   contact_id?: string | null;
+  street_address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip_code?: string | null;
 };
+
+// Normalized address columns + best-effort geocode (Nominatim; null on failure).
+async function addressColumns(a: { street_address?: string | null; city?: string | null; state?: string | null; zip_code?: string | null }) {
+  const street_address = a.street_address?.trim() || null, city = a.city?.trim() || null, state = a.state?.trim() || null, zip_code = a.zip_code?.trim() || null;
+  const full_address = [street_address, city, [state, zip_code].filter(Boolean).join(" ")].filter(Boolean).join(", ") || null;
+  const geo = full_address ? await geocodeAddress({ street_address, city, state, zip_code }).catch(() => null) : null;
+  return { street_address, city, state, zip_code, full_address, latitude: geo?.latitude ?? null, longitude: geo?.longitude ?? null };
+}
 
 // Create a projection for work that isn't a job yet (manual or from the
 // Pipeline). Revenue lives in revenue_override; it's spread evenly over the
@@ -549,6 +603,7 @@ export async function createAnticipated(input: AnticipatedInput, actor: Actor, t
     deal_id: input.deal_id || null,
     opportunity_id: input.opportunity_id || null,
     contact_id: input.contact_id || null,
+    ...(await addressColumns(input)),
     actuals_source: await defaultActualsSource(),
     created_by: actor.id,
     updated_by: actor.id,
@@ -879,4 +934,79 @@ export async function loadOutlook(today = new Date()): Promise<Outlook> {
     summary: board.summary,
     projects: board.rows.filter((r) => r.include).length,
   };
+}
+
+// ── Connect / disconnect / permanent delete ───────────────────────────────
+
+export type ConnectKind = "job" | "deal" | "opportunity";
+export type ConnectTarget = { id: string; label: string; sub: string; taken: boolean; future?: boolean };
+
+// Records a projection can connect to. "Future deals" are the early deal
+// stages (New / Contacted); every open deal stage is offered.
+export async function listConnectTargets(kind: ConnectKind): Promise<ConnectTarget[]> {
+  const sb = getSupabaseAdmin();
+  const { data: used } = await sb.from("projections").select(`${kind}_id`).is("archived_at", null).not(`${kind}_id`, "is", null);
+  const taken = new Set(((used ?? []) as unknown as Record<string, string>[]).map((r) => r[`${kind}_id`]));
+  if (kind === "job") {
+    const { data } = await sb.from("jobs").select("id,job_name,job_number,status").eq("is_template", false).is("archived_at", null).order("job_name");
+    return (data ?? []).map((j) => ({ id: j.id, label: j.job_name, sub: [j.job_number, JOB_STATUS_META[j.status as JobStatus]?.label].filter(Boolean).join(" · "), taken: taken.has(j.id) }));
+  }
+  if (kind === "deal") {
+    const { data } = await sb.from("deals").select("id,title,stage,estimated_value").neq("stage", "lost_on_hold").order("title");
+    return (data ?? []).map((d) => ({
+      id: d.id, label: d.title ?? "Untitled deal", taken: taken.has(d.id), future: ["new_working", "contacted"].includes(d.stage),
+      sub: [["new_working", "contacted"].includes(d.stage) ? "Future deal" : null, String(d.stage).replace(/_/g, " "), d.estimated_value ? `$${Math.round(Number(d.estimated_value)).toLocaleString("en-US")}` : null].filter(Boolean).join(" · "),
+    }));
+  }
+  const { data } = await sb.from("pipeline_opportunities").select("id,opportunity_name,job_number,stage").not("stage", "in", "(closed,not_moving_forward)").order("opportunity_name");
+  return (data ?? []).map((o) => ({ id: o.id, label: o.opportunity_name ?? o.job_number ?? "Opportunity", sub: [o.job_number, String(o.stage).replace(/_/g, " ")].filter(Boolean).join(" · "), taken: taken.has(o.id) }));
+}
+
+// Link a projection to a job / deal / Pre-Con opportunity. Connecting a job
+// hands revenue and status to the job (their overrides are cleared), exactly
+// like Promote to Job.
+export async function connectProjection(id: string, kind: ConnectKind, targetId: string, actor: Actor) {
+  const sb = getSupabaseAdmin();
+  const p = await getProjection(id);
+  const col = `${kind}_id` as const;
+  const table = kind === "job" ? "jobs" : kind === "deal" ? "deals" : "pipeline_opportunities";
+  const { data: target } = await sb.from(table).select("id").eq("id", targetId).maybeSingle();
+  if (!target) throw new ProjectionError("That record wasn't found.", 404);
+  const { data: clash } = await sb.from("projections").select("id").eq(col, targetId).is("archived_at", null).neq("id", id).limit(1);
+  if (clash?.length) throw new ProjectionError(`That ${kind === "opportunity" ? "Pre-Con opportunity" : kind} is already connected to another projection.`, 409);
+  const update: Record<string, unknown> = { [col]: targetId, updated_by: actor.id, updated_at: new Date().toISOString() };
+  if (kind === "job") { update.status = null; update.revenue_override = null; }
+  const { error } = await sb.from("projections").update(update).eq("id", id);
+  if (error) throw new Error(error.code === "23505" ? "That job already has a projection." : error.message);
+  await logActivity({ projectionId: id, action: "connected", actor, detail: { kind, id: targetId, before: { [col]: p[col], status: p.status, revenue_override: p.revenue_override } } });
+}
+
+export async function disconnectProjection(id: string, kind: ConnectKind, actor: Actor) {
+  const p = await getProjection(id);
+  const col = `${kind}_id` as const;
+  if (!p[col]) return;
+  // A job-only projection would lose its name and value; keep them as anticipated.
+  const update: Record<string, unknown> = { [col]: null, updated_by: actor.id, updated_at: new Date().toISOString() };
+  if (kind === "job") {
+    const ctx = await loadContext([p]);
+    const job = ctx.src.jobs.get(p.job_id as string);
+    if (!p.name && job) update.name = job.job_name;
+    if (p.revenue_override === null) update.revenue_override = officialRevenue(job, ctx.src) ?? 0;
+  }
+  const { error } = await getSupabaseAdmin().from("projections").update(update).eq("id", id);
+  if (error) throw new Error(error.message);
+  await logActivity({ projectionId: id, action: "disconnected", actor, detail: { kind, id: p[col] } });
+}
+
+// Permanent delete (Super Admin only — the route enforces it). Months and
+// billing go with it; the audit trail keeps a "deleted" entry.
+export async function deleteProjectionPermanently(id: string, actor: Actor) {
+  const sb = getSupabaseAdmin();
+  const { data: p } = await sb.from("projections").select("id,name,job_id").eq("id", id).maybeSingle();
+  if (!p) throw new ProjectionError("Projection not found.", 404);
+  const ctx = p.job_id ? await loadSources([p.job_id as string]) : null;
+  const name = (p.job_id ? ctx?.jobs.get(p.job_id as string)?.job_name : null) ?? p.name ?? "Untitled projection";
+  const { error } = await sb.from("projections").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+  await logActivity({ projectionId: null, action: "deleted", actor, detail: { projection_id: id, name } });
 }

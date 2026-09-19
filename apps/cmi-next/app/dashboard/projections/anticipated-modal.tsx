@@ -94,7 +94,7 @@ export function AnticipatedModal({ mode, preselect, onClose, onCreated }: {
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={onClose} />
-      <div role="dialog" aria-modal="true" aria-labelledby="anticipated-title" className="relative z-10 flex max-h-[90vh] w-full max-w-xl flex-col rounded-xl border border-border bg-card shadow-xl">
+      <div role="dialog" aria-modal="true" aria-labelledby="anticipated-title" className="relative z-10 flex h-[95vh] w-full max-w-[40rem] flex-col rounded-xl border border-border bg-card shadow-xl">
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <h2 id="anticipated-title" className="font-semibold">{title}</h2>
           <button type="button" aria-label="Close" className="rounded p-1 text-muted-foreground hover:text-foreground" onClick={onClose}><X className="h-4 w-4" /></button>

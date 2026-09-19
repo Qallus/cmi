@@ -1,3 +1,4 @@
+import "leaflet/dist/leaflet.css";
 import { notFound, redirect } from "next/navigation";
 import { getSessionStaff } from "@/lib/auth/server-session";
 import { isFeatureEnabled } from "@/lib/flags";
@@ -24,6 +25,7 @@ export default async function ProjectionsPage({ searchParams }: { searchParams: 
       initialBoard={board}
       initialSettings={settings}
       initialAction={{ open: q.open ?? null, addDeal: q.add_deal ?? null, addOpportunity: q.add_opportunity ?? null }}
+      isSuperAdmin={staff.role_slug === "super_admin"}
     />
   );
 }

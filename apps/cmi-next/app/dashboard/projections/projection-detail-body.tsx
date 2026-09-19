@@ -1,12 +1,12 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
-import { Copy, ExternalLink, Trash2, X } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input, Select, Textarea } from "@/components/ui/input";
 import { MoneyInput } from "@/components/ui/money-input";
+import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
 import { cn, formatMoney } from "@/lib/utils";
 import { monthLabel } from "@/lib/projections/calc";
 import { formatDate } from "../jobs/job-ui";
@@ -16,6 +16,10 @@ type StaffOption = { id: string; label: string };
 
 type Form = {
   name: string;
+  street: string;
+  city: string;
+  state: string;
+  zip: string;
   client_name: string;
   actuals_source: string;
   status: string;
@@ -30,6 +34,10 @@ type Form = {
 
 const toForm = (d: ProjectionDetail): Form => ({
   name: d.name ?? "",
+  street: d.address.street_address ?? "",
+  city: d.address.city ?? "",
+  state: d.address.state ?? "",
+  zip: d.address.zip_code ?? "",
   client_name: d.client_name ?? "",
   actuals_source: d.overrides.actuals_source,
   status: d.overrides.status ?? "",
@@ -42,9 +50,11 @@ const toForm = (d: ProjectionDetail): Form => ({
   notes: d.overrides.notes ?? "",
 });
 
-// Right-side slide-over for one projection: official vs forecast values,
-// overrides, month history and the audit log.
-export function ProjectionDetailPanel({ id, onClose, onChanged, onOpen }: { id: string; onClose: () => void; onChanged: () => void; onOpen?: (id: string) => void }) {
+// The full projection editor: official vs forecast values, overrides, billing,
+// month history and the audit log. Used by the expanded Quick View and the
+// full projection page. `refreshKey` reloads it after outside actions
+// (connect, share…).
+export function ProjectionDetailBody({ id, onChanged, refreshKey = 0 }: { id: string; onChanged: () => void; refreshKey?: number }) {
   const [detail, setDetail] = React.useState<ProjectionDetail | null>(null);
   const [form, setForm] = React.useState<Form | null>(null);
   const [staff, setStaff] = React.useState<StaffOption[]>([]);
@@ -63,17 +73,11 @@ export function ProjectionDetailPanel({ id, onClose, onChanged, onOpen }: { id: 
       .then((d) => { if (alive) apply(d); })
       .catch((e) => { if (alive) setError((e as Error).message); });
     return () => { alive = false; };
-  }, [id, apply]);
+  }, [id, apply, refreshKey]);
 
   React.useEffect(() => {
     fetch("/api/staff-options").then((r) => r.json()).then((j) => setStaff((j.staff ?? []).map((s: { id: string; label: string }) => ({ id: s.id, label: s.label })))).catch(() => {});
   }, []);
-
-  React.useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
 
   const initial = detail ? toForm(detail) : null;
   const dirty = !!(form && initial) && (Object.keys(form) as (keyof Form)[]).some((k) => form[k] !== initial[k]);
@@ -92,6 +96,10 @@ export function ProjectionDetailPanel({ id, onClose, onChanged, onOpen }: { id: 
     const body: Record<string, unknown> = {};
     if (form.name !== initial.name) body.name = form.name;
     if (form.client_name !== initial.client_name) body.client_name = form.client_name;
+    if (form.street !== initial.street) body.street_address = form.street;
+    if (form.city !== initial.city) body.city = form.city;
+    if (form.state !== initial.state) body.state = form.state;
+    if (form.zip !== initial.zip) body.zip_code = form.zip;
     if (form.actuals_source !== initial.actuals_source) body.actuals_source = form.actuals_source;
     if (form.status !== initial.status) body.status = form.status || null;
     if (form.revenue !== initial.revenue) body.revenue_override = form.revenue === "" ? null : Number(form.revenue);
@@ -138,48 +146,18 @@ export function ProjectionDetailPanel({ id, onClose, onChanged, onOpen }: { id: 
   const review = (mode: "keep" | "redistribute") =>
     act(`/api/projections/${id}/review`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode }) });
 
-  async function duplicate() {
-    const json = await act(`/api/projections/${id}/duplicate`, { method: "POST" });
-    if (json?.id && onOpen) onOpen(json.id);
-  }
-
-  async function remove() {
-    if (!window.confirm("Remove this project from Projections? The job isn't changed, and adding it again restores its forecast history.")) return;
-    setBusy(true);
-    const res = await fetch(`/api/projections/${id}`, { method: "DELETE" });
-    if (res.ok) { onChanged(); onClose(); } else { setError((await res.json().catch(() => ({}))).error ?? "Could not remove."); setBusy(false); }
-  }
-
   const row = detail?.row;
   const official = detail?.official;
 
   return (
-    <div className="fixed inset-0 z-[60] flex justify-end">
-      <div className="absolute inset-0 bg-background/70 backdrop-blur-[2px]" onClick={onClose} />
-      <aside role="dialog" aria-modal="true" aria-labelledby="projection-detail-title" className="relative z-10 flex h-full w-full max-w-xl flex-col border-l border-border bg-card shadow-xl">
-        <div className="flex items-start justify-between gap-3 border-b border-border px-5 py-4">
-          <div className="min-w-0">
-            <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Projection</div>
-            <h2 id="projection-detail-title" className="truncate text-lg font-semibold">{row?.name ?? "Loading…"}</h2>
-            {row && (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span className="truncate">{[row.job_number, row.client_name].filter(Boolean).join(" · ")}</span>
-                {row.job_id && <Link href={`/dashboard/jobs/${row.job_id}/summary`} className="inline-flex shrink-0 items-center gap-1 text-accent hover:underline">Open job <ExternalLink className="h-3 w-3" /></Link>}
-                {!row.job_id && row.deal_id && <Link href={`/dashboard/pipeline/${row.deal_id}`} className="inline-flex shrink-0 items-center gap-1 text-accent hover:underline">Anticipated · open deal <ExternalLink className="h-3 w-3" /></Link>}
-                {!row.job_id && !row.deal_id && row.opportunity_id && <Link href="/dashboard/sales" className="inline-flex shrink-0 items-center gap-1 text-accent hover:underline">Anticipated · Pre-Con <ExternalLink className="h-3 w-3" /></Link>}
-                {row.source === "manual" && <span className="shrink-0">Anticipated</span>}
-              </div>
-            )}
-          </div>
-          <button type="button" aria-label="Close" onClick={onClose} className="rounded p-1 text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
-        </div>
-
-        <div className="flex-1 space-y-6 overflow-y-auto px-5 py-4">
+    <div className="flex min-h-0 flex-1 flex-col">
+        <div className="flex-1 overflow-y-auto px-5 py-4">
           {error && <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
           {!detail || !form || !row || !official ? (
             !error && <div className="py-10 text-center text-sm text-muted-foreground">Loading…</div>
           ) : (
-            <>
+            <div className="grid gap-6 lg:grid-cols-[1.15fr_1fr]">
+            <div className="space-y-6">
               <div className="grid grid-cols-3 gap-2 text-center">
                 <Stat label="Total" value={formatMoney(row.total_revenue)} />
                 <Stat label="Billed" value={row.has_actuals ? formatMoney(row.billed_to_date) : "—"} />
@@ -206,6 +184,16 @@ export function ProjectionDetailPanel({ id, onClose, onChanged, onOpen }: { id: 
                   <div className="grid grid-cols-2 gap-3">
                     <Field label="Name"><Input value={form.name} onChange={(e) => update("name", e.target.value)} /></Field>
                     <Field label="Client"><Input value={form.client_name} onChange={(e) => update("client_name", e.target.value)} /></Field>
+                  </div>
+                  <Field label="Address" hint="Used for the Map view. Jobs and deals use their own address.">
+                    <AddressAutocomplete className="cmi-form-control h-9 w-full rounded-md border border-input bg-card px-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-accent focus:ring-2 focus:ring-ring" value={form.street} onChange={(v) => update("street", v)}
+                      onPick={(a) => { update("street", a.street); update("city", a.city); update("state", a.state); update("zip", a.zip); }}
+                      placeholder="Street address" />
+                  </Field>
+                  <div className="grid grid-cols-[1fr_5rem_6rem] gap-2">
+                    <Input aria-label="City" placeholder="City" value={form.city} onChange={(e) => update("city", e.target.value)} />
+                    <Input aria-label="State" placeholder="State" value={form.state} onChange={(e) => update("state", e.target.value)} />
+                    <Input aria-label="ZIP" placeholder="ZIP" value={form.zip} onChange={(e) => update("zip", e.target.value)} />
                   </div>
                   <p className="text-[11px] text-muted-foreground">When this becomes a job (Promote to Job), it relinks automatically and revenue and status come from the job.</p>
                 </section>
@@ -306,6 +294,8 @@ export function ProjectionDetailPanel({ id, onClose, onChanged, onOpen }: { id: 
                 <Textarea value={form.notes} onChange={(e) => update("notes", e.target.value)} className="min-h-[70px]" placeholder="Forecast assumptions, risks…" />
               </section>
 
+            </div>
+            <div className="space-y-6">
               <section className="space-y-2">
                 <SectionTitle>Months</SectionTitle>
                 {detail.months.length === 0 || detail.months.every((m) => !m.projected && !m.actual && m.original === null) ? (
@@ -349,23 +339,19 @@ export function ProjectionDetailPanel({ id, onClose, onChanged, onOpen }: { id: 
                   </ul>
                 )}
               </section>
-            </>
+            </div>
+            </div>
           )}
         </div>
 
         {detail && form && (
-          <div className="flex items-center justify-between gap-2 border-t border-border px-5 py-3">
-            <div className="flex items-center gap-1">
-              <Button size="sm" variant="ghost" className="text-destructive" disabled={busy} onClick={() => void remove()}>Remove</Button>
-              {!detail.row.job_id && <Button size="sm" variant="ghost" disabled={busy} onClick={() => void duplicate()}><Copy className="h-3.5 w-3.5" /> Duplicate</Button>}
-            </div>
+          <div className="flex items-center justify-end gap-2 border-t border-border px-5 py-3">
             <div className="flex items-center gap-2">
               {saved && !dirty && <Badge tone="success" className="h-6">Saved</Badge>}
               <Button size="sm" variant="accent" disabled={busy || (!dirty && !respread)} onClick={() => void save()}>{busy ? "Saving…" : "Save"}</Button>
             </div>
           </div>
         )}
-      </aside>
     </div>
   );
 }
@@ -395,6 +381,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 
 const FIELD_LABELS: Record<string, string> = {
   name: "name", client_name: "client", actuals_source: "billing source",
+  street_address: "address", city: "address", state: "address", zip_code: "address", full_address: "address", latitude: "location", longitude: "location",
   status: "status", revenue_override: "revenue", forecast_start: "start", forecast_finish: "finish",
   pm_staff_id: "PM", super_staff_id: "superintendent", include: "include", notes: "notes",
 };
@@ -411,6 +398,12 @@ function describeActivity(a: ProjectionDetail["activity"][number]): string {
       return "Removed from Projections";
     case "duplicated":
       return "Created as a copy";
+    case "connected":
+      return `Connected to ${d.kind === "opportunity" ? "a Pre-Con opportunity" : `a ${d.kind}`}`;
+    case "disconnected":
+      return `Disconnected from ${d.kind === "opportunity" ? "the Pre-Con opportunity" : `the ${d.kind}`}`;
+    case "shared":
+      return `Shared by ${d.channel === "dm" ? "message" : d.channel === "sms" ? "SMS" : "email"} with ${(d.sent as string[] | undefined)?.join(", ") || "no one"}`;
     case "linked":
       return d.to === "job" ? "Linked to the new job (Promote to Job)" : "Linked to the Pre-Con opportunity (Closed Won)";
     case "actual_added":
@@ -427,7 +420,7 @@ function describeActivity(a: ProjectionDetail["activity"][number]): string {
       return `Respread ${formatMoney(Number(d.remaining ?? 0))} over ${monthLabel(String(d.from))} – ${monthLabel(String(d.to))}`;
     case "updated": {
       const after = (d.after ?? {}) as Record<string, unknown>;
-      const keys = Object.keys(after).map((k) => FIELD_LABELS[k] ?? k);
+      const keys = [...new Set(Object.keys(after).map((k) => FIELD_LABELS[k] ?? k))];
       return keys.length ? `Changed ${keys.join(", ")}` : "Updated";
     }
     default:

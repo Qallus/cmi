@@ -29,9 +29,13 @@ export function AddressAutocomplete({
   const [active, setActive] = React.useState(-1);
   const boxRef = React.useRef<HTMLDivElement>(null);
   const skipNext = React.useRef(false);
+  // Only search once the user has typed — a pre-filled address shouldn't
+  // pop the suggestion list open on page load.
+  const typed = React.useRef(false);
 
   // Debounced lookup as the user types.
   React.useEffect(() => {
+    if (!typed.current) return;
     if (skipNext.current) { skipNext.current = false; return; }
     const q = value.trim();
     if (q.length < 3) { setSuggestions([]); setOpen(false); return; }
@@ -73,7 +77,7 @@ export function AddressAutocomplete({
         value={value}
         placeholder={placeholder ?? "Start typing an address…"}
         autoComplete="off"
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => { typed.current = true; onChange(e.target.value); }}
         onFocus={() => { if (suggestions.length) setOpen(true); }}
         onKeyDown={(e) => {
           if (!open) return;
