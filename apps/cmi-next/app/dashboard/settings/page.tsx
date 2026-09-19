@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ProjectCanvasVisibility } from "@/components/dashboard/project-canvas-visibility";
@@ -33,6 +35,19 @@ export default function SettingsPage() {
       </div>
 
       <div className="grid gap-4 max-w-2xl">
+        <Card>
+          <CardHeader><CardTitle>Feature Flags</CardTitle></CardHeader>
+          <CardContent className="pt-0">
+            <Link href="/dashboard/settings/features" className="flex items-center justify-between gap-4 rounded-md border border-border px-3 py-3 text-sm hover:bg-muted">
+              <span>
+                <span className="block font-medium">Turn features on or off</span>
+                <span className="block text-xs text-muted-foreground">Projections, Take-Off, Project Canvas and other staged features.</span>
+              </span>
+              <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+            </Link>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader><CardTitle>Project Canvas Visibility</CardTitle></CardHeader>
           <CardContent className="pt-0">
