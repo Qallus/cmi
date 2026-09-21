@@ -415,10 +415,9 @@ function GridTile({ icon, name, sub, onOpen, menu }: { icon: React.ReactNode; na
 
 function FileThumb({ id, mime }: { id: string; mime: string | null }) {
   const [url, setUrl] = React.useState<string | null>(null);
-  React.useEffect(() => { let a = true; (async () => { const r = await fetch(`/api/files/${id}/url`); if (r.ok && a) setUrl((await r.json()).url); })(); return () => { a = false; }; }, [id]);
-  // The presigned GET points at the object; thumbnails share the same auth path via a separate key,
-  // so for the grid we just show the full image scaled (browser caches it) or the type icon while loading.
-  // eslint-disable-next-line @next/next/no-img-element -- presigned Garage URL, not optimizable by next/image
+  React.useEffect(() => { let a = true; (async () => { const r = await fetch(`/api/files/${id}/url?thumb=1`); if (r.ok && a) setUrl((await r.json()).url); })(); return () => { a = false; }; }, [id]);
+  // Small stored thumbnail (falls back to the type icon while it loads).
+  // eslint-disable-next-line @next/next/no-img-element -- storage URL, not optimizable by next/image
   return url ? <img src={url} alt="" className="h-full w-full object-cover" /> : <KindIcon mime={mime} className="h-10 w-10" />;
 }
 

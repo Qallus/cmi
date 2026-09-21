@@ -17,6 +17,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if ("folder_id" in body) patch.folder_id = body.folder_id ?? null;
     if (body.trash) patch.deleted_at = new Date().toISOString();
     if (body.restore) patch.deleted_at = null;
+    if (Object.keys(patch).length === 0) {
+      return NextResponse.json({ error: "Nothing to update. Send name, folder_id, trash or restore." }, { status: 400 });
+    }
     return NextResponse.json({ file: await updateFile(id, patch) });
   } catch (err) {
     const e = err as AuthError;

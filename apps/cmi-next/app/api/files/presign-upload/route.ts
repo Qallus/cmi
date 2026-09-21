@@ -3,8 +3,13 @@ import { NextResponse } from "next/server";
 import { requireAdmin, AuthError } from "@/lib/auth/require-admin";
 import {
   isAllowedMime, storageKeyFor, thumbKeyFor, presignPut, startMultipart, presignPart,
-  partCountFor, SINGLE_MAX_BYTES, PART_SIZE_BYTES, MAX_FILE_BYTES, StorageNotConfiguredError,
+  partCountFor, directDelivery, SINGLE_MAX_BYTES, PART_SIZE_BYTES, MAX_FILE_BYTES, StorageNotConfiguredError,
 } from "@/lib/files/s3";
+
+// Where the browser should PUT: straight to Garage when it has a public HTTPS
+// endpoint, otherwise through this server (see /api/files/upload).
+const proxyPut = (key: string, multipart?: { uploadId: string; partNumber: number }) =>
+  `/api/files/upload?key=${encodeURIComponent(key)}${multipart ? `&uploadId=${encodeURIComponent(multipart.uploadId)}&part=${multipart.partNumber}` : ""}`;
 
 type Body = { name: string; size: number; mime: string; projectId?: string | null; jobId?: string | null; folderId?: string | null; withThumb?: boolean };
 
@@ -23,18 +28,22 @@ export async function POST(request: Request) {
     const key = storageKeyFor(body.projectId ?? null, name);
 
     // Optional client-generated image thumbnail gets its own presigned PUT.
+    const direct = directDelivery();
     const thumb = body.withThumb && mime.startsWith("image/")
-      ? { thumbKey: thumbKeyFor(key), thumbUrl: await presignPut(thumbKeyFor(key), "image/jpeg") }
+      ? { thumbKey: thumbKeyFor(key), thumbUrl: direct ? await presignPut(thumbKeyFor(key), "image/jpeg") : proxyPut(thumbKeyFor(key)) }
       : null;
 
     if (size <= SINGLE_MAX_BYTES) {
-      return NextResponse.json({ mode: "single", key, url: await presignPut(key, mime), ...(thumb ?? {}) });
+      return NextResponse.json({ mode: "single", key, url: direct ? await presignPut(key, mime) : proxyPut(key), ...(thumb ?? {}) });
     }
 
     const uploadId = await startMultipart(key, mime);
     const count = partCountFor(size);
     const parts = await Promise.all(
-      Array.from({ length: count }, (_, i) => i + 1).map(async (partNumber) => ({ partNumber, url: await presignPart(key, uploadId, partNumber) })),
+      Array.from({ length: count }, (_, i) => i + 1).map(async (partNumber) => ({
+        partNumber,
+        url: direct ? await presignPart(key, uploadId, partNumber) : proxyPut(key, { uploadId, partNumber }),
+      })),
     );
     return NextResponse.json({ mode: "multipart", key, uploadId, partSize: PART_SIZE_BYTES, parts, ...(thumb ?? {}) });
   } catch (err) {
