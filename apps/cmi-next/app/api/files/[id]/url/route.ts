@@ -17,14 +17,16 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     if (wantThumb) {
       const thumbUrl = directDelivery()
         ? await presignGet(file.thumbnail_key as string)
-        : `${reqUrl.origin}/api/files/${file.id}/download?thumb=1`;
+        : `/api/files/${file.id}/download?thumb=1`;
       return NextResponse.json({ url: thumbUrl, name: file.name, mime: "image/jpeg" });
     }
-    // Direct mode hands out a presigned Garage URL; proxy mode streams through
-    // this server. Absolute either way, so "Copy link" produces a usable link.
+    // Direct mode hands out an absolute presigned Garage URL. Proxy mode
+    // returns a path relative to this app: behind the Coolify proxy the
+    // request's own origin is the container's internal host:port, which no
+    // browser can resolve. The client makes it absolute when it needs to.
     const url = directDelivery()
       ? await presignGet(file.storage_key, download ? file.name : undefined)
-      : `${reqUrl.origin}/api/files/${file.id}/download${download ? "?download=1" : ""}`;
+      : `/api/files/${file.id}/download${download ? "?download=1" : ""}`;
     return NextResponse.json({ url, name: file.name, mime: file.mime_type });
   } catch (err) {
     if (err instanceof StorageNotConfiguredError) return NextResponse.json({ error: err.message }, { status: 503 });

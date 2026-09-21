@@ -34,8 +34,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         "Content-Type": thumb ? "image/jpeg" : contentType ?? file.mime_type ?? "application/octet-stream",
         "Content-Disposition": `${disposition}; filename="${safeName}"; filename*=UTF-8''${encodeURIComponent(file.name)}`,
         ...(contentLength ? { "Content-Length": String(contentLength) } : {}),
-        // Private file: never cache in a shared cache.
-        "Cache-Control": "private, max-age=60",
+        // Private file: never cache in a shared cache. no-transform stops
+        // intermediaries (e.g. Cloudflare) from recompressing the stream,
+        // which would contradict the Content-Length we send.
+        "Cache-Control": "private, max-age=60, no-transform",
       },
     });
   } catch (err) {

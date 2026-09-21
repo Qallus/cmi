@@ -207,7 +207,12 @@ export function CloudClient({ projects, meId, storageOnline }: { projects: Proje
   }
   async function copyLink(f: FileRow) {
     const r = await fetch(`/api/files/${f.id}/url`);
-    if (r.ok) { const { url } = await r.json(); try { await navigator.clipboard.writeText(url); } catch { /* ignore */ } }
+    if (r.ok) {
+      const { url } = await r.json();
+      // The API may return a path (proxy mode) or an absolute presigned URL.
+      const absolute = new URL(url, window.location.origin).href;
+      try { await navigator.clipboard.writeText(absolute); } catch { /* ignore */ }
+    }
   }
 
   // ── Drag & drop ──
