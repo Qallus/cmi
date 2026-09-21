@@ -19,7 +19,7 @@ const OPTIONS: ConsentOption[] = [
     title:
       "Yes, I agree to receive recurring service, account, and project-related SMS or MMS messages from Constructed Matter, Inc. at the mobile number provided.",
     body:
-      "Messages may include inquiry follow-ups, estimate or proposal updates, appointment reminders, project schedules, milestones, design selections, approvals, permitting or inspection updates, site-access coordination, delivery notices, invoices, payment reminders, warranties, service updates, safety notices, and communications with authorized project participants.",
+      "Messages may include inquiry follow-ups, estimate or proposal updates, appointment reminders, project schedules, milestones, design selections, approvals, permitting or inspection updates, site-access coordination, delivery notices, invoices, payment reminders, warranties, service updates, safety notices, and communications with authorized project participants. For employees, subcontractors, and other authorized project participants who opt in, service messages may also include work schedules, job assignments, task and daily-log reminders, and project coordination updates.",
     fineprint: FINEPRINT,
   },
   {

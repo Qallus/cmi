@@ -11,14 +11,14 @@ export default function TermsOfServicePage() {
   return (
     <LegalPageLayout
       title="Terms of Service"
-      effectiveDate="July 22, 2026"
+      effectiveDate="September 21, 2026"
       currentHref={LEGAL_ROUTES.terms}
       intro={
         "These Terms of Service (“Terms”) govern access to and use of the websites, portals, applications, forms, communications, and other online services operated by Constructed Matter, Inc. (“Constructed Matter,” “CMI,” “we,” “us,” or “our”), including constructedmatter.com, my.constructedmatter.com, and the CMI customer relationship management and project-management systems (collectively, the “Online Services”)."
       }
     >
       <p>
-        <strong>Last Updated:</strong> July 22, 2026
+        <strong>Last Updated:</strong> September 21, 2026
       </p>
 
       <p>
@@ -292,6 +292,12 @@ export default function TermsOfServicePage() {
           to marketing messages.
         </li>
       </ul>
+
+      <p>
+        For employees, subcontractors, and other authorized project participants who opt in, service messages
+        may also include work schedules, job assignments, task and daily-log reminders, and project
+        coordination updates.
+      </p>
 
       <h3>12.2 Consent</h3>
 

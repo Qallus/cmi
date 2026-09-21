@@ -11,11 +11,11 @@ export default function PrivacyPolicyPage() {
   return (
     <LegalPageLayout
       title="Privacy Policy"
-      effectiveDate="July 22, 2026"
+      effectiveDate="September 21, 2026"
       currentHref={LEGAL_ROUTES.privacy}
     >
       <p>
-        <strong>Last Updated:</strong> July 22, 2026
+        <strong>Last Updated:</strong> September 21, 2026
       </p>
 
       <p>
@@ -288,6 +288,12 @@ export default function PrivacyPolicyPage() {
         <li>Marketing or promotional messages when you have provided the required consent.</li>
       </ul>
 
+      <p>
+        For employees, subcontractors, and other authorized project participants who opt in, service messages
+        may also include work schedules, job assignments, task and daily-log reminders, and project
+        coordination updates.
+      </p>
+
       <h3>3.1 SMS Consent</h3>
 
       <p>
@@ -332,10 +338,10 @@ export default function PrivacyPolicyPage() {
       </p>
 
       <p>
-        SMS opt-in data and consent will not be transferred to another organization except as necessary to
-        provide the requested messaging service, comply with law, protect rights or safety, or complete a
-        business transaction where the recipient agrees to honor this Privacy Policy and applicable consent
-        restrictions.
+        SMS consent applies only to Constructed Matter, Inc. and the message categories selected by the
+        individual. We do not sell, rent, or transfer SMS consent to another sender. Providers may process
+        mobile information solely to deliver and support CMI&apos;s messaging services and may not use it to
+        send messages for their own purposes.
       </p>
 
       <h2 id="email-communications">4. Email Communications</h2>
