@@ -11,12 +11,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (!file) return NextResponse.json({ error: "File not found." }, { status: 404 });
     if (!canModify(file, staff)) return NextResponse.json({ error: "You can only change files you uploaded." }, { status: 403 });
 
-    const body = await request.json() as { name?: string; folder_id?: string | null; trash?: boolean; restore?: boolean };
+    const body = await request.json() as { name?: string; folder_id?: string | null; trash?: boolean; restore?: boolean; sort_order?: number | null };
     const patch: Record<string, unknown> = {};
     if (typeof body.name === "string") patch.name = body.name.trim() || file.name;
     if ("folder_id" in body) patch.folder_id = body.folder_id ?? null;
     if (body.trash) patch.deleted_at = new Date().toISOString();
     if (body.restore) patch.deleted_at = null;
+    if ("sort_order" in body) patch.sort_order = typeof body.sort_order === "number" ? body.sort_order : null;
     if (Object.keys(patch).length === 0) {
       return NextResponse.json({ error: "Nothing to update. Send name, folder_id, trash or restore." }, { status: 400 });
     }

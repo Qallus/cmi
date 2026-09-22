@@ -15,7 +15,9 @@ export function canModify(row: { uploaded_by?: string | null; created_by?: strin
 // ── Folders ──
 export async function listFolders(scope: Scope & { trashed?: boolean }): Promise<FolderRow[]> {
   const supabase = getSupabaseAdmin();
-  let q = supabase.from("folders").select("*").order("name", { ascending: true });
+  let q = supabase.from("folders").select("*")
+    .order("sort_order", { ascending: true, nullsFirst: false })
+    .order("name", { ascending: true });
   q = scope.trashed ? q.not("deleted_at", "is", null) : q.is("deleted_at", null);
   if (scope.projectId === null) q = q.is("project_id", null);
   else if (scope.projectId) q = q.eq("project_id", scope.projectId);
@@ -43,7 +45,7 @@ export async function createFolder(input: { name: string; project_id?: string | 
   return data as FolderRow;
 }
 
-export async function updateFolder(id: string, patch: Partial<Pick<FolderRow, "name" | "parent_id" | "deleted_at">>): Promise<FolderRow> {
+export async function updateFolder(id: string, patch: Partial<Pick<FolderRow, "name" | "parent_id" | "deleted_at" | "sort_order">>): Promise<FolderRow> {
   const { data, error } = await getSupabaseAdmin().from("folders").update(patch).eq("id", id).select().single();
   if (error) throw new Error(error.message);
   return data as FolderRow;
@@ -81,7 +83,9 @@ export async function listFiles(scope: Scope & { trashed?: boolean; uploadedBy?:
   else if (scope.projectId) q = q.eq("project_id", scope.projectId);
   // Folder scoping only applies to the browsing view (not recent/trash/my-uploads).
   if (!scope.trashed && !scope.recent && !scope.uploadedBy) { q = scope.folderId ? q.eq("folder_id", scope.folderId) : q.is("folder_id", null); }
-  q = scope.recent ? q.order("created_at", { ascending: false }).limit(50) : q.order("name", { ascending: true });
+  q = scope.recent
+    ? q.order("created_at", { ascending: false }).limit(50)
+    : q.order("sort_order", { ascending: true, nullsFirst: false }).order("name", { ascending: true });
   const { data, error } = await q;
   if (error) throw new Error(error.message);
   return (data ?? []) as FileRow[];
@@ -118,7 +122,7 @@ export async function insertFile(row: {
   return data as FileRow;
 }
 
-export async function updateFile(id: string, patch: Partial<Pick<FileRow, "name" | "folder_id" | "deleted_at">>): Promise<FileRow> {
+export async function updateFile(id: string, patch: Partial<Pick<FileRow, "name" | "folder_id" | "deleted_at" | "sort_order">>): Promise<FileRow> {
   const { data, error } = await getSupabaseAdmin().from("files").update(patch).eq("id", id).select().single();
   if (error) throw new Error(error.message);
   return data as FileRow;

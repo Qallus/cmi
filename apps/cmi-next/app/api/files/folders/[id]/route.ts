@@ -11,12 +11,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (!folder) return NextResponse.json({ error: "Folder not found." }, { status: 404 });
     if (!canModify(folder, staff)) return NextResponse.json({ error: "You can only change folders you created." }, { status: 403 });
 
-    const body = await request.json() as { name?: string; parent_id?: string | null; trash?: boolean; restore?: boolean };
+    const body = await request.json() as { name?: string; parent_id?: string | null; trash?: boolean; restore?: boolean; sort_order?: number | null };
     const patch: Record<string, unknown> = {};
     if (typeof body.name === "string") patch.name = body.name.trim() || folder.name;
     if ("parent_id" in body) patch.parent_id = body.parent_id ?? null;
     if (body.trash) patch.deleted_at = new Date().toISOString();
     if (body.restore) patch.deleted_at = null;
+    if ("sort_order" in body) patch.sort_order = typeof body.sort_order === "number" ? body.sort_order : null;
     return NextResponse.json({ folder: await updateFolder(id, patch) });
   } catch (err) {
     const e = err as AuthError;

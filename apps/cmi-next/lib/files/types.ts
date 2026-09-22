@@ -11,6 +11,8 @@ export type FileRow = {
   size_bytes: number | null;
   uploaded_by: string | null;
   metadata: Record<string, unknown>;
+  // Manual drag-and-drop position within its folder; null = unordered.
+  sort_order: number | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -22,6 +24,7 @@ export type FolderRow = {
   job_id: string | null;
   parent_id: string | null;
   name: string;
+  sort_order: number | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
