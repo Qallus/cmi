@@ -55,7 +55,7 @@ export async function getDeal(id: string): Promise<Deal | null> {
 export async function createDeal(draft: DealDraft, actor?: Actor): Promise<Deal> {
   const supabase = getSupabaseAdmin();
   const stage = (draft.stage ?? "new_working") as DealStage;
-  const insert = { ...(await withGeocode(sanitizeDraft(draft))), stage, created_by: actor?.id ?? null };
+  const insert = { ...(await withGeocode(sanitizeDraft(draft))), stage, created_by: actor?.id ?? null, updated_by: actor?.id ?? null };
   const { data, error } = await supabase.from("deals").insert(insert).select().single();
   if (error) throw new Error(error.message);
   const created = data as Deal;
@@ -63,12 +63,14 @@ export async function createDeal(draft: DealDraft, actor?: Actor): Promise<Deal>
   return created;
 }
 
-export async function updateDeal(id: string, patch: Partial<DealDraft>): Promise<Deal> {
+// `actor` is stamped onto updated_by so the change log can attribute the edit.
+export async function updateDeal(id: string, patch: Partial<DealDraft>, actor?: Actor): Promise<Deal> {
   const supabase = getSupabaseAdmin();
   // Re-geocode only when an address field is part of this update.
   const addressTouched = ["street_address", "city", "state", "zip"].some((k) => k in patch);
   const clean = sanitizeDraft(patch);
   const finalPatch = addressTouched ? await withGeocode({ ...clean, latitude: null, longitude: null }) : clean;
+  if (actor?.id) (finalPatch as Record<string, unknown>).updated_by = actor.id;
   const { data, error } = await supabase
     .from("deals")
     .update(finalPatch)
@@ -121,7 +123,7 @@ export async function changeStage(
   }
 
   const from = current.stage;
-  const updated = await updateDeal(id, { ...sanitizeDraft(patch), stage: to });
+  const updated = await updateDeal(id, { ...sanitizeDraft(patch), stage: to }, actor);
   await recordStageChange(id, updated.job_number, from, to, actor, note);
 
   // Pre-Con handoff: first time a deal reaches closed_won, mint the opportunity.

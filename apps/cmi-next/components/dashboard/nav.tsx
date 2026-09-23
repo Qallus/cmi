@@ -7,6 +7,7 @@ import { Tooltip } from "@/components/ui/tooltip";
 import {
   ArrowLeft, BookOpen, BriefcaseBusiness, CalendarClock, CalendarRange, Cloud,
   CreditCard, FileText, FolderKanban, HardHat, Home, IdCard, Inbox, LayoutDashboard, LayoutGrid,
+  BarChart3, FileBarChart,
   Megaphone, MessageCircle, MessagesSquare, Mic, Minus, Newspaper, Package, Plus, Settings, ShieldCheck,
   Ruler, Sparkles, SquarePen, TrendingUp, User, UserRoundCog, Users, Workflow,
 } from "lucide-react";
@@ -42,6 +43,12 @@ const nav: NavItem[] = [
   { href: "/dashboard/pipeline",       label: "Pipeline",       icon: Workflow,       roles: ["super_admin", "admin", "project_manager", "estimator"] },
   { href: "/dashboard/sales",          label: "Pre-Con",        icon: BriefcaseBusiness, roles: ["super_admin", "admin", "project_manager", "estimator"] },
   { href: "/dashboard/projections",    label: "Projections",    icon: TrendingUp,     roles: ["super_admin", "admin"], flag: "projections" },
+  {
+    href: "/dashboard/reporting",      label: "Reporting",      icon: FileBarChart,   roles: ["super_admin", "admin", "project_manager", "estimator"], flag: "reporting",
+    children: [
+      { href: "/dashboard/reporting/analytics", label: "Analytics", icon: BarChart3, roles: ["super_admin", "admin", "project_manager", "estimator"], flag: "reporting" },
+    ],
+  },
   { href: "/dashboard/take-off",       label: "Take-Off",       icon: Ruler, roles: ["super_admin", "admin", "project_manager", "staff", "estimator"], flag: "take_off" },
   {
     href: "/dashboard/jobs",           label: "Jobs",           icon: HardHat,        roles: ["super_admin", "admin", "project_manager", "estimator", "superintendent", "designer"],

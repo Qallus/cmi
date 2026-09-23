@@ -26,7 +26,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
     const { id } = await params;
     const body = await request.json();
-    return NextResponse.json(await updateDeal(id, body));
+    return NextResponse.json(await updateDeal(id, body, { id: staff.id }));
   } catch (err) {
     const e = err as AuthError;
     return NextResponse.json({ error: e.message }, { status: e.status ?? 500 });
