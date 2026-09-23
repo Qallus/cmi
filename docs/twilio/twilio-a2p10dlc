@@ -1,0 +1,165 @@
+TWILIO A2P 10DLC — COPY-PASTE CONTENT
+Campaign CMb905b334f985644f9ffb3a3dd245f23b  ·  Use case: Low Volume Mixed
+Edit the existing rejected campaign. Do not delete and recreate it (the vetting
+fee is charged once per campaign).
+
+BEFORE YOU PASTE: deploy the site first. The consent flow text below points the
+reviewer at https://constructedmatter.com/sms-consent-disclosure, which does not
+exist until the pending deploy goes out.
+
+Copy everything between the ---START--- and ---END--- markers, excluding the
+markers themselves.
+
+════════════════════════════════════════════════════════════════════════════════
+Description:
+(1,138 characters — limit 4,096)
+---START---
+Constructed Matter, Inc. (CMI) is a licensed Arizona construction firm that uses SMS to send informational and service-related messages to clients, subcontractors, vendors, employees, and other authorized project participants who have opted in. Messages include appointment confirmations and reminders, project schedules and progress updates, estimate and proposal updates, selection and change-order approvals, inspection and delivery coordination, invoice and payment reminders, job assignments, staff scheduling, task and daily-log reminders, and site-access, weather, or safety notices. Messages support active projects, requested services, and internal operations, including two-way communication with CMI staff. Messages may contain links to CMI websites or account resources and business contact phone numbers. Frequency varies based on project activity and recipient needs. Marketing consent is collected separately on the same opt-in page and is not used to enroll recipients in this campaign; this campaign carries service, project, and operational messages only. Recipients may reply STOP to unsubscribe or HELP for assistance.
+---END---
+
+════════════════════════════════════════════════════════════════════════════════
+Sending messages with embedded links?:
+---START---
+Yes
+---END---
+(Samples 2 and 5 link to constructedmatter.com — a domain CMI owns. Never use a
+public URL shortener; carriers block shortened links.)
+
+════════════════════════════════════════════════════════════════════════════════
+Sending messages with embedded phone numbers?:
+---START---
+Yes
+---END---
+(The CMI business line, (480) 628-4458.)
+
+════════════════════════════════════════════════════════════════════════════════
+Sending messages with age-gated content?:
+---START---
+No
+---END---
+
+════════════════════════════════════════════════════════════════════════════════
+Sending messages with content related to direct lending or other loan arrangement?:
+---START---
+No
+---END---
+
+════════════════════════════════════════════════════════════════════════════════
+Message Sample #1:
+(Appointment confirmation — matches the /book opt-in path.)
+---START---
+Constructed Matter, Inc.: Hi [First Name], your [Appointment Type] on [Date] at [Time] is confirmed. Reply to confirm or call (480) 628-4458 to reschedule. Msg & data rates may apply. Reply STOP to unsubscribe.
+---END---
+
+════════════════════════════════════════════════════════════════════════════════
+Message Sample #2:
+(Project progress update — matches the service consent on /sms-opt-in.)
+---START---
+Constructed Matter, Inc.: Hi [First Name], the inspection for your project is complete and the next construction phase starts [Date]. Questions? Reply here or visit https://constructedmatter.com/contact. Reply STOP to unsubscribe.
+---END---
+
+════════════════════════════════════════════════════════════════════════════════
+Message Sample #3:
+(Subcontractor site coordination.)
+---START---
+Constructed Matter, Inc.: Hi [First Name], your crew is scheduled at job [Job Number] on [Date] at [Time]. Please confirm availability and coordinate site access with your CMI project manager at (480) 628-4458. Reply STOP to unsubscribe.
+---END---
+
+════════════════════════════════════════════════════════════════════════════════
+Message Sample #4:
+(Employee / internal operations.)
+---START---
+Constructed Matter, Inc.: Team reminder for job [Job Number] — review tomorrow's assignments and submit today's daily log before your shift ends. Reply to your supervisor with any scheduling conflicts. Reply STOP to unsubscribe.
+---END---
+
+════════════════════════════════════════════════════════════════════════════════
+Message Sample #5:
+(Billing reminder.)
+---START---
+Constructed Matter, Inc.: Hi [First Name], invoice [Invoice Number] for your project is available in your CMI account and is due [Date]. For billing assistance, call (480) 628-4458. Reply STOP to unsubscribe.
+---END---
+
+════════════════════════════════════════════════════════════════════════════════
+Privacy Policy URL:
+---START---
+https://constructedmatter.com/privacy-policy
+---END---
+
+════════════════════════════════════════════════════════════════════════════════
+Terms and Conditions URL:
+---START---
+https://constructedmatter.com/terms-of-service
+---END---
+
+════════════════════════════════════════════════════════════════════════════════
+How do end-users consent to receive messages?:
+(1,985 characters — limit 2,048. This is the field that got rejected. It now
+names all three opt-in paths and quotes the on-page language word for word.)
+---START---
+End users opt in on CMI's public website. There are three opt-in paths, all web forms. There is no keyword opt-in, no purchased or rented list, and no third-party consent.
+
+(1) https://constructedmatter.com/sms-opt-in is the primary path. The visitor enters their name and mobile number and ticks an optional checkbox that is unchecked by default, reading verbatim: "Yes, I agree to receive recurring service, account, and project-related SMS or MMS messages from Constructed Matter, Inc. at the mobile number provided." Immediately beneath it the page states: "Message frequency varies. Message and data rates may apply. Reply STOP to unsubscribe or HELP for help. Consent is not a condition of purchase." The visitor then presses "Save My SMS Preferences." A separate checkbox on the same page collects marketing consent; ticking marketing alone does not enroll anyone in this campaign.
+
+(2) https://constructedmatter.com/book (appointment booking) and (3) https://constructedmatter.com/events/{event} (event registration) each carry an optional, unchecked checkbox reading: "Yes, I agree to receive SMS or MMS text messages from Constructed Matter, Inc. at the mobile number provided about this appointment." with the same frequency, rate, STOP/HELP and "not a condition of purchase" disclosures directly beneath it.
+
+Every opt-in stores the mobile number, categories, timestamp, page URL, IP address, and the verbatim disclosure text shown. Being a CMI client, subcontractor, vendor, or employee is never by itself consent.
+
+All three flows, with screenshots and the full verbatim language, are documented at https://constructedmatter.com/sms-consent-disclosure
+
+Privacy Policy: https://constructedmatter.com/privacy-policy (states that mobile numbers and SMS consent are not shared with third parties or affiliates for their own marketing, and includes message frequency and message-and-data-rates disclosures). Terms and Conditions: https://constructedmatter.com/terms-of-service
+---END---
+
+════════════════════════════════════════════════════════════════════════════════
+Opt-in Message:
+(The confirmation sent after someone opts in on the web form.)
+---START---
+Constructed Matter, Inc.: You are subscribed to recurring service, project, and work-related text messages. Message frequency varies. Message and data rates may apply. Reply STOP to unsubscribe or HELP for help.
+---END---
+
+════════════════════════════════════════════════════════════════════════════════
+Opt-out Message:
+---START---
+Constructed Matter, Inc.: You have been unsubscribed and will receive no further messages from this number. Reply START to resubscribe.
+---END---
+
+════════════════════════════════════════════════════════════════════════════════
+Help Message:
+(Word for word what the app replies to HELP, so the two can't diverge.)
+---START---
+Constructed Matter, Inc.: service and project text messages. Msg frequency varies. Msg & data rates may apply. Reply STOP to unsubscribe. Help: (480) 628-4458 or info@constructedmatter.com
+---END---
+
+════════════════════════════════════════════════════════════════════════════════
+Opt-in Keywords?:
+---START---
+(leave empty)
+---END---
+Enrollment is by web form only. The consent flow text says so explicitly, which
+is what TCR asks for when there is no keyword path. Adding a keyword here
+without a real "text JOIN to..." flow on the site would contradict it.
+
+════════════════════════════════════════════════════════════════════════════════
+Opt-out Keywords:
+(Matches the app webhook and the list published on /sms-opt-out.)
+---START---
+STOP, STOPALL, UNSUBSCRIBE, CANCEL, END, QUIT, OPTOUT, REVOKE
+---END---
+
+════════════════════════════════════════════════════════════════════════════════
+Help Keywords?:
+(Matches the app webhook.)
+---START---
+HELP, INFO
+---END---
+
+════════════════════════════════════════════════════════════════════════════════
+AFTER PASTING
+
+1. Confirm https://constructedmatter.com/sms-consent-disclosure loads and both
+   screenshots on it render.
+2. Turn on Advanced Opt-Out for Messaging Service
+   MG4cc2874f0d0f6ac2277bf0bd11b49d87 if it is not already on.
+3. Resubmit the campaign (Fix Campaign → Edit → Submit).
+4. Track status at Console → Messaging → Regulatory Compliance → Campaigns.
+
+Background and the full diagnosis: docs/twilio/RESUBMISSION.md
