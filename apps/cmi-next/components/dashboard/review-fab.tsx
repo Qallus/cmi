@@ -3,10 +3,11 @@
 import * as React from "react";
 import { usePathname } from "next/navigation";
 import {
-  Camera, Check, Inbox, Loader2, Maximize2, MessageSquarePlus, MessagesSquare, Minimize2, PenLine, Sparkles, Trash2, X,
+  Camera, Check, EyeOff, Inbox, Loader2, Maximize2, MessageSquarePlus, MessagesSquare, Minimize2, PenLine, Sparkles, Trash2, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useFabHidden } from "@/lib/ui/fab-preference";
 import { DmInbox } from "@/components/direct-messages/dm-inbox";
 import { BoltModal } from "./bolt-modal";
 import { NoteDetailModal } from "./note-detail-modal";
@@ -37,6 +38,8 @@ function prettyRoute(path: string): string {
 
 export function ReviewFab() {
   const pathname = usePathname();
+  const [hidden, setHidden] = useFabHidden();
+  const [justHid, setJustHid] = React.useState(false);
   const [open, setOpen] = React.useState(false);
   const [tab, setTab] = React.useState<Tab>("note");
   const [boltOpen, setBoltOpen] = React.useState(false);
@@ -185,6 +188,16 @@ export function ReviewFab() {
     setRecipients((prev) => prev.includes(email) ? prev.filter((e) => e !== email) : [...prev, email]);
   }
 
+  if (hidden) {
+    return justHid ? (
+      <div data-fab-ignore role="status" className="fixed bottom-5 right-5 z-50 flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2 text-xs shadow-lg print:hidden">
+        <span>Quick Actions hidden. Settings &rsaquo; Appearance brings it back.</span>
+        <button type="button" onClick={() => { setHidden(false); setJustHid(false); }} className="font-medium text-accent hover:underline">Undo</button>
+        <button type="button" aria-label="Dismiss" onClick={() => setJustHid(false)} className="text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button>
+      </div>
+    ) : null;
+  }
+
   return (
     <>
       {/* FAB */}
@@ -281,18 +294,32 @@ export function ReviewFab() {
           </div>
         )}
 
-        <div className="flex items-center justify-end gap-2">
+        <div className="group flex items-center justify-end gap-2">
           {open && (
             <button type="button" onClick={() => setBoltOpen(true)} title="Ask Bolt"
               className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-card text-accent shadow-lg transition hover:bg-muted">
               <Sparkles className="h-5 w-5" />
             </button>
           )}
-          <button type="button" onClick={() => (open ? setOpen(false) : openPanel("note"))} title="Leadership review"
-            className="relative flex h-14 w-14 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-xl transition hover:opacity-90">
-            {open ? <X className="h-6 w-6" /> : <MessageSquarePlus className="h-6 w-6" />}
-            {!open && (unread + dmUnread) > 0 && <span className="absolute -right-0.5 -top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-white">{(unread + dmUnread) > 9 ? "9+" : unread + dmUnread}</span>}
-          </button>
+          <div className="relative">
+            <button type="button" onClick={() => (open ? setOpen(false) : openPanel("note"))} title="Leadership review"
+              className="relative flex h-14 w-14 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-xl transition hover:opacity-90">
+              {open ? <X className="h-6 w-6" /> : <MessageSquarePlus className="h-6 w-6" />}
+              {!open && (unread + dmUnread) > 0 && <span className="absolute -right-0.5 -top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-white">{(unread + dmUnread) > 9 ? "9+" : unread + dmUnread}</span>}
+            </button>
+            {/* Hide control — the button covers the bottom-right of long lists. */}
+            {!open && (
+              <button
+                type="button"
+                aria-label="Hide the Quick Actions button"
+                title="Hide this button (bring it back in Settings)"
+                onClick={() => { setHidden(true); setJustHid(true); }}
+                className="absolute -left-1 -top-1 grid h-6 w-6 place-items-center rounded-full border border-border bg-card text-muted-foreground opacity-0 shadow transition focus-visible:opacity-100 group-hover:opacity-100 hover:text-foreground"
+              >
+                <EyeOff className="h-3 w-3" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
