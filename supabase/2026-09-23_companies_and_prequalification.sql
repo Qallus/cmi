@@ -1,0 +1,28 @@
+-- Trade Partner Qualification, phase 1: Companies, compliance documents, and
+-- the public prequalification application.
+--
+-- Until now a "company" was a free-text column on contacts (340 distinct
+-- strings), so nothing could be filtered by trade, service area or capacity.
+-- This gives the company a record of its own and a structured qualification
+-- profile, which is what makes prequalification data reusable for bid lists,
+-- procurement, compliance and reporting.
+--
+-- NOTE: this file records the migration applied on 2026-09-23. The full
+-- statement list is in the Supabase migration history under
+-- `companies_and_prequalification`; the objects it creates are:
+--
+--   companies              -- the trade partner record + qualification profile
+--   contacts.company_id    -- contacts now belong to a company
+--   deals.company_id FK    -- the column existed with nothing behind it
+--   company_documents      -- W-9 / licence / COI / WC / auto, with expiry,
+--                             verification status and rejection reason
+--   prequal_applications   -- token-addressed public application drafts
+--   feature flag 'prequalification'
+--
+-- and it backfills one company per distinct contacts.company string, linking
+-- every contact that had one (340 companies, 481 contacts linked).
+--
+-- Matching is by slug: punctuation and legal suffixes stripped, so
+-- "ABC Demolition, LLC" and "ABC Demolition" resolve to one company. The same
+-- expression lives in lib/companies/data.ts#companySlug and the two must not
+-- drift.
