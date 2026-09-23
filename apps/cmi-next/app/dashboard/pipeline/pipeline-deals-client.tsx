@@ -16,6 +16,7 @@ import { SearchableSelect } from "@/components/ui/searchable-select";
 import { DEAL_STAGE_META, DEAL_STAGES, LOST_REASONS, DEAL_SOURCES } from "@/lib/deals/stages";
 import type { Deal, DealStage, Activity, ActivityType, DealTask, DealStageHistoryRow } from "@/lib/deals/types";
 import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
+import { DealActions } from "./deal-actions";
 
 export type OwnerOption = { id: string; name: string };
 export type SourceRow = { id: string; label: string; sub: string };
@@ -81,9 +82,9 @@ function StageBadge({ stage }: { stage: DealStage }) {
 }
 
 export function PipelineDealsClient({
-  initialDeals, owners, contacts, quotes, submissions, openTasks = 0, canWrite,
+  initialDeals, owners, contacts, quotes, submissions, openTasks = 0, canWrite, isSuperAdmin = false,
 }: {
-  initialDeals: Deal[]; owners: OwnerOption[]; contacts: SourceRow[]; quotes: SourceRow[]; submissions: SourceRow[]; openTasks?: number; canWrite: boolean;
+  initialDeals: Deal[]; owners: OwnerOption[]; contacts: SourceRow[]; quotes: SourceRow[]; submissions: SourceRow[]; openTasks?: number; canWrite: boolean; isSuperAdmin?: boolean;
 }) {
   const router = useRouter();
   const [deals, setDeals] = React.useState<Deal[]>(initialDeals);
@@ -97,13 +98,30 @@ export function PipelineDealsClient({
   const [dateTo, setDateTo] = React.useState("");
   const [showCreate, setShowCreate] = React.useState(false);
   const [showAdd, setShowAdd] = React.useState(false);
+  const [showArchived, setShowArchived] = React.useState(false);
 
   const ownerName = React.useCallback((id: string | null) => owners.find((o) => o.id === id)?.name ?? "Unassigned", [owners]);
 
   const refresh = React.useCallback(async () => {
-    const res = await fetch("/api/deals");
+    const res = await fetch(showArchived ? "/api/deals?archived=1" : "/api/deals");
     if (res.ok) setDeals(await res.json());
-  }, []);
+  }, [showArchived]);
+
+  // Archived deals aren't in the page's initial payload, so flipping the
+  // toggle has to go back to the server.
+  const firstLoad = React.useRef(true);
+  React.useEffect(() => {
+    if (firstLoad.current) { firstLoad.current = false; return; }
+    void refresh();
+  }, [refresh]);
+
+  // One action set, rendered the same way by every view.
+  const renderActions = React.useCallback((d: Deal) => (
+    <DealActions
+      row={d} variant="menu" canWrite={canWrite} isSuperAdmin={isSuperAdmin}
+      onChanged={() => void refresh()} onOpen={(id) => router.push(`/dashboard/pipeline/${id}`)}
+    />
+  ), [canWrite, isSuperAdmin, refresh, router]);
 
   const openDeal = React.useCallback((id: string) => router.push(`/dashboard/pipeline/${id}`), [router]);
 
@@ -231,6 +249,10 @@ export function PipelineDealsClient({
             {SORT_OPTIONS.map(([key, label]) => <option key={key} value={key}>Sort: {label}</option>)}
           </Select>
           {filtersActive && <button type="button" onClick={clearFilters} className="text-xs text-muted-foreground hover:text-foreground">Clear filters</button>}
+          <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
+            <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
+            Show archived
+          </label>
           <span className="ml-auto text-xs text-muted-foreground">{filtered.length} deal{filtered.length === 1 ? "" : "s"}</span>
         </div>
       </div>
@@ -242,15 +264,15 @@ export function PipelineDealsClient({
             {deals.length === 0 ? <>No deals yet. {canWrite && "Use “Add Deal” or “Add to Pipeline” to get started."}</> : "No deals match the current filters."}
           </div>
         ) : view === "list" ? (
-          <ListView deals={ordered} ownerName={ownerName} onOpen={openDeal} />
+          <ListView deals={ordered} ownerName={ownerName} onOpen={openDeal} renderActions={renderActions} />
         ) : view === "table" ? (
-          <TableView deals={ordered} ownerName={ownerName} onOpen={openDeal} />
+          <TableView deals={ordered} ownerName={ownerName} onOpen={openDeal} renderActions={renderActions} />
         ) : view === "kanban" ? (
-          <KanbanView deals={ordered} onOpen={openDeal} canWrite={canWrite} onMove={moveStage} />
+          <KanbanView deals={ordered} onOpen={openDeal} canWrite={canWrite} onMove={moveStage} renderActions={renderActions} />
         ) : view === "calendar" ? (
-          <CalendarView deals={ordered} onOpen={openDeal} />
+          <CalendarView deals={ordered} onOpen={openDeal} renderActions={renderActions} />
         ) : (
-          <MapView deals={ordered} onOpen={openDeal} />
+          <MapView deals={ordered} onOpen={openDeal} canWrite={canWrite} isSuperAdmin={isSuperAdmin} onChanged={() => void refresh()} />
         )}
       </div>
 
@@ -273,7 +295,7 @@ export function PipelineDealsClient({
 }
 
 // ─── List view (roomy rows) ───────────────────────────────────────
-function ListView({ deals, ownerName, onOpen }: { deals: Deal[]; ownerName: (id: string | null) => string; onOpen: (id: string) => void }) {
+function ListView({ deals, ownerName, onOpen, renderActions }: { deals: Deal[]; ownerName: (id: string | null) => string; onOpen: (id: string) => void; renderActions: (d: Deal) => React.ReactNode }) {
   const today = new Date().toISOString().slice(0, 10);
   return (
     <div className="overflow-hidden rounded-lg border border-border">
@@ -286,6 +308,7 @@ function ListView({ deals, ownerName, onOpen }: { deals: Deal[]; ownerName: (id:
             <th className="px-3 py-2 font-medium">Owner</th>
             <th className="px-3 py-2 font-medium">Last activity</th>
             <th className="px-3 py-2 font-medium">Next action</th>
+            <th className="w-10 px-3 py-2"><span className="sr-only">Actions</span></th>
           </tr>
         </thead>
         <tbody>
@@ -299,6 +322,7 @@ function ListView({ deals, ownerName, onOpen }: { deals: Deal[]; ownerName: (id:
                 <td className="px-3 py-2.5 text-muted-foreground">{ownerName(d.owner_id)}</td>
                 <td className="px-3 py-2.5 text-muted-foreground">{d.last_activity_at ? `${daysSince(d.last_activity_at)}d ago` : "—"}</td>
                 <td className="px-3 py-2.5">{d.next_action ? <div><div className="max-w-[220px] truncate">{d.next_action}</div>{d.next_action_due && <div className={cn("text-[11px]", overdue ? "text-destructive" : "text-muted-foreground")}>{fmtDate(d.next_action_due)}{overdue ? " · overdue" : ""}</div>}</div> : <span className="text-muted-foreground">—</span>}</td>
+                <td className="px-3 py-2.5 text-right">{renderActions(d)}</td>
               </tr>
             );
           })}
@@ -309,7 +333,7 @@ function ListView({ deals, ownerName, onOpen }: { deals: Deal[]; ownerName: (id:
 }
 
 // ─── Table view (compact, more columns) ───────────────────────────
-function TableView({ deals, ownerName, onOpen }: { deals: Deal[]; ownerName: (id: string | null) => string; onOpen: (id: string) => void }) {
+function TableView({ deals, ownerName, onOpen, renderActions }: { deals: Deal[]; ownerName: (id: string | null) => string; onOpen: (id: string) => void; renderActions: (d: Deal) => React.ReactNode }) {
   return (
     <div className="overflow-x-auto rounded-lg border border-border">
       <table className="w-full text-sm">
@@ -323,6 +347,7 @@ function TableView({ deals, ownerName, onOpen }: { deals: Deal[]; ownerName: (id
             <th className="px-3 py-2 font-medium text-right">Prob.</th>
             <th className="px-3 py-2 font-medium">Close</th>
             <th className="px-3 py-2 font-medium">Source</th>
+            <th className="w-10 px-3 py-2"><span className="sr-only">Actions</span></th>
           </tr>
         </thead>
         <tbody>
@@ -336,6 +361,7 @@ function TableView({ deals, ownerName, onOpen }: { deals: Deal[]; ownerName: (id
               <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{d.probability != null ? `${d.probability}%` : "—"}</td>
               <td className="px-3 py-2 text-muted-foreground">{fmtDate(d.expected_close_date)}</td>
               <td className="px-3 py-2 text-muted-foreground">{d.source || "—"}</td>
+              <td className="px-3 py-2 text-right">{renderActions(d)}</td>
             </tr>
           ))}
         </tbody>
@@ -345,7 +371,7 @@ function TableView({ deals, ownerName, onOpen }: { deals: Deal[]; ownerName: (id
 }
 
 // ─── Kanban view (drag a card between stages) ─────────────────────
-function KanbanView({ deals, onOpen, canWrite, onMove }: { deals: Deal[]; onOpen: (id: string) => void; canWrite: boolean; onMove: (id: string, to: DealStage) => void }) {
+function KanbanView({ deals, onOpen, canWrite, onMove, renderActions }: { deals: Deal[]; onOpen: (id: string) => void; canWrite: boolean; onMove: (id: string, to: DealStage) => void; renderActions: (d: Deal) => React.ReactNode }) {
   const [dragId, setDragId] = React.useState<string | null>(null);
   const [overStage, setOverStage] = React.useState<DealStage | null>(null);
   const cols = DEAL_STAGES;
@@ -369,7 +395,10 @@ function KanbanView({ deals, onOpen, canWrite, onMove }: { deals: Deal[]; onOpen
                 <div key={d.id} draggable={canWrite} onDragStart={() => setDragId(d.id)} onDragEnd={() => { setDragId(null); setOverStage(null); }}
                   onClick={() => onOpen(d.id)}
                   className={cn("cursor-pointer rounded-md border border-border bg-card p-2.5 text-sm shadow-sm transition hover:border-accent/50", dragId === d.id && "opacity-40")}>
-                  <div className="font-medium leading-tight">{d.title}</div>
+                  <div className="flex items-start justify-between gap-1">
+                    <div className="min-w-0 flex-1 font-medium leading-tight">{d.title}</div>
+                    <div className="-mr-1 -mt-1 shrink-0">{renderActions(d)}</div>
+                  </div>
                   <div className="mt-1 flex items-center justify-between text-[11px] text-muted-foreground">
                     <span>{money(d.estimated_value)}</span>
                     {d.expected_close_date && <span>{fmtDate(d.expected_close_date)}</span>}
@@ -386,7 +415,7 @@ function KanbanView({ deals, onOpen, canWrite, onMove }: { deals: Deal[]; onOpen
 }
 
 // ─── Calendar view (deals on their expected close date) ───────────
-function CalendarView({ deals, onOpen }: { deals: Deal[]; onOpen: (id: string) => void }) {
+function CalendarView({ deals, onOpen, renderActions }: { deals: Deal[]; onOpen: (id: string) => void; renderActions: (d: Deal) => React.ReactNode }) {
   const [cursor, setCursor] = React.useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
   const first = new Date(cursor.y, cursor.m, 1);
   const startDay = first.getDay();
@@ -420,7 +449,10 @@ function CalendarView({ deals, onOpen }: { deals: Deal[]; onOpen: (id: string) =
             {day && <div className="mb-1 text-[11px] text-muted-foreground">{day}</div>}
             <div className="space-y-1">
               {(byDay.get(day ?? -1) ?? []).map((d) => (
-                <button key={d.id} onClick={() => onOpen(d.id)} className="block w-full truncate rounded bg-accent/15 px-1.5 py-0.5 text-left text-[11px] font-medium text-accent hover:bg-accent/25" title={`${d.title} · ${money(d.estimated_value)}`}>{d.title}</button>
+                <div key={d.id} className="flex items-center gap-0.5">
+                  <button onClick={() => onOpen(d.id)} className="min-w-0 flex-1 truncate rounded bg-accent/15 px-1.5 py-0.5 text-left text-[11px] font-medium text-accent hover:bg-accent/25" title={`${d.title} · ${money(d.estimated_value)}`}>{d.title}</button>
+                  <span className="shrink-0">{renderActions(d)}</span>
+                </div>
               ))}
             </div>
           </div>
@@ -435,13 +467,22 @@ function CalendarView({ deals, onOpen }: { deals: Deal[]; onOpen: (id: string) =
 const OSM_URL = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
 const DEFAULT_CENTER: [number, number] = [33.4484, -112.074]; // Phoenix, AZ
 
-function MapView({ deals, onOpen }: { deals: Deal[]; onOpen: (id: string) => void }) {
+function MapView({
+  deals, onOpen, canWrite, isSuperAdmin, onChanged,
+}: {
+  deals: Deal[]; onOpen: (id: string) => void; canWrite: boolean; isSuperAdmin: boolean; onChanged: () => void;
+}) {
+  // Leaflet popups are raw HTML, so the popup links to this React action bar
+  // instead of trying to render the menu inside the popup.
+  const [selected, setSelected] = React.useState<Deal | null>(null);
   const mapEl = React.useRef<HTMLDivElement>(null);
   const mapRef = React.useRef<import("leaflet").Map | null>(null);
   const markersRef = React.useRef<import("leaflet").LayerGroup | null>(null);
   const [ready, setReady] = React.useState(false);
   const openRef = React.useRef(onOpen);
   React.useEffect(() => { openRef.current = onOpen; }, [onOpen]);
+  const selectRef = React.useRef(setSelected);
+  React.useEffect(() => { selectRef.current = setSelected; }, []);
 
   const mapped = React.useMemo(() => deals.filter((d) => d.latitude != null && d.longitude != null), [deals]);
   const unmapped = deals.length - mapped.length;
@@ -477,8 +518,14 @@ function MapView({ deals, onOpen }: { deals: Deal[]; onOpen: (id: string) => voi
         });
         const m = L.marker([lat, lng], { icon }).addTo(group);
         const btnId = `deal-open-${d.id}`;
-        m.bindPopup(`<strong>${d.title}</strong><br/>${d.full_address ?? ""}<br/>${money(d.estimated_value)}<br/><a href="#" id="${btnId}">Open deal →</a>`);
-        m.on("popupopen", () => { const el = document.getElementById(btnId); if (el) el.onclick = (e) => { e.preventDefault(); openRef.current(d.id); }; });
+        const actId = `deal-actions-${d.id}`;
+        m.bindPopup(`<strong>${d.title}</strong><br/>${d.full_address ?? ""}<br/>${money(d.estimated_value)}<br/><a href="#" id="${btnId}">Open deal →</a> &nbsp;·&nbsp; <a href="#" id="${actId}">Actions</a>`);
+        m.on("popupopen", () => {
+          const open = document.getElementById(btnId);
+          if (open) open.onclick = (e) => { e.preventDefault(); openRef.current(d.id); };
+          const act = document.getElementById(actId);
+          if (act) act.onclick = (e) => { e.preventDefault(); selectRef.current(d); };
+        });
       }
       if (bounds.length) mapRef.current!.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
     })();
@@ -490,6 +537,19 @@ function MapView({ deals, onOpen }: { deals: Deal[]; onOpen: (id: string) => voi
       <p className="text-[11px] text-muted-foreground">
         {mapped.length} of {deals.length} deals plotted.{unmapped > 0 && ` ${unmapped} without a geocoded location — add a project address on the deal to place it.`}
       </p>
+
+      {selected && (
+        <div className="fixed bottom-6 left-1/2 z-[60] w-[min(92vw,34rem)] -translate-x-1/2 rounded-lg border border-border bg-card p-3 shadow-xl">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <span className="min-w-0 truncate text-sm font-medium">{[selected.job_number, selected.title].filter(Boolean).join("_")}</span>
+            <button type="button" aria-label="Close actions" onClick={() => setSelected(null)} className="rounded p-1 text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+          </div>
+          <DealActions
+            row={selected} variant="bar" canWrite={canWrite} isSuperAdmin={isSuperAdmin}
+            onChanged={onChanged} onRemoved={() => setSelected(null)} onOpen={onOpen}
+          />
+        </div>
+      )}
     </div>
   );
 }

@@ -8,7 +8,8 @@ import { canWriteDeals } from "@/lib/deals/roles";
 export async function GET(request: Request) {
   try {
     await requireAdmin(request);
-    return NextResponse.json(await loadDeals());
+    const includeArchived = new URL(request.url).searchParams.get("archived") === "1";
+    return NextResponse.json(await loadDeals({ includeArchived }));
   } catch (err) {
     const e = err as AuthError;
     return NextResponse.json({ error: e.message }, { status: e.status ?? 500 });

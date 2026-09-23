@@ -61,6 +61,7 @@ export default async function PipelinePage() {
       submissions={submissions}
       openTasks={openTasks}
       canWrite={canWrite}
+      isSuperAdmin={staff?.role_slug === "super_admin"}
     />
   );
 }

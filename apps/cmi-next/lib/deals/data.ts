@@ -14,7 +14,8 @@ import type {
 // Server-managed fields are never accepted from callers.
 function sanitizeDraft<T extends Record<string, unknown>>(draft: Partial<T>): Partial<T> {
   const clone = { ...draft } as Record<string, unknown>;
-  for (const k of ["id", "opportunity_id", "job_number", "created_at", "updated_at"]) delete clone[k];
+  // Archive state moves through archiveDeal/unarchiveDeal, never a PATCH body.
+  for (const k of ["id", "opportunity_id", "job_number", "created_at", "updated_at", "archived_at", "archived_by"]) delete clone[k];
   return clone as Partial<T>;
 }
 
@@ -34,13 +35,16 @@ async function withGeocode(draft: Partial<Deal>): Promise<Partial<Deal>> {
 }
 
 // ─── Deals CRUD ───────────────────────────────────────────────────
-export async function loadDeals(): Promise<Deal[]> {
+/** Archived deals are hidden from the board unless explicitly asked for. */
+export async function loadDeals(opts: { includeArchived?: boolean } = {}): Promise<Deal[]> {
   const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase
+  let q = supabase
     .from("deals")
     .select("*")
     .order("last_activity_at", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false });
+  if (!opts.includeArchived) q = q.is("archived_at", null);
+  const { data, error } = await q;
   if (error) throw new Error(error.message);
   return (data ?? []) as Deal[];
 }
@@ -79,6 +83,53 @@ export async function updateDeal(id: string, patch: Partial<DealDraft>, actor?: 
     .single();
   if (error) throw new Error(error.message);
   return data as Deal;
+}
+
+/**
+ * Archive leaves the active pipeline but keeps the record, its activities,
+ * tasks and stage history, so it can be restored. Permanent removal is
+ * deleteDeal(), which is Super-Admin only at the route.
+ */
+export async function archiveDeal(id: string, actor?: Actor): Promise<Deal> {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("deals")
+    .update({ archived_at: new Date().toISOString(), archived_by: actor?.id ?? null, updated_by: actor?.id ?? null })
+    .eq("id", id).select().single();
+  if (error) throw new Error(error.message);
+  return data as Deal;
+}
+
+export async function unarchiveDeal(id: string, actor?: Actor): Promise<Deal> {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("deals")
+    .update({ archived_at: null, archived_by: null, updated_by: actor?.id ?? null })
+    .eq("id", id).select().single();
+  if (error) throw new Error(error.message);
+  return data as Deal;
+}
+
+/**
+ * Copy a deal as a fresh lead. The client, address, value and notes carry
+ * over; anything earned by the original — its job number, Pre-Con handoff,
+ * stage, activity and tasks — does not.
+ */
+export async function duplicateDeal(id: string, actor?: Actor): Promise<Deal> {
+  const source = await getDeal(id);
+  if (!source) throw new Error("Deal not found.");
+
+  const {
+    id: _id, job_number: _jn, opportunity_id: _oid, created_at: _ca, updated_at: _ua,
+    created_by: _cb, updated_by: _ub, archived_at: _aa, archived_by: _ab,
+    last_activity_at: _la, stage: _stage, source_type: _st, source_id: _si,
+    ...carried
+  } = source as Deal & Record<string, unknown>;
+
+  return createDeal(
+    { ...(carried as Partial<DealDraft>), title: `${source.title} (copy)`, stage: "new_working" } as DealDraft,
+    actor,
+  );
 }
 
 export async function deleteDeal(id: string): Promise<void> {

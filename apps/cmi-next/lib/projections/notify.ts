@@ -5,6 +5,7 @@
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { normalizePhone, publicAppUrl } from "@/lib/twilio";
 import { isSuppressed } from "@/lib/messaging/consent";
+import { sendEmail, sendSms, staffPhone, shareEmailHtml } from "@/lib/messaging/send";
 import { findOrCreateConversation, sendMessage } from "@/lib/direct-messages/data";
 import { PROJECTION_ROLES } from "./access";
 import { loadDetail, logActivity, ProjectionError } from "./data";
@@ -22,7 +23,6 @@ export async function listShareRecipients(): Promise<ShareRecipient[]> {
 }
 
 const usd = (v: number) => `${v < 0 ? "-" : ""}$${Math.abs(Math.round(v)).toLocaleString("en-US")}`;
-const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 export async function shareProjection(id: string, input: { channel: ShareChannel; recipient_ids: string[]; note?: string | null }, actor: Actor) {
   if (!["email", "sms", "dm"].includes(input.channel)) throw new ProjectionError("Choose Email, SMS or Message.");
@@ -72,46 +72,11 @@ export async function shareProjection(id: string, input: { channel: ShareChannel
   return { sent, skipped };
 }
 
-async function staffPhone(id: string): Promise<string | null> {
-  const { data } = await getSupabaseAdmin().from("staff_users").select("phone").eq("id", id).maybeSingle();
-  const p = normalizePhone(data?.phone);
-  if (!p) return null;
-  return p.startsWith("+") ? p : p.length === 10 ? `+1${p}` : `+${p}`;
-}
-
-async function sendEmail(to: string, subject: string, html: string): Promise<boolean> {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) return false;
-  const fromEmail = process.env.RESEND_FROM_EMAIL ?? "info@constructedmatter.com";
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ from: fromEmail.includes("<") ? fromEmail : `Constructed Matter <${fromEmail}>`, to: [to], subject, html }),
-  });
-  return res.ok;
-}
-
-async function sendSms(to: string, body: string): Promise<boolean> {
-  const sid = process.env.TWILIO_ACCOUNT_SID, token = process.env.TWILIO_AUTH_TOKEN, from = process.env.TWILIO_PHONE_NUMBER;
-  if (!sid || !token || !from) return false;
-  const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
-    method: "POST",
-    headers: { Authorization: `Basic ${Buffer.from(`${sid}:${token}`).toString("base64")}`, "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ To: to, From: from, Body: body }).toString(),
-  });
-  return res.ok;
-}
-
 function emailHtml({ from, lines, note, url }: { from: string; lines: string[]; note: string | null; url: string }) {
-  return `<div style="font-family:Helvetica,Arial,sans-serif;max-width:560px;margin:0 auto;color:#1A1A1A">
-  <div style="background:#1A1A1A;color:#fff;padding:16px 20px;font-weight:bold;letter-spacing:2px">CONSTRUCTED MATTER</div>
-  <div style="padding:20px;border:1px solid #E5E7EB;border-top:0">
-    <p style="margin:0 0 12px;color:#6B7280;font-size:13px">${esc(from)} shared a projection with you.</p>
-    <p style="margin:0 0 6px;font-size:16px;font-weight:bold">${esc(lines[0])}</p>
-    ${lines.slice(1).map((l) => `<p style="margin:0 0 4px;font-size:14px">${esc(l)}</p>`).join("")}
-    ${note ? `<p style="margin:14px 0 0;padding:10px 12px;background:#FBEEE6;border-radius:6px;font-size:14px">${esc(note)}</p>` : ""}
-    <p style="margin:20px 0 0"><a href="${url}" style="background:#B7541F;color:#fff;text-decoration:none;padding:10px 16px;border-radius:6px;font-size:14px">View projection</a></p>
-    <p style="margin:18px 0 0;color:#6B7280;font-size:11px">Confidential — management forecast. Only Admins can open this link.</p>
-  </div>
-</div>`;
+  return shareEmailHtml({
+    intro: `${from} shared a projection with you.`,
+    lines, note, url,
+    cta: "View projection",
+    footer: "Confidential — management forecast. Only Admins can open this link.",
+  });
 }

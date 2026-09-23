@@ -66,7 +66,13 @@ export type Deal = {
   notes: string | null;
   tags: string[] | null;
 
+  // Set when the deal is archived off the active board; the record and its
+  // history stay put and can be restored.
+  archived_at: string | null;
+  archived_by: string | null;
+
   created_by: string | null;
+  updated_by: string | null;
   created_at: string;
   updated_at: string;
 };

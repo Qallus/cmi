@@ -33,11 +33,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 }
 
+// Permanent removal, for duplicates and test entries. Everyday "get it off the
+// board" is POST /archive, which keeps the record.
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { staff } = await requireAdmin(request);
-    if (!canWriteDeals(staff.role_slug)) {
-      return NextResponse.json({ error: `Your role (${staff.role_slug}) can't delete deals.` }, { status: 403 });
+    if (staff.role_slug !== "super_admin") {
+      return NextResponse.json({ error: "Only a Super Admin can permanently delete a deal. Archive it instead." }, { status: 403 });
     }
     const { id } = await params;
     await deleteDeal(id);
