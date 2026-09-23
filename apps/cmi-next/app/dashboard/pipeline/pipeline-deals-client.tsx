@@ -17,6 +17,7 @@ import { DEAL_STAGE_META, DEAL_STAGES, LOST_REASONS, DEAL_SOURCES } from "@/lib/
 import type { Deal, DealStage, Activity, ActivityType, DealTask, DealStageHistoryRow } from "@/lib/deals/types";
 import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
 import { DealActions } from "./deal-actions";
+import { DuplicateWarning, useDuplicateCheck } from "@/components/contacts/duplicate-warning";
 
 export type OwnerOption = { id: string; name: string };
 export type SourceRow = { id: string; label: string; sub: string };
@@ -581,8 +582,15 @@ function DealFormModal({
   const [client, setClient] = React.useState({ first_name: "", last_name: "", email: "", phone: "", company: "" });
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [dupeConfirmed, setDupeConfirmed] = React.useState(false);
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
   const setClientField = (k: keyof typeof client, v: string) => setClient((c) => ({ ...c, [k]: v }));
+
+  // Only looks while the inline client fields are actually showing.
+  const dupe = useDuplicateCheck({
+    first: client.first_name, last: client.last_name, email: client.email,
+    phone: client.phone, company: client.company,
+  }, newContact);
 
   async function submit() {
     if (!form.title.trim()) { setError("Title is required."); return; }
@@ -606,6 +614,7 @@ function DealFormModal({
           company: client.company || null,
           type: "Lead",
           status: "active",
+          confirm_duplicate: dupeConfirmed,
           source: form.source || null,
           address: form.street_address || null,
           city: form.city || null,
@@ -663,6 +672,21 @@ function DealFormModal({
                 <Field label="Phone"><Input value={client.phone} onChange={(e) => setClientField("phone", e.target.value)} /></Field>
               </div>
               <Field label="Company"><Input value={client.company} onChange={(e) => setClientField("company", e.target.value)} /></Field>
+              <DuplicateWarning
+                matches={dupe.matches}
+                checking={dupe.checking}
+                onUse={(m) => {
+                  // Link the existing contact instead of making another one.
+                  setNewContact(false);
+                  set("contact_id", m.id);
+                }}
+              />
+              {dupe.strong && !dupe.blocking && (
+                <label className="flex items-start gap-2 text-[11px]">
+                  <input type="checkbox" className="mt-0.5" checked={dupeConfirmed} onChange={(e) => setDupeConfirmed(e.target.checked)} />
+                  <span>I&apos;ve checked — this is a different person.</span>
+                </label>
+              )}
               <p className="text-[11px] text-muted-foreground">Saved to Contacts and linked to this deal. You can edit it there afterwards.</p>
             </>
           ) : (

@@ -47,6 +47,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Select } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { Contact, ContactDraft, ContactStatus, ContactType } from "@/lib/contacts/types";
+import { DuplicateWarning, useDuplicateCheck } from "@/components/contacts/duplicate-warning";
 
 const CONTACT_TYPES: ContactType[] = ["Lead", "Client", "Prospect", "Customer", "Vendor", "Sub Contractor", "Designer", "Other"];
 const CONTACT_ONLY_TYPES: ContactType[] = ["Client", "Prospect", "Customer", "Vendor", "Sub Contractor", "Designer", "Other"];
@@ -311,6 +312,7 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
     setDraft({ ...EMPTY_DRAFT, type: defaultType });
     setTagInput("");
     setError(null);
+    setDupeConfirmed(false);
     setModal({ mode: "add" });
   }
 
@@ -346,6 +348,7 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
   function closeModal() {
     setModal(null);
     setError(null);
+    setDupeConfirmed(false);
   }
 
   function addTag() {
@@ -359,13 +362,26 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
     setDraft((d) => ({ ...d, tags: (d.tags ?? []).filter((x) => x !== t) }));
   }
 
+  // Live duplicate lookup for the add/edit modal.
+  const dupe = useDuplicateCheck({
+    first: draft.first_name, last: draft.last_name, email: draft.email,
+    phone: draft.phone ?? "", company: draft.company ?? "",
+    excludeId: modal?.mode === "edit" ? modal.contact?.id : undefined,
+  }, !!modal && modal.mode !== "view");
+  const [dupeConfirmed, setDupeConfirmed] = React.useState(false);
+
   async function saveContact() {
     if (!draft.email) { setError("Email is required."); return; }
     setSaving(true);
     setError(null);
     try {
       if (modal?.mode === "add") {
-        const res = await fetch("/api/contacts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(draft) });
+        // A "likely" match is a stop-and-look, not a hard stop: the person
+        // confirms it's someone different and the save goes through.
+        const res = await fetch("/api/contacts", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...draft, confirm_duplicate: dupeConfirmed }),
+        });
         const json = await res.json() as Contact & { error?: string };
         if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
         setContacts((prev) => [json, ...prev]);
@@ -792,6 +808,17 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
         <Modal title={modal.mode === "add" ? "Add Contact" : "Edit Contact"} onClose={closeModal} wide>
           <div className="space-y-4">
             {error && <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
+            {modal.mode === "add" && (
+              <>
+                <DuplicateWarning matches={dupe.matches} checking={dupe.checking} />
+                {dupe.strong && !dupe.blocking && (
+                  <label className="flex items-start gap-2 text-xs">
+                    <input type="checkbox" className="mt-0.5" checked={dupeConfirmed} onChange={(e) => setDupeConfirmed(e.target.checked)} />
+                    <span>I&apos;ve checked — this is a different person from the {dupe.matches.length === 1 ? "one" : "ones"} above.</span>
+                  </label>
+                )}
+              </>
+            )}
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="First Name" required>
                 <input className={inputCls} value={draft.first_name} onChange={(e) => setDraft((d) => ({ ...d, first_name: e.target.value }))} />
