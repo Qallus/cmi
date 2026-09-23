@@ -48,6 +48,8 @@ import { Select } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { Contact, ContactDraft, ContactStatus, ContactType } from "@/lib/contacts/types";
 import { DuplicateWarning, useDuplicateCheck } from "@/components/contacts/duplicate-warning";
+import { Merge } from "lucide-react";
+import { MergeDuplicates } from "@/components/contacts/merge-duplicates";
 
 const CONTACT_TYPES: ContactType[] = ["Lead", "Client", "Prospect", "Customer", "Vendor", "Sub Contractor", "Designer", "Other"];
 const CONTACT_ONLY_TYPES: ContactType[] = ["Client", "Prospect", "Customer", "Vendor", "Sub Contractor", "Designer", "Other"];
@@ -258,6 +260,8 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
   const [error, setError] = React.useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = React.useState<string | null>(null);
   const [showImport, setShowImport] = React.useState(false);
+  const [showDuplicates, setShowDuplicates] = React.useState(false);
+  const [dupeCount, setDupeCount] = React.useState<number | null>(null);
   const [contactAction, setContactAction] = React.useState<{ type: "call" | "sms" | "email"; contact: Contact } | null>(null);
   const [tab, setTab] = React.useState<Tab>("all");
   // Allow deep-linking to a specific tab, e.g. /dashboard/contacts?tab=Lead.
@@ -306,6 +310,27 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
   const pageContacts = filtered.slice((page - 1) * perPage, page * perPage);
 
   const activeTab = TABS.find((t) => t.key === tab) ?? TABS[0];
+
+  // How many duplicate groups are outstanding, for the button badge.
+  const countDuplicates = React.useCallback(async () => {
+    try {
+      const res = await fetch("/api/contacts/merge");
+      const json = await res.json();
+      if (res.ok) setDupeCount((json.groups ?? []).length);
+    } catch { /* the button just shows no badge */ }
+  }, []);
+
+  React.useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const res = await fetch("/api/contacts/merge");
+        const json = await res.json();
+        if (alive && res.ok) setDupeCount((json.groups ?? []).length);
+      } catch { /* the button just shows no badge */ }
+    })();
+    return () => { alive = false; };
+  }, []);
 
   function openAdd() {
     const defaultType: ContactType = tab === "all" ? "Lead" : tab;
@@ -511,6 +536,10 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={() => setShowDuplicates(true)}>
+              <Merge className="h-3.5 w-3.5" /> Duplicates
+              {dupeCount ? <span className="ml-1 rounded-full bg-amber-500/20 px-1.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300">{dupeCount}</span> : null}
+            </Button>
             <Button size="sm" variant="outline" onClick={exportCSV}>Export CSV</Button>
             <Button size="sm" variant="outline" onClick={() => setShowImport(true)}>
               <FileUp className="h-3.5 w-3.5" /> Import
@@ -895,6 +924,20 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
               </Button>
             </div>
           </div>
+        </Modal>
+      )}
+
+      {/* Duplicate review */}
+      {showDuplicates && (
+        <Modal title="Possible duplicate contacts" onClose={() => setShowDuplicates(false)} wide>
+          <MergeDuplicates
+            onMerged={async () => {
+              // The merged-away records are gone; reload the table too.
+              await countDuplicates();
+              const res = await fetch("/api/contacts");
+              if (res.ok) setContacts(await res.json());
+            }}
+          />
         </Modal>
       )}
 
