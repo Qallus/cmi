@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { denyUnlessStaff } from "@/lib/auth/guard";
 
 export async function POST(req: NextRequest) {
+  const denied = await denyUnlessStaff(); if (denied) return denied;
+
   try {
     const supabase = getSupabaseAdmin();
     const body = await req.json() as { id?: string; [key: string]: unknown };
@@ -22,6 +25,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const denied = await denyUnlessStaff(); if (denied) return denied;
+
   try {
     const { id } = await req.json() as { id: string };
     const supabase = getSupabaseAdmin();

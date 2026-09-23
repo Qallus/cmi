@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { denyUnlessStaff } from "@/lib/auth/guard";
 
 function text(value: unknown) {
   const next = String(value || "").trim();
@@ -7,6 +8,8 @@ function text(value: unknown) {
 }
 
 export async function POST(request: Request) {
+  const denied = await denyUnlessStaff(); if (denied) return denied;
+
   try {
     const supabase = getSupabaseAdmin();
     const body = await request.json();

@@ -15,6 +15,7 @@ import { MoneyInput } from "@/components/ui/money-input";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { DEAL_STAGE_META, DEAL_STAGES, LOST_REASONS, DEAL_SOURCES } from "@/lib/deals/stages";
 import type { Deal, DealStage, Activity, ActivityType, DealTask, DealStageHistoryRow } from "@/lib/deals/types";
+import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
 
 export type OwnerOption = { id: string; name: string };
 export type SourceRow = { id: string; label: string; sub: string };
@@ -64,6 +65,16 @@ function fmtWhen(iso: string | null | undefined) {
   return iso ? new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
 }
 
+type SortKey = "job_number" | "title" | "stage" | "value" | "close" | "activity";
+const SORT_OPTIONS: [SortKey, string][] = [
+  ["job_number", "Job #"],
+  ["title", "Name"],
+  ["stage", "Stage"],
+  ["value", "Value"],
+  ["close", "Close date"],
+  ["activity", "Last activity"],
+];
+
 function StageBadge({ stage }: { stage: DealStage }) {
   const m = DEAL_STAGE_META[stage];
   return <span className={cn("inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium", TONE_CLASS[m.tone])}>{m.label}</span>;
@@ -81,6 +92,7 @@ export function PipelineDealsClient({
   const [ownerFilter, setOwnerFilter] = React.useState("all");
   const [stageFilter, setStageFilter] = React.useState<DealStage | "all">("all");
   const [jobTypeFilter, setJobTypeFilter] = React.useState("all");
+  const [sort, setSort] = React.useState<SortKey>("job_number");
   const [dateFrom, setDateFrom] = React.useState("");
   const [dateTo, setDateTo] = React.useState("");
   const [showCreate, setShowCreate] = React.useState(false);
@@ -107,6 +119,31 @@ export function PipelineDealsClient({
       return [d.title, d.job_number, d.next_action, d.source, d.job_type].some((v) => (v ?? "").toLowerCase().includes(q));
     });
   }, [deals, query, ownerFilter, stageFilter, jobTypeFilter, dateFrom, dateTo]);
+
+  // Deals arrive newest-activity-first; job numbers then look scrambled, so
+  // the list is explicitly sorted (job number first, naturally: CM-2026-9 <
+  // CM-2026-10). Deals without a number sort last.
+  const ordered = React.useMemo(() => {
+    const txt = (v: string | null | undefined) => (v ?? "").toLowerCase();
+    const natural = (a: string | null | undefined, b: string | null | undefined) => {
+      if (!a && !b) return 0;
+      if (!a) return 1;
+      if (!b) return -1;
+      return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
+    };
+    const byDateDesc = (a: string | null | undefined, b: string | null | undefined) =>
+      (b ? new Date(b).getTime() : 0) - (a ? new Date(a).getTime() : 0);
+    return [...filtered].sort((a, b) => {
+      switch (sort) {
+        case "job_number": return natural(a.job_number, b.job_number) || txt(a.title).localeCompare(txt(b.title));
+        case "title": return txt(a.title).localeCompare(txt(b.title));
+        case "stage": return DEAL_STAGES.indexOf(a.stage) - DEAL_STAGES.indexOf(b.stage) || natural(a.job_number, b.job_number);
+        case "value": return (b.estimated_value ?? 0) - (a.estimated_value ?? 0);
+        case "close": return natural(a.expected_close_date, b.expected_close_date);
+        default: return byDateDesc(a.last_activity_at ?? a.created_at, b.last_activity_at ?? b.created_at);
+      }
+    });
+  }, [filtered, sort]);
 
   const filtersActive = ownerFilter !== "all" || stageFilter !== "all" || jobTypeFilter !== "all" || !!dateFrom || !!dateTo || !!query;
   function clearFilters() { setOwnerFilter("all"); setStageFilter("all"); setJobTypeFilter("all"); setDateFrom(""); setDateTo(""); setQuery(""); }
@@ -190,6 +227,9 @@ export function PipelineDealsClient({
             <span>–</span>
             <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-auto" />
           </div>
+          <Select value={sort} onChange={(e) => setSort(e.target.value as SortKey)} className="w-auto min-w-[150px]" aria-label="Sort deals">
+            {SORT_OPTIONS.map(([key, label]) => <option key={key} value={key}>Sort: {label}</option>)}
+          </Select>
           {filtersActive && <button type="button" onClick={clearFilters} className="text-xs text-muted-foreground hover:text-foreground">Clear filters</button>}
           <span className="ml-auto text-xs text-muted-foreground">{filtered.length} deal{filtered.length === 1 ? "" : "s"}</span>
         </div>
@@ -202,15 +242,15 @@ export function PipelineDealsClient({
             {deals.length === 0 ? <>No deals yet. {canWrite && "Use “Add Deal” or “Add to Pipeline” to get started."}</> : "No deals match the current filters."}
           </div>
         ) : view === "list" ? (
-          <ListView deals={filtered} ownerName={ownerName} onOpen={openDeal} />
+          <ListView deals={ordered} ownerName={ownerName} onOpen={openDeal} />
         ) : view === "table" ? (
-          <TableView deals={filtered} ownerName={ownerName} onOpen={openDeal} />
+          <TableView deals={ordered} ownerName={ownerName} onOpen={openDeal} />
         ) : view === "kanban" ? (
-          <KanbanView deals={filtered} onOpen={openDeal} canWrite={canWrite} onMove={moveStage} />
+          <KanbanView deals={ordered} onOpen={openDeal} canWrite={canWrite} onMove={moveStage} />
         ) : view === "calendar" ? (
-          <CalendarView deals={filtered} onOpen={openDeal} />
+          <CalendarView deals={ordered} onOpen={openDeal} />
         ) : (
-          <MapView deals={filtered} onOpen={openDeal} />
+          <MapView deals={ordered} onOpen={openDeal} />
         )}
       </div>
 
@@ -474,17 +514,60 @@ function DealFormModal({
   const [form, setForm] = React.useState({
     title: "", contact_id: "", owner_id: "", source: "", estimated_value: "",
     target_start_date: "", next_action: "", next_action_due: "", notes: "",
+    street_address: "", city: "", state: "", zip: "",
   });
+  // New client details, entered inline instead of creating the contact first.
+  const [newContact, setNewContact] = React.useState(false);
+  const [client, setClient] = React.useState({ first_name: "", last_name: "", email: "", phone: "", company: "" });
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
+  const setClientField = (k: keyof typeof client, v: string) => setClient((c) => ({ ...c, [k]: v }));
 
   async function submit() {
     if (!form.title.trim()) { setError("Title is required."); return; }
+    if (newContact && !(client.first_name.trim() && client.last_name.trim() && client.email.trim())) {
+      setError("A new client needs a first name, last name and email.");
+      return;
+    }
     setSaving(true); setError(null);
+
+    // Create the contact first so the deal can link to it; the contact then
+    // exists under Contacts like any other.
+    let contactId = form.contact_id || null;
+    if (newContact) {
+      const res = await fetch("/api/contacts", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          first_name: client.first_name.trim(),
+          last_name: client.last_name.trim(),
+          email: client.email.trim(),
+          phone: client.phone || null,
+          company: client.company || null,
+          type: "Lead",
+          status: "active",
+          source: form.source || null,
+          address: form.street_address || null,
+          city: form.city || null,
+          state: form.state || null,
+          zip: form.zip || null,
+        }),
+      });
+      if (!res.ok) {
+        setSaving(false);
+        setError((await res.json().catch(() => ({}))).error || "Couldn't create the contact.");
+        return;
+      }
+      contactId = (await res.json())?.id ?? null;
+    }
+
     const payload = {
       title: form.title,
-      contact_id: form.contact_id || null,
+      contact_id: contactId,
+      street_address: form.street_address || null,
+      city: form.city || null,
+      state: form.state || null,
+      zip: form.zip || null,
       owner_id: form.owner_id || null,
       source: form.source || null,
       estimated_value: form.estimated_value === "" ? null : Number(form.estimated_value),
@@ -503,14 +586,49 @@ function DealFormModal({
     <ModalShell title={title} onClose={onClose}>
       <div className="space-y-3">
         <Field label="Deal title *"><Input value={form.title} onChange={(e) => set("title", e.target.value)} placeholder="e.g. Waters Residence — Kitchen remodel" /></Field>
-        <Field label="Contact">
-          <SearchableSelect
-            value={form.contact_id}
-            onChange={(v) => set("contact_id", v)}
-            options={contacts.map((c) => ({ value: c.id, label: c.label, sublabel: c.sub }))}
-            placeholder="Search contacts…"
+        <div className="space-y-2 rounded-lg border border-border p-3">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Client</span>
+            <label className="flex cursor-pointer items-center gap-2 text-xs">
+              <input type="checkbox" checked={newContact} onChange={(e) => { setNewContact(e.target.checked); if (e.target.checked) set("contact_id", ""); }} />
+              Add a new client
+            </label>
+          </div>
+          {newContact ? (
+            <>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="First name *"><Input value={client.first_name} onChange={(e) => setClientField("first_name", e.target.value)} /></Field>
+                <Field label="Last name *"><Input value={client.last_name} onChange={(e) => setClientField("last_name", e.target.value)} /></Field>
+                <Field label="Email *"><Input type="email" value={client.email} onChange={(e) => setClientField("email", e.target.value)} /></Field>
+                <Field label="Phone"><Input value={client.phone} onChange={(e) => setClientField("phone", e.target.value)} /></Field>
+              </div>
+              <Field label="Company"><Input value={client.company} onChange={(e) => setClientField("company", e.target.value)} /></Field>
+              <p className="text-[11px] text-muted-foreground">Saved to Contacts and linked to this deal. You can edit it there afterwards.</p>
+            </>
+          ) : (
+            <SearchableSelect
+              value={form.contact_id}
+              onChange={(v) => set("contact_id", v)}
+              options={contacts.map((c) => ({ value: c.id, label: c.label, sublabel: c.sub }))}
+              placeholder="Search contacts…"
+            />
+          )}
+        </div>
+        <div className="space-y-2 rounded-lg border border-border p-3">
+          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Project address</span>
+          <AddressAutocomplete
+            className="cmi-form-control h-9 w-full rounded-md border border-input bg-card px-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-accent focus:ring-2 focus:ring-ring"
+            value={form.street_address}
+            onChange={(v) => set("street_address", v)}
+            onPick={(a) => setForm((f) => ({ ...f, street_address: a.street, city: a.city || f.city, state: a.state || f.state, zip: a.zip || f.zip }))}
+            placeholder="Street address"
           />
-        </Field>
+          <div className="grid grid-cols-[1fr_5rem_6rem] gap-2">
+            <Input aria-label="City" placeholder="City" value={form.city} onChange={(e) => set("city", e.target.value)} />
+            <Input aria-label="State" placeholder="State" value={form.state} onChange={(e) => set("state", e.target.value)} />
+            <Input aria-label="ZIP" placeholder="ZIP" value={form.zip} onChange={(e) => set("zip", e.target.value)} />
+          </div>
+        </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Owner">
             <Select value={form.owner_id} onChange={(e) => set("owner_id", e.target.value)}>

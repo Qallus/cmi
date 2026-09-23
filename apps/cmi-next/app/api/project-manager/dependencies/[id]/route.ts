@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { denyUnlessStaff } from "@/lib/auth/guard";
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await denyUnlessStaff(); if (denied) return denied;
+
   try {
     const { id } = await params;
     const body = await request.json();
@@ -20,6 +23,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 }
 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await denyUnlessStaff(); if (denied) return denied;
+
   try {
     const { id } = await params;
     const supabase = getSupabaseAdmin();

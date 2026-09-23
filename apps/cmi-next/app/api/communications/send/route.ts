@@ -3,8 +3,11 @@ import { logMessage } from "@/lib/communications/data";
 import { isSuppressed } from "@/lib/messaging/consent";
 import type { Message } from "@/lib/communications/types";
 import type { SendCallPayload, SendEmailPayload, SendSmsPayload } from "@/lib/communications/types";
+import { denyUnlessStaff } from "@/lib/auth/guard";
 
 export async function POST(req: Request) {
+  const denied = await denyUnlessStaff(); if (denied) return denied;
+
   try {
     const body = await req.json() as { channel: "email" | "sms" | "call" } & (SendEmailPayload | SendSmsPayload | SendCallPayload);
     const { channel } = body;

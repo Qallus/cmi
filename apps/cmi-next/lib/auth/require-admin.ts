@@ -1,7 +1,25 @@
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { cookies } from "next/headers";
 import type { NextRequest } from "next/server";
+import {
+  SESSION_COOKIE, REFRESH_COOKIE, SESSION_MAX_AGE, REFRESH_MAX_AGE, cookieOptions, needsRefresh, refreshSession,
+} from "@/lib/auth/tokens";
 
-const SESSION_COOKIE = "cmi-session";
+// Swap an expiring access token for a fresh one and write both cookies back.
+// Route handlers may set cookies; server components can't, so failures here
+// are ignored (middleware persists them on the next navigation).
+async function tryRefresh(cookieHeader: string): Promise<string | null> {
+  const refreshToken = parseCookie(cookieHeader, REFRESH_COOKIE);
+  if (!refreshToken) return null;
+  const next = await refreshSession(refreshToken);
+  if (!next) return null;
+  try {
+    const jar = await cookies();
+    jar.set(SESSION_COOKIE, next.access_token, cookieOptions(SESSION_MAX_AGE));
+    jar.set(REFRESH_COOKIE, next.refresh_token, cookieOptions(REFRESH_MAX_AGE));
+  } catch { /* read-only context — the token is still usable for this request */ }
+  return next.access_token;
+}
 
 export class AuthError extends Error {
   status: number;
@@ -13,14 +31,24 @@ export class AuthError extends Error {
 
 export async function requireAdmin(request: Request | NextRequest) {
   const cookieHeader = (request as Request).headers.get("cookie") ?? "";
-  const token = parseCookie(cookieHeader, SESSION_COOKIE);
+  let token = parseCookie(cookieHeader, SESSION_COOKIE);
 
+  // Refresh ahead of expiry so a long-running screen doesn't fail mid-action.
+  if (!token || needsRefresh(token)) {
+    token = (await tryRefresh(cookieHeader)) ?? token;
+  }
   if (!token) {
     throw new AuthError("Unauthorized — no session.", 401);
   }
 
   const supabase = getSupabaseAdmin();
-  const { data: { user }, error } = await supabase.auth.getUser(token);
+  let { data: { user }, error } = await supabase.auth.getUser(token);
+
+  // Token rejected (e.g. expired between checks): one more refresh attempt.
+  if (error || !user) {
+    const fresh = await tryRefresh(cookieHeader);
+    if (fresh) ({ data: { user }, error } = await supabase.auth.getUser(fresh));
+  }
 
   if (error || !user) {
     throw new AuthError("Unauthorized — invalid or expired session.", 401);

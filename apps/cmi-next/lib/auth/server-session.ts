@@ -1,7 +1,8 @@
 import { cookies } from "next/headers";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-
-const SESSION_COOKIE = "cmi-session";
+import {
+  SESSION_COOKIE, REFRESH_COOKIE, SESSION_MAX_AGE, REFRESH_MAX_AGE, cookieOptions, needsRefresh, refreshSession,
+} from "@/lib/auth/tokens";
 
 export type SessionStaff = {
   id: string;
@@ -18,7 +19,21 @@ export type SessionStaff = {
  */
 export async function getSessionStaff(): Promise<SessionStaff | null> {
   const store = await cookies();
-  const token = store.get(SESSION_COOKIE)?.value;
+  let token = store.get(SESSION_COOKIE)?.value;
+  const refreshToken = store.get(REFRESH_COOKIE)?.value;
+
+  // Middleware refreshes on navigation; this covers the gap for server
+  // components rendered from a stale token.
+  if (refreshToken && (!token || needsRefresh(token))) {
+    const next = await refreshSession(refreshToken);
+    if (next) {
+      token = next.access_token;
+      try {
+        store.set(SESSION_COOKIE, next.access_token, cookieOptions(SESSION_MAX_AGE));
+        store.set(REFRESH_COOKIE, next.refresh_token, cookieOptions(REFRESH_MAX_AGE));
+      } catch { /* server components can't set cookies; middleware will */ }
+    }
+  }
   if (!token) return null;
 
   const supabase = getSupabaseAdmin();

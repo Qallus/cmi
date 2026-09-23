@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { decorateScheduleItems } from "@/lib/project-manager/data";
 import type { ProjectScheduleItem } from "@/lib/project-manager/types";
+import { denyUnlessStaff } from "@/lib/auth/guard";
 
 const statuses = new Set(["pending", "scheduled", "in_progress", "waiting", "delayed", "blocked", "needs_approval", "complete", "canceled"]);
 const priorities = new Set(["low", "normal", "high", "urgent", "critical", "blocking_closeout"]);
@@ -54,6 +55,8 @@ function normalizeItem(body: Record<string, unknown>) {
 }
 
 export async function GET(request: NextRequest) {
+  const denied = await denyUnlessStaff(); if (denied) return denied;
+
   try {
     const supabase = getSupabaseAdmin();
     const boardId = request.nextUrl.searchParams.get("board_id") || "default";
@@ -72,6 +75,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const denied = await denyUnlessStaff(); if (denied) return denied;
+
   try {
     const supabase = getSupabaseAdmin();
     const payload = normalizeItem(await request.json());

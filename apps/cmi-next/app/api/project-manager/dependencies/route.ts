@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { denyUnlessStaff } from "@/lib/auth/guard";
 
 const dependencyTypes = new Set(["finish_to_start", "start_to_start", "finish_to_finish", "start_to_finish"]);
 
@@ -22,6 +23,8 @@ function normalizeDependency(body: Record<string, unknown>) {
 }
 
 export async function GET(request: NextRequest) {
+  const denied = await denyUnlessStaff(); if (denied) return denied;
+
   try {
     const supabase = getSupabaseAdmin();
     const boardId = request.nextUrl.searchParams.get("board_id") || "default";
@@ -38,6 +41,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const denied = await denyUnlessStaff(); if (denied) return denied;
+
   try {
     const supabase = getSupabaseAdmin();
     const payload = normalizeDependency(await request.json());

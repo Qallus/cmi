@@ -395,3 +395,31 @@ export async function deleteChecklistItem(id: string): Promise<void> {
   const { error } = await getSupabaseAdmin().from("deal_checklist_items").delete().eq("id", id);
   if (error) throw new Error(error.message);
 }
+
+// ─── Activity editing ─────────────────────────────────────────────
+// Timeline entries (notes especially) can be corrected after posting. The
+// author or an admin may edit; edited_at drives the "(edited)" marker.
+export async function getActivity(id: string): Promise<Activity | null> {
+  const { data, error } = await getSupabaseAdmin().from("activities").select("*").eq("id", id).maybeSingle();
+  if (error) throw new Error(error.message);
+  return (data as Activity) ?? null;
+}
+
+export async function updateActivity(
+  id: string,
+  patch: { summary?: string | null; body?: string | null; occurred_at?: string },
+  actor: { id: string },
+): Promise<Activity> {
+  const next: Record<string, unknown> = { edited_at: new Date().toISOString(), edited_by: actor.id };
+  if ("summary" in patch) next.summary = patch.summary?.toString().trim() || null;
+  if ("body" in patch) next.body = patch.body?.toString().trim() || null;
+  if (patch.occurred_at) next.occurred_at = patch.occurred_at;
+  const { data, error } = await getSupabaseAdmin().from("activities").update(next).eq("id", id).select().single();
+  if (error) throw new Error(error.message);
+  return data as Activity;
+}
+
+export async function deleteActivity(id: string): Promise<void> {
+  const { error } = await getSupabaseAdmin().from("activities").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+}

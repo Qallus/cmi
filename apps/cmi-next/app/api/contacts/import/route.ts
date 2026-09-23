@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import type { ContactDraft } from "@/lib/contacts/types";
+import { denyUnlessStaff } from "@/lib/auth/guard";
 
 export async function POST(req: Request) {
+  const denied = await denyUnlessStaff(); if (denied) return denied;
+
   try {
     const { contacts, duplicateAction = "skip" } = await req.json() as {
       contacts: ContactDraft[];

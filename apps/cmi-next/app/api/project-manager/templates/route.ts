@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { denyUnlessStaff } from "@/lib/auth/guard";
 
 export async function GET() {
+  const denied = await denyUnlessStaff(); if (denied) return denied;
+
   try {
     const supabase = getSupabaseAdmin();
     const [templates, tasks] = await Promise.all([

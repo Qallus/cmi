@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { denyUnlessStaff } from "@/lib/auth/guard";
 
 const mediaTypes = new Set(["photo", "video"]);
 const captureSources = new Set(["upload", "front_camera", "rear_camera", "unknown"]);
@@ -19,6 +20,8 @@ function nullableUuid(value: unknown) {
 }
 
 export async function POST(request: NextRequest) {
+  const denied = await denyUnlessStaff(); if (denied) return denied;
+
   try {
     const supabase = getSupabaseAdmin();
     const body = await request.json();

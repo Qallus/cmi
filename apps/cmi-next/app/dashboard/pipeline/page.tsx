@@ -1,5 +1,6 @@
 import "leaflet/dist/leaflet.css";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { loadAssignableStaff } from "@/lib/staff/assignable";
 import { getSessionStaff } from "@/lib/auth/server-session";
 import { loadDeals } from "@/lib/deals/data";
 import type { Deal } from "@/lib/deals/types";
@@ -27,7 +28,7 @@ export default async function PipelinePage() {
   try {
     const [dealsRes, staffRes, contactsRes, quotesRes, subsRes, tasksRes] = await Promise.all([
       loadDeals(),
-      supabase.from("staff_users").select("id, display_name, first_name, last_name").eq("status", "active").order("display_name"),
+      loadAssignableStaff(),
       supabase.from("contacts").select("id, first_name, last_name, email, company").order("created_at", { ascending: false }).limit(500),
       supabase.from("quotes").select("id, name, email, project_type").order("created_at", { ascending: false }).limit(500),
       supabase.from("contact_submissions").select("id, first_name, last_name, email, subject").neq("status", "archived").order("submitted_at", { ascending: false }).limit(500),
@@ -35,10 +36,7 @@ export default async function PipelinePage() {
     ]);
     deals = dealsRes;
     openTasks = tasksRes.count ?? 0;
-    owners = (staffRes.data ?? []).map((s) => ({
-      id: s.id,
-      name: s.display_name || `${s.first_name ?? ""} ${s.last_name ?? ""}`.trim() || "Staff",
-    }));
+    owners = staffRes.map((s) => ({ id: s.id, name: s.name }));
     contacts = (contactsRes.data ?? []).map((c) => ({
       id: c.id,
       label: `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || c.company || c.email || "Contact",

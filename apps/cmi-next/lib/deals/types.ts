@@ -117,6 +117,8 @@ export type Activity = {
   created_by_name: string | null;
   occurred_at: string;
   metadata: Record<string, unknown>;
+  edited_at: string | null;
+  edited_by: string | null;
   created_at: string;
 };
 

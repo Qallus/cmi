@@ -2,8 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { addDays, dateOnly } from "@/lib/utils";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import type { ProjectTemplateTask } from "@/lib/project-manager/types";
+import { denyUnlessStaff } from "@/lib/auth/guard";
 
 export async function POST(request: NextRequest) {
+  const denied = await denyUnlessStaff(); if (denied) return denied;
+
   try {
     const body = await request.json();
     const templateId = String(body.template_id || "");

@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { updateContact, deleteContact } from "@/lib/contacts/data";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { denyUnlessStaff } from "@/lib/auth/guard";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await denyUnlessStaff(); if (denied) return denied;
+
   try {
     const { id } = await params;
     const { data, error } = await getSupabaseAdmin().from("contacts").select("*").eq("id", id).maybeSingle();
@@ -15,6 +18,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await denyUnlessStaff(); if (denied) return denied;
+
   try {
     const { id } = await params;
     const body = await req.json();
@@ -26,6 +31,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await denyUnlessStaff(); if (denied) return denied;
+
   try {
     const { id } = await params;
     await deleteContact(id);

@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { loadAssignableStaff } from "@/lib/staff/assignable";
 import { getSessionStaff } from "@/lib/auth/server-session";
 import { getDeal, loadActivities, loadDealTasks, loadStageHistory, loadChecklistProgress, loadChecklistItems } from "@/lib/deals/data";
 import type { Activity, Deal, DealChecklistItem, DealChecklistProgress, DealStageHistoryRow, DealTask } from "@/lib/deals/types";
@@ -35,13 +36,13 @@ export default async function DealDetailPage({ params }: { params: Promise<{ id:
       loadChecklistProgress(id),
       loadChecklistItems(id),
     ]);
-    const [{ data: staffRows }, contactRes] = await Promise.all([
-      supabase.from("staff_users").select("id, display_name, first_name, last_name").eq("status", "active").order("display_name"),
+    const [staffRows, contactRes] = await Promise.all([
+      loadAssignableStaff(),
       (deal as Deal).contact_id
         ? supabase.from("contacts").select("id, first_name, last_name, email, phone, company, type, tags").eq("id", (deal as Deal).contact_id as string).maybeSingle()
         : Promise.resolve({ data: null }),
     ]);
-    owners = (staffRows ?? []).map((s) => ({ id: s.id, name: s.display_name || `${s.first_name ?? ""} ${s.last_name ?? ""}`.trim() || "Staff" }));
+    owners = staffRows.map((s) => ({ id: s.id, name: s.name }));
     const c = contactRes.data as Record<string, unknown> | null;
     if (c) {
       contact = {

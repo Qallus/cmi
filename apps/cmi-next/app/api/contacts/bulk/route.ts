@@ -2,10 +2,13 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { CONTACT_TYPES, type ContactType } from "@/lib/contacts/types";
+import { denyUnlessStaff } from "@/lib/auth/guard";
 
 export const dynamic = "force-dynamic";
 
 export async function PATCH(request: Request) {
+  const denied = await denyUnlessStaff(); if (denied) return denied;
+
   const body = (await request.json().catch(() => ({}))) as {
     ids?: string[];
     patch?: { type?: ContactType; status?: string };

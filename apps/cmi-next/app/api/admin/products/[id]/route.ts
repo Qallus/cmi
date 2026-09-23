@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { denyUnlessStaff } from "@/lib/auth/guard";
 
 function text(value: unknown) {
   const next = String(value || "").trim();
@@ -25,6 +26,8 @@ async function upsertVendor(supabase: ReturnType<typeof getSupabaseAdmin>, vendo
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await denyUnlessStaff(); if (denied) return denied;
+
   try {
     const { id } = await params;
     const supabase = getSupabaseAdmin();
@@ -72,6 +75,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 }
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await denyUnlessStaff(); if (denied) return denied;
+
   try {
     const { id } = await params;
     const supabase = getSupabaseAdmin();

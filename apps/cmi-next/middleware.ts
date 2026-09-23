@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-
-const SESSION_COOKIE = "cmi-session";
+import {
+  SESSION_COOKIE, REFRESH_COOKIE, SESSION_MAX_AGE, REFRESH_MAX_AGE, cookieOptions, needsRefresh, refreshSession,
+} from "@/lib/auth/tokens";
 const CLIENT_SESSION_COOKIE = "cmi-client-session";
 const PUBLIC_PATHS = ["/login", "/api/auth", "/api/health", "/_next", "/favicon", "/brand"];
 // Client-portal paths that must stay reachable without a client session.
@@ -15,7 +16,7 @@ const LANDING_HOSTS: Record<string, string> = {
   "www.constructionsucks.com": "/lp/construction-sucks",
 };
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // ── Campaign landing domains (serve their page at "/") ──
@@ -44,6 +45,27 @@ export function middleware(request: NextRequest) {
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) return NextResponse.next();
 
   const session = request.cookies.get(SESSION_COOKIE);
+  const refresh = request.cookies.get(REFRESH_COOKIE);
+
+  // Access token about to expire (or already gone) but we still hold a refresh
+  // token: mint a new session so the page — and the API calls it makes — keep
+  // working. The refreshed token is passed downstream on this same request.
+  if (refresh?.value && (!session?.value || needsRefresh(session.value))) {
+    const next = await refreshSession(refresh.value);
+    if (next) {
+      const headers = new Headers(request.headers);
+      const jar = request.cookies;
+      jar.set(SESSION_COOKIE, next.access_token);
+      jar.set(REFRESH_COOKIE, next.refresh_token);
+      headers.set("cookie", jar.toString());
+      const response = NextResponse.next({ request: { headers } });
+      response.cookies.set(SESSION_COOKIE, next.access_token, cookieOptions(SESSION_MAX_AGE));
+      response.cookies.set(REFRESH_COOKIE, next.refresh_token, cookieOptions(REFRESH_MAX_AGE));
+      return response;
+    }
+    // Refresh token is spent — fall through to the login redirect below.
+  }
+
   if (!session?.value) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("redirectTo", pathname);

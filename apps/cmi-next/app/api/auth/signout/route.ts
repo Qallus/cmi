@@ -1,15 +1,10 @@
 import { NextResponse } from "next/server";
-
-const SESSION_COOKIE = "cmi-session";
+import { SESSION_COOKIE, REFRESH_COOKIE, cookieOptions } from "@/lib/auth/tokens";
 
 export async function POST() {
   const response = NextResponse.json({ ok: true });
-  response.cookies.set(SESSION_COOKIE, "", {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
-    maxAge: 0,
-    path: "/",
-  });
+  for (const name of [SESSION_COOKIE, REFRESH_COOKIE]) {
+    response.cookies.set(name, "", cookieOptions(0));
+  }
   return response;
 }

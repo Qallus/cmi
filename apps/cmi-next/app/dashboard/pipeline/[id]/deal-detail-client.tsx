@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft, Phone, Mail, MessageSquare, CalendarClock, StickyNote, Mic, Sparkles,
   FolderKanban, FileText, ScrollText, FileSignature, Package, ReceiptText, Trophy,
-  Ban, Check, ChevronRight, Loader2, X, Pencil, CircleDot, Circle, CheckCircle2,
+  Ban, Check, ChevronRight, Loader2, X, Pencil, Trash2, CircleDot, Circle, CheckCircle2,
   Clock, ArrowRight, Plus, Maximize2, Minimize2,
 } from "lucide-react";
 import Link from "next/link";
@@ -82,6 +82,40 @@ export function DealDetailClient({
   const [newItem, setNewItem] = React.useState("");
 
   const ownerName = (id: string | null) => owners.find((o) => o.id === id)?.name ?? "Unassigned";
+
+  // Timeline entries can be corrected after posting (author or admin; the API
+  // enforces it and stamps edited_at).
+  const [editingActivity, setEditingActivity] = React.useState<string | null>(null);
+  const [editDraft, setEditDraft] = React.useState<{ summary: string; body: string }>({ summary: "", body: "" });
+  const [editBusy, setEditBusy] = React.useState(false);
+  const [editError, setEditError] = React.useState<string | null>(null);
+
+  function startEditActivity(a: Activity) {
+    setEditingActivity(a.id);
+    setEditDraft({ summary: a.summary ?? "", body: a.body ?? "" });
+    setEditError(null);
+  }
+  async function saveActivityEdit(a: Activity) {
+    setEditBusy(true); setEditError(null);
+    const res = await fetch(`/api/deals/${deal.id}/activities/${a.id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ summary: editDraft.summary, body: editDraft.body }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (res.ok) {
+      setActivities((prev) => prev.map((x) => (x.id === a.id ? { ...x, ...json } : x)));
+      setEditingActivity(null);
+    } else {
+      setEditError(json.error ?? "Couldn't save the change.");
+    }
+    setEditBusy(false);
+  }
+  async function deleteActivityEntry(a: Activity) {
+    if (!window.confirm("Delete this timeline entry? This can't be undone.")) return;
+    const res = await fetch(`/api/deals/${deal.id}/activities/${a.id}`, { method: "DELETE" });
+    if (res.ok) setActivities((prev) => prev.filter((x) => x.id !== a.id));
+    else setEditError((await res.json().catch(() => ({}))).error ?? "Couldn't delete the entry.");
+  }
 
   const refresh = React.useCallback(async () => {
     const [d, a, t, h, c, ci] = await Promise.all([
@@ -369,12 +403,32 @@ export function DealDetailClient({
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-sm font-medium">{a.summary || M.label}</span>
-                          <span className="shrink-0 text-[11px] text-muted-foreground">{fmtWhen(a.occurred_at)}</span>
+                          <span className="flex shrink-0 items-center gap-1.5 text-[11px] text-muted-foreground">
+                            {fmtWhen(a.occurred_at)}
+                            {canWrite && editingActivity !== a.id && (
+                              <>
+                                <button type="button" title="Edit entry" aria-label="Edit entry" onClick={() => startEditActivity(a)} className="rounded p-0.5 hover:bg-muted hover:text-foreground"><Pencil className="h-3 w-3" /></button>
+                                <button type="button" title="Delete entry" aria-label="Delete entry" onClick={() => void deleteActivityEntry(a)} className="rounded p-0.5 hover:bg-destructive/10 hover:text-destructive"><Trash2 className="h-3 w-3" /></button>
+                              </>
+                            )}
+                          </span>
                         </div>
-                        {a.type === "voice_note" && (a.metadata?.audio_url || a.body)
+                        {editingActivity === a.id ? (
+                          <div className="mt-1.5 space-y-1.5">
+                            <Input value={editDraft.summary} placeholder="Summary" onChange={(e) => setEditDraft((d) => ({ ...d, summary: e.target.value }))} />
+                            <Textarea value={editDraft.body} placeholder="Details" className="min-h-[70px]" onChange={(e) => setEditDraft((d) => ({ ...d, body: e.target.value }))} />
+                            {editError && <p role="alert" className="text-[11px] text-destructive">{editError}</p>}
+                            <div className="flex gap-2">
+                              <Button size="sm" variant="accent" disabled={editBusy} onClick={() => void saveActivityEdit(a)}>{editBusy ? "Saving…" : "Save"}</Button>
+                              <Button size="sm" variant="outline" disabled={editBusy} onClick={() => setEditingActivity(null)}>Cancel</Button>
+                            </div>
+                          </div>
+                        ) : a.type === "voice_note" && (a.metadata?.audio_url || a.body)
                           ? <audio controls src={String(a.metadata?.audio_url ?? a.body)} className="mt-1 h-8 w-full max-w-xs" />
                           : a.body && <p className="mt-0.5 whitespace-pre-wrap text-sm text-muted-foreground">{a.body}</p>}
-                        <div className="mt-0.5 text-[11px] text-muted-foreground">{M.label}{a.created_by_name ? ` · ${a.created_by_name}` : ""}</div>
+                        <div className="mt-0.5 text-[11px] text-muted-foreground">
+                          {M.label}{a.created_by_name ? ` · ${a.created_by_name}` : ""}{a.edited_at ? " · edited" : ""}
+                        </div>
                       </div>
                     </li>
                   );

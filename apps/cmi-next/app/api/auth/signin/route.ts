@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-
-const SESSION_COOKIE = "cmi-session";
-const COOKIE_MAX_AGE = 60 * 60 * 8; // 8 hours
+import { SESSION_COOKIE, REFRESH_COOKIE, SESSION_MAX_AGE, REFRESH_MAX_AGE, cookieOptions } from "@/lib/auth/tokens";
 
 export async function POST(request: NextRequest) {
   try {
@@ -35,13 +33,12 @@ export async function POST(request: NextRequest) {
     }
 
     const response = NextResponse.json({ ok: true });
-    response.cookies.set(SESSION_COOKIE, data.session.access_token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: COOKIE_MAX_AGE,
-      path: "/",
-    });
+    // Access token expires in ~1 hour; the refresh token keeps the session
+    // alive so staff aren't signed out mid-task.
+    response.cookies.set(SESSION_COOKIE, data.session.access_token, cookieOptions(SESSION_MAX_AGE));
+    if (data.session.refresh_token) {
+      response.cookies.set(REFRESH_COOKIE, data.session.refresh_token, cookieOptions(REFRESH_MAX_AGE));
+    }
 
     return response;
   } catch {
