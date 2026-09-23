@@ -31,7 +31,12 @@ type NavItem =
 // optional `children` list that expands/collapses via the +/- toggle.
 const nav: NavItem[] = [
   { href: "/dashboard/overview",       label: "Overview",       icon: Home },
-  { href: "/dashboard/contacts",       label: "Contacts",       icon: Users,          roles: ["super_admin", "admin", "project_manager", "estimator"] },
+  {
+    href: "/dashboard/contacts",       label: "Contacts",       icon: Users,          roles: ["super_admin", "admin", "project_manager", "estimator"],
+    children: [
+      { href: "/dashboard/trade-partners", label: "Trade Partners", icon: HandshakeIcon, roles: ["super_admin", "admin", "project_manager", "estimator"], flag: "prequalification" },
+    ],
+  },
   { href: "/dashboard/project-manager",label: "Projects",       icon: FolderKanban,   roles: ["super_admin", "admin", "project_manager", "designer", "estimator", "superintendent", "subcontractor", "client"] },
   { href: "/dashboard/selections",     label: "Selections",     icon: Package,        roles: ["super_admin", "admin", "project_manager", "designer", "client"] },
   {
@@ -50,7 +55,6 @@ const nav: NavItem[] = [
     ],
   },
   { href: "/dashboard/take-off",       label: "Take-Off",       icon: Ruler, roles: ["super_admin", "admin", "project_manager", "staff", "estimator"], flag: "take_off" },
-  { href: "/dashboard/trade-partners", label: "Trade Partners", icon: HandshakeIcon, roles: ["super_admin", "admin", "project_manager", "estimator"], flag: "prequalification" },
   {
     href: "/dashboard/jobs",           label: "Jobs",           icon: HardHat,        roles: ["super_admin", "admin", "project_manager", "estimator", "superintendent", "designer"],
     children: [

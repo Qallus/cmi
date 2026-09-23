@@ -64,10 +64,13 @@ export function TradePartnersClient({
   }, []);
 
   return (
-    <div className="space-y-5">
+    // Page padding and header typography follow the house pattern (see Selections):
+    // the dashboard layout supplies no gutter, so every page brings its own.
+    <div className="space-y-5 p-4 md:p-6">
       <header>
-        <h1 className="font-serif text-2xl">Trade Partners</h1>
-        <p className="text-sm text-muted-foreground">
+        <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-accent">Prequalification</div>
+        <h1 className="mt-2 font-display text-2xl font-semibold tracking-tight">Trade Partners</h1>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
           Prequalification applications, the partner directory, and what&apos;s missing or expiring.
         </p>
       </header>
@@ -112,12 +115,12 @@ export function TradePartnersClient({
 
 function Stat({ icon: Icon, label, value, tone }: { icon: typeof Inbox; label: string; value: number; tone: string }) {
   return (
-    <div className="rounded-lg border border-border bg-card p-3">
+    <div className="rounded-lg border border-border bg-card p-4">
       <div className="flex items-center justify-between">
-        <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
+        <span className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{label}</span>
         <Icon className={cn("h-4 w-4", tone)} />
       </div>
-      <p className="mt-1 font-display text-2xl font-semibold">{value}</p>
+      <p className="mt-3 text-2xl font-semibold">{value}</p>
     </div>
   );
 }
