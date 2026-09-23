@@ -341,6 +341,12 @@ export async function createDealTask(draft: DealTaskDraft, actor?: Actor): Promi
   return data as DealTask;
 }
 
+export async function deleteDealTask(id: string): Promise<void> {
+  const supabase = getSupabaseAdmin();
+  const { error } = await supabase.from("deal_tasks").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
 export async function updateDealTask(id: string, patch: Partial<DealTaskDraft>): Promise<DealTask> {
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase.from("deal_tasks").update(patch).eq("id", id).select().single();

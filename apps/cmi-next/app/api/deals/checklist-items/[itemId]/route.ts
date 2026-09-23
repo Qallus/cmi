@@ -2,13 +2,13 @@
 import { NextResponse } from "next/server";
 import { requireAdmin, AuthError } from "@/lib/auth/require-admin";
 import { updateChecklistItem, deleteChecklistItem } from "@/lib/deals/data";
+import { canWriteDeals } from "@/lib/deals/roles";
 
-const WRITE_ROLES = ["super_admin", "admin", "project_manager", "estimator"];
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ itemId: string }> }) {
   try {
     const { staff } = await requireAdmin(request);
-    if (!WRITE_ROLES.includes(staff.role_slug)) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+    if (!canWriteDeals(staff.role_slug)) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
     const { itemId } = await params;
     const body = await request.json() as { label?: string; done?: boolean };
     return NextResponse.json({ item: await updateChecklistItem(itemId, body, { id: staff.id }) });
@@ -21,7 +21,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ it
 export async function DELETE(request: Request, { params }: { params: Promise<{ itemId: string }> }) {
   try {
     const { staff } = await requireAdmin(request);
-    if (!WRITE_ROLES.includes(staff.role_slug)) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+    if (!canWriteDeals(staff.role_slug)) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
     const { itemId } = await params;
     await deleteChecklistItem(itemId);
     return NextResponse.json({ ok: true });

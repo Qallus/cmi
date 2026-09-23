@@ -2,8 +2,8 @@
 import { NextResponse } from "next/server";
 import { requireAdmin, AuthError } from "@/lib/auth/require-admin";
 import { loadChecklistProgress, setChecklistItem } from "@/lib/deals/data";
+import { canWriteDeals } from "@/lib/deals/roles";
 
-const WRITE_ROLES = ["super_admin", "admin", "project_manager", "estimator"];
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -19,7 +19,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { staff } = await requireAdmin(request);
-    if (!WRITE_ROLES.includes(staff.role_slug)) {
+    if (!canWriteDeals(staff.role_slug)) {
       return NextResponse.json({ error: `Your role (${staff.role_slug}) can't update the checklist.` }, { status: 403 });
     }
     const { id } = await params;

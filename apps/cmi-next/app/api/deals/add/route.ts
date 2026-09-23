@@ -5,8 +5,8 @@ import { NextResponse } from "next/server";
 import { requireAdmin, AuthError } from "@/lib/auth/require-admin";
 import { addContactToPipeline, addQuoteToPipeline, addSubmissionToPipeline, type AddResult } from "@/lib/deals/data";
 import type { DealDraft } from "@/lib/deals/types";
+import { canWriteDeals } from "@/lib/deals/roles";
 
-const WRITE_ROLES = ["super_admin", "admin", "project_manager", "estimator"];
 
 type Body = {
   source_type: "contact" | "quote" | "contact_submission";
@@ -17,7 +17,7 @@ type Body = {
 export async function POST(request: Request) {
   try {
     const { user, staff } = await requireAdmin(request);
-    if (!WRITE_ROLES.includes(staff.role_slug)) {
+    if (!canWriteDeals(staff.role_slug)) {
       return NextResponse.json({ error: `Your role (${staff.role_slug}) can't add to the pipeline.` }, { status: 403 });
     }
     const body = (await request.json()) as Body;

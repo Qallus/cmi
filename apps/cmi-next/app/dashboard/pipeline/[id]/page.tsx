@@ -5,11 +5,11 @@ import { getSessionStaff } from "@/lib/auth/server-session";
 import { getDeal, loadActivities, loadDealTasks, loadStageHistory, loadChecklistProgress, loadChecklistItems } from "@/lib/deals/data";
 import type { Activity, Deal, DealChecklistItem, DealChecklistProgress, DealStageHistoryRow, DealTask } from "@/lib/deals/types";
 import { DealDetailClient, type DealContact, type OwnerOption } from "./deal-detail-client";
+import { canWriteDeals } from "@/lib/deals/roles";
 
 export const metadata = { title: "Deal — CMI Pipeline" };
 export const dynamic = "force-dynamic";
 
-const WRITE_ROLES = ["super_admin", "admin", "project_manager", "estimator"];
 
 export default async function DealDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -17,7 +17,7 @@ export default async function DealDetailPage({ params }: { params: Promise<{ id:
   if (!deal) notFound();
 
   const staff = await getSessionStaff();
-  const canWrite = !!staff && WRITE_ROLES.includes(staff.role_slug);
+  const canWrite = !!staff && canWriteDeals(staff.role_slug);
   const supabase = getSupabaseAdmin();
 
   let contact: DealContact | null = null;

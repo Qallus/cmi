@@ -30,6 +30,12 @@ const money = (n: number | null | undefined) =>
   n == null ? "—" : n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 const fmtDate = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—");
 const fmtWhen = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "");
+// <input type="datetime-local"> wants local wall-clock time, not a UTC ISO string.
+const toLocalInput = (iso: string) => {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
 const daysSince = (iso: string | null | undefined) => (iso ? Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000)) : null);
 
 const ACTIVITY_META: Record<ActivityType, { icon: typeof Phone; label: string }> = {
@@ -110,6 +116,50 @@ export function DealDetailClient({
     }
     setEditBusy(false);
   }
+  // Tasks live in the same timeline, so they get the same edit affordance.
+  const [editingTask, setEditingTask] = React.useState<string | null>(null);
+  const [taskDraft, setTaskDraft] = React.useState<{ title: string; description: string; due: string; assigned_to: string }>(
+    { title: "", description: "", due: "", assigned_to: "" });
+
+  function startEditTask(t: DealTask) {
+    setEditingTask(t.id);
+    setTaskDraft({
+      title: t.title ?? "",
+      description: t.description ?? "",
+      // datetime-local wants a local "YYYY-MM-DDTHH:mm", not the stored UTC ISO.
+      due: t.due_at ? toLocalInput(t.due_at) : "",
+      assigned_to: t.assigned_to ?? "",
+    });
+    setEditError(null);
+  }
+  async function saveTaskEdit(t: DealTask) {
+    if (!taskDraft.title.trim()) { setEditError("Task title is required."); return; }
+    setEditBusy(true); setEditError(null);
+    const res = await fetch(`/api/deals/tasks/${t.id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: taskDraft.title,
+        description: taskDraft.description || null,
+        due_at: taskDraft.due ? new Date(taskDraft.due).toISOString() : null,
+        assigned_to: taskDraft.assigned_to || null,
+      }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (res.ok) {
+      setTasks((prev) => prev.map((x) => (x.id === t.id ? { ...x, ...json } : x)));
+      setEditingTask(null);
+    } else {
+      setEditError(json.error ?? "Couldn't save the task.");
+    }
+    setEditBusy(false);
+  }
+  async function deleteTaskEntry(t: DealTask) {
+    if (!window.confirm("Delete this task? This can't be undone.")) return;
+    const res = await fetch(`/api/deals/tasks/${t.id}`, { method: "DELETE" });
+    if (res.ok) setTasks((prev) => prev.filter((x) => x.id !== t.id));
+    else setEditError((await res.json().catch(() => ({}))).error ?? "Couldn't delete the task.");
+  }
+
   async function deleteActivityEntry(a: Activity) {
     if (!window.confirm("Delete this timeline entry? This can't be undone.")) return;
     const res = await fetch(`/api/deals/${deal.id}/activities/${a.id}`, { method: "DELETE" });
@@ -389,10 +439,39 @@ export function DealDetailClient({
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
                         <span className={cn("text-sm font-medium", item.t.completed_at && "text-muted-foreground line-through")}>{item.t.title}</span>
-                        <span className="shrink-0 text-[11px] text-muted-foreground">{fmtWhen(item.t.created_at)}</span>
+                        <span className="flex shrink-0 items-center gap-1.5 text-[11px] text-muted-foreground">
+                          {fmtWhen(item.t.created_at)}
+                          {canWrite && editingTask !== item.t.id && (
+                            <>
+                              <button type="button" title="Edit task" aria-label="Edit task" onClick={() => startEditTask(item.t)} className="rounded p-0.5 hover:bg-muted hover:text-foreground"><Pencil className="h-3 w-3" /></button>
+                              <button type="button" title="Delete task" aria-label="Delete task" onClick={() => void deleteTaskEntry(item.t)} className="rounded p-0.5 hover:bg-destructive/10 hover:text-destructive"><Trash2 className="h-3 w-3" /></button>
+                            </>
+                          )}
+                        </span>
                       </div>
-                      {item.t.description && <p className="mt-0.5 whitespace-pre-wrap text-sm text-muted-foreground">{item.t.description}</p>}
-                      <div className="mt-0.5 text-[11px] text-muted-foreground">Task{item.t.due_at ? ` · due ${fmtDate(item.t.due_at)}` : ""}{item.t.assigned_to ? ` · ${ownerName(item.t.assigned_to)}` : ""}</div>
+                      {editingTask === item.t.id ? (
+                        <div className="mt-1.5 space-y-1.5">
+                          <Input value={taskDraft.title} placeholder="Task title" onChange={(e) => setTaskDraft((d) => ({ ...d, title: e.target.value }))} />
+                          <Textarea value={taskDraft.description} placeholder="Details" className="min-h-[60px]" onChange={(e) => setTaskDraft((d) => ({ ...d, description: e.target.value }))} />
+                          <div className="grid gap-1.5 sm:grid-cols-2">
+                            <Select value={taskDraft.assigned_to} onChange={(e) => setTaskDraft((d) => ({ ...d, assigned_to: e.target.value }))}>
+                              <option value="">Unassigned</option>
+                              {owners.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                            </Select>
+                            <Input type="datetime-local" value={taskDraft.due} onChange={(e) => setTaskDraft((d) => ({ ...d, due: e.target.value }))} />
+                          </div>
+                          {editError && <p role="alert" className="text-[11px] text-destructive">{editError}</p>}
+                          <div className="flex gap-2">
+                            <Button size="sm" variant="accent" disabled={editBusy} onClick={() => void saveTaskEdit(item.t)}>{editBusy ? "Saving…" : "Save"}</Button>
+                            <Button size="sm" variant="outline" disabled={editBusy} onClick={() => setEditingTask(null)}>Cancel</Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          {item.t.description && <p className="mt-0.5 whitespace-pre-wrap text-sm text-muted-foreground">{item.t.description}</p>}
+                          <div className="mt-0.5 text-[11px] text-muted-foreground">Task{item.t.due_at ? ` · due ${fmtDate(item.t.due_at)}` : ""}{item.t.assigned_to ? ` · ${ownerName(item.t.assigned_to)}` : ""}</div>
+                        </>
+                      )}
                     </div>
                   </li>
                 ) : (() => {

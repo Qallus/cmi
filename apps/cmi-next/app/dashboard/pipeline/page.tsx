@@ -5,17 +5,17 @@ import { getSessionStaff } from "@/lib/auth/server-session";
 import { loadDeals } from "@/lib/deals/data";
 import type { Deal } from "@/lib/deals/types";
 import { PipelineDealsClient, type OwnerOption, type SourceRow } from "./pipeline-deals-client";
+import { canWriteDeals } from "@/lib/deals/roles";
 
 export const metadata = { title: "Pipeline — CMI Dashboard" };
 export const dynamic = "force-dynamic";
 
-const WRITE_ROLES = ["super_admin", "admin", "project_manager", "estimator"];
 
 // The Pipeline (deals) early funnel: Contact / Lead / Form submission →
 // Add to Pipeline → stages → Closed Won (hands off to a Pre-Con record).
 export default async function PipelinePage() {
   const staff = await getSessionStaff();
-  const canWrite = !!staff && WRITE_ROLES.includes(staff.role_slug);
+  const canWrite = !!staff && canWriteDeals(staff.role_slug);
   const supabase = getSupabaseAdmin();
 
   let deals: Deal[] = [];

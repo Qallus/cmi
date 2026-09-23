@@ -2,8 +2,8 @@
 import { NextResponse } from "next/server";
 import { requireAdmin, AuthError } from "@/lib/auth/require-admin";
 import { getDeal, updateDeal, deleteDeal } from "@/lib/deals/data";
+import { canWriteDeals } from "@/lib/deals/roles";
 
-const WRITE_ROLES = ["super_admin", "admin", "project_manager", "estimator"];
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -21,7 +21,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { staff } = await requireAdmin(request);
-    if (!WRITE_ROLES.includes(staff.role_slug)) {
+    if (!canWriteDeals(staff.role_slug)) {
       return NextResponse.json({ error: `Your role (${staff.role_slug}) can't edit deals.` }, { status: 403 });
     }
     const { id } = await params;
@@ -36,7 +36,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { staff } = await requireAdmin(request);
-    if (!WRITE_ROLES.includes(staff.role_slug)) {
+    if (!canWriteDeals(staff.role_slug)) {
       return NextResponse.json({ error: `Your role (${staff.role_slug}) can't delete deals.` }, { status: 403 });
     }
     const { id } = await params;

@@ -3,8 +3,8 @@ import { NextResponse } from "next/server";
 import { requireAdmin, AuthError } from "@/lib/auth/require-admin";
 import { changeStage, loadStageHistory, StageChangeError } from "@/lib/deals/data";
 import { isDealStage } from "@/lib/deals/stages";
+import { canWriteDeals } from "@/lib/deals/roles";
 
-const WRITE_ROLES = ["super_admin", "admin", "project_manager", "estimator"];
 
 // GET returns the stage history for a deal.
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -21,7 +21,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { user, staff } = await requireAdmin(request);
-    if (!WRITE_ROLES.includes(staff.role_slug)) {
+    if (!canWriteDeals(staff.role_slug)) {
       return NextResponse.json({ error: `Your role (${staff.role_slug}) can't change deal stages.` }, { status: 403 });
     }
     const { id } = await params;
