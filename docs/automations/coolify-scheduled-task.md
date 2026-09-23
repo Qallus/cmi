@@ -58,14 +58,22 @@ Coolify → your CMI application → **Scheduled Tasks** → **+ Add**.
 **Command** (one line, paste as-is):
 
 ```sh
-node -e "fetch('http://localhost:3000/api/automations/run',{method:'POST',headers:{authorization:'Bearer '+process.env.AUTOMATION_SECRET}}).then(async r=>{console.log(r.status,await r.text());if(!r.ok)process.exitCode=1}).catch(e=>{console.error(e);process.exitCode=1})"
+wget -qO- --header="Authorization: Bearer $AUTOMATION_SECRET" http://localhost:3000/api/automations/run
 ```
 
-**Not `curl`.** The app image is a slim Node base and has no curl — a curl
-command fails with `sh: curl: not found`. `node` is obviously there, and its
-built-in `fetch` does the same job. It prints the status and the JSON summary
-into the task log, and exits non-zero on anything but a 2xx so a failure shows
-as Failed in Coolify rather than passing silently.
+Two constraints shaped that line, both learned the hard way:
+
+- **Not `curl`.** The image is `node:20-alpine` and has no curl — the command
+  fails with `sh: curl: not found`. Alpine's busybox provides `wget`, which
+  does the same job. `-q` drops the progress noise, `-O-` puts the JSON
+  summary in the task log, and a non-2xx makes wget exit non-zero so Coolify
+  marks the run Failed instead of passing silently.
+- **No single quotes anywhere in the command.** Coolify builds a raw SQL
+  statement to save the task, and a `'` terminates it — the save fails with a
+  half-written `UPDATE ... where "id" = 1` in the error. Double quotes are
+  fine. This rules out the obvious `node -e '…'` alternative.
+
+It's a GET; the endpoint accepts either verb, and GET keeps the command short.
 
 `localhost:3000` because the task runs *inside* the app container — it doesn't
 need to go back out through the internet. The secret is read from the

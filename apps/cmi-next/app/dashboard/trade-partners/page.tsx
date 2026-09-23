@@ -32,6 +32,7 @@ export default async function TradePartnersPage() {
       stats={stats}
       reviewers={people.map((p) => ({ id: p.id, name: p.name }))}
       canDecide={canDecidePrequal(staff.role_slug)}
+      isSuperAdmin={staff.role_slug === "super_admin"}
     />
   );
 }

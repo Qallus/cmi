@@ -13,6 +13,7 @@ import { TRADES, SERVICE_AREAS } from "@/lib/prequal/form";
 import type { ApplicationRow } from "@/lib/prequal/review";
 import type { DirectoryRow, ComplianceItem } from "@/lib/companies/directory";
 import { ApplicationDrawer } from "./application-drawer";
+import { ApplicationActions } from "./application-actions";
 
 type Tab = "applications" | "directory" | "compliance";
 type Reviewer = { id: string; name: string };
@@ -45,7 +46,7 @@ const COMPLIANCE_TONE: Record<string, string> = {
 const pretty = (s: string) => s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
 export function TradePartnersClient({
-  initialApplications, initialDirectory, initialCompliance, stats, reviewers, canDecide,
+  initialApplications, initialDirectory, initialCompliance, stats, reviewers, canDecide, isSuperAdmin,
 }: {
   initialApplications: ApplicationRow[];
   initialDirectory: DirectoryRow[];
@@ -53,15 +54,25 @@ export function TradePartnersClient({
   stats: Record<string, number>;
   reviewers: Reviewer[];
   canDecide: boolean;
+  isSuperAdmin: boolean;
 }) {
   const [tab, setTab] = React.useState<Tab>("applications");
   const [applications, setApplications] = React.useState(initialApplications);
   const [openId, setOpenId] = React.useState<string | null>(null);
+  const [showArchived, setShowArchived] = React.useState(false);
 
   const refreshApplications = React.useCallback(async () => {
-    const res = await fetch("/api/trade-partners/applications");
+    const res = await fetch(`/api/trade-partners/applications${showArchived ? "?archived=1" : ""}`);
     if (res.ok) setApplications(await res.json());
-  }, []);
+  }, [showArchived]);
+
+  // The archived list is a different query, so flipping the toggle refetches.
+  // Skips the first run: the server already sent the un-archived page.
+  const first = React.useRef(true);
+  React.useEffect(() => {
+    if (first.current) { first.current = false; return; }
+    void refreshApplications();
+  }, [refreshApplications]);
 
   return (
     // Page padding and header typography follow the house pattern (see Selections):
@@ -98,7 +109,15 @@ export function TradePartnersClient({
         ))}
       </div>
 
-      {tab === "applications" && <Applications rows={applications} onOpen={setOpenId} />}
+      {tab === "applications" && (
+        <Applications
+          rows={applications} onOpen={setOpenId}
+          archived={showArchived} onToggleArchived={setShowArchived}
+          isSuperAdmin={isSuperAdmin}
+          onChanged={() => void refreshApplications()}
+          onRemoved={() => setOpenId(null)}
+        />
+      )}
       {tab === "directory" && <Directory initial={initialDirectory} />}
       {tab === "compliance" && <Compliance initial={initialCompliance} />}
 
@@ -127,18 +146,42 @@ function Stat({ icon: Icon, label, value, tone }: { icon: typeof Inbox; label: s
 
 // ─── Applications ───────────────────────────────────────────────────────────
 
-function Applications({ rows, onOpen }: { rows: ApplicationRow[]; onOpen: (id: string) => void }) {
+function Applications({
+  rows, onOpen, archived, onToggleArchived, isSuperAdmin, onChanged, onRemoved,
+}: {
+  rows: ApplicationRow[];
+  onOpen: (id: string) => void;
+  archived: boolean;
+  onToggleArchived: (v: boolean) => void;
+  isSuperAdmin: boolean;
+  onChanged: () => void;
+  onRemoved: () => void;
+}) {
+  const toggle = (
+    <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+      <input type="checkbox" checked={archived} onChange={(e) => onToggleArchived(e.target.checked)} />
+      Show archived
+    </label>
+  );
+
   if (rows.length === 0) {
     return (
-      <Empty
-        icon={Inbox}
-        title="No applications yet"
-        body="Applications from the public prequalification page land here. Share constructedmatter.com/prequalification with a trade partner to get started."
-      />
+      <div className="space-y-3">
+        <div className="flex justify-end">{toggle}</div>
+        <Empty
+          icon={Inbox}
+          title={archived ? "Nothing archived" : "No applications yet"}
+          body={archived
+            ? "Applications you archive are kept here, with every answer and document, and can be restored."
+            : "Applications from the public prequalification page land here. Share constructedmatter.com/prequalification with a trade partner to get started."}
+        />
+      </div>
     );
   }
 
   return (
+    <div className="space-y-3">
+    <div className="flex justify-end">{toggle}</div>
     <div className="overflow-hidden rounded-lg border border-border">
       <table className="w-full text-sm">
         <thead className="bg-muted/50 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
@@ -150,6 +193,7 @@ function Applications({ rows, onOpen }: { rows: ApplicationRow[]; onOpen: (id: s
             <th className="px-3 py-2 font-medium">Documents</th>
             <th className="px-3 py-2 font-medium">Reviewer</th>
             <th className="px-3 py-2 font-medium">Submitted</th>
+            <th className="w-10 px-3 py-2"><span className="sr-only">Actions</span></th>
           </tr>
         </thead>
         <tbody>
@@ -175,10 +219,23 @@ function Applications({ rows, onOpen }: { rows: ApplicationRow[]; onOpen: (id: s
               </td>
               <td className="px-3 py-2.5 text-muted-foreground">{r.reviewer_name || "Unassigned"}</td>
               <td className="px-3 py-2.5 text-muted-foreground">{when(r.submitted_at)}</td>
+              <td className="px-3 py-2.5 text-right">
+                <ApplicationActions
+                  row={{
+                    id: r.id, token: r.token,
+                    label: r.company_name_resolved || [r.contact_first_name, r.contact_last_name].filter(Boolean).join(" ") || "this application",
+                    contact_email: r.contact_email, contact_phone: r.contact_phone,
+                    archived_at: r.archived_at ?? null,
+                  }}
+                  isSuperAdmin={isSuperAdmin} onOpen={onOpen}
+                  onChanged={onChanged} onRemoved={onRemoved}
+                />
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
+    </div>
     </div>
   );
 }

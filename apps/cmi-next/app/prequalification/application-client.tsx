@@ -5,6 +5,7 @@ import { ArrowLeft, ArrowRight, Check, ChevronDown, CloudUpload, Loader2, Paperc
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input, Select, Textarea } from "@/components/ui/input";
+import { MoneyInput, PhoneInput } from "@/components/ui/formatted-input";
 import {
   SECTIONS, isVisible, missingRequired, progressOf, visibleFields,
   type Answers, type Field,
@@ -40,7 +41,13 @@ export function ApplicationClient({ children }: { children?: React.ReactNode }) 
     let alive = true;
     void (async () => {
       let existing: string | null = null;
-      try { existing = window.localStorage.getItem(STORAGE_KEY); } catch { /* private window */ }
+      // ?t= wins over whatever this browser remembers: it's how a staff member
+      // sends someone back to their own application, and how an applicant
+      // forwards it to the person who actually holds the certificates.
+      try {
+        existing = new URLSearchParams(window.location.search).get("t");
+      } catch { /* no URL access */ }
+      try { existing ||= window.localStorage.getItem(STORAGE_KEY); } catch { /* private window */ }
 
       if (existing) {
         const res = await fetch(`/api/prequal/${existing}`);
@@ -50,6 +57,8 @@ export function ApplicationClient({ children }: { children?: React.ReactNode }) 
           setToken(existing);
           setAnswers(json.answers ?? {});
           if (json.status !== "draft") setSubmitted(true);
+          // Remember it, so a refresh without ?t= still finds the draft.
+          try { window.localStorage.setItem(STORAGE_KEY, existing); } catch { /* private window */ }
           setBooting(false);
           return;
         }
@@ -363,9 +372,13 @@ function FieldInput({
         </div>
       ) : field.type === "document" ? (
         <DocumentInput field={field} value={value} token={token} onChange={onChange} />
+      ) : field.type === "phone" ? (
+        <PhoneInput value={(value as string) ?? ""} onChange={onChange} placeholder={field.placeholder} />
+      ) : field.type === "currency" ? (
+        <MoneyInput value={(value as string) ?? ""} onChange={onChange} placeholder={field.placeholder} />
       ) : (
         <Input
-          type={field.type === "number" || field.type === "currency" ? "number" : field.type === "date" ? "date" : field.type === "email" ? "email" : field.type === "phone" ? "tel" : field.type === "url" ? "url" : "text"}
+          type={field.type === "number" ? "number" : field.type === "date" ? "date" : field.type === "email" ? "email" : field.type === "url" ? "url" : "text"}
           placeholder={field.placeholder}
           value={(value as string) ?? ""}
           onChange={(e) => onChange(e.target.value)}

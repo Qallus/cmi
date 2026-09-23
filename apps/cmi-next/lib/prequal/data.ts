@@ -44,6 +44,9 @@ export type Application = {
   attestation_title: string | null;
   attestation_at: string | null;
   ip: string | null;
+  /** Out of the queue but not gone — see setApplicationArchived. */
+  archived_at: string | null;
+  archived_by: string | null;
   created_at: string;
   updated_at: string;
 };

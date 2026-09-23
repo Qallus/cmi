@@ -1,7 +1,8 @@
 // One application: everything the applicant sent, plus what still needs chasing.
 import { NextResponse } from "next/server";
+import { AuthError } from "@/lib/auth/require-admin";
 import { requirePrequal, requirePrequalDecide, prequalErrorResponse } from "@/lib/prequal/guard";
-import { getApplicationDetail, setApplicationStatus, assignReviewer } from "@/lib/prequal/review";
+import { getApplicationDetail, setApplicationStatus, assignReviewer, deleteApplication } from "@/lib/prequal/review";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +38,22 @@ export async function PATCH(request: Request, { params }: Ctx) {
       }));
     }
     return NextResponse.json({ error: "Nothing to change." }, { status: 400 });
+  } catch (err) {
+    return prequalErrorResponse(err);
+  }
+}
+
+/**
+ * Permanent. Super Admin only — archiving is the reversible option, and the
+ * uploaded insurance and licence files go with the row.
+ */
+export async function DELETE(request: Request, { params }: Ctx) {
+  try {
+    const ctx = await requirePrequal(request);
+    if (ctx.staff.role_slug !== "super_admin") {
+      throw new AuthError(`Your role (${ctx.staff.role_slug}) can't delete an application. Archive it instead.`, 403);
+    }
+    return NextResponse.json(await deleteApplication((await params).id));
   } catch (err) {
     return prequalErrorResponse(err);
   }

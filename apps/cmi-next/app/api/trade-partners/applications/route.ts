@@ -12,6 +12,10 @@ export async function GET(request: Request) {
     return NextResponse.json(await listApplications({
       status: q.get("status") ?? undefined,
       includeClosed: q.get("closed") === "1",
+      // Archived applications are their own view, not mixed into the queue.
+      archived: q.get("archived") === "1",
+      // …and once archived, status stops being a useful filter.
+      ...(q.get("archived") === "1" ? { includeClosed: true } : {}),
     }));
   } catch (err) {
     return prequalErrorResponse(err);

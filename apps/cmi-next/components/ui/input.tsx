@@ -61,7 +61,10 @@ function monthDays(monthDate: Date) {
   });
 }
 
-export function Input({ className, type, ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
+// ComponentPropsWithRef rather than InputHTMLAttributes so callers can hold a
+// ref to the underlying input — the formatted money/phone fields need one to
+// put the caret back after reformatting.
+export function Input({ className, type, ...props }: React.ComponentPropsWithRef<"input">) {
   if (type === "date") {
     return <DateInput className={className} {...props} />;
   }

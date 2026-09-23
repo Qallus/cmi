@@ -41,7 +41,9 @@ export type ApplicationRow = Application & {
 const OPEN_STATUSES: ApplicationStatus[] = ["submitted", "in_review", "info_requested", "interview"];
 
 /** The queue. Open applications first, oldest submission at the top. */
-export async function listApplications(opts: { status?: string; includeClosed?: boolean } = {}): Promise<ApplicationRow[]> {
+export async function listApplications(
+  opts: { status?: string; includeClosed?: boolean; archived?: boolean } = {},
+): Promise<ApplicationRow[]> {
   const supabase = getSupabaseAdmin();
   let query = supabase
     .from("prequal_applications")
@@ -49,6 +51,9 @@ export async function listApplications(opts: { status?: string; includeClosed?: 
     .order("submitted_at", { ascending: true, nullsFirst: false })
     .order("created_at", { ascending: false })
     .limit(500);
+
+  // Archived applications are a separate view, never mixed into the queue.
+  query = opts.archived ? query.not("archived_at", "is", null) : query.is("archived_at", null);
 
   if (opts.status && opts.status !== "all") query = query.eq("status", opts.status);
   else if (!opts.includeClosed) query = query.in("status", [...OPEN_STATUSES, "draft"]);
@@ -294,4 +299,60 @@ export async function documentUrl(id: string): Promise<string | null> {
   if (!path) return null;
   const { data } = await supabase.storage.from("prequal-documents").createSignedUrl(path, 300);
   return data?.signedUrl ?? null;
+}
+
+/** Take an application out of the queue, or put it back. */
+export async function setApplicationArchived(id: string, archived: boolean, actorId: string | null) {
+  const { data, error } = await getSupabaseAdmin()
+    .from("prequal_applications")
+    .update({
+      archived_at: archived ? new Date().toISOString() : null,
+      archived_by: archived ? actorId : null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id).select("id, archived_at").single();
+  if (error) throw new PrequalError(error.message, 500);
+  return data as { id: string; archived_at: string | null };
+}
+
+/**
+ * Delete an application for good.
+ *
+ * The company and contact it created are left alone — they may have work
+ * history by now, and an application is only ever the thing that introduced
+ * them. Documents uploaded against the application go, including the files.
+ */
+export async function deleteApplication(id: string) {
+  const supabase = getSupabaseAdmin();
+
+  const { data: docs } = await supabase
+    .from("company_documents").select("id, file_url").eq("application_id", id);
+  const paths = ((docs ?? []) as { file_url: string | null }[])
+    .map((d) => d.file_url).filter((p): p is string => !!p);
+  if (paths.length) await supabase.storage.from("prequal-documents").remove(paths);
+  await supabase.from("company_documents").delete().eq("application_id", id);
+
+  const { error } = await supabase.from("prequal_applications").delete().eq("id", id);
+  if (error) throw new PrequalError(error.message, 500);
+  return { deleted: true, documents_removed: paths.length };
+}
+
+/** Who to reach, and the link that reopens their own draft. */
+export async function applicationContact(id: string) {
+  const { data, error } = await getSupabaseAdmin()
+    .from("prequal_applications")
+    .select("id, token, company_name, contact_first_name, contact_last_name, contact_email, contact_phone, progress")
+    .eq("id", id).maybeSingle();
+  if (error) throw new PrequalError(error.message, 500);
+  if (!data) throw new PrequalError("Application not found.", 404);
+  const row = data as {
+    id: string; token: string; company_name: string | null;
+    contact_first_name: string | null; contact_last_name: string | null;
+    contact_email: string | null; contact_phone: string | null; progress: number;
+  };
+  return {
+    ...row,
+    contact_name: [row.contact_first_name, row.contact_last_name].filter(Boolean).join(" ") || null,
+    label: row.company_name || [row.contact_first_name, row.contact_last_name].filter(Boolean).join(" ") || "this application",
+  };
 }
