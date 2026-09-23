@@ -58,28 +58,18 @@ Coolify → your CMI application → **Scheduled Tasks** → **+ Add**.
 **Command** (one line, paste as-is):
 
 ```sh
-curl -fsS -X POST -H "Authorization: Bearer $AUTOMATION_SECRET" http://localhost:3000/api/automations/run
+node -e "fetch('http://localhost:3000/api/automations/run',{method:'POST',headers:{authorization:'Bearer '+process.env.AUTOMATION_SECRET}}).then(async r=>{console.log(r.status,await r.text());if(!r.ok)process.exitCode=1}).catch(e=>{console.error(e);process.exitCode=1})"
 ```
+
+**Not `curl`.** The app image is a slim Node base and has no curl — a curl
+command fails with `sh: curl: not found`. `node` is obviously there, and its
+built-in `fetch` does the same job. It prints the status and the JSON summary
+into the task log, and exits non-zero on anything but a 2xx so a failure shows
+as Failed in Coolify rather than passing silently.
 
 `localhost:3000` because the task runs *inside* the app container — it doesn't
-need to go back out through the internet. `$AUTOMATION_SECRET` resolves from
-the environment variable you set in Step 1, so the secret never appears in the
-task definition.
-
-If Coolify's command field doesn't expand `$AUTOMATION_SECRET` for you, paste
-the literal value in its place instead:
-
-```sh
-curl -fsS -X POST -H "Authorization: Bearer 886287bc3f3ad48367f3055fa87a8245e3952c9fec7b7500ea364537e5314fd8" http://localhost:3000/api/automations/run
-```
-
-### If the task has to run from outside the container
-
-Same thing against the public host:
-
-```sh
-curl -fsS -X POST -H "Authorization: Bearer $AUTOMATION_SECRET" https://my.constructedmatter.com/api/automations/run
-```
+need to go back out through the internet. The secret is read from the
+environment at run time, so it never appears in the task definition.
 
 ### Frequency
 
@@ -157,7 +147,7 @@ A confirmation for an appointment that already happened is worse than silence.
 | --- | --- |
 | `200` | Ran. Body is the summary — `dry_run`, `run_id`, `scanned`, `sent`, `skipped`, `failed`. |
 | `401` | Wrong or missing secret. |
-| `503` | `AUTOMATION_SECRET` isn't set on the app. Step 1 wasn't applied, or the app wasn't redeployed after. |
+| `503` | `AUTOMATION_SECRET` isn't set on the app. Step 1 wasn't applied, or the app wasn't redeployed after — env vars only reach the container on a deploy. |
 | `500` | The run itself broke. The reason is in `automation_runs.error`. |
 
 Add `?dry=1` to force a dry run even when `AUTOMATION_ENABLED=true` — useful
