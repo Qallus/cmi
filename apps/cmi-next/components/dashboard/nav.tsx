@@ -7,7 +7,7 @@ import { Tooltip } from "@/components/ui/tooltip";
 import {
   ArrowLeft, BookOpen, BriefcaseBusiness, CalendarClock, CalendarRange, Cloud,
   CreditCard, FileText, FolderKanban, HardHat, Home, IdCard, Inbox, LayoutDashboard, LayoutGrid,
-  BarChart3, FileBarChart,
+  BarChart3, FileBarChart, HandshakeIcon,
   Megaphone, MessageCircle, MessagesSquare, Mic, Minus, Newspaper, Package, Plus, Settings, ShieldCheck,
   Ruler, Sparkles, SquarePen, TrendingUp, User, UserRoundCog, Users, Workflow,
 } from "lucide-react";
@@ -50,6 +50,7 @@ const nav: NavItem[] = [
     ],
   },
   { href: "/dashboard/take-off",       label: "Take-Off",       icon: Ruler, roles: ["super_admin", "admin", "project_manager", "staff", "estimator"], flag: "take_off" },
+  { href: "/dashboard/trade-partners", label: "Trade Partners", icon: HandshakeIcon, roles: ["super_admin", "admin", "project_manager", "estimator"], flag: "prequalification" },
   {
     href: "/dashboard/jobs",           label: "Jobs",           icon: HardHat,        roles: ["super_admin", "admin", "project_manager", "estimator", "superintendent", "designer"],
     children: [

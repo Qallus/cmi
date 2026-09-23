@@ -28,6 +28,12 @@ export type Field = {
   mapsTo?: string;
   /** For type: "document" — the compliance document it satisfies. */
   docType?: string;
+  /**
+   * A document CMI won't send work without. Required documents get a tracked
+   * "requested" row whether or not they're uploaded, so they show up as
+   * missing; the rest only get a row once a file actually arrives.
+   */
+  docRequired?: boolean;
   /** Free text shown instead of an input, for type: "content". */
   body?: string;
 };
@@ -84,9 +90,9 @@ export const SECTIONS: readonly Section[] = [
     title: "Your company",
     description: "The basics, as they appear on your licence and insurance.",
     fields: [
-      { key: "company_name", label: "Company name", type: "text", required: true, mapsTo: "name" },
+      { key: "company_name", label: "Company name", type: "text", mapsTo: "name" },
       { key: "legal_name", label: "Legal name, if different", type: "text", mapsTo: "legal_name" },
-      { key: "partner_type", label: "What kind of partner are you?", type: "select", required: true, options: PARTNER_TYPES, mapsTo: "partner_type" },
+      { key: "partner_type", label: "What kind of partner are you?", type: "select", options: PARTNER_TYPES, mapsTo: "partner_type" },
       { key: "business_structure", label: "Business structure", type: "select", options: BUSINESS_STRUCTURES, mapsTo: "business_structure" },
       { key: "years_in_business", label: "Years in business", type: "number", mapsTo: "years_in_business" },
       { key: "website", label: "Website", type: "url", mapsTo: "website" },
@@ -117,7 +123,7 @@ export const SECTIONS: readonly Section[] = [
     key: "trades",
     title: "What you do",
     fields: [
-      { key: "trades", label: "Trades and specialties", type: "multiselect", required: true, options: TRADES, mapsTo: "trades" },
+      { key: "trades", label: "Trades and specialties", type: "multiselect", options: TRADES, mapsTo: "trades" },
       { key: "specialty_notes", label: "What do you specialise in?", type: "textarea", placeholder: "The work you'd most like us to send you." },
       { key: "avoid_notes", label: "What would you rather not take on?", type: "textarea", help: "Just as useful to us — it saves everyone a wasted bid." },
       { key: "does_residential", label: "Do you do residential work?", type: "yesno", mapsTo: "does_residential" },
@@ -129,7 +135,7 @@ export const SECTIONS: readonly Section[] = [
     key: "area",
     title: "Where you work",
     fields: [
-      { key: "service_areas", label: "Service areas", type: "multiselect", required: true, options: SERVICE_AREAS, mapsTo: "service_areas" },
+      { key: "service_areas", label: "Service areas", type: "multiselect", options: SERVICE_AREAS, mapsTo: "service_areas" },
       { key: "max_travel_miles", label: "Maximum travel from your yard (miles)", type: "number", mapsTo: "max_travel_miles" },
       { key: "travel_surcharge", label: "Do you charge for travel or mobilisation?", type: "yesno" },
       { key: "travel_surcharge_detail", label: "How is that charged?", type: "textarea", showIf: { key: "travel_surcharge", truthy: true } },
@@ -212,9 +218,9 @@ export const SECTIONS: readonly Section[] = [
     title: "Documents",
     description: "PDF, JPG or PNG. You can come back and add these later — your progress is saved.",
     fields: [
-      { key: "doc_w9", label: "W-9", type: "document", docType: "w9", required: true },
-      { key: "doc_coi", label: "Certificate of Insurance", type: "document", docType: "coi", required: true },
-      { key: "doc_license", label: "Contractor licence", type: "document", docType: "license", showIf: { key: "is_licensed", truthy: true } },
+      { key: "doc_w9", label: "W-9", type: "document", docType: "w9", docRequired: true },
+      { key: "doc_coi", label: "Certificate of Insurance", type: "document", docType: "coi", docRequired: true },
+      { key: "doc_license", label: "Contractor licence", type: "document", docType: "license", docRequired: true, showIf: { key: "is_licensed", truthy: true } },
       { key: "doc_wc", label: "Workers' compensation certificate", type: "document", docType: "wc" },
       { key: "doc_auto", label: "Commercial auto certificate", type: "document", docType: "auto" },
       { key: "doc_safety", label: "Safety program", type: "document", docType: "safety_program", showIf: { key: "has_safety_program", truthy: true } },
@@ -242,8 +248,8 @@ export const SECTIONS: readonly Section[] = [
         key: "attestation_body", label: "", type: "content",
         body: "By submitting, you confirm the information is accurate and complete to the best of your knowledge, that you're authorised to submit it for your company, and that CMI may verify your licence, insurance and references. Prequalification is not an offer of work or a contract.",
       },
-      { key: "attestation_name", label: "Your full name", type: "text", required: true },
-      { key: "attestation_title", label: "Your title", type: "text", required: true },
+      { key: "attestation_name", label: "Your full name", type: "text" },
+      { key: "attestation_title", label: "Your title", type: "text" },
     ],
   },
 ] as const;
@@ -286,7 +292,11 @@ export function progressOf(answers: Answers): number {
   return total === 0 ? 0 : Math.round((done / total) * 100);
 }
 
-/** Required questions still unanswered, by section — drives "what's missing". */
+/**
+ * Required questions still unanswered. Only the four contact fields are
+ * required: anything else missing is a gap for a reviewer to chase, not a
+ * reason to turn an applicant away at the door.
+ */
 export function missingRequired(answers: Answers): { section: string; field: Field }[] {
   const out: { section: string; field: Field }[] = [];
   for (const section of SECTIONS) {
@@ -338,12 +348,18 @@ export function answersToCompany(answers: Answers): Record<string, unknown> {
   return patch;
 }
 
-/** Which documents this applicant actually needs, given their answers. */
-export function requiredDocuments(answers: Answers): { docType: string; label: string }[] {
-  const docs: { docType: string; label: string }[] = [];
+/**
+ * The documents relevant to this applicant, given their answers. `required`
+ * marks the ones CMI won't send work without — those are tracked even when
+ * nothing has been uploaded, which is what makes "missing" mean something.
+ */
+export function relevantDocuments(answers: Answers): { docType: string; label: string; required: boolean }[] {
+  const docs: { docType: string; label: string; required: boolean }[] = [];
   for (const section of SECTIONS) {
     for (const field of visibleFields(section, answers)) {
-      if (field.type === "document" && field.docType) docs.push({ docType: field.docType, label: field.label });
+      if (field.type === "document" && field.docType) {
+        docs.push({ docType: field.docType, label: field.label, required: !!field.docRequired });
+      }
     }
   }
   return docs;

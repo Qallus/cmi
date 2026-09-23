@@ -10,7 +10,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { findOrCreateCompany, type Company } from "@/lib/companies/data";
 import { findDuplicateContacts } from "@/lib/contacts/duplicates";
 import {
-  FORM_VERSION, answersToCompany, missingRequired, progressOf, requiredDocuments,
+  FORM_VERSION, answersToCompany, missingRequired, progressOf, relevantDocuments,
   type Answers,
 } from "./form";
 
@@ -141,8 +141,13 @@ export async function submitApplication(token: string, audit: Audit = {}): Promi
     );
   }
 
-  const companyName = String(answers.company_name ?? "").trim();
-  if (!companyName) throw new PrequalError("A company name is required.");
+  // Only the contact fields are required on the form, so a sole trader who
+  // skipped the company name still gets a company record — under their own
+  // name, which staff can correct later.
+  const companyName =
+    String(answers.company_name ?? "").trim() ||
+    [answers.contact_first_name, answers.contact_last_name].filter(Boolean).join(" ").trim();
+  if (!companyName) throw new PrequalError("Tell us who you are before submitting.");
 
   // The company gets everything the form maps to a column, so the profile is
   // searchable the moment it lands.
@@ -162,8 +167,10 @@ export async function submitApplication(token: string, audit: Audit = {}): Promi
       company_id: company.id,
       contact_id: contactId,
       progress: progressOf(answers),
-      attestation_name: (answers.attestation_name as string) ?? null,
-      attestation_title: (answers.attestation_title as string) ?? null,
+      attestation_name:
+        (answers.attestation_name as string) ||
+        [answers.contact_first_name, answers.contact_last_name].filter(Boolean).join(" ") || null,
+      attestation_title: (answers.attestation_title as string) || null,
       attestation_at: new Date().toISOString(),
       ip: audit.ip ?? app.ip,
       user_agent: audit.userAgent?.slice(0, 500) ?? null,
@@ -244,7 +251,10 @@ function partnerTypeToContactType(partnerType: string): string {
  */
 async function openDocumentRows(companyId: string, applicationId: string, answers: Answers): Promise<void> {
   const supabase = getSupabaseAdmin();
-  const wanted = requiredDocuments(answers);
+  const relevant = relevantDocuments(answers);
+  // An optional document only becomes a tracked row once a file arrives —
+  // otherwise every partner would sit permanently "missing" a portfolio.
+  const wanted = relevant.filter((d) => d.required || answers[`doc_${d.docType}`]);
   if (wanted.length === 0) return;
 
   const { data: existing } = await supabase

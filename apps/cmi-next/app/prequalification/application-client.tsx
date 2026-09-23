@@ -4,6 +4,7 @@ import * as React from "react";
 import { ArrowLeft, ArrowRight, Check, CloudUpload, Loader2, Paperclip, Save } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Input, Select, Textarea } from "@/components/ui/input";
 import {
   SECTIONS, isVisible, missingRequired, progressOf, visibleFields,
   type Answers, type Field,
@@ -118,66 +119,66 @@ export function ApplicationClient() {
 
   if (submitted) {
     return (
-      <div className="rounded-xl border border-border bg-card p-8 text-center">
-        <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-accent/15 text-accent"><Check className="h-6 w-6" /></div>
-        <h2 className="mt-4 font-serif text-2xl">Thank you — we have your application</h2>
-        <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-          Our team reviews prequalification applications and will be in touch. If anything is missing or we need a
-          current certificate, we&apos;ll email the contact you gave us.
+      <div className="flex flex-col items-start gap-4 rounded-2xl border border-border bg-card p-10">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-accent/10">
+          <Check className="h-6 w-6 text-accent" />
+        </div>
+        <h2 className="font-display text-2xl font-semibold">Application Received</h2>
+        <p className="leading-relaxed text-muted-foreground">
+          Thank you. Our team reviews every prequalification application and will be in touch. If anything is
+          missing or we need a current certificate, we&apos;ll email the contact you gave us.
         </p>
-        <p className="mt-4 text-xs text-muted-foreground">
-          Questions? <a className="text-accent underline underline-offset-4" href="mailto:info@constructedmatter.com">info@constructedmatter.com</a> or (480) 628-4458
-        </p>
+        <a href="mailto:info@constructedmatter.com" className="mt-2 text-sm font-medium text-accent hover:underline">
+          Questions? Email us &rarr;
+        </a>
       </div>
     );
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[220px_1fr]">
-      {/* Section rail */}
-      <nav aria-label="Application sections" className="lg:sticky lg:top-24 lg:self-start">
-        <div className="mb-3">
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>{progress}% complete</span>
-            <SaveState state={saved} />
-          </div>
-          <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
-            <div className="h-full rounded-full bg-accent transition-all" style={{ width: `${progress}%` }} />
-          </div>
+    <div className="min-w-0 space-y-6">
+      {/* Progress + jump between sections */}
+      <div>
+        <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
+          <span>Step {step + 1} of {SECTIONS.length} &middot; {progress}% complete</span>
+          <SaveState state={saved} />
         </div>
-        <ol className="flex gap-1 overflow-x-auto lg:flex-col lg:overflow-visible">
+        <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+          <div className="h-full rounded-full bg-accent transition-all" style={{ width: `${progress}%` }} />
+        </div>
+        <nav aria-label="Application sections" className="mt-3 flex flex-wrap gap-1.5">
           {SECTIONS.map((s, i) => {
-            const done = visibleFields(s, answers)
-              .filter((f) => f.type !== "content")
-              .every((f) => !f.required || filled(answers[f.key]));
+            // A tick means "you've put something here", not "this is complete":
+            // almost nothing is required, so completeness ticks would show up
+            // on every untouched section.
+            const started = visibleFields(s, answers)
+              .some((f) => f.type !== "content" && filled(answers[f.key]));
             return (
-              <li key={s.key} className="shrink-0">
-                <button
-                  type="button" onClick={() => setStep(i)}
-                  className={cn(
-                    "flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm transition",
-                    i === step ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-muted",
-                  )}
-                >
-                  <span className={cn("grid h-5 w-5 shrink-0 place-items-center rounded-full border text-[10px]",
-                    i === step ? "border-accent-foreground/40" : done ? "border-accent text-accent" : "border-border")}>
-                    {done ? <Check className="h-3 w-3" /> : i + 1}
-                  </span>
-                  <span className="truncate">{s.title}</span>
-                </button>
-              </li>
+              <button
+                key={s.key} type="button" onClick={() => setStep(i)}
+                aria-current={i === step ? "step" : undefined}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition",
+                  i === step
+                    ? "border-accent bg-accent text-accent-foreground"
+                    : "border-border text-muted-foreground hover:border-accent/40 hover:text-foreground",
+                )}
+              >
+                {started && i !== step && <Check className="h-3 w-3 text-accent" />}
+                {s.title}
+              </button>
             );
           })}
-        </ol>
-      </nav>
+        </nav>
+      </div>
 
       {/* Current section */}
       <div className="min-w-0">
-        <div className="rounded-xl border border-border bg-card p-5 sm:p-6">
-          <h2 className="font-serif text-xl">{section?.title}</h2>
-          {section?.description && <p className="mt-1 text-sm text-muted-foreground">{section.description}</p>}
+        <div className="rounded-2xl border border-border bg-card p-8">
+          <h2 className="font-display text-2xl font-semibold">{section?.title}</h2>
+          {section?.description && <p className="mt-2 leading-relaxed text-muted-foreground">{section.description}</p>}
 
-          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+          <div className="mt-6 grid gap-5 sm:grid-cols-2">
             {fields.map((field) => (
               <FieldInput
                 key={field.key} field={field} value={answers[field.key]}
@@ -186,9 +187,9 @@ export function ApplicationClient() {
             ))}
           </div>
 
-          {error && <p role="alert" className="mt-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+          {error && <p role="alert" className="mt-5 rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</p>}
 
-          <div className="mt-6 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-4">
+          <div className="mt-8 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-6">
             <Button variant="outline" disabled={step === 0} onClick={() => setStep((s) => Math.max(0, s - 1))}>
               <ArrowLeft className="h-4 w-4" /> Back
             </Button>
@@ -222,7 +223,7 @@ export function ApplicationClient() {
           )}
         </div>
 
-        <p className="mt-3 text-center text-xs text-muted-foreground">
+        <p className="mt-4 text-center text-xs text-muted-foreground">
           Your answers save automatically. You can close this page and come back on the same browser.
         </p>
       </div>
@@ -239,9 +240,6 @@ function SaveState({ state }: { state: Saved }) {
   return null;
 }
 
-const inputCls =
-  "h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none transition focus:border-accent focus:ring-2 focus:ring-ring";
-
 function FieldInput({
   field, value, token, onChange,
 }: {
@@ -250,19 +248,23 @@ function FieldInput({
   const wide = field.type === "textarea" || field.type === "multiselect" || field.type === "content" || field.type === "document";
 
   if (field.type === "content") {
-    return <p className="sm:col-span-2 rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">{field.body}</p>;
+    return (
+      <p className="rounded-xl border border-border bg-muted/40 p-4 text-sm leading-relaxed text-muted-foreground sm:col-span-2">
+        {field.body}
+      </p>
+    );
   }
 
   return (
-    <label className={cn("block space-y-1.5", wide && "sm:col-span-2")}>
-      <span className="text-sm font-medium">
-        {field.label}{field.required && <span className="text-destructive"> *</span>}
+    <label className={cn("block", wide && "sm:col-span-2")}>
+      <span className="mb-1.5 block text-sm font-medium">
+        {field.label}{field.required && <span className="text-accent"> *</span>}
       </span>
-      {field.help && <span className="block text-xs text-muted-foreground">{field.help}</span>}
+      {field.help && <span className="mb-1.5 block text-xs text-muted-foreground">{field.help}</span>}
 
       {field.type === "textarea" ? (
-        <textarea
-          className={cn(inputCls, "h-auto min-h-[88px] py-2")} placeholder={field.placeholder}
+        <Textarea
+          className="min-h-[88px]" placeholder={field.placeholder}
           value={(value as string) ?? ""} onChange={(e) => onChange(e.target.value)}
         />
       ) : field.type === "yesno" ? (
@@ -277,10 +279,10 @@ function FieldInput({
           ))}
         </div>
       ) : field.type === "select" ? (
-        <select className={inputCls} value={(value as string) ?? ""} onChange={(e) => onChange(e.target.value)}>
+        <Select value={(value as string) ?? ""} onChange={(e) => onChange(e.target.value)}>
           <option value="">Select…</option>
           {field.options?.map((o) => <option key={o} value={o}>{o}</option>)}
-        </select>
+        </Select>
       ) : field.type === "multiselect" ? (
         <div className="flex flex-wrap gap-1.5">
           {field.options?.map((o) => {
@@ -299,8 +301,7 @@ function FieldInput({
       ) : field.type === "document" ? (
         <DocumentInput field={field} value={value} token={token} onChange={onChange} />
       ) : (
-        <input
-          className={inputCls}
+        <Input
           type={field.type === "number" || field.type === "currency" ? "number" : field.type === "date" ? "date" : field.type === "email" ? "email" : field.type === "phone" ? "tel" : field.type === "url" ? "url" : "text"}
           placeholder={field.placeholder}
           value={(value as string) ?? ""}
