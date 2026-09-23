@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ArrowLeft, ArrowRight, Check, CloudUpload, Loader2, Paperclip, Save } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, ChevronDown, CloudUpload, Loader2, Paperclip, Save } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input, Select, Textarea } from "@/components/ui/input";
@@ -20,8 +20,13 @@ type Saved = "idle" | "saving" | "saved" | "error";
  * Drafts live server-side against a token kept in localStorage, so closing the
  * tab doesn't lose the work and the link can be mailed on to whoever actually
  * has the insurance certificates.
+ *
+ * `children` is the page's marketing column ("How it works", "Have these to
+ * hand", contact details). It's passed in rather than rendered by the page so
+ * the whole three-column grid — step rail, form, that column — lives in one
+ * place and lines up. It stays a server component; only the position is ours.
  */
-export function ApplicationClient() {
+export function ApplicationClient({ children }: { children?: React.ReactNode }) {
   const [token, setToken] = React.useState<string | null>(null);
   const [answers, setAnswers] = React.useState<Answers>({});
   const [step, setStep] = React.useState(0);
@@ -113,68 +118,47 @@ export function ApplicationClient() {
     try { window.localStorage.removeItem(STORAGE_KEY); } catch { /* fine */ }
   }
 
-  if (booting) {
-    return <p className="flex items-center gap-2 py-16 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Opening your application…</p>;
-  }
-
-  if (submitted) {
+  // Before there's a form to lay out, the marketing column simply follows on.
+  if (booting || submitted) {
     return (
-      <div className="flex flex-col items-start gap-4 rounded-2xl border border-border bg-card p-10">
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-accent/10">
-          <Check className="h-6 w-6 text-accent" />
-        </div>
-        <h2 className="font-display text-2xl font-semibold">Application Received</h2>
-        <p className="leading-relaxed text-muted-foreground">
-          Thank you. Our team reviews every prequalification application and will be in touch. If anything is
-          missing or we need a current certificate, we&apos;ll email the contact you gave us.
-        </p>
-        <a href="mailto:info@constructedmatter.com" className="mt-2 text-sm font-medium text-accent hover:underline">
-          Questions? Email us &rarr;
-        </a>
+      <div className="grid items-start gap-12 lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-16">
+        {booting ? (
+          <p className="flex items-center gap-2 py-16 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" /> Opening your application…
+          </p>
+        ) : (
+          <div className="flex flex-col items-start gap-4 rounded-2xl border border-border bg-card p-10">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-accent/10">
+              <Check className="h-6 w-6 text-accent" />
+            </div>
+            <h2 className="font-display text-2xl font-semibold">Application Received</h2>
+            <p className="leading-relaxed text-muted-foreground">
+              Thank you. Our team reviews every prequalification application and will be in touch. If anything is
+              missing or we need a current certificate, we&apos;ll email the contact you gave us.
+            </p>
+            <a href="mailto:info@constructedmatter.com" className="mt-2 text-sm font-medium text-accent hover:underline">
+              Questions? Email us &rarr;
+            </a>
+          </div>
+        )}
+        <div className="space-y-8">{children}</div>
       </div>
     );
   }
 
+  // Step rail, form, marketing column. Twelve sections don't fit across the top
+  // without wrapping into an unreadable block of chips, so they run down the
+  // side — which also leaves room for the full section name.
   return (
-    <div className="min-w-0 space-y-6">
-      {/* Progress + jump between sections */}
-      <div>
-        <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
-          <span>Step {step + 1} of {SECTIONS.length} &middot; {progress}% complete</span>
-          <SaveState state={saved} />
-        </div>
-        <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-          <div className="h-full rounded-full bg-accent transition-all" style={{ width: `${progress}%` }} />
-        </div>
-        <nav aria-label="Application sections" className="mt-3 flex flex-wrap gap-1.5">
-          {SECTIONS.map((s, i) => {
-            // A tick means "you've put something here", not "this is complete":
-            // almost nothing is required, so completeness ticks would show up
-            // on every untouched section.
-            const started = visibleFields(s, answers)
-              .some((f) => f.type !== "content" && filled(answers[f.key]));
-            return (
-              <button
-                key={s.key} type="button" onClick={() => setStep(i)}
-                aria-current={i === step ? "step" : undefined}
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition",
-                  i === step
-                    ? "border-accent bg-accent text-accent-foreground"
-                    : "border-border text-muted-foreground hover:border-accent/40 hover:text-foreground",
-                )}
-              >
-                {started && i !== step && <Check className="h-3 w-3 text-accent" />}
-                {s.title}
-              </button>
-            );
-          })}
-        </nav>
-      </div>
+    <div className="grid items-start gap-8 lg:grid-cols-[216px_minmax(0,1fr)] lg:gap-10 xl:grid-cols-[216px_minmax(0,1fr)_340px] xl:gap-12">
+      <StepRail
+        step={step} progress={progress} answers={answers} saved={saved}
+        onPick={setStep}
+      />
 
       {/* Current section */}
       <div className="min-w-0">
-        <div className="rounded-2xl border border-border bg-card p-8">
+        <div className="rounded-2xl border border-border bg-card p-6 sm:p-8">
           <h2 className="font-display text-2xl font-semibold">{section?.title}</h2>
           {section?.description && <p className="mt-2 leading-relaxed text-muted-foreground">{section.description}</p>}
 
@@ -227,11 +211,90 @@ export function ApplicationClient() {
           Your answers save automatically. You can close this page and come back on the same browser.
         </p>
       </div>
+
+      {/* Marketing column: third on wide screens, underneath the form below that. */}
+      <div className="space-y-8 lg:col-span-2 xl:col-span-1 xl:sticky xl:top-24 xl:self-start">{children}</div>
     </div>
   );
 }
 
 const filled = (v: unknown) => v !== null && v !== undefined && v !== "" && !(Array.isArray(v) && v.length === 0);
+
+/**
+ * The section list. A vertical rail beside the form on desktop; on narrow
+ * screens it collapses to one line naming the current step, because twelve
+ * items stacked above the form would push it off the screen.
+ */
+function StepRail({
+  step, progress, answers, saved, onPick,
+}: {
+  step: number; progress: number; answers: Answers; saved: Saved; onPick: (i: number) => void;
+}) {
+  const list = (
+    <ol className="space-y-0.5">
+      {SECTIONS.map((s, i) => {
+        // A tick means "you've put something here", not "this is complete":
+        // almost nothing is required, so completeness ticks would show up on
+        // every untouched section.
+        const started = visibleFields(s, answers).some((f) => f.type !== "content" && filled(answers[f.key]));
+        const active = i === step;
+        return (
+          <li key={s.key}>
+            <button
+              type="button" onClick={() => onPick(i)}
+              aria-current={active ? "step" : undefined}
+              className={cn(
+                "flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm transition",
+                active ? "bg-muted font-medium text-foreground" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+              )}
+            >
+              <span
+                className={cn(
+                  "mt-px grid h-5 w-5 shrink-0 place-items-center rounded-full border text-[10px] font-semibold",
+                  active ? "border-accent bg-accent text-accent-foreground"
+                    : started ? "border-accent text-accent"
+                    : "border-border text-muted-foreground",
+                )}
+              >
+                {started && !active ? <Check className="h-3 w-3" /> : i + 1}
+              </span>
+              <span className="leading-snug">{s.title}</span>
+            </button>
+          </li>
+        );
+      })}
+    </ol>
+  );
+
+  return (
+    <nav aria-label="Application sections" className="min-w-0 lg:sticky lg:top-24 lg:self-start">
+      <div className="mb-3">
+        <div className="mb-1.5 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+          <span>{progress}% complete</span>
+          <SaveState state={saved} />
+        </div>
+        <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+          <div className="h-full rounded-full bg-accent transition-all" style={{ width: `${progress}%` }} />
+        </div>
+      </div>
+
+      {/* Narrow screens: one line, expandable. */}
+      <details className="group rounded-xl border border-border bg-card lg:hidden">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 text-sm">
+          <span>
+            <span className="text-muted-foreground">Step {step + 1} of {SECTIONS.length}</span>
+            {" — "}
+            <span className="font-medium">{SECTIONS[step]?.title}</span>
+          </span>
+          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition group-open:rotate-180" />
+        </summary>
+        <div className="border-t border-border p-2">{list}</div>
+      </details>
+
+      <div className="hidden lg:block">{list}</div>
+    </nav>
+  );
+}
 
 function SaveState({ state }: { state: Saved }) {
   if (state === "saving") return <span className="flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> Saving</span>;

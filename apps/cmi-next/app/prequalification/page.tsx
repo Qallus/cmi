@@ -51,14 +51,11 @@ export default async function PrequalificationPage() {
           </div>
         </section>
 
-        {/* Application + Sidebar */}
+        {/* Application. The step rail, the form and this column are laid out
+            together by ApplicationClient — see the comment on it. */}
         <section className="bg-background py-20 lg:py-28">
-          <div className="mx-auto max-w-7xl px-5 lg:px-8">
-            <div className="grid items-start gap-16 lg:grid-cols-[1fr_420px] lg:gap-20">
-              <ApplicationClient />
-
-              {/* Sticks in view while the form scrolls (desktop only) */}
-              <div className="space-y-8 lg:sticky lg:top-24 lg:self-start">
+          <div className="mx-auto max-w-[1400px] px-5 lg:px-8">
+            <ApplicationClient>
                 <div className="rounded-2xl border border-border bg-card p-8">
                   <h3 className="mb-6 font-display text-xl font-semibold">How it works</h3>
                   <ol className="space-y-5">
@@ -139,8 +136,7 @@ export default async function PrequalificationPage() {
                     <p className="mt-0.5 text-xs text-muted-foreground">ROC License KB1 - 343120</p>
                   </div>
                 </div>
-              </div>
-            </div>
+            </ApplicationClient>
           </div>
         </section>
       </main>
