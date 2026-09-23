@@ -654,7 +654,7 @@ function DealFormModal({
   return (
     <ModalShell title={title} onClose={onClose}>
       <div className="space-y-3">
-        <Field label="Deal title *"><Input value={form.title} onChange={(e) => set("title", e.target.value)} placeholder="e.g. Waters Residence — Kitchen remodel" /></Field>
+        <Field label="Deal title *"><Input value={form.title} onChange={(e) => set("title", e.target.value)} placeholder="e.g. Paradise Valley — Mid Century Modern Remodel" /></Field>
         <div className="space-y-2 rounded-lg border border-border p-3">
           <div className="flex items-center justify-between gap-3">
             <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Client</span>
