@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Textarea } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { SMS_BOOKING_LABEL, SMS_BOOKING_BODY, SMS_FINEPRINT } from "@/lib/messaging/disclosure";
+import Link from "next/link";
 
 type EventRecord = {
   id: string;
@@ -66,7 +68,11 @@ export function EventRegistrationClient({ eventPage }: { eventPage: EventRecord 
       const response = await fetch(`/api/booking/events/${eventPage.slug}/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, email_consent: true })
+        body: JSON.stringify({
+          ...form,
+          email_consent: true,
+          source_url: typeof window === "undefined" ? null : window.location.href
+        })
       });
       const json = await response.json();
       if (!response.ok) throw new Error(json.message || "Registration failed.");
@@ -157,9 +163,18 @@ export function EventRegistrationClient({ eventPage }: { eventPage: EventRecord 
                   <input type="checkbox" checked={form.create_or_link_user} onChange={event => setForm({ ...form, create_or_link_user: event.target.checked })} />
                   Prepare client access if needed
                 </label>
-                <label className="flex items-center gap-2 rounded-lg border border-border p-3 text-sm">
-                  <input type="checkbox" checked={form.sms_consent} onChange={event => setForm({ ...form, sms_consent: event.target.checked })} />
-                  Send appointment updates by SMS
+                <label className="flex items-start gap-3 rounded-lg border border-border p-3 text-sm">
+                  <input type="checkbox" className="mt-1" checked={form.sms_consent} onChange={event => setForm({ ...form, sms_consent: event.target.checked })} />
+                  <span>
+                    <span className="font-medium">{SMS_BOOKING_LABEL}</span>
+                    <span className="mt-1 block text-xs text-muted-foreground">{SMS_BOOKING_BODY}</span>
+                    <span className="mt-1 block text-xs text-muted-foreground">{SMS_FINEPRINT}</span>
+                    <span className="mt-1 block text-xs text-muted-foreground">
+                      See our <Link href="/terms-of-service" className="underline underline-offset-2">Terms of Service</Link>{" "}
+                      and <Link href="/privacy-policy" className="underline underline-offset-2">Privacy Policy</Link>. This box is
+                      optional and starts unchecked — you can register without it.
+                    </span>
+                  </span>
                 </label>
                 <Button type="submit" variant="accent" className="w-full" disabled={saving || isFull}>
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarClock className="h-4 w-4" />}

@@ -1,0 +1,115 @@
+30896: Campaign vetting rejection - Opt-in Error
+
+
+Messaging
+Description
+
+
+This error means your campaign submission was rejected during review because the opt-in details you provided don't adequately show how end users consent to receive messages. Campaign registration requires a clear message_flow, and website-based opt-in flows must include the website URL, privacy policy, terms of service, and any hosted screenshots needed for review.
+
+Possible causes
+
+
+Your message_flow does not clearly explain who is opting in, where opt-in happens, or how consent is collected for this campaign.
+You use more than one opt-in method, but you did not list every method in the campaign submission.
+Your website opt-in flow is missing a public website link, a privacy policy link, terms of service, or hosted screenshots for a gated page, paper form, or other flow that a reviewer cannot access directly.
+Your privacy policy does not include the required mobile-number non-sharing statement, message frequency, or a "message and data rates may apply" disclosure.
+You indicate that users can opt in by texting a keyword, but you did not provide opt_in_keywords or a compliant opt_in_message.
+Your opt-in description suggests consent is shared, transferred, or otherwise not collected specifically for this campaign.
+You rely on verbal or offline opt-in, but the submission does not include enough detail for a reviewer to verify the flow.
+Possible solutions
+
+
+Rewrite the message_flow so it clearly explains how end users consent to receive messages. Include who is opting in, where the opt-in happens, and how the campaign collects consent. If you support more than one opt-in path, list every method.
+If opt-in happens on a website, provide the website URL, a link to the privacy policy, and terms of service. If the opt-in flow is behind a login or collected on paper, provide a hosted screenshot or document that shows the exact opt-in language and form.
+If users can subscribe by texting a keyword, provide opt_in_keywords and an opt_in_message. The opt-in response should include the brand name, confirmation of enrollment in a recurring campaign, how to get help, and clear opt-out instructions.
+Update your privacy policy so it states that mobile numbers are not shared with third parties or affiliates for marketing or promotional purposes. Include message frequency and the required message and data rates disclosure.
+Make sure your sample messages match the campaign use case and identify the brand in each sample. If possible, include opt-out language in at least one sample message to make review easier.
+If you use verbal opt-in, describe the exact script or flow in enough detail that a reviewer can verify how consent is captured.
+Pre-submission checklist
+
+
+Run through this list before submitting or resubmitting your campaign:
+
+message_flow names every opt-in method used for this campaign (website, keyword, paper form, verbal, QR code, or other mechanism).
+message_flow includes a link to your privacy policy and a link to your terms and conditions.
+Your privacy policy states that mobile numbers are not shared with third parties, includes message frequency, and includes a "message and data rates may apply" disclosure.
+If opt-in happens on a website, the URL is publicly accessible. If it is not public, you have provided a URL with hosted screenshots of the full consent flow.
+If end users opt in by texting a keyword, opt_in_keywords and opt_in_message are populated. The opt_in_message includes the brand name, confirmation of enrollment, message frequency, and opt-out instructions.
+If the campaign uses multiple opt-in paths, all paths are described in the same message_flow field.
+Sample messages match the declared use case, identify the brand by name, and include opt-out language.
+If you use verbal or offline opt-in, the message_flow describes the exact script or process in enough detail for a reviewer to verify how consent is captured.
+Fix by opt-in concern
+
+
+Keyword opt-in
+(warning)
+Warning
+The following submission would be rejected:
+
+message_flow: Customers can text us to sign up for alerts.
+
+opt_in_keywords: (empty) | opt_in_message: (empty)
+
+Doesn't name the keyword or number, and omits the required opt_in_keywords and opt_in_message fields entirely.
+
+(information)
+Info
+The following submission would pass review:
+
+message_flow: End users opt in by texting JOIN to (555) 123-4567. They immediately receive a confirmation reply. Message frequency varies. Msg & data rates may apply. Terms: www.acmesandwich.com/terms. Privacy: www.acmesandwich.com/privacy.
+
+opt_in_keywords: JOIN, SUBSCRIBE | opt_in_message: Acme Sandwich Co: You're now subscribed to weekly deals. Msg frequency varies. Msg & data rates may apply. Reply HELP for help, STOP to cancel.
+
+Passes because it names the keyword and number, links to both legal pages, and populates opt_in_keywords and opt_in_message with matching content that includes brand name, frequency, rates, and opt-out instructions.
+
+Website opt-in
+(warning)
+Warning
+The following message_flow would be rejected:
+
+End users opt in on our website by entering their phone number.
+
+Doesn't name the URL, link to a privacy policy or terms page, or describe what disclosures the user sees before submitting consent.
+
+(information)
+Info
+The following message_flow would pass review:
+
+End users visit www.acmesandwich.com/sms-signup and enter their phone number. They check a box agreeing to receive recurring promotional text messages from Acme Sandwich Company. Below the form the page states: message frequency varies, message and data rates may apply. The checkbox label links to www.acmesandwich.com/terms (Terms and Conditions) and www.acmesandwich.com/privacy (Privacy Policy, which states mobile numbers are not shared with third parties or affiliates for marketing purposes).
+
+Passes because it names the URL, describes the consent action, and links to both legal pages with the required non-sharing and rate disclosures. See Acceptable vs unacceptable privacy policy and T&C URLs for additional guidance on URL requirements.
+
+Offline or verbal opt-in
+(warning)
+Warning
+The following message_flow would be rejected:
+
+We collect consent verbally when customers call our support line.
+
+Doesn't describe the script or provide any publicly accessible evidence a reviewer can use to verify the consent language.
+
+(information)
+Info
+The following message_flow would pass review:
+
+End users opt in verbally when they call Acme Sandwich Co support at (555) 987-6543. The agent reads: "Would you like to receive recurring promotional text messages from Acme Sandwich Company? Message frequency varies. Message and data rates may apply. You can reply STOP at any time to opt out." A copy of the agent script is hosted at www.acmesandwich.com/sms-consent-script.pdf. Privacy Policy: www.acmesandwich.com/privacy. Terms: www.acmesandwich.com/terms.
+
+Passes because it describes the exact consent script with all required disclosures and provides a publicly accessible URL where the reviewer can verify the script.
+
+After you resubmit
+
+
+Edit the rejected campaign rather than deleting and recreating it. Resubmitting triggers a fresh review by The Campaign Registry (TCR).
+
+Vetting fee: A vetting fee is assessed only once per campaign. Resubmitting the same campaign does not incur a new fee.
+Timeline: Sole Proprietor campaigns are typically approved or rejected within hours to days. Standard campaigns go through several layers of vetting and can take up to several weeks.
+Check status: Monitor your campaign status in Console > Messaging > Regulatory Compliance > Campaigns, or fetch the UsAppToPerson resource and check the campaign_status field.
+For detailed resubmission steps, see Troubleshooting and rectifying A2P Campaigns.
+
+Additional resources
+A2P 10DLC Overview
+A2P 10DLC - Gather the Required Business Information
+Acceptable vs unacceptable privacy policy and T&C URLs
+Twilio's Messaging Policy
+A2P 10DLC Campaign Approval Requirements

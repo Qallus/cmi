@@ -2,6 +2,9 @@ import Link from "next/link";
 import { ConsentPageLayout } from "@/components/consent/consent-page-layout";
 import { ConsentForm, type ConsentOption } from "@/components/consent/consent-form";
 import { LEGAL_ROUTES } from "@/components/legal/legal-page";
+import {
+  SMS_FINEPRINT, SMS_SERVICE_LABEL, SMS_SERVICE_BODY, SMS_MARKETING_LABEL, SMS_MARKETING_BODY,
+} from "@/lib/messaging/disclosure";
 
 export const metadata = {
   title: "SMS Opt-In — Constructed Matter, Inc.",
@@ -9,28 +12,11 @@ export const metadata = {
     "Choose which text messages you would like to receive from Constructed Matter, Inc. SMS consent is optional and is never a condition of purchase.",
 };
 
-const FINEPRINT =
-  "Message frequency varies. Message and data rates may apply. Reply STOP to unsubscribe or HELP for help. Consent is not a condition of purchase.";
-
+// Wording lives in lib/messaging/disclosure.ts — the A2P campaign submission
+// quotes it, and the booking forms reuse the same fine print.
 const OPTIONS: ConsentOption[] = [
-  {
-    value: "service",
-    categories: ["service"],
-    title:
-      "Yes, I agree to receive recurring service, account, and project-related SMS or MMS messages from Constructed Matter, Inc. at the mobile number provided.",
-    body:
-      "Messages may include inquiry follow-ups, estimate or proposal updates, appointment reminders, project schedules, milestones, design selections, approvals, permitting or inspection updates, site-access coordination, delivery notices, invoices, payment reminders, warranties, service updates, safety notices, and communications with authorized project participants. For employees, subcontractors, and other authorized project participants who opt in, service messages may also include work schedules, job assignments, task and daily-log reminders, and project coordination updates.",
-    fineprint: FINEPRINT,
-  },
-  {
-    value: "marketing",
-    categories: ["marketing"],
-    title:
-      "Yes, I expressly agree to receive recurring marketing and promotional SMS or MMS messages from Constructed Matter, Inc. at the mobile number provided.",
-    body:
-      "Messages may include information about CMI services, construction or design content, events, announcements, offers, promotions, and follow-up marketing.",
-    fineprint: FINEPRINT,
-  },
+  { value: "service", categories: ["service"], title: SMS_SERVICE_LABEL, body: SMS_SERVICE_BODY, fineprint: SMS_FINEPRINT },
+  { value: "marketing", categories: ["marketing"], title: SMS_MARKETING_LABEL, body: SMS_MARKETING_BODY, fineprint: SMS_FINEPRINT },
 ];
 
 export default function SmsOptInPage() {

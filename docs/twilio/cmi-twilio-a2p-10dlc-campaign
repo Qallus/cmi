@@ -1,0 +1,113 @@
+Constructed Matter, Inc. (CMI) uses SMS to send informational and service-related messages to clients, subcontractors, vendors, employees, and other authorized project participants who have opted in. Messages include appointment reminders, project schedules and progress updates, estimate and proposal updates, selection and change-order approvals, inspection and delivery coordination, invoice and payment reminders, job assignments, staff scheduling, task and daily-log reminders, and site-access, weather, or safety notices. Messages support active projects, requested services, and internal operations, including two-way communication with CMI staff. Messages may contain links to CMI websites or account resources and business contact phone numbers. Frequency varies based on project activity and recipient needs. This campaign does not send marketing or promotional messages. Recipients may reply STOP to unsubscribe or HELP for assistance.
+(error)
+This Campaign was rejected upon review
+This Campaign was rejected because it did not meet registration requirements. Learn more about Campaign registration best practices here
+. Please contact support
+ if you think this was a mistake.
+
+
+Fix Campaign
+
+Campaign details
+
+Edit Campaign
+
+Delete Campaign
+Connected A2P Brand
+My first Twilio account
+Campaign SID
+CMb905b334f985644f9ffb3a3dd245f23b
+
+Linked Messaging Service
+MG4cc2874f0d0f6ac2277bf0bd11b49d87
+
+Brand registration SID
+BN5dd05d901f83b7b5fcea383fa3f15044
+
+Campaign use case
+Low Volume Mixed
+Campaign status
+Rejected
+Compliance Registration SID
+-
+
+External Campaign ID
+-
+Messaging throughput limits
+Your A2P Campaign registration with TCR failed.
+
+Next steps
+
+
+Register a new A2P Campaign
+or alternatively reach out to support
+ with the brand and failed campaign details for further resolution.
+Campaign Information
+Description
+Constructed Matter, Inc. (CMI) uses SMS to send informational and service-related messages to clients, subcontractors, vendors, employees, and other authorized project participants who have opted in. Messages include appointment reminders, project schedules and progress updates, estimate and proposal updates, selection and change-order approvals, inspection and delivery coordination, invoice and payment reminders, job assignments, staff scheduling, task and daily-log reminders, and site-access, weather, or safety notices. Messages support active projects, requested services, and internal operations, including two-way communication with CMI staff. Messages may contain links to CMI websites or account resources and business contact phone numbers. Frequency varies based on project activity and recipient needs. This campaign does not send marketing or promotional messages. Recipients may reply STOP to unsubscribe or HELP for assistance.
+Sending messages with embedded links?
+Yes
+Sending messages with embedded phone numbers?
+Yes
+Sending messages with age-gated content?
+No
+Sending messages with content related to direct lending or other loan arrangement?
+No
+Message Sample #1
+Constructed Matter, Inc.: Hi [First Name], your project walkthrough is scheduled for [Date] at [Time]. Reply to confirm or call (480) 628-4458 to reschedule. Reply STOP to unsubscribe.
+Message Sample #2
+Constructed Matter, Inc.: Hi [First Name], the inspection for your project is complete and the next construction phase starts [Date]. Questions? Reply here or visit https://constructedmatter.com/contact. Reply STOP to unsubscribe.
+Message Sample #3
+Constructed Matter, Inc.: Hi [First Name], your crew is scheduled at job [Job Number] on [Date] at [Time]. Please confirm availability and coordinate site access with your CMI project manager at (480) 628-4458. Reply STOP to unsubscribe.
+Message Sample #4
+Constructed Matter, Inc.: Team reminder: review tomorrow's assignments for job [Job Number] and submit today's daily log before your shift ends. Reply to your supervisor with any scheduling conflicts. Reply STOP to unsubscribe.
+Message Sample #5
+Constructed Matter, Inc.: Hi [First Name], invoice [Invoice Number] for your project is available in your CMI account and is due [Date]. For billing assistance, call (480) 628-4458. Reply STOP to unsubscribe.
+Privacy Policy URL
+https://constructedmatter.com/privacy-policy
+Terms and Conditions URL
+https://constructedmatter.com/terms-of-service
+End User Consent
+(information)
+Twilio manages opt-out and help keywords for you by default
+Twilio manages opt-out and help keywords for you by default. We used this information to automatically fill out the details related to Opt Out and Help for your Campaign registration.
+
+If you want to customize these keywords and auto-reply messages, please go to Messaging Service - Opt-Out Management
+
+
+How do end-users consent to receive messages?
+Clients, subcontractors, vendors, and employees opt in at https://constructedmatter.com/sms-opt-in. They enter their name and mobile number, select the separate service/account/project messaging checkbox, and submit "Save My SMS Preferences." The checkbox is optional and unchecked by default. It is separate from marketing consent and other agreements. Users can receive CMI services or use an account without SMS consent. The form identifies Constructed Matter, Inc., describes the messages, and discloses variable frequency, message/data rates, STOP to unsubscribe, and HELP for assistance. Only recipients who select service messaging are enrolled in this campaign; selecting marketing alone does not enroll them. CMI retains the mobile number, consent choice, timestamp, source URL, and disclosure version. Client, subcontractor, or employee status alone does not constitute consent. No purchased or rented contact lists are used. Enrollment for this campaign is through the web form, not an SMS keyword. Privacy Policy: https://constructedmatter.com/privacy-policy Terms and Conditions: https://constructedmatter.com/terms-of-service
+The campaign submission has been reviewed and it was rejected because of provided Opt-in information. 
+Learn more
+Opt-in Message
+Constructed Matter, Inc.: You are subscribed to recurring service, project, and work-related text messages. Message frequency varies. Message and data rates may apply. Reply STOP to unsubscribe or HELP for help.
+Opt-in Keywords?
+-
+Opt-out Message
+You have successfully been unsubscribed. You will not receive any more messages from this number. Reply START to resubscribe.
+Opt-out Keywords
+Press Delete or Backspace to remove. Press Enter to toggle selection.
+
+CANCEL
+
+QUIT
+
+STOP
+
+OPTOUT
+
+UNSUBSCRIBE
+
+STOPALL
+
+REVOKE
+
+END
+Help Message
+Reply STOP to unsubscribe. Msg&Data Rates May Apply.
+Help Keywords
+Press Delete or Backspace to remove. Press Enter to toggle selection.
+
+HELP
+
+INFO

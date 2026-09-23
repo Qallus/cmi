@@ -7,9 +7,23 @@ import { applyConsent } from "@/lib/messaging/consent";
 // Must stay in sync with the keyword list published on /sms-opt-out.
 const STOP_WORDS = ["STOP", "STOPALL", "UNSUBSCRIBE", "CANCEL", "END", "QUIT", "OPTOUT", "REVOKE"];
 const START_WORDS = ["START", "YES", "UNSTOP"];
+// Advertised on /sms-opt-in and /sms-opt-out, so it has to actually answer.
+const HELP_WORDS = ["HELP", "INFO"];
 
-function xml(status = 200): Response {
-  return new Response("<Response></Response>", {
+const HELP_REPLY =
+  "Constructed Matter, Inc.: service and project text messages. Msg frequency varies. Msg & data rates may apply. "
+  + "Reply STOP to unsubscribe. Help: (480) 628-4458 or info@constructedmatter.com";
+
+function escapeXml(value: string): string {
+  return value.replace(/[<>&"']/g, (c) =>
+    ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&apos;" }[c] as string));
+}
+
+function xml(status = 200, message?: string): Response {
+  const body = message
+    ? `<Response><Message>${escapeXml(message)}</Message></Response>`
+    : "<Response></Response>";
+  return new Response(body, {
     status,
     headers: { "Content-Type": "text/xml" },
   });
@@ -38,8 +52,9 @@ export async function POST(request: Request) {
   const body = String(params.Body || "").trim() || "(empty message)";
   const providerId = String(params.MessageSid || "").trim() || null;
 
-  // Honor STOP/START keywords (A2P 10DLC compliance).
+  // Honor STOP/START/HELP keywords (A2P 10DLC compliance).
   const keyword = body.trim().toUpperCase();
+  const isHelp = HELP_WORDS.includes(keyword);
   if (from && STOP_WORDS.includes(keyword)) {
     // STOP stops everything on the channel.
     await applyConsent({
@@ -92,5 +107,8 @@ export async function POST(request: Request) {
     // Never fail the webhook — Twilio retries on non-2xx.
   }
 
-  return xml();
+  // Twilio's Advanced Opt-Out answers HELP when it's enabled on the Messaging
+  // Service; replying here covers the case where it isn't, so the promise made
+  // on /sms-opt-in always holds.
+  return isHelp ? xml(200, HELP_REPLY) : xml();
 }

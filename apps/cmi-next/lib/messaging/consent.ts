@@ -105,6 +105,13 @@ export async function applyConsent(input: {
   audit?: ConsentAudit;
   optOutMethod?: string | null;
   metadata?: Record<string, unknown>;
+  /**
+   * Leave categories this consent doesn't mention exactly as they are. A
+   * narrow opt-in (ticking "text me about this appointment" while booking)
+   * must not quietly revoke marketing consent given elsewhere. The preference
+   * pages leave this off, because there a submission sets the whole state.
+   */
+  preserveOtherCategories?: boolean;
 }): Promise<{ ok: true; address: string } | { error: string }> {
   const addr = normalizeAddress(input.channel, input.address);
   if (!addr) return { error: "A valid address is required." };
@@ -125,7 +132,17 @@ export async function applyConsent(input: {
   // must leave transactional messaging intact.
   const optedOut = optingOut && coversService;
   // On opt-in, marketing is allowed only when explicitly selected — never inferred.
-  const marketingOptedOut = optingOut ? coversMarketing : !coversMarketing;
+  let marketingOptedOut = optingOut ? coversMarketing : !coversMarketing;
+  if (input.preserveOtherCategories && !coversMarketing) {
+    const { data: existing } = await sb
+      .from("messaging_suppressions")
+      .select("marketing_opted_out")
+      .eq("channel", input.channel)
+      .eq("address", addr)
+      .maybeSingle();
+    // No row on file means no opt-out on file, which is the default state.
+    marketingOptedOut = existing?.marketing_opted_out ?? marketingOptedOut;
+  }
 
   const { error: upErr } = await sb.from("messaging_suppressions").upsert({
     channel: input.channel,

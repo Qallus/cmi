@@ -7,6 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input, Textarea } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { AppointmentType, BookingSlot } from "@/lib/booking/types";
+import { SMS_BOOKING_LABEL, SMS_BOOKING_BODY, SMS_FINEPRINT } from "@/lib/messaging/disclosure";
+import Link from "next/link";
 
 function todayKey() {
   return new Date().toISOString().slice(0, 10);
@@ -81,7 +83,8 @@ export function PublicBookingClient({ appointmentTypes, demoMode, setupMessage }
           ...form,
           create_or_link_user: true,
           show_on_project_manager: Boolean(form.project_name),
-          email_consent: true
+          email_consent: true,
+          source_url: typeof window === "undefined" ? null : window.location.href
         })
       });
       const json = await response.json();
@@ -250,9 +253,18 @@ export function PublicBookingClient({ appointmentTypes, demoMode, setupMessage }
                       <Input placeholder="Project name if known" value={form.project_name} onChange={event => setForm({ ...form, project_name: event.target.value })} />
                     </div>
                     <Textarea placeholder="Project details, site address, preferred notes..." value={form.notes} onChange={event => setForm({ ...form, notes: event.target.value })} />
-                    <label className="flex items-center gap-2 rounded-lg border border-border p-3 text-sm">
-                      <input type="checkbox" checked={form.sms_consent} onChange={event => setForm({ ...form, sms_consent: event.target.checked })} />
-                      I agree to receive SMS updates for this appointment.
+                    <label className="flex items-start gap-3 rounded-lg border border-border p-3 text-sm">
+                      <input type="checkbox" className="mt-1" checked={form.sms_consent} onChange={event => setForm({ ...form, sms_consent: event.target.checked })} />
+                      <span>
+                        <span className="font-medium">{SMS_BOOKING_LABEL}</span>
+                        <span className="mt-1 block text-xs text-muted-foreground">{SMS_BOOKING_BODY}</span>
+                        <span className="mt-1 block text-xs text-muted-foreground">{SMS_FINEPRINT}</span>
+                        <span className="mt-1 block text-xs text-muted-foreground">
+                          See our <Link href="/terms-of-service" className="underline underline-offset-2">Terms of Service</Link>{" "}
+                          and <Link href="/privacy-policy" className="underline underline-offset-2">Privacy Policy</Link>. This box is
+                          optional and starts unchecked — you can book without it.
+                        </span>
+                      </span>
                     </label>
                     <div className="flex flex-wrap justify-between gap-2 pt-2">
                       <Button type="button" variant="outline" onClick={() => setStep(2)}>

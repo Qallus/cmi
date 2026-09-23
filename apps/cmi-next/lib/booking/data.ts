@@ -2,6 +2,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { sendPushToAllSubscribers } from "@/lib/push/web-push";
 import { buildAvailabilitySlots, cleanText, dateTimeToDateKey, formatPhoenixDateTime, makeBookingTitle, normalizePhone, parseDateKey } from "./availability";
 import type { AppointmentStatus, AppointmentType, BookingAppointment, BookingData, BookingInput, BookingSlot, EventPageInput } from "./types";
+import { isSuppressed } from "@/lib/messaging/consent";
 
 const activeBusyStatuses = ["pending", "confirmed", "rescheduled", "awaiting_client", "awaiting_staff", "awaiting_project_info"];
 
@@ -555,7 +556,11 @@ async function queueBookingNotifications(supabase: ReturnType<typeof getSupabase
       body: `Hi ${customerName || "there"}, your ${appointmentType.name} request for ${dateLabel} has been received by Constructed Matter, Inc.`
     });
   }
-  if (appointment.sms_consent && appointment.customer_phone) {
+  // An opt-out beats a booking checkbox: if this number has replied STOP, the
+  // confirmation text is not queued.
+  const smsAllowed = Boolean(appointment.sms_consent && appointment.customer_phone)
+    && !(await isSuppressed("sms", appointment.customer_phone as string));
+  if (smsAllowed) {
     records.push({
       appointment_id: appointment.id,
       contact_id: appointment.contact_id,
