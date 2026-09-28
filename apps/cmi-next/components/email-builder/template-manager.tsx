@@ -86,6 +86,7 @@ export function TemplateManager() {
       <div className="flex h-full flex-col">
         <TemplateEditor
           template={editing === "new" ? null : editing as EmailTemplate}
+          knownTriggers={templates.map(t => t.trigger_event).filter((v): v is string => !!v)}
           onSave={handleSaved}
           onBack={() => setEditing(null)}
         />

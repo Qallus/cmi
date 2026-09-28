@@ -31,6 +31,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if ("preview_text" in body)  patch.preview_text  = String(body.preview_text ?? "");
     if ("builder_type" in body)  patch.builder_type  = body.builder_type === "visual" ? "visual" : "html";
     if ("blocks" in body)        patch.blocks        = Array.isArray(body.blocks) ? body.blocks : [];
+    if ("settings" in body)      patch.settings      = body.settings && typeof body.settings === "object" ? body.settings : {};
     if ("html" in body)          patch.html          = String(body.html ?? "");
     if ("trigger_event" in body) patch.trigger_event = body.trigger_event ? String(body.trigger_event) : null;
     if ("status" in body)        patch.status        = body.status === "active" ? "active" : "draft";

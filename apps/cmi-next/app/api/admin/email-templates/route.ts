@@ -29,6 +29,7 @@ export async function POST(request: Request) {
         preview_text: String(body.preview_text ?? ""),
         builder_type: body.builder_type === "visual" ? "visual" : "html",
         blocks: Array.isArray(body.blocks) ? body.blocks : [],
+        settings: body.settings && typeof body.settings === "object" ? body.settings : {},
         html: String(body.html ?? ""),
         trigger_event: body.trigger_event ? String(body.trigger_event) : null,
         status: body.status === "active" ? "active" : "draft",

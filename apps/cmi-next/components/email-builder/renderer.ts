@@ -1,4 +1,4 @@
-import type { EmailBlock, ColumnItem } from "./types";
+import { EMAIL_DEFAULTS, LIST_MARKERS, type EmailBlock, type EmailSettings, type ColumnItem, type ListStyle } from "./types";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://my.constructedmatter.com";
 
@@ -20,6 +20,45 @@ function tdPad(block: EmailBlock, defT: number, defX: number, defB: number): str
   return `padding:${t}px ${r}px ${b}px ${l}px;`;
 }
 
+const esc = (v: string) => v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+/**
+ * A list, as a table.
+ *
+ * Outlook ignores most list-style CSS and Gmail strips the padding off a <ul>,
+ * so the marker gets its own cell instead of being a real bullet. Ugly markup,
+ * but it is the only version that looks the same everywhere.
+ */
+function renderList(opts: {
+  items?: string[]; style?: ListStyle; icon?: string; markerColor?: string;
+  color?: string; fontSize?: number; spacing?: number;
+}): string {
+  const items = (opts.items ?? []).filter((i) => i.trim() !== "");
+  if (items.length === 0) return "";
+  const style = opts.style ?? "bullet";
+  const size = opts.fontSize ?? 15;
+  const color = opts.color ?? "#4b5563";
+  const marker = opts.markerColor ?? color;
+  const gap = opts.spacing ?? 8;
+
+  const rows = items.map((item, i) => {
+    const bullet = style === "number"
+      ? (i + 1) + "."
+      : style === "icon"
+        ? (opts.icon || LIST_MARKERS.bullet)
+        : (LIST_MARKERS[style as keyof typeof LIST_MARKERS] ?? LIST_MARKERS.bullet);
+    const pad = i === items.length - 1 ? 0 : gap;
+    return `<tr>
+        <td valign="top" style="padding:0 8px ${pad}px 0;font-size:${size}px;line-height:1.6;color:${marker};white-space:nowrap;">${esc(bullet)}</td>
+        <td valign="top" style="padding:0 0 ${pad}px;font-size:${size}px;line-height:1.6;color:${color};">${esc(item)}</td>
+      </tr>`;
+  }).join("\n      ");
+
+  return `<table cellpadding="0" cellspacing="0" border="0" role="presentation" style="width:100%;">
+      ${rows}
+    </table>`;
+}
+
 // A column is a composite stack: any of image, heading, body text, and button
 // (in that order) — whichever fields the user fills in.
 function renderColumnItem(col: ColumnItem): string {
@@ -31,6 +70,10 @@ function renderColumnItem(col: ColumnItem): string {
   }
   if (col.text) parts.push(`<div style="margin:0 0 4px;font-size:${col.heading_size ?? 16}px;font-weight:700;color:${col.heading_color ?? "#111111"};line-height:1.3;text-align:${ta};">${col.text}</div>`);
   if (col.content) parts.push(`<p style="margin:0 0 6px;font-size:${col.font_size ?? 14}px;color:${col.color ?? "#4b5563"};line-height:1.6;text-align:${ta};">${col.content.replace(/\n/g, "<br/>")}</p>`);
+  if (col.items?.length) parts.push(renderList({
+    items: col.items, style: col.list_style, icon: col.list_icon,
+    markerColor: col.marker_color, color: col.color, fontSize: col.font_size,
+  }));
   if (col.label) parts.push(`<table cellpadding="0" cellspacing="0" style="width:100%;"><tr><td style="text-align:${ta};"><a href="${col.url ?? "#"}" style="display:inline-block;background:${col.btn_bg ?? "#C87A3A"};color:${col.btn_color ?? "#ffffff"};border-radius:${col.btn_radius ?? 6}px;padding:10px 20px;font-size:13px;font-weight:700;text-decoration:none;">${col.label}</a></td></tr></table>`);
   return parts.join("\n") || `<div style="height:40px;"></div>`;
 }
@@ -159,6 +202,23 @@ function renderBlock(block: EmailBlock): string {
 </td></tr>`;
     }
 
+    case "list": {
+      const pad = tdPad(block, 8, 40, 16);
+      const body = renderList({
+        items: block.items,
+        style: block.list_style,
+        icon: block.list_icon,
+        markerColor: block.marker_color,
+        color: block.color,
+        fontSize: block.font_size,
+        spacing: block.item_spacing,
+      });
+      if (!body) return "";
+      return `<tr${rowBg(block)}><td style="${pad}">
+  ${body}
+</td></tr>`;
+    }
+
     default:
       return "";
   }
@@ -170,19 +230,37 @@ export function blocksToInnerHtml(blocks: EmailBlock[]): string {
   return blocks.map(renderBlock).join("\n");
 }
 
-export function blocksToHtml(blocks: EmailBlock[]): string {
+export function blocksToHtml(blocks: EmailBlock[], settings: EmailSettings = {}): string {
+  const s = { ...EMAIL_DEFAULTS, ...stripEmpty(settings) };
   const rows = blocks.map(renderBlock).join("\n");
   return `<!DOCTYPE html>
 <html>
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
-<body style="margin:0;padding:0;background-color:#f4f4f4;font-family:Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;padding:40px 20px;">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<style>a{color:${s.link_color};}</style></head>
+<body style="margin:0;padding:0;background-color:${s.page_bg};font-family:${s.font_family};font-size:${s.font_size}px;color:${s.text_color};">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:${s.page_bg};padding:${s.page_pad_y}px ${s.page_pad_x}px;">
     <tr><td align="center">
-      <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;max-width:560px;width:100%;">
+      <table width="${s.width}" cellpadding="0" cellspacing="0" style="background:${s.content_bg};border-radius:${s.corner_radius}px;overflow:hidden;max-width:${s.width}px;width:100%;font-family:${s.font_family};">
         ${rows}
       </table>
     </td></tr>
   </table>
 </body>
 </html>`;
+}
+
+/**
+ * Drop blanks before merging over the defaults.
+ *
+ * A cleared colour input sends "", and `{...defaults, page_bg: ""}` would put
+ * an empty string into the markup rather than falling back.
+ */
+function stripEmpty(settings: EmailSettings): EmailSettings {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(settings)) {
+    if (v === null || v === undefined || v === "") continue;
+    if (typeof v === "number" && !Number.isFinite(v)) continue;
+    out[k] = v;
+  }
+  return out as EmailSettings;
 }
