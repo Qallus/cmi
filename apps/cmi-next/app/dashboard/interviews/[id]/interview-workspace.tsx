@@ -94,7 +94,8 @@ export function InterviewWorkspace({
       {/* Meeting header — who, how far in, and the controls. */}
       <header className="mb-5 flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
-          <Link href="/dashboard/interviews" className="inline-flex items-center gap-1 text-xs text-muted-foreground transition hover:text-foreground">
+          {/* Back to the Interviews tab, which remembers it was the one open. */}
+          <Link href="/dashboard/trade-partners" className="inline-flex items-center gap-1 text-xs text-muted-foreground transition hover:text-foreground">
             <ArrowLeft className="h-3 w-3" /> Interviews
           </Link>
           <h1 className="mt-1.5 truncate font-display text-2xl font-semibold tracking-tight">{interview.title}</h1>

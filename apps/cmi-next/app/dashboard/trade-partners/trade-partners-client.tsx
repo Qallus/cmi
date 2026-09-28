@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import {
   AlertTriangle, Building2, CheckCircle2, ClipboardList, ExternalLink, FileWarning,
-  Inbox, Loader2, ShieldCheck, Users,
+  Inbox, Loader2, MessagesSquare, ShieldCheck, Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -14,8 +14,13 @@ import type { ApplicationRow } from "@/lib/prequal/review";
 import type { DirectoryRow, ComplianceItem } from "@/lib/companies/directory";
 import { ApplicationDrawer } from "./application-drawer";
 import { ApplicationActions } from "./application-actions";
+import { InterviewsPanel } from "../interviews/interviews-panel";
 
-type Tab = "applications" | "directory" | "compliance";
+type Tab = "applications" | "directory" | "compliance" | "interviews";
+
+// Which tab was last open, so coming back from an interview workspace
+// lands where you left rather than on Applications.
+const TAB_KEY = "cmi-trade-partners-tab";
 type Reviewer = { id: string; name: string };
 
 const money = (n: number | null) => (n == null ? "—" : `$${Number(n).toLocaleString("en-US")}`);
@@ -47,6 +52,7 @@ const pretty = (s: string) => s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toU
 
 export function TradePartnersClient({
   initialApplications, initialDirectory, initialCompliance, stats, reviewers, canDecide, isSuperAdmin,
+  meId, interviewsEnabled, canManageTemplates,
 }: {
   initialApplications: ApplicationRow[];
   initialDirectory: DirectoryRow[];
@@ -55,8 +61,25 @@ export function TradePartnersClient({
   reviewers: Reviewer[];
   canDecide: boolean;
   isSuperAdmin: boolean;
+  meId: string;
+  interviewsEnabled: boolean;
+  canManageTemplates: boolean;
 }) {
   const [tab, setTab] = React.useState<Tab>("applications");
+
+  // Restore after the first paint, so the server and client markup match.
+  React.useEffect(() => {
+    let saved: Tab | null = null;
+    try { saved = window.localStorage.getItem(TAB_KEY) as Tab | null; } catch { /* private window */ }
+    if (!saved || (saved === "interviews" && !interviewsEnabled)) return;
+    // eslint-disable-next-line -- one-time restore of saved preference on mount
+    setTab(saved);
+  }, [interviewsEnabled]);
+
+  const pickTab = React.useCallback((next: Tab) => {
+    setTab(next);
+    try { window.localStorage.setItem(TAB_KEY, next); } catch { /* fine */ }
+  }, []);
   const [applications, setApplications] = React.useState(initialApplications);
   const [openId, setOpenId] = React.useState<string | null>(null);
   const [showArchived, setShowArchived] = React.useState(false);
@@ -97,10 +120,11 @@ export function TradePartnersClient({
         {([
           ["applications", "Applications", Inbox],
           ["directory", "Directory", Building2],
+          ["interviews", "Interviews", MessagesSquare],
           ["compliance", "Compliance", FileWarning],
-        ] as const).map(([key, label, Icon]) => (
+        ] as const).filter(([key]) => key !== "interviews" || interviewsEnabled).map(([key, label, Icon]) => (
           <button
-            key={key} onClick={() => setTab(key)}
+            key={key} onClick={() => pickTab(key)}
             className={cn("inline-flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-1.5 transition",
               tab === key ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-muted")}
           >
@@ -119,6 +143,14 @@ export function TradePartnersClient({
         />
       )}
       {tab === "directory" && <Directory initial={initialDirectory} />}
+      {tab === "interviews" && interviewsEnabled && (
+        <InterviewsPanel
+          companies={initialDirectory.map((c) => ({ id: c.id, name: c.name, trades: c.trades ?? [] }))}
+          staff={reviewers}
+          meId={meId}
+          canManageTemplates={canManageTemplates}
+        />
+      )}
       {tab === "compliance" && <Compliance initial={initialCompliance} />}
 
       {openId && (

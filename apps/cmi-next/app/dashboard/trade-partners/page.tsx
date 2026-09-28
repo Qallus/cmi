@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { getSessionStaff } from "@/lib/auth/server-session";
 import { isFeatureEnabled } from "@/lib/flags";
 import { canUsePrequal, canDecidePrequal, PREQUAL_FLAG } from "@/lib/prequal/access";
+import { canUseInterviews, canManageTemplates, INTERVIEWS_FLAG } from "@/lib/interviews/access";
 import { listApplications } from "@/lib/prequal/review";
 import { loadDirectory, loadComplianceWorklist, loadQualificationStats } from "@/lib/companies/directory";
 import { loadAssignableStaff } from "@/lib/staff/assignable";
@@ -16,12 +17,13 @@ export default async function TradePartnersPage() {
   if (!canUsePrequal(staff.role_slug)) notFound();
   if (!(await isFeatureEnabled(PREQUAL_FLAG))) notFound();
 
-  const [applications, directory, compliance, stats, people] = await Promise.all([
+  const [applications, directory, compliance, stats, people, interviewsOn] = await Promise.all([
     listApplications(),
     loadDirectory(),
     loadComplianceWorklist(),
     loadQualificationStats(),
     loadAssignableStaff(),
+    isFeatureEnabled(INTERVIEWS_FLAG),
   ]);
 
   return (
@@ -33,6 +35,9 @@ export default async function TradePartnersPage() {
       reviewers={people.map((p) => ({ id: p.id, name: p.name }))}
       canDecide={canDecidePrequal(staff.role_slug)}
       isSuperAdmin={staff.role_slug === "super_admin"}
+      meId={staff.id}
+      interviewsEnabled={interviewsOn && canUseInterviews(staff.role_slug)}
+      canManageTemplates={canManageTemplates(staff.role_slug)}
     />
   );
 }

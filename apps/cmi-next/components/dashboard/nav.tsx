@@ -35,7 +35,6 @@ const nav: NavItem[] = [
     href: "/dashboard/contacts",       label: "Contacts",       icon: Users,          roles: ["super_admin", "admin", "project_manager", "estimator"],
     children: [
       { href: "/dashboard/trade-partners", label: "Trade Partners", icon: HandshakeIcon, roles: ["super_admin", "admin", "project_manager", "estimator"], flag: "prequalification" },
-      { href: "/dashboard/interviews", label: "Interviews", icon: MessagesSquare, roles: ["super_admin", "admin", "project_manager", "estimator"], flag: "interviews" },
     ],
   },
   { href: "/dashboard/project-manager",label: "Projects",       icon: FolderKanban,   roles: ["super_admin", "admin", "project_manager", "designer", "estimator", "superintendent", "subcontractor", "client"] },

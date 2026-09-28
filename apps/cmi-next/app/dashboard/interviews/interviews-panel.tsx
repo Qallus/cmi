@@ -12,8 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import type { InterviewRow, InterviewTemplate } from "@/lib/interviews/data";
 
-type CompanyOption = { id: string; name: string; trades: string[] };
-type StaffOption = { id: string; name: string };
+export type CompanyOption = { id: string; name: string; trades: string[] };
+export type StaffOption = { id: string; name: string };
 
 const STATUS_TONE: Record<string, string> = {
   draft: "bg-muted text-muted-foreground",
@@ -37,24 +37,44 @@ const when = (iso: string | null) =>
     ? new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
     : "—";
 
-export function InterviewsClient({
-  initialInterviews, templates, stats, companies, staff, meId, canManageTemplates, isSuperAdmin,
+/**
+ * The Interviews tab inside Trade Partners.
+ *
+ * Its own data loads on first open rather than with the page, so the three
+ * other tabs are not slowed down for people who never come here. Companies and
+ * staff come in as props because Trade Partners already has them.
+ */
+export function InterviewsPanel({
+  companies, staff, meId, canManageTemplates,
 }: {
-  initialInterviews: InterviewRow[];
-  templates: InterviewTemplate[];
-  stats: Record<string, number>;
   companies: CompanyOption[];
   staff: StaffOption[];
   meId: string;
   canManageTemplates: boolean;
-  isSuperAdmin: boolean;
 }) {
-  const [rows, setRows] = React.useState(initialInterviews);
+  const [rows, setRows] = React.useState<InterviewRow[] | null>(null);
+  const [templates, setTemplates] = React.useState<InterviewTemplate[]>([]);
+  const [stats, setStats] = React.useState<Record<string, number>>({});
   const [status, setStatus] = React.useState("all");
   const [interviewer, setInterviewer] = React.useState("");
   const [q, setQ] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [starting, setStarting] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    let alive = true;
+    void (async () => {
+      const res = await fetch("/api/interviews/overview");
+      const json = await res.json().catch(() => ({}));
+      if (!alive) return;
+      if (!res.ok) { setError(json.error ?? "Could not load interviews."); setRows([]); return; }
+      setRows(json.interviews ?? []);
+      setTemplates(json.templates ?? []);
+      setStats(json.stats ?? {});
+    })();
+    return () => { alive = false; };
+  }, []);
 
   const refresh = React.useCallback(async () => {
     setBusy(true);
@@ -67,7 +87,8 @@ export function InterviewsClient({
     setBusy(false);
   }, [status, interviewer, q]);
 
-  // Filters are a different query; the first render already has the server's.
+  // Filters are a different query. Skips the first run, which the initial
+  // load already covered.
   const first = React.useRef(true);
   React.useEffect(() => {
     if (first.current) { first.current = false; return; }
@@ -75,31 +96,19 @@ export function InterviewsClient({
     return () => clearTimeout(t);
   }, [refresh]);
 
+  if (rows === null) {
+    return (
+      <p className="flex items-center gap-2 py-12 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" /> Loading interviews…
+      </p>
+    );
+  }
+
   return (
-    <div className="space-y-5 p-4 md:p-6">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-accent">Qualification</div>
-          <h1 className="mt-2 font-display text-2xl font-semibold tracking-tight">Interviews</h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-            Structured qualification meetings. What gets answered here lands on the partner&apos;s
-            profile, so the Directory can find them by it later.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          {canManageTemplates && (
-            <Link
-              href="/dashboard/interviews/templates"
-              className="inline-flex h-9 items-center gap-2 rounded-md border border-border px-3 text-sm font-medium transition hover:bg-muted"
-            >
-              <ClipboardList className="h-4 w-4" /> Templates
-            </Link>
-          )}
-          <Button variant="accent" onClick={() => setStarting(true)}>
-            <Plus className="h-4 w-4" /> New interview
-          </Button>
-        </div>
-      </header>
+    <div className="space-y-4">
+      {error && (
+        <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
+      )}
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <Stat icon={CalendarClock} label="Upcoming" value={stats.upcoming ?? 0} tone="text-info" />
@@ -110,7 +119,7 @@ export function InterviewsClient({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-[200px] flex-1">
+        <div className="relative min-w-[180px] flex-1">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input className="pl-8" placeholder="Search interviews…" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
@@ -129,6 +138,17 @@ export function InterviewsClient({
           {staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
         </Select>
         {busy && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+        {canManageTemplates && (
+          <Link
+            href="/dashboard/interviews/templates"
+            className="inline-flex h-9 items-center gap-2 rounded-md border border-border px-3 text-sm font-medium transition hover:bg-muted"
+          >
+            <ClipboardList className="h-4 w-4" /> Templates
+          </Link>
+        )}
+        <Button variant="accent" onClick={() => setStarting(true)}>
+          <Plus className="h-4 w-4" /> New interview
+        </Button>
       </div>
 
       {rows.length === 0 ? (
@@ -197,7 +217,6 @@ export function InterviewsClient({
           onClose={() => setStarting(false)}
         />
       )}
-      {isSuperAdmin && null}
     </div>
   );
 }
