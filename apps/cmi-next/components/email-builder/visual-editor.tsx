@@ -82,10 +82,10 @@ function markerFor(style: ListStyle | undefined, icon: string | undefined, index
 }
 
 function ListPreview({
-  items, style, icon, color, markerColor, fontSize, spacing,
+  items, style, icon, color, markerColor, fontSize, spacing, lineHeight,
 }: {
   items?: string[]; style?: ListStyle; icon?: string;
-  color?: string; markerColor?: string; fontSize?: number; spacing?: number;
+  color?: string; markerColor?: string; fontSize?: number; spacing?: number; lineHeight?: number;
 }) {
   const rows = (items ?? []).filter((i) => i.trim() !== "");
   if (rows.length === 0) {
@@ -95,10 +95,10 @@ function ListPreview({
     <div>
       {rows.map((item, i) => (
         <div key={i} style={{ display: "flex", gap: 8, marginBottom: i === rows.length - 1 ? 0 : (spacing ?? 8) }}>
-          <span style={{ color: markerColor ?? color ?? "#4b5563", fontSize: fontSize ?? 15, lineHeight: 1.6, whiteSpace: "nowrap" }}>
+          <span style={{ color: markerColor ?? color ?? "#4b5563", fontSize: fontSize ?? 15, lineHeight: lineHeight ?? 1.6, whiteSpace: "nowrap" }}>
             {markerFor(style, icon, i)}
           </span>
-          <span style={{ color: color ?? "#4b5563", fontSize: fontSize ?? 15, lineHeight: 1.6 }}>{item}</span>
+          <span style={{ color: color ?? "#4b5563", fontSize: fontSize ?? 15, lineHeight: lineHeight ?? 1.6 }}>{item}</span>
         </div>
       ))}
     </div>
@@ -116,8 +116,8 @@ function ColPreview({ col }: { col: ColumnItem }) {
     <div style={{ padding: 8, textAlign: ta }}>
       {col.src ? <img src={col.src} alt={col.alt ?? ""} style={{ width: "100%", height: "auto", display: "block", marginBottom: 6 }} /> : null}
       {col.text ? <div style={{ fontSize: col.heading_size ?? 16, fontWeight: 700, color: col.heading_color ?? "#111111", lineHeight: 1.3, marginBottom: 3 }}>{col.text}</div> : null}
-      {col.content ? <div style={{ fontSize: col.font_size ?? 13, color: col.color ?? "#4b5563", lineHeight: 1.5, marginBottom: 4, whiteSpace: "pre-wrap" }}>{col.content}</div> : null}
-      {col.items?.length ? <div style={{ marginBottom: 6 }}><ListPreview items={col.items} style={col.list_style} icon={col.list_icon} color={col.color} markerColor={col.marker_color} fontSize={col.font_size} /></div> : null}
+      {col.content ? <div style={{ fontSize: col.font_size ?? 13, color: col.color ?? "#4b5563", lineHeight: col.line_height ?? 1.5, marginBottom: 4, whiteSpace: "pre-wrap" }}>{col.content}</div> : null}
+      {col.items?.length ? <div style={{ marginBottom: 6 }}><ListPreview items={col.items} style={col.list_style} icon={col.list_icon} color={col.color} markerColor={col.marker_color} fontSize={col.font_size} lineHeight={col.line_height} /></div> : null}
       {col.label ? <span style={{ display: "inline-block", background: col.btn_bg ?? "#C87A3A", color: col.btn_color ?? "#fff", borderRadius: col.btn_radius ?? 6, padding: "6px 12px", fontSize: 12, fontWeight: 700 }}>{col.label}</span> : null}
     </div>
   );
@@ -138,16 +138,16 @@ function BlockPreview({ block }: { block: EmailBlock }) {
   switch (block.type) {
     case "header":
       return (
-        <div style={{ background: block.bg_color ?? "#111111", padding: previewPad(block, 20, 32, 20), textAlign: "center" }}>
+        <div style={{ background: block.bg_color ?? "#111111", padding: previewPad(block, 20, 32, 20), textAlign: block.align ?? "center" }}>
           {block.logo_url
-            ? <img src={block.logo_url} alt="Logo" style={{ height: 32, width: "auto", display: "inline-block" }} />
+            ? <img src={block.logo_url} alt="Logo" width={block.logo_width ?? 180} style={{ width: block.logo_width ?? 180, maxWidth: "100%", height: "auto", display: "inline-block" }} />
             : <span style={{ color: "#ffffff", fontSize: 14, fontWeight: 600 }}>Logo Header</span>}
         </div>
       );
     case "heading":
       return (
         <div style={{ padding: previewPad(block, 12, 32, 4), textAlign: block.align ?? "left" }}>
-          <span style={{ fontSize: block.font_size ?? 28, fontWeight: 700, color: block.color ?? "#111111", lineHeight: 1.3 }}>
+          <span style={{ fontSize: block.font_size ?? 28, fontWeight: 700, color: block.color ?? "#111111", lineHeight: block.line_height ?? 1.3 }}>
             {block.text || "Heading"}
           </span>
         </div>
@@ -155,7 +155,7 @@ function BlockPreview({ block }: { block: EmailBlock }) {
     case "text":
       return (
         <div style={{ padding: previewPad(block, 4, 32, 4), textAlign: block.align ?? "left" }}>
-          <span style={{ fontSize: block.font_size ?? 15, color: block.color ?? "#4b5563", lineHeight: 1.7 }}>
+          <span style={{ fontSize: block.font_size ?? 15, color: block.color ?? "#4b5563", lineHeight: block.line_height ?? 1.7 }}>
             {block.content || "Your text here."}
           </span>
         </div>
@@ -172,7 +172,7 @@ function BlockPreview({ block }: { block: EmailBlock }) {
       return (
         <div style={{ padding: previewPad(block, 8, 32, 8), textAlign: block.align ?? "center" }}>
           {block.src
-            ? <img src={block.src} alt={block.alt ?? ""} style={{ maxWidth: "100%", height: "auto", display: "inline-block" }} />
+            ? <img src={block.src} alt={block.alt ?? ""} width={block.img_width ?? 480} style={{ width: block.img_width ?? 480, maxWidth: "100%", height: "auto", display: "inline-block" }} />
             : <div style={{ width: "100%", height: 100, background: "#f3f4f6", display: "flex", alignItems: "center", justifyContent: "center", color: "#9ca3af", fontSize: 13, borderRadius: 4 }}>No image URL set</div>}
         </div>
       );
@@ -202,7 +202,7 @@ function BlockPreview({ block }: { block: EmailBlock }) {
           <ListPreview
             items={block.items} style={block.list_style} icon={block.list_icon}
             color={block.color} markerColor={block.marker_color}
-            fontSize={block.font_size} spacing={block.item_spacing}
+            fontSize={block.font_size} spacing={block.item_spacing} lineHeight={block.line_height}
           />
         </div>
       );
@@ -426,6 +426,93 @@ function ListFields({
   );
 }
 
+
+/**
+ * Line height, as a multiplier.
+ *
+ * Presets plus a number box: most of the time one of the four is what you want,
+ * and the box covers the rest. Blank means the block type default, which is
+ * what every email built before this setting existed already uses.
+ */
+function LineHeightField({
+  value, fallback, onChange,
+}: {
+  value?: number;
+  fallback: number;
+  onChange: (v: number | undefined) => void;
+}) {
+  const PRESETS = [1.2, 1.4, 1.6, 1.8];
+  return (
+    <Field label="Line Height">
+      <div className="flex items-center gap-1">
+        {PRESETS.map((n) => (
+          <button
+            key={n} type="button" onClick={() => onChange(n)}
+            className={cn(
+              "flex-1 rounded border py-1 text-[11px] font-medium transition",
+              value === n ? "border-accent bg-accent/10 text-accent" : "border-border text-muted-foreground hover:border-accent/40",
+            )}
+          >
+            {n}
+          </button>
+        ))}
+        <input
+          className={cn(inputCls, "w-16 shrink-0")}
+          type="number" step={0.1} min={0.8} max={3}
+          value={value ?? ""} placeholder={String(fallback)}
+          onChange={(e) => onChange(e.target.value === "" ? undefined : Number(e.target.value))}
+        />
+      </div>
+    </Field>
+  );
+}
+
+/** The brand marks that ship with the app, for the header block. */
+const BRAND_LOGOS: { label: string; file: string }[] = [
+  { label: "Line, white", file: "/brand/CMI_Line_Logo_White.svg" },
+  { label: "Line, black", file: "/brand/CMI_Line_Logo_Black.svg" },
+  { label: "Line, black PNG", file: "/brand/cmi-line-logo-black.png" },
+  { label: "Stacked, light", file: "/brand/cmi-logo-light.png" },
+  { label: "Stacked, dark", file: "/brand/cmi-logo-dark.png" },
+  { label: "Mark", file: "/brand/cmi-mark.svg" },
+  { label: "Icon, white", file: "/brand/cmi-favicon-white.png" },
+  { label: "Icon, black", file: "/brand/cmi-favicon-black.png" },
+];
+
+/**
+ * Pick a logo by looking at it.
+ *
+ * Each swatch previews on the bar colour actually in use, because the whole
+ * difficulty is that a white logo vanishes on white and a black one vanishes
+ * on black. The stored value is absolute: an email is read outside the app,
+ * where a relative path resolves to nothing.
+ */
+function LogoPicker({ value, bg, onChange }: { value: string; bg: string; onChange: (v: string) => void }) {
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  return (
+    <div className="grid grid-cols-2 gap-1.5">
+      {BRAND_LOGOS.map((logo) => {
+        const url = `${origin}${logo.file}`;
+        const selected = value === url || value.endsWith(logo.file);
+        return (
+          <button
+            key={logo.file} type="button" onClick={() => onChange(url)}
+            title={logo.label}
+            className={cn(
+              "flex h-12 items-center justify-center rounded border p-1.5 transition",
+              selected ? "border-accent ring-1 ring-accent" : "border-border hover:border-accent/40",
+            )}
+            style={{ background: bg }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={logo.file} alt={logo.label} className="max-h-full max-w-full object-contain" />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function BlockSettings({ block, onChange, onDelete }: {
   block: EmailBlock;
   onChange: (patch: Partial<EmailBlock>) => void;
@@ -450,14 +537,22 @@ function BlockSettings({ block, onChange, onDelete }: {
 
       {/* Header */}
       {s.type === "header" && <>
-        <Field label="Logo"><ImageInput value={s.logo_url ?? ""} onChange={v => onChange({ logo_url: v })} placeholder="Logo URL or upload" /></Field>
-        <Field label="Logo Width (px)"><input className={inputCls} type="number" min={60} max={400} value={s.logo_width ?? 180} onChange={e => onChange({ logo_width: Number(e.target.value) })} /></Field>
+        <Field label="Logo">
+          <LogoPicker value={s.logo_url ?? ""} bg={s.bg_color ?? "#111111"} onChange={v => onChange({ logo_url: v })} />
+        </Field>
+        <Field label="Or paste / upload your own"><ImageInput value={s.logo_url ?? ""} onChange={v => onChange({ logo_url: v })} placeholder="Logo URL or upload" /></Field>
+        <NumberRow>
+          <Field label="Logo Width (px)"><input className={inputCls} type="number" min={40} max={520} value={s.logo_width ?? 180} onChange={e => onChange({ logo_width: Number(e.target.value) })} /></Field>
+          <Field label="Position"><AlignButtons value={s.align ?? "center"} onChange={v => onChange({ align: v as "left"|"center"|"right" })} /></Field>
+        </NumberRow>
         <ColorField label="Bar Background" value={s.bg_color ?? "#111111"} onChange={v => onChange({ bg_color: v })} />
+        <p className="text-[11px] leading-relaxed text-muted-foreground">Spacing around the bar is under Section below.</p>
       </>}
 
       {/* Heading */}
       {s.type === "heading" && <>
         <Field label="Text"><input className={inputCls} value={s.text ?? ""} onChange={e => onChange({ text: e.target.value })} /></Field>
+        <LineHeightField value={s.line_height} fallback={1.3} onChange={v => onChange({ line_height: v })} />
         <Field label="Level">
           <select className={inputCls} value={s.level ?? "h1"} onChange={e => onChange({ level: e.target.value as "h1"|"h2"|"h3" })}>
             <option value="h1">H1 -- Large</option>
@@ -474,6 +569,7 @@ function BlockSettings({ block, onChange, onDelete }: {
       {s.type === "text" && <>
         <Field label="Content"><textarea className={cn(inputCls, "min-h-[100px] resize-y")} value={s.content ?? ""} onChange={e => onChange({ content: e.target.value })} /></Field>
         <Field label="Font Size (px)"><input className={inputCls} type="number" min={11} max={24} value={s.font_size ?? 15} onChange={e => onChange({ font_size: Number(e.target.value) })} /></Field>
+        <LineHeightField value={s.line_height} fallback={1.7} onChange={v => onChange({ line_height: v })} />
         <ColorField label="Color" value={s.color ?? "#4b5563"} onChange={v => onChange({ color: v })} />
         <Field label="Align"><AlignButtons value={s.align} onChange={v => onChange({ align: v as "left"|"center"|"right" })} /></Field>
       </>}
@@ -493,7 +589,8 @@ function BlockSettings({ block, onChange, onDelete }: {
         <Field label="Image"><ImageInput value={s.src ?? ""} onChange={v => onChange({ src: v })} placeholder="Image URL or upload" /></Field>
         <Field label="Alt Text"><input className={inputCls} value={s.alt ?? ""} onChange={e => onChange({ alt: e.target.value })} /></Field>
         <Field label="Link URL"><input className={inputCls} value={s.link ?? ""} onChange={e => onChange({ link: e.target.value })} placeholder="https://..." /></Field>
-        <Field label="Width (px)"><input className={inputCls} type="number" min={100} max={560} value={s.img_width ?? 480} onChange={e => onChange({ img_width: Number(e.target.value) })} /></Field>
+        <Field label="Width (px)"><input className={inputCls} type="number" min={16} max={900} value={s.img_width ?? 480} onChange={e => onChange({ img_width: Number(e.target.value) })} /></Field>
+        <p className="text-[11px] leading-relaxed text-muted-foreground">Set this to the size you want it displayed at. A 50px icon uploaded at 2× for sharpness still wants 50 here.</p>
         <Field label="Align"><AlignButtons value={s.align} onChange={v => onChange({ align: v as "left"|"center"|"right" })} /></Field>
       </>}
 
@@ -514,6 +611,7 @@ function BlockSettings({ block, onChange, onDelete }: {
           <Field label="Text Size"><input className={inputCls} type="number" min={11} max={24} value={s.font_size ?? 15} onChange={e => onChange({ font_size: Number(e.target.value) })} /></Field>
           <Field label="Text Color"><input className={inputCls} value={s.color ?? "#4b5563"} onChange={e => onChange({ color: e.target.value })} placeholder="#4b5563" /></Field>
         </NumberRow>
+        <LineHeightField value={s.line_height} fallback={1.6} onChange={v => onChange({ line_height: v })} />
       </>}
 
       {s.type === "spacer" && <>

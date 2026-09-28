@@ -41,6 +41,7 @@ export interface ColumnItem {
   marker_color?: string;
   // shared
   font_size?: number;
+  line_height?: number;
   color?: string;
   align?: "left" | "center" | "right";
 }
@@ -57,6 +58,8 @@ export interface EmailBlock {
   level?: "h1" | "h2" | "h3";
   color?: string;
   font_size?: number;
+  /** Multiplier, e.g. 1.6. Unset falls back to a per-block-type default. */
+  line_height?: number;
   align?: "left" | "center" | "right";
   // Text / paragraph
   content?: string;

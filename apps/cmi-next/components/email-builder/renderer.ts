@@ -31,7 +31,7 @@ const esc = (v: string) => v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replac
  */
 function renderList(opts: {
   items?: string[]; style?: ListStyle; icon?: string; markerColor?: string;
-  color?: string; fontSize?: number; spacing?: number;
+  color?: string; fontSize?: number; spacing?: number; lineHeight?: number;
 }): string {
   const items = (opts.items ?? []).filter((i) => i.trim() !== "");
   if (items.length === 0) return "";
@@ -40,6 +40,7 @@ function renderList(opts: {
   const color = opts.color ?? "#4b5563";
   const marker = opts.markerColor ?? color;
   const gap = opts.spacing ?? 8;
+  const lh = opts.lineHeight ?? 1.6;
 
   const rows = items.map((item, i) => {
     const bullet = style === "number"
@@ -49,8 +50,8 @@ function renderList(opts: {
         : (LIST_MARKERS[style as keyof typeof LIST_MARKERS] ?? LIST_MARKERS.bullet);
     const pad = i === items.length - 1 ? 0 : gap;
     return `<tr>
-        <td valign="top" style="padding:0 8px ${pad}px 0;font-size:${size}px;line-height:1.6;color:${marker};white-space:nowrap;">${esc(bullet)}</td>
-        <td valign="top" style="padding:0 0 ${pad}px;font-size:${size}px;line-height:1.6;color:${color};">${esc(item)}</td>
+        <td valign="top" style="padding:0 8px ${pad}px 0;font-size:${size}px;line-height:${lh};color:${marker};white-space:nowrap;">${esc(bullet)}</td>
+        <td valign="top" style="padding:0 0 ${pad}px;font-size:${size}px;line-height:${lh};color:${color};">${esc(item)}</td>
       </tr>`;
   }).join("\n      ");
 
@@ -69,10 +70,10 @@ function renderColumnItem(col: ColumnItem): string {
     parts.push(col.link ? `<a href="${col.link}" style="display:block;">${img}</a>` : img);
   }
   if (col.text) parts.push(`<div style="margin:0 0 4px;font-size:${col.heading_size ?? 16}px;font-weight:700;color:${col.heading_color ?? "#111111"};line-height:1.3;text-align:${ta};">${col.text}</div>`);
-  if (col.content) parts.push(`<p style="margin:0 0 6px;font-size:${col.font_size ?? 14}px;color:${col.color ?? "#4b5563"};line-height:1.6;text-align:${ta};">${col.content.replace(/\n/g, "<br/>")}</p>`);
+  if (col.content) parts.push(`<p style="margin:0 0 6px;font-size:${col.font_size ?? 14}px;color:${col.color ?? "#4b5563"};line-height:${col.line_height ?? 1.6};text-align:${ta};">${col.content.replace(/\n/g, "<br/>")}</p>`);
   if (col.items?.length) parts.push(renderList({
     items: col.items, style: col.list_style, icon: col.list_icon,
-    markerColor: col.marker_color, color: col.color, fontSize: col.font_size,
+    markerColor: col.marker_color, color: col.color, fontSize: col.font_size, lineHeight: col.line_height,
   }));
   if (col.label) parts.push(`<table cellpadding="0" cellspacing="0" style="width:100%;"><tr><td style="text-align:${ta};"><a href="${col.url ?? "#"}" style="display:inline-block;background:${col.btn_bg ?? "#C87A3A"};color:${col.btn_color ?? "#ffffff"};border-radius:${col.btn_radius ?? 6}px;padding:10px 20px;font-size:13px;font-weight:700;text-decoration:none;">${col.label}</a></td></tr></table>`);
   return parts.join("\n") || `<div style="height:40px;"></div>`;
@@ -84,9 +85,13 @@ function renderBlock(block: EmailBlock): string {
       const bg   = block.bg_color ?? "#111111";
       const logo = block.logo_url ?? `${APP_URL}/brand/CMI_Line_Logo_White.svg`;
       const w    = block.logo_width ?? 180;
+      const ta   = align(block.align);
       const pad  = tdPad(block, 28, 40, 28);
-      return `<tr${rowBg(block)}><td style="${pad}background:${bg};text-align:center;">
-  <img src="${logo}" alt="Logo" width="${w}" style="display:block;margin:0 auto;height:auto;max-width:100%;" />
+      // `margin` places the logo, because text-align does not move a
+      // display:block image in Outlook.
+      const margin = ta === "center" ? "margin:0 auto;" : ta === "right" ? "margin:0 0 0 auto;" : "margin:0;";
+      return `<tr${rowBg(block)}><td style="${pad}background:${bg};text-align:${ta};">
+  <img src="${logo}" alt="Logo" width="${w}" style="display:block;${margin}height:auto;max-width:100%;" />
 </td></tr>`;
     }
 
@@ -97,7 +102,7 @@ function renderBlock(block: EmailBlock): string {
       const ta  = align(block.align);
       const pad = tdPad(block, 24, 40, 8);
       return `<tr${rowBg(block)}><td style="${pad}">
-  <${tag} style="margin:0;font-size:${fs}px;font-weight:700;color:${col};line-height:1.3;text-align:${ta};">${block.text ?? "Heading"}</${tag}>
+  <${tag} style="margin:0;font-size:${fs}px;font-weight:700;color:${col};line-height:${block.line_height ?? 1.3};text-align:${ta};">${block.text ?? "Heading"}</${tag}>
 </td></tr>`;
     }
 
@@ -107,7 +112,7 @@ function renderBlock(block: EmailBlock): string {
       const ta  = align(block.align);
       const pad = tdPad(block, 8, 40, 8);
       return `<tr${rowBg(block)}><td style="${pad}">
-  <p style="margin:0;font-size:${fs}px;color:${col};line-height:1.7;text-align:${ta};">${(block.content ?? "Your text here.").replace(/\n/g, "<br/>")}</p>
+  <p style="margin:0;font-size:${fs}px;color:${col};line-height:${block.line_height ?? 1.7};text-align:${ta};">${(block.content ?? "Your text here.").replace(/\n/g, "<br/>")}</p>
 </td></tr>`;
     }
 
@@ -166,8 +171,11 @@ function renderBlock(block: EmailBlock): string {
       const company = block.company ?? "Constructed Matter, Inc.";
       const address = block.address ?? "7314 E Osborn Dr Suite A - Scottsdale, AZ 85251";
       const note    = block.disclaimer ?? "If you weren't expecting this email, you can safely ignore it.";
-      return `<tr><td style="padding:0 40px;"><div style="border-top:1px solid #eeeeee;"></div></td></tr>
-<tr><td style="padding:24px 40px;text-align:center;">
+      // Was hard-coded, so the Section padding fields silently did nothing.
+      const pad = tdPad(block, 24, 40, 24);
+      const rule = `padding:0 ${block.pad_right ?? block.pad_x ?? 40}px;`;
+      return `<tr${rowBg(block)}><td style="${rule}"><div style="border-top:1px solid #eeeeee;"></div></td></tr>
+<tr${rowBg(block)}><td style="${pad}text-align:center;">
   <p style="margin:0 0 4px;font-size:12px;color:#9ca3af;font-weight:600;">${company}</p>
   <p style="margin:0 0 4px;font-size:12px;color:#9ca3af;">${address}</p>
   <p style="margin:16px 0 0;font-size:11px;color:#c4c4c4;">${note}</p>
@@ -212,6 +220,7 @@ function renderBlock(block: EmailBlock): string {
         color: block.color,
         fontSize: block.font_size,
         spacing: block.item_spacing,
+        lineHeight: block.line_height,
       });
       if (!body) return "";
       return `<tr${rowBg(block)}><td style="${pad}">
