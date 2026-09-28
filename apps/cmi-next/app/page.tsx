@@ -9,6 +9,7 @@ import {
   ClipboardList,
   Construction,
   DraftingCompass,
+  Handshake,
   Home,
   MonitorCog,
   Package,
@@ -22,6 +23,8 @@ import { HomeFeaturedProjects } from "./home-featured-projects";
 import { HeroCarousel } from "./home-hero";
 import { HomeVideoBackground } from "./home-video-background";
 import { loadPortfolioItems } from "@/lib/portfolio/data";
+import { isFeatureEnabled } from "@/lib/flags";
+import { PREQUAL_FLAG } from "@/lib/prequal/access";
 import type { PortfolioItem } from "@/lib/portfolio/types";
 
 export const metadata = { title: "Constructed Matter — Building What Matters Most" };
@@ -248,6 +251,10 @@ function toFeatured(item: PortfolioItem) {
 }
 
 export default async function HomePage() {
+  // The prequalification page 404s when its flag is off, so the band goes with
+  // it rather than leaving a dead link on the homepage.
+  const tradePartnersOn = await isFeatureEnabled(PREQUAL_FLAG);
+
   // The slider shows ONLY items marked "Featured" in the portfolio editor.
   // Fall back to the curated demo list if nothing is featured yet or the DB
   // is unavailable, so the homepage never renders an empty slider.
@@ -409,6 +416,34 @@ export default async function HomePage() {
             </p>
           </div>
         </section>
+
+        {/* ── Trade partners ──────────────────────────────────
+            A different audience from the rest of the page — trades, not
+            homeowners — so it reads as a quiet aside rather than competing
+            with the closing CTA. */}
+        {tradePartnersOn && (
+          <section className="border-b border-border bg-card py-10">
+            <div className="mx-auto flex max-w-7xl flex-col items-start gap-4 px-5 sm:flex-row sm:items-center sm:justify-between lg:px-8">
+              <div className="flex items-start gap-4">
+                <div className="hidden h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-accent/10 sm:flex">
+                  <Handshake className="h-5 w-5 text-accent" strokeWidth={1.6} />
+                </div>
+                <div>
+                  <p className="font-display text-lg font-semibold">Work with us</p>
+                  <p className="mt-0.5 text-sm leading-relaxed text-muted-foreground">
+                    Subcontractors, vendors, designers and consultants: apply to join our trade partner network.
+                  </p>
+                </div>
+              </div>
+              <Link
+                href="/prequalification"
+                className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-sm font-semibold text-accent transition hover:underline"
+              >
+                Become a Trade Partner <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+          </section>
+        )}
 
         <section className="border-b border-border bg-background py-24 lg:py-32">
           <div className="mx-auto max-w-7xl px-5 lg:px-8">

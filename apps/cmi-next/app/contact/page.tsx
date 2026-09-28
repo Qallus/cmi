@@ -1,5 +1,9 @@
+import Link from "next/link";
+import { Handshake } from "lucide-react";
 import { SiteHeader } from "@/components/site/site-header";
 import { SiteFooter } from "@/components/site/site-footer";
+import { isFeatureEnabled } from "@/lib/flags";
+import { PREQUAL_FLAG } from "@/lib/prequal/access";
 import { ContactForm } from "./contact-form";
 
 export const metadata = { title: "Contact Us — Constructed Matter" };
@@ -10,7 +14,11 @@ const GOOGLE_MAPS_DIRECTIONS =
 const APPLE_MAPS_DIRECTIONS =
   "https://maps.apple.com/place?place-id=I35F7B895019B0E6B&address=7314+E+Osborn+Dr%2C+Scottsdale%2C+AZ++85251%2C+United+States&coordinate=33.487028%2C-111.924287&name=Constructed+Matter%2C+Inc.&_provider=9902";
 
-export default function ContactPage() {
+export default async function ContactPage() {
+  // The prequalification page 404s when the flag is off, so the card goes
+  // with it rather than leaving a dead link on every contact visit.
+  const tradePartnersOn = await isFeatureEnabled(PREQUAL_FLAG);
+
   return (
     <>
       <SiteHeader />
@@ -101,6 +109,26 @@ export default function ContactPage() {
                     </li>
                   </ul>
                 </div>
+
+                {/* Trade partners — a different audience from the form beside it. */}
+                {tradePartnersOn && (
+                  <div className="rounded-2xl border border-border bg-card p-8">
+                    <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-accent/10">
+                      <Handshake className="h-5 w-5 text-accent" strokeWidth={1.6} />
+                    </div>
+                    <h3 className="mb-2 font-display text-xl font-semibold">Are you a trade partner?</h3>
+                    <p className="text-sm leading-relaxed text-muted-foreground">
+                      We work with subcontractors, vendors, designers and consultants across the
+                      Valley. Tell us what you do and we&apos;ll match you to the work that fits.
+                    </p>
+                    <Link
+                      href="/prequalification"
+                      className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-accent transition hover:underline"
+                    >
+                      Start an application &rarr;
+                    </Link>
+                  </div>
+                )}
 
                 {/* License Badge */}
                 <div className="flex items-center gap-4 rounded-xl border border-border p-5">

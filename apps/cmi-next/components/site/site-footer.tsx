@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Facebook, Instagram, Linkedin, Mail, MapPin, Phone } from "lucide-react";
+import { Facebook, Handshake, Instagram, Linkedin, Mail, MapPin, Phone } from "lucide-react";
 import { ContactFab } from "./contact-fab";
 import { FooterFlagLink } from "./footer-flag-link";
 
@@ -116,6 +116,12 @@ export function SiteFooter() {
                   <span>7314 E Osborn Dr Suite A<br />Scottsdale, AZ 85251</span>
                 </a>
               </li>
+              <FooterFlagLink
+                flag="prequalification"
+                href="/prequalification"
+                label="Become a Trade Partner"
+                icon={<Handshake className="mt-0.5 h-4 w-4 shrink-0 text-accent" />}
+              />
             </ul>
           </div>
         </div>

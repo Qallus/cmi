@@ -1,12 +1,23 @@
 "use client";
 
 import * as React from "react";
-import { Headphones, Mail, Phone, Sparkles, X } from "lucide-react";
+import Link from "next/link";
+import { Handshake, Headphones, Mail, Phone, Sparkles, X } from "lucide-react";
 import { BoltVoiceModal } from "./bolt-voice-modal";
 
 export function ContactFab() {
   const [open, setOpen] = React.useState(false);
   const [voiceOpen, setVoiceOpen] = React.useState(false);
+  // The prequalification page 404s when its flag is off, so the link has to
+  // come and go with it — same check SiteHeader makes for its nav entries.
+  const [prequalOn, setPrequalOn] = React.useState(false);
+
+  React.useEffect(() => {
+    fetch("/api/flags")
+      .then((r) => r.json())
+      .then((d: { flags?: Record<string, boolean> }) => setPrequalOn(d.flags?.prequalification === true))
+      .catch(() => {});
+  }, []);
 
   return (
     <div className="fixed bottom-5 right-5 z-[80]">
@@ -33,6 +44,16 @@ export function ContactFab() {
               <Sparkles className="h-4 w-4 text-accent" strokeWidth={1.6} />
               Talk to Bolt AI
             </button>
+            {prequalOn && (
+              <Link
+                href="/prequalification"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-3 px-4 py-3 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
+              >
+                <Handshake className="h-4 w-4 text-accent" strokeWidth={1.6} />
+                Become a Trade Partner
+              </Link>
+            )}
           </div>
         </div>
       )}
