@@ -66,6 +66,12 @@ export type Deal = {
   notes: string | null;
   tags: string[] | null;
 
+  /**
+   * Manual position in the Pipeline views. Null means never hand-placed, which
+   * sorts after everything that has been, so a new deal does not jump the queue.
+   */
+  sort_order: number | null;
+
   // Set when the deal is archived off the active board; the record and its
   // history stay put and can be restored.
   archived_at: string | null;

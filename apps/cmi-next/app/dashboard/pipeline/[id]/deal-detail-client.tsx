@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
-  ArrowLeft, Phone, Mail, MessageSquare, CalendarClock, StickyNote, Mic, Sparkles,
+  ArrowLeft, ChevronLeft, Phone, Mail, MessageSquare, CalendarClock, StickyNote, Mic, Sparkles,
   FolderKanban, FileText, ScrollText, FileSignature, Package, ReceiptText, Trophy,
   Ban, Check, ChevronRight, Loader2, X, Pencil, Trash2, CircleDot, Circle, CheckCircle2,
   Clock, ArrowRight, Plus, Maximize2, Minimize2,
@@ -17,6 +17,7 @@ import { BoltModal } from "@/components/dashboard/bolt-modal";
 import { CallsWorkspace } from "@/app/dashboard/communications/calls-workspace";
 import { RichTextEditor } from "@/components/notes/rich-text-editor";
 import { DEAL_STAGE_META, DEAL_STAGES, DEAL_STAGE_CHECKLIST, LOST_REASONS } from "@/lib/deals/stages";
+import { PIPELINE_ORDER_KEY } from "@/lib/deals/order";
 import { CONTACT_TYPES } from "@/lib/contacts/types";
 import { ProjectionLinkButton } from "@/components/projections/projection-link-button";
 import type { Activity, ActivityType, Deal, DealChecklistItem, DealChecklistProgress, DealStage, DealStageHistoryRow, DealTask } from "@/lib/deals/types";
@@ -65,9 +66,12 @@ const ACTIONS: { key: ActionKey; label: string; icon: typeof Phone }[] = [
 
 export function DealDetailClient({
   deal: initialDeal, contact: initialContact, owners, canWrite, initialActivities, initialTasks, initialHistory, initialChecklist, initialCustomItems,
+  dealOrder,
 }: {
   deal: Deal; contact: DealContact | null; owners: OwnerOption[]; canWrite: boolean;
   initialActivities: Activity[]; initialTasks: DealTask[]; initialHistory: DealStageHistoryRow[]; initialChecklist: DealChecklistProgress[]; initialCustomItems: DealChecklistItem[];
+  /** Board order, used for prev/next when the list did not hand one over. */
+  dealOrder: string[];
 }) {
   const router = useRouter();
   const [deal, setDeal] = React.useState(initialDeal);
@@ -84,6 +88,26 @@ export function DealDetailClient({
   const [showAddActivity, setShowAddActivity] = React.useState(false);
   const [showContactEdit, setShowContactEdit] = React.useState(false);
   const [tab, setTab] = React.useState<ActivityType | "all" | "tasks">("all");
+
+  // Prefer the order the list was showing when you clicked through, so the
+  // arrows walk the deals you can actually see — same sort, same filters.
+  // A deep link has no such handover, so it falls back to the board order.
+  const [siblings, setSiblings] = React.useState<string[]>(dealOrder);
+  React.useEffect(() => {
+    let handed: string[] | null = null;
+    try {
+      const raw = window.sessionStorage.getItem(PIPELINE_ORDER_KEY);
+      const parsed = raw ? (JSON.parse(raw) as unknown) : null;
+      if (Array.isArray(parsed) && parsed.every((v) => typeof v === "string")) handed = parsed as string[];
+    } catch { /* private window, or stale junk */ }
+    if (!handed || !handed.includes(deal.id)) return;
+    // eslint-disable-next-line -- one-time adoption of the list's ordering on mount
+    setSiblings(handed);
+  }, [deal.id]);
+
+  const atIndex = siblings.indexOf(deal.id);
+  const prevId = atIndex > 0 ? siblings[atIndex - 1] : null;
+  const nextId = atIndex >= 0 && atIndex < siblings.length - 1 ? siblings[atIndex + 1] : null;
   const [busy, setBusy] = React.useState(false);
   const [newItem, setNewItem] = React.useState("");
 
@@ -275,7 +299,34 @@ export function DealDetailClient({
     <div className="min-h-[calc(100vh-56px)] bg-background">
       {/* Header */}
       <div className="border-b border-border px-4 py-3 md:px-6">
-        <button onClick={() => router.push("/dashboard/pipeline")} className="mb-3 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Back to pipeline</button>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <button onClick={() => router.push("/dashboard/pipeline")} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Back to pipeline</button>
+          {atIndex >= 0 && siblings.length > 1 && (
+            <div className="flex items-center gap-1.5">
+              <span className="hidden text-xs text-muted-foreground sm:inline">{atIndex + 1} of {siblings.length}</span>
+              <button
+                type="button"
+                onClick={() => prevId && router.push(`/dashboard/pipeline/${prevId}`)}
+                disabled={!prevId}
+                aria-label="Previous deal"
+                title={prevId ? "Previous deal" : "This is the first deal"}
+                className="rounded-md border border-border p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => nextId && router.push(`/dashboard/pipeline/${nextId}`)}
+                disabled={!nextId}
+                aria-label="Next deal"
+                title={nextId ? "Next deal" : "This is the last deal"}
+                className="rounded-md border border-border p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+        </div>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex items-center gap-3">
             <span className="grid h-10 w-10 place-items-center rounded-lg bg-accent/15 text-accent"><FolderKanban className="h-5 w-5" /></span>

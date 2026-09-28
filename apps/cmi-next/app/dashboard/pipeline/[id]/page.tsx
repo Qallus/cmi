@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { loadAssignableStaff } from "@/lib/staff/assignable";
 import { getSessionStaff } from "@/lib/auth/server-session";
-import { getDeal, loadActivities, loadDealTasks, loadStageHistory, loadChecklistProgress, loadChecklistItems } from "@/lib/deals/data";
+import { getDeal, loadActivities, loadDealTasks, loadStageHistory, loadChecklistProgress, loadChecklistItems, loadDealOrder } from "@/lib/deals/data";
 import type { Activity, Deal, DealChecklistItem, DealChecklistProgress, DealStageHistoryRow, DealTask } from "@/lib/deals/types";
 import { DealDetailClient, type DealContact, type OwnerOption } from "./deal-detail-client";
 import { canWriteDeals } from "@/lib/deals/roles";
@@ -27,6 +27,9 @@ export default async function DealDetailPage({ params }: { params: Promise<{ id:
   let history: DealStageHistoryRow[] = [];
   let checklist: DealChecklistProgress[] = [];
   let customItems: DealChecklistItem[] = [];
+  // Fallback ordering for the prev/next arrows on a deep link; the list
+  // supplies its own when you arrive by clicking a row.
+  let dealOrder: string[] = [];
 
   try {
     [activities, tasks, history, checklist, customItems] = await Promise.all([
@@ -36,13 +39,15 @@ export default async function DealDetailPage({ params }: { params: Promise<{ id:
       loadChecklistProgress(id),
       loadChecklistItems(id),
     ]);
-    const [staffRows, contactRes] = await Promise.all([
+    const [staffRows, contactRes, order] = await Promise.all([
       loadAssignableStaff(),
       (deal as Deal).contact_id
         ? supabase.from("contacts").select("id, first_name, last_name, email, phone, company, type, tags").eq("id", (deal as Deal).contact_id as string).maybeSingle()
         : Promise.resolve({ data: null }),
+      loadDealOrder().catch(() => [] as string[]),
     ]);
     owners = staffRows.map((s) => ({ id: s.id, name: s.name }));
+    dealOrder = order;
     const c = contactRes.data as Record<string, unknown> | null;
     if (c) {
       contact = {
@@ -70,6 +75,7 @@ export default async function DealDetailPage({ params }: { params: Promise<{ id:
       initialHistory={history}
       initialChecklist={checklist}
       initialCustomItems={customItems}
+      dealOrder={dealOrder}
     />
   );
 }

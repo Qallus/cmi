@@ -486,3 +486,39 @@ export async function deleteActivity(id: string): Promise<void> {
   const { error } = await getSupabaseAdmin().from("activities").delete().eq("id", id);
   if (error) throw new Error(error.message);
 }
+
+/**
+ * Every active deal id in the board's default order.
+ *
+ * Used for the previous/next arrows on a deal page when we cannot tell what
+ * order the user was looking at — a deep link, a bookmark, a reload. When they
+ * arrived by clicking a row, the list hands over its own ordering instead, so
+ * the arrows follow whatever sort and filters were on screen.
+ */
+export async function loadDealOrder(): Promise<string[]> {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("deals")
+    .select("id, sort_order, job_number, created_at")
+    .is("archived_at", null)
+    .limit(1000);
+  if (error) throw new Error(error.message);
+
+  const rows = (data ?? []) as { id: string; sort_order: number | null; job_number: string | null; created_at: string }[];
+  return rows
+    .sort((a, b) => {
+      // Hand-placed deals lead, in their chosen order; the rest fall in behind
+      // by job number, which is how the list sorts by default.
+      const ao = a.sort_order, bo = b.sort_order;
+      if (ao !== null && bo !== null && ao !== bo) return ao - bo;
+      if (ao !== null && bo === null) return -1;
+      if (ao === null && bo !== null) return 1;
+      if (a.job_number || b.job_number) {
+        if (!a.job_number) return 1;
+        if (!b.job_number) return -1;
+        return a.job_number.localeCompare(b.job_number, undefined, { numeric: true, sensitivity: "base" });
+      }
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    })
+    .map((r) => r.id);
+}

@@ -7,6 +7,7 @@ import {
   Mic, Sparkles, Package, CalendarClock, Users2, MapPin, ScanLine, CheckCircle2,
   Circle, ArrowRight, Clock, TrendingUp, Trophy, CalendarDays, ListChecks,
   List as ListIcon, Table2, Columns3, Map as MapIcon, ChevronLeft, ChevronRight,
+  ChevronUp, ChevronDown, GripVertical,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,7 @@ import { DEAL_STAGE_META, DEAL_STAGES, LOST_REASONS, DEAL_SOURCES } from "@/lib/
 import type { Deal, DealStage, Activity, ActivityType, DealTask, DealStageHistoryRow } from "@/lib/deals/types";
 import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
 import { DealActions } from "./deal-actions";
+import { PIPELINE_ORDER_KEY } from "@/lib/deals/order";
 import { DuplicateWarning, useDuplicateCheck } from "@/components/contacts/duplicate-warning";
 
 export type OwnerOption = { id: string; name: string };
@@ -67,8 +69,11 @@ function fmtWhen(iso: string | null | undefined) {
   return iso ? new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
 }
 
-type SortKey = "job_number" | "title" | "stage" | "value" | "close" | "activity";
+type SortKey = "manual" | "job_number" | "title" | "stage" | "value" | "close" | "activity";
 const SORT_OPTIONS: [SortKey, string][] = [
+  // Manual is what dragging a row switches you into; it is listed so you can
+  // get back to a hand-placed order after sorting by something else.
+  ["manual", "Manual"],
   ["job_number", "Job #"],
   ["title", "Name"],
   ["stage", "Stage"],
@@ -124,7 +129,7 @@ export function PipelineDealsClient({
     />
   ), [canWrite, isSuperAdmin, refresh, router]);
 
-  const openDeal = React.useCallback((id: string) => router.push(`/dashboard/pipeline/${id}`), [router]);
+
 
   const filtered = React.useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -154,6 +159,15 @@ export function PipelineDealsClient({
       (b ? new Date(b).getTime() : 0) - (a ? new Date(a).getTime() : 0);
     return [...filtered].sort((a, b) => {
       switch (sort) {
+        // Hand-placed deals lead in their chosen order; anything never
+        // dragged falls in behind by job number.
+        case "manual": {
+          const ao = a.sort_order, bo = b.sort_order;
+          if (ao !== null && bo !== null && ao !== bo) return ao - bo;
+          if (ao !== null && bo === null) return -1;
+          if (ao === null && bo !== null) return 1;
+          return natural(a.job_number, b.job_number);
+        }
         case "job_number": return natural(a.job_number, b.job_number) || txt(a.title).localeCompare(txt(b.title));
         case "title": return txt(a.title).localeCompare(txt(b.title));
         case "stage": return DEAL_STAGES.indexOf(a.stage) - DEAL_STAGES.indexOf(b.stage) || natural(a.job_number, b.job_number);
@@ -163,6 +177,61 @@ export function PipelineDealsClient({
       }
     });
   }, [filtered, sort]);
+
+  const orderedIds = React.useMemo(() => ordered.map((d) => d.id), [ordered]);
+
+  // Hand the deal page the exact order on screen, so its previous/next
+  // arrows walk the same deals with the same sort and filters applied.
+  const openDeal = React.useCallback((id: string) => {
+    try {
+      window.sessionStorage.setItem(PIPELINE_ORDER_KEY, JSON.stringify(orderedIds));
+    } catch { /* private window */ }
+    router.push(`/dashboard/pipeline/${id}`);
+  }, [router, orderedIds]);
+
+  /**
+   * Persist a hand-placed order.
+   *
+   * Every visible row is renumbered, not just the moved one, which keeps the
+   * sequence dense so repeated drags cannot drift into collisions. The sort
+   * switches to Manual because a drag under any other sort would be undone by
+   * the next re-sort, and appearing to do nothing is worse than changing the
+   * sort the user has plainly just asked for.
+   */
+  const persistOrder = React.useCallback(async (ids: string[]) => {
+    setSort("manual");
+    const position = new Map(ids.map((id, i) => [id, i]));
+    setDeals((list) => list.map((d) => (position.has(d.id) ? { ...d, sort_order: position.get(d.id)! } : d)));
+    const res = await fetch("/api/deals/reorder", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items: ids.map((id, i) => ({ id, sort_order: i })) }),
+    });
+    if (!res.ok) await refresh();
+  }, [refresh]);
+
+  const moveDeal = React.useCallback((id: string, dir: -1 | 1) => {
+    const ids = orderedIds;
+    const from = ids.indexOf(id);
+    const to = from + dir;
+    if (from === -1 || to < 0 || to >= ids.length) return;
+    const next = [...ids];
+    [next[from], next[to]] = [next[to], next[from]];
+    void persistOrder(next);
+  }, [persistOrder, orderedIds]);
+
+  const dropDeal = React.useCallback((dragId: string, targetId: string) => {
+    if (dragId === targetId) return;
+    const ids = [...orderedIds];
+    const from = ids.indexOf(dragId);
+    const to = ids.indexOf(targetId);
+    if (from === -1 || to === -1) return;
+    ids.splice(to, 0, ids.splice(from, 1)[0]);
+    void persistOrder(ids);
+  }, [persistOrder, orderedIds]);
+
+  const reorder: Reorder | null = canWrite
+    ? { onMove: moveDeal, onDrop: dropDeal, count: ordered.length }
+    : null;
 
   const filtersActive = ownerFilter !== "all" || stageFilter !== "all" || jobTypeFilter !== "all" || !!dateFrom || !!dateTo || !!query;
   function clearFilters() { setOwnerFilter("all"); setStageFilter("all"); setJobTypeFilter("all"); setDateFrom(""); setDateTo(""); setQuery(""); }
@@ -265,9 +334,9 @@ export function PipelineDealsClient({
             {deals.length === 0 ? <>No deals yet. {canWrite && "Use “Add Deal” or “Add to Pipeline” to get started."}</> : "No deals match the current filters."}
           </div>
         ) : view === "list" ? (
-          <ListView deals={ordered} ownerName={ownerName} onOpen={openDeal} renderActions={renderActions} />
+          <ListView deals={ordered} ownerName={ownerName} onOpen={openDeal} renderActions={renderActions} reorder={reorder} />
         ) : view === "table" ? (
-          <TableView deals={ordered} ownerName={ownerName} onOpen={openDeal} renderActions={renderActions} />
+          <TableView deals={ordered} ownerName={ownerName} onOpen={openDeal} renderActions={renderActions} reorder={reorder} />
         ) : view === "kanban" ? (
           <KanbanView deals={ordered} onOpen={openDeal} canWrite={canWrite} onMove={moveStage} renderActions={renderActions} />
         ) : view === "calendar" ? (
@@ -295,14 +364,88 @@ export function PipelineDealsClient({
   );
 }
 
+
+/** Drag to place a deal, or nudge it one row with the arrows. */
+export type Reorder = {
+  onMove: (id: string, dir: -1 | 1) => void;
+  onDrop: (dragId: string, targetId: string) => void;
+  count: number;
+};
+
+const DEAL_DND_MIME = "application/x-cmi-deal";
+
+/**
+ * The grip-and-arrows cell.
+ *
+ * Arrows sit alongside dragging because a one-row nudge is fiddly to drag, and
+ * because drag-and-drop is unusable with a keyboard or on a phone.
+ */
+function ReorderCell({ id, index, reorder }: { id: string; index: number; reorder: Reorder }) {
+  return (
+    <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+      <GripVertical className="h-3.5 w-3.5 cursor-grab text-muted-foreground/50" aria-hidden />
+      <div className="flex flex-col">
+        <button
+          type="button" aria-label="Move up" disabled={index === 0}
+          onClick={() => reorder.onMove(id, -1)}
+          className="rounded p-0.5 text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-25"
+        >
+          <ChevronUp className="h-3 w-3" />
+        </button>
+        <button
+          type="button" aria-label="Move down" disabled={index === reorder.count - 1}
+          onClick={() => reorder.onMove(id, 1)}
+          className="rounded p-0.5 text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-25"
+        >
+          <ChevronDown className="h-3 w-3" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Row drag handlers, shared by the list and table views. */
+function useRowDrag(reorder: Reorder | null) {
+  const [dragId, setDragId] = React.useState<string | null>(null);
+  const [overId, setOverId] = React.useState<string | null>(null);
+
+  const rowProps = React.useCallback((id: string) => {
+    if (!reorder) return {};
+    return {
+      draggable: true,
+      onDragStart: (e: React.DragEvent) => {
+        setDragId(id);
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData(DEAL_DND_MIME, id);
+      },
+      onDragOver: (e: React.DragEvent) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        setOverId((cur) => (cur === id ? cur : id));
+      },
+      onDrop: (e: React.DragEvent) => {
+        e.preventDefault();
+        const from = e.dataTransfer.getData(DEAL_DND_MIME) || dragId;
+        setDragId(null); setOverId(null);
+        if (from) reorder.onDrop(from, id);
+      },
+      onDragEnd: () => { setDragId(null); setOverId(null); },
+    };
+  }, [reorder, dragId]);
+
+  return { dragId, overId, rowProps };
+}
+
 // ─── List view (roomy rows) ───────────────────────────────────────
-function ListView({ deals, ownerName, onOpen, renderActions }: { deals: Deal[]; ownerName: (id: string | null) => string; onOpen: (id: string) => void; renderActions: (d: Deal) => React.ReactNode }) {
+function ListView({ deals, ownerName, onOpen, renderActions, reorder }: { deals: Deal[]; ownerName: (id: string | null) => string; onOpen: (id: string) => void; renderActions: (d: Deal) => React.ReactNode; reorder: Reorder | null }) {
   const today = new Date().toISOString().slice(0, 10);
+  const { dragId, overId, rowProps } = useRowDrag(reorder);
   return (
     <div className="overflow-hidden rounded-lg border border-border">
       <table className="w-full text-sm">
         <thead className="bg-muted/50 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
           <tr>
+            {reorder && <th className="w-14 px-2 py-2"><span className="sr-only">Reorder</span></th>}
             <th className="px-3 py-2 font-medium">Deal</th>
             <th className="px-3 py-2 font-medium">Stage</th>
             <th className="px-3 py-2 font-medium text-right">Value</th>
@@ -313,10 +456,20 @@ function ListView({ deals, ownerName, onOpen, renderActions }: { deals: Deal[]; 
           </tr>
         </thead>
         <tbody>
-          {deals.map((d) => {
+          {deals.map((d, i) => {
             const overdue = d.next_action_due && d.next_action_due < today;
             return (
-              <tr key={d.id} onClick={() => onOpen(d.id)} className="cursor-pointer border-t border-border transition hover:bg-muted/40">
+              <tr
+                key={d.id}
+                onClick={() => onOpen(d.id)}
+                {...rowProps(d.id)}
+                className={cn(
+                  "cursor-pointer border-t border-border transition hover:bg-muted/40",
+                  dragId === d.id && "opacity-40",
+                  overId === d.id && dragId !== d.id && "border-t-2 border-t-accent",
+                )}
+              >
+                {reorder && <td className="px-2 py-2.5"><ReorderCell id={d.id} index={i} reorder={reorder} /></td>}
                 <td className="px-3 py-2.5"><div className="font-medium">{d.title}</div>{d.job_number && <div className="font-mono text-[11px] text-muted-foreground">{d.job_number}</div>}</td>
                 <td className="px-3 py-2.5"><StageBadge stage={d.stage} /></td>
                 <td className="px-3 py-2.5 text-right tabular-nums">{money(d.estimated_value)}</td>
@@ -334,12 +487,14 @@ function ListView({ deals, ownerName, onOpen, renderActions }: { deals: Deal[]; 
 }
 
 // ─── Table view (compact, more columns) ───────────────────────────
-function TableView({ deals, ownerName, onOpen, renderActions }: { deals: Deal[]; ownerName: (id: string | null) => string; onOpen: (id: string) => void; renderActions: (d: Deal) => React.ReactNode }) {
+function TableView({ deals, ownerName, onOpen, renderActions, reorder }: { deals: Deal[]; ownerName: (id: string | null) => string; onOpen: (id: string) => void; renderActions: (d: Deal) => React.ReactNode; reorder: Reorder | null }) {
+  const { dragId, overId, rowProps } = useRowDrag(reorder);
   return (
     <div className="overflow-x-auto rounded-lg border border-border">
       <table className="w-full text-sm">
         <thead className="bg-muted/50 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
           <tr>
+            {reorder && <th className="w-14 px-2 py-2"><span className="sr-only">Reorder</span></th>}
             <th className="px-3 py-2 font-medium">Deal</th>
             <th className="px-3 py-2 font-medium">Stage</th>
             <th className="px-3 py-2 font-medium">Owner</th>
@@ -352,8 +507,18 @@ function TableView({ deals, ownerName, onOpen, renderActions }: { deals: Deal[];
           </tr>
         </thead>
         <tbody>
-          {deals.map((d) => (
-            <tr key={d.id} onClick={() => onOpen(d.id)} className="cursor-pointer border-t border-border transition hover:bg-muted/40">
+          {deals.map((d, i) => (
+            <tr
+              key={d.id}
+              onClick={() => onOpen(d.id)}
+              {...rowProps(d.id)}
+              className={cn(
+                "cursor-pointer border-t border-border transition hover:bg-muted/40",
+                dragId === d.id && "opacity-40",
+                overId === d.id && dragId !== d.id && "border-t-2 border-t-accent",
+              )}
+            >
+              {reorder && <td className="px-2 py-2"><ReorderCell id={d.id} index={i} reorder={reorder} /></td>}
               <td className="px-3 py-2 font-medium">{d.title}</td>
               <td className="px-3 py-2"><StageBadge stage={d.stage} /></td>
               <td className="px-3 py-2 text-muted-foreground">{ownerName(d.owner_id)}</td>
