@@ -375,10 +375,14 @@ export async function logActivity(
 }
 
 // ─── Deal tasks ───────────────────────────────────────────────────
-export async function loadDealTasks(filter: { dealId?: string; assignedTo?: string; openOnly?: boolean }): Promise<DealTask[]> {
+export async function loadDealTasks(
+  filter: { dealId?: string; contactId?: string; interviewId?: string; assignedTo?: string; openOnly?: boolean },
+): Promise<DealTask[]> {
   const supabase = getSupabaseAdmin();
   let q = supabase.from("deal_tasks").select("*").order("due_at", { ascending: true, nullsFirst: false });
   if (filter.dealId) q = q.eq("deal_id", filter.dealId);
+  if (filter.contactId) q = q.eq("contact_id", filter.contactId);
+  if (filter.interviewId) q = q.eq("interview_id", filter.interviewId);
   if (filter.assignedTo) q = q.eq("assigned_to", filter.assignedTo);
   if (filter.openOnly) q = q.is("completed_at", null);
   const { data, error } = await q;

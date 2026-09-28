@@ -278,11 +278,17 @@ export function visibleFields(section: Section, answers: Answers): Field[] {
 const answered = (v: unknown) =>
   v !== null && v !== undefined && v !== "" && !(Array.isArray(v) && v.length === 0);
 
-/** Percentage of the questions currently on screen that have an answer. */
-export function progressOf(answers: Answers): number {
+/**
+ * Percentage of the questions currently on screen that have an answer.
+ *
+ * `sections` defaults to the prequalification form but is a parameter so an
+ * interview template — which is the same Section[] shape, loaded from the
+ * database — gets the same progress maths rather than its own copy.
+ */
+export function progressOf(answers: Answers, sections: readonly Section[] = SECTIONS): number {
   let total = 0;
   let done = 0;
-  for (const section of SECTIONS) {
+  for (const section of sections) {
     for (const field of visibleFields(section, answers)) {
       if (field.type === "content") continue;
       total += 1;
@@ -297,9 +303,11 @@ export function progressOf(answers: Answers): number {
  * required: anything else missing is a gap for a reviewer to chase, not a
  * reason to turn an applicant away at the door.
  */
-export function missingRequired(answers: Answers): { section: string; field: Field }[] {
+export function missingRequired(
+  answers: Answers, sections: readonly Section[] = SECTIONS,
+): { section: string; field: Field }[] {
   const out: { section: string; field: Field }[] = [];
-  for (const section of SECTIONS) {
+  for (const section of sections) {
     for (const field of visibleFields(section, answers)) {
       if (field.required && !answered(answers[field.key])) out.push({ section: section.title, field });
     }
@@ -322,9 +330,11 @@ const BOOLEAN_COLUMNS = new Set([
  * Turn answers into a patch for the `companies` row — the step that makes a
  * submitted form searchable rather than a stored document.
  */
-export function answersToCompany(answers: Answers): Record<string, unknown> {
+export function answersToCompany(
+  answers: Answers, sections: readonly Section[] = SECTIONS,
+): Record<string, unknown> {
   const patch: Record<string, unknown> = {};
-  for (const section of SECTIONS) {
+  for (const section of sections) {
     for (const field of section.fields) {
       if (!field.mapsTo) continue;
       const raw = answers[field.key];
@@ -353,9 +363,11 @@ export function answersToCompany(answers: Answers): Record<string, unknown> {
  * marks the ones CMI won't send work without — those are tracked even when
  * nothing has been uploaded, which is what makes "missing" mean something.
  */
-export function relevantDocuments(answers: Answers): { docType: string; label: string; required: boolean }[] {
+export function relevantDocuments(
+  answers: Answers, sections: readonly Section[] = SECTIONS,
+): { docType: string; label: string; required: boolean }[] {
   const docs: { docType: string; label: string; required: boolean }[] = [];
-  for (const section of SECTIONS) {
+  for (const section of sections) {
     for (const field of visibleFields(section, answers)) {
       if (field.type === "document" && field.docType) {
         docs.push({ docType: field.docType, label: field.label, required: !!field.docRequired });

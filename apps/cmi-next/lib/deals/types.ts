@@ -135,6 +135,8 @@ export type DealTask = {
   id: string;
   deal_id: string | null;
   contact_id: string | null;
+  /** Set when the task came out of an interview debrief. */
+  interview_id?: string | null;
   title: string;
   description: string | null;
   assigned_to: string | null;
