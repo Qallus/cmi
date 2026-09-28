@@ -5,6 +5,7 @@
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { isSuppressed } from "@/lib/messaging/consent";
 import { logMessage } from "@/lib/communications/data";
+import { fromAddress } from "@/lib/email/from";
 
 export type NotifyPayload = {
   type: string;
@@ -56,7 +57,7 @@ export async function notifyClient(contactId: string, jobId: string | null, payl
   if (emailEnabled && contact?.email) {
     try {
       const key = process.env.RESEND_API_KEY;
-      const from = process.env.RESEND_FROM_EMAIL || "noreply@constructedmatter.com";
+      const from = fromAddress("noreply@constructedmatter.com");
       if (key) {
         const res = await fetch("https://api.resend.com/emails", {
           method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },

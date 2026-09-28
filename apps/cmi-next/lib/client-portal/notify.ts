@@ -2,6 +2,7 @@
 // client set-account page and uses client-facing copy. Reuses Supabase
 // generateLink (invite → magiclink fallback) + Resend.
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { fromAddress } from "@/lib/email/from";
 
 async function generateClientInviteLink(email: string): Promise<string | null> {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://my.constructedmatter.com";
@@ -42,8 +43,7 @@ function buildHtml(firstName: string, jobName: string, link: string): string {
 
 export async function sendClientInvite(params: { email: string; firstName: string; jobName: string }): Promise<{ ok: boolean; error?: string }> {
   const apiKey = process.env.RESEND_API_KEY;
-  const fromEmail = process.env.RESEND_FROM_EMAIL ?? "info@constructedmatter.com";
-  const fromAddress = fromEmail.includes("<") ? fromEmail : `Constructed Matter <${fromEmail}>`;
+  const from = fromAddress();
   const replyTo = process.env.RESEND_REPLY_TO ?? "jeremy@constructedmatter.com";
   if (!apiKey) return { ok: false, error: "Email service not configured (RESEND_API_KEY)." };
 
@@ -54,7 +54,7 @@ export async function sendClientInvite(params: { email: string; firstName: strin
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({
-      from: fromAddress, reply_to: replyTo, to: [params.email],
+      from: from, reply_to: replyTo, to: [params.email],
       subject: `Your Constructed Matter project portal — ${params.jobName}`,
       html: buildHtml(params.firstName || "there", params.jobName, link),
     }),

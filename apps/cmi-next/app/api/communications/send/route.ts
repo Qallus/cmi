@@ -4,6 +4,7 @@ import { isSuppressed } from "@/lib/messaging/consent";
 import type { Message } from "@/lib/communications/types";
 import type { SendCallPayload, SendEmailPayload, SendSmsPayload } from "@/lib/communications/types";
 import { denyUnlessStaff } from "@/lib/auth/guard";
+import { fromAddress } from "@/lib/email/from";
 
 export async function POST(req: Request) {
   const denied = await denyUnlessStaff(); if (denied) return denied;
@@ -38,7 +39,7 @@ async function sendEmail(payload: SendEmailPayload & { channel: "email" }) {
     return NextResponse.json({ error: `${payload.to} has opted out of email and was not contacted.` }, { status: 409 });
   }
   const resendKey = process.env.RESEND_API_KEY || process.env.RESEND_KEY;
-  const fromEmail = process.env.RESEND_FROM_EMAIL ?? "noreply@constructedmatter.com";
+  const fromEmail = fromAddress("noreply@constructedmatter.com");
 
   if (!resendKey) {
     return NextResponse.json({ error: "RESEND_API_KEY not configured. Restart the Next.js dev server after adding .env.local values." }, { status: 503 });

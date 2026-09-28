@@ -2,6 +2,7 @@
 // Reuses Resend (same env as the invite mailer). Pure builders + one sender.
 import type { StructuredExport } from "./export";
 import type { ReviewSession } from "./types";
+import { fromAddress } from "@/lib/email/from";
 
 function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -58,15 +59,14 @@ export async function sendReviewNotification(args: {
   toEmail: string; subject: string; html: string;
 }): Promise<{ ok: boolean; id: string | null; error: string | null }> {
   const apiKey = process.env.RESEND_API_KEY;
-  const fromEmail = process.env.RESEND_FROM_EMAIL ?? "info@constructedmatter.com";
-  const fromAddress = fromEmail.includes("<") ? fromEmail : `Constructed Matter <${fromEmail}>`;
+  const from = fromAddress();
   const replyTo = process.env.RESEND_REPLY_TO ?? "jeremy@constructedmatter.com";
   if (!apiKey) return { ok: false, id: null, error: "Email service not configured (RESEND_API_KEY)." };
 
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ from: fromAddress, reply_to: replyTo, to: [args.toEmail], subject: args.subject, html: args.html }),
+    body: JSON.stringify({ from, reply_to: replyTo, to: [args.toEmail], subject: args.subject, html: args.html }),
   });
   if (!res.ok) return { ok: false, id: null, error: `Email delivery failed: ${res.status}` };
   const json = await res.json().catch(() => ({})) as { id?: string };

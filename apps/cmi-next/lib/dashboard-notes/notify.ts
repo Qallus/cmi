@@ -1,6 +1,7 @@
 // Dashboard Review Notes — email notification when a note is shared. Reuses
 // Resend (same env as the other mailers).
 import type { DashboardNote } from "./types";
+import { fromAddress } from "@/lib/email/from";
 
 function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -35,8 +36,7 @@ function buildHtml(note: DashboardNote, dashboardUrl: string): string {
 export async function sendSharedNoteEmails(note: DashboardNote, recipients: string[]): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey || recipients.length === 0) return;
-  const fromEmail = process.env.RESEND_FROM_EMAIL ?? "info@constructedmatter.com";
-  const fromAddress = fromEmail.includes("<") ? fromEmail : `Constructed Matter <${fromEmail}>`;
+  const from = fromAddress();
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://my.constructedmatter.com";
   const html = buildHtml(note, `${appUrl}/dashboard/overview`);
   const subject = `${note.created_by_name ?? "A Super Admin"} shared a dashboard note${note.page_title ? ` · ${note.page_title}` : ""}`;
@@ -45,7 +45,7 @@ export async function sendSharedNoteEmails(note: DashboardNote, recipients: stri
     fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ from: fromAddress, to: [to], subject, html }),
+      body: JSON.stringify({ from, to: [to], subject, html }),
     })
   ));
 }

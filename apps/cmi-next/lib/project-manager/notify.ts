@@ -1,6 +1,7 @@
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { isSuppressed } from "@/lib/messaging/consent";
 import { logMessage } from "@/lib/communications/data";
+import { fromAddress } from "@/lib/email/from";
 
 export type CompletedEdit = {
   id?: string;
@@ -138,8 +139,7 @@ export async function sendEditCompletedEmails(opts: {
     const recipients = await resolveParticipantEmails(opts.recipientNames);
     if (!recipients.length) return { sent: 0 };
 
-    const fromEmail = process.env.RESEND_FROM_EMAIL ?? "noreply@constructedmatter.com";
-    const fromAddress = fromEmail.includes("<") ? fromEmail : `Constructed Matter <${fromEmail}>`;
+    const from = fromAddress("noreply@constructedmatter.com");
     const replyTo = process.env.RESEND_REPLY_TO ?? "jeremy@constructedmatter.com";
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://my.constructedmatter.com";
     const subject = `Edit completed: ${opts.pageTitle}${opts.edit.title ? ` — ${opts.edit.title}` : ""}`;
@@ -152,7 +152,7 @@ export async function sendEditCompletedEmails(opts: {
         const res = await fetch("https://api.resend.com/emails", {
           method: "POST",
           headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ from: fromAddress, reply_to: replyTo, to: recipient.email, subject, html }),
+          body: JSON.stringify({ from, reply_to: replyTo, to: recipient.email, subject, html }),
         });
         const json = (await res.json().catch(() => ({}))) as { id?: string; message?: string };
         const ok = res.ok;
@@ -162,7 +162,7 @@ export async function sendEditCompletedEmails(opts: {
             channel: "email",
             contact_id: null,
             to_address: recipient.email,
-            from_address: fromEmail,
+            from_address: from,
             subject,
             body: html,
             status: ok ? "sent" : "failed",

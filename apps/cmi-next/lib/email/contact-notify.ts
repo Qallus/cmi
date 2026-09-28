@@ -1,6 +1,8 @@
 // Emails a styled notification whenever a website / landing-page contact form is
 // submitted. This runs IN ADDITION to saving the submission to the dashboard.
 
+import { fromAddress } from "@/lib/email/from";
+
 function appUrl(): string {
   return (process.env.NEXT_PUBLIC_APP_URL ?? "https://constructedmatter.com").replace(/\/$/, "");
 }
@@ -94,7 +96,7 @@ export async function sendContactNotification(n: ContactNotification): Promise<{
     console.error("[contact-notify] RESEND_API_KEY is not set");
     return { ok: false, error: "Email service not configured." };
   }
-  const fromEmail = process.env.RESEND_FROM_EMAIL ?? "info@constructedmatter.com";
+  const fromEmail = fromAddress();
   const from = fromEmail.includes("<") ? fromEmail : `Constructed Matter <${fromEmail}>`;
   // Deliver to both the shared inbox and Brandon by default; overridable via env
   // (comma-separated list).

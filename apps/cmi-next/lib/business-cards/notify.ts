@@ -3,6 +3,7 @@
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { isSuppressed } from "@/lib/messaging/consent";
 import type { Automation } from "./types";
+import { fromAddress } from "@/lib/email/from";
 
 type LeadInput = {
   name?: string; email?: string; phone?: string; company?: string; message?: string;
@@ -19,7 +20,7 @@ type CardInfo = {
 
 async function sendEmail(to: string, subject: string, text: string, replyTo?: string) {
   const key = process.env.RESEND_API_KEY || process.env.RESEND_KEY;
-  const from = process.env.RESEND_FROM_EMAIL || "noreply@constructedmatter.com";
+  const from = fromAddress("noreply@constructedmatter.com");
   if (!key) return;
   await fetch("https://api.resend.com/emails", {
     method: "POST",

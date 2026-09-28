@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { fromAddress } from "@/lib/email/from";
 
 const ROLE_LABELS: Record<string, string> = {
   super_admin: "Super Admin",
@@ -103,8 +104,7 @@ export async function sendInviteEmail(params: {
   inviteLink: string;
 }): Promise<{ ok: boolean; error?: string }> {
   const apiKey = process.env.RESEND_API_KEY;
-  const fromEmail = process.env.RESEND_FROM_EMAIL ?? "info@constructedmatter.com";
-  const fromAddress = fromEmail.includes("<") ? fromEmail : `Constructed Matter <${fromEmail}>`;
+  const from = fromAddress();
   const replyTo = process.env.RESEND_REPLY_TO ?? "jeremy@constructedmatter.com";
 
   if (!apiKey) {
@@ -119,7 +119,7 @@ export async function sendInviteEmail(params: {
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      from: fromAddress,
+      from: from,
       reply_to: replyTo,
       to: [params.email],
       subject: `You've been invited to the Constructed Matter Dashboard`,

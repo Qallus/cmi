@@ -6,16 +6,17 @@
 // These do NOT check consent — callers that message a person rather than an
 // internal staff member must call isSuppressed() first.
 import { normalizePhone } from "@/lib/twilio";
+import { fromAddress } from "@/lib/email/from";
 
 export async function sendEmail(to: string, subject: string, html: string): Promise<boolean> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) return false;
-  const fromEmail = process.env.RESEND_FROM_EMAIL ?? "info@constructedmatter.com";
+  const from = fromAddress();
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({
-      from: fromEmail.includes("<") ? fromEmail : `Constructed Matter <${fromEmail}>`,
+      from,
       to: [to],
       subject,
       html,

@@ -4,6 +4,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { findOrCreateConversation, sendMessage } from "@/lib/direct-messages/data";
 import { isSuppressed } from "@/lib/messaging/consent";
 import { normalizePhone } from "@/lib/twilio";
+import { fromAddress } from "@/lib/email/from";
 
 export const runtime = "nodejs";
 
@@ -50,7 +51,7 @@ export async function POST(request: Request) {
       if (await isSuppressed("email", to)) return NextResponse.json({ error: `${to} has opted out of email.` }, { status: 409 });
       const apiKey = process.env.RESEND_API_KEY || process.env.RESEND_KEY;
       if (!apiKey) return NextResponse.json({ error: "Email isn't configured (RESEND_API_KEY)." }, { status: 503 });
-      const from = process.env.RESEND_FROM_EMAIL ?? "info@constructedmatter.com";
+      const from = fromAddress();
       const subject = (body.subject ?? "").trim() || "A message from Constructed Matter";
       const html = `<div style="font-family:Helvetica,Arial,sans-serif;font-size:15px;color:#191815;line-height:1.6;white-space:pre-wrap;">${escapeHtml(message)}</div><p style="margin-top:16px;font-size:12px;color:#9a938a;">Sent from the CMI Workspace by ${escapeHtml(actor.display_name || actor.email)}.</p>`;
       const res = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ from, to, subject, html }) });

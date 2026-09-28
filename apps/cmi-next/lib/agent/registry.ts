@@ -5,6 +5,7 @@ import { logMessage } from "@/lib/communications/data";
 import { isSuppressed } from "@/lib/messaging/consent";
 import { getEntity } from "./entities";
 import type { AgentEntity, StaffContext, ToolResult } from "./types";
+import { fromAddress } from "@/lib/email/from";
 
 export function canWrite(entity: AgentEntity, ctx: StaffContext): boolean {
   return entity.writeRoles.includes(ctx.role);
@@ -148,7 +149,7 @@ export async function sendMessage(input: {
 
   if (input.channel === "email") {
     const key = process.env.RESEND_API_KEY || process.env.RESEND_KEY;
-    const from = process.env.RESEND_FROM_EMAIL || "noreply@constructedmatter.com";
+    const from = fromAddress("noreply@constructedmatter.com");
     if (!key) return { error: "Email not configured (RESEND_API_KEY)." };
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",

@@ -3,6 +3,7 @@
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { isSuppressed } from "@/lib/messaging/consent";
 import { NOTE_STATUSES, type NoteStatus, type StaffNote, type NoteAttachment } from "./types";
+import { fromAddress } from "@/lib/email/from";
 
 type Row = Omit<StaffNote, "linked_staff">;
 
@@ -170,7 +171,7 @@ export async function notifyLinked(note: StaffNote, opts: { onlyEmails?: string[
 
 async function sendNoteEmail(to: string, subject: string, note: StaffNote): Promise<void> {
   const key = process.env.RESEND_API_KEY;
-  const from = process.env.RESEND_FROM_EMAIL;
+  const from = process.env.RESEND_FROM_EMAIL ? fromAddress() : null;
   if (!key || !from) return;
   const body = (note.body || "").slice(0, 600);
   await fetch("https://api.resend.com/emails", {

@@ -12,6 +12,7 @@ import { primaryClient } from "@/lib/jobs/pdf-helpers";
 import { isSuppressed } from "@/lib/messaging/consent";
 import { logMessage } from "@/lib/communications/data";
 import { invoiceBalance } from "@/lib/invoices/types";
+import { fromAddress } from "@/lib/email/from";
 
 export const runtime = "nodejs";
 const WRITE_ROLES = ["super_admin", "admin", "project_manager"];
@@ -32,7 +33,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (await isSuppressed("email", to)) return NextResponse.json({ error: `${to} has opted out of email.` }, { status: 409 });
 
     const key = process.env.RESEND_API_KEY || process.env.RESEND_KEY;
-    const from = process.env.RESEND_FROM_EMAIL || "noreply@constructedmatter.com";
+    const from = fromAddress("noreply@constructedmatter.com");
     if (!key) return NextResponse.json({ error: "Email not configured (RESEND_API_KEY)." }, { status: 500 });
 
     const pdf = await renderPdf(createElement(InvoicePdf, { invoice, job, client, logo }));

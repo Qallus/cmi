@@ -5,6 +5,7 @@
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { isSuppressed } from "@/lib/messaging/consent";
 import type { CanvasProject } from "./types";
+import { fromAddress } from "@/lib/email/from";
 
 async function teamEmails(): Promise<string[]> {
   const env = process.env.CANVAS_TEAM_EMAILS;
@@ -24,7 +25,7 @@ export async function notifyBriefSubmitted(canvas: CanvasProject): Promise<void>
   // Email
   try {
     const key = process.env.RESEND_API_KEY || process.env.RESEND_KEY;
-    const from = process.env.RESEND_FROM_EMAIL || "noreply@constructedmatter.com";
+    const from = fromAddress("noreply@constructedmatter.com");
     const to = await teamEmails();
     if (key && to.length) {
       const html = `
