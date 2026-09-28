@@ -179,11 +179,18 @@ export function DealActions({ row, variant, ...h }: { row: DealActionRow; varian
 
 const CHANNEL_LABEL: Record<ShareChannel, string> = { email: "Email", sms: "SMS", dm: "Message" };
 
-function ShareDialog({
-  id, name, channel, onClose, onDone,
+/**
+ * Share one deal, or several.
+ *
+ * `ids` carries the whole selection so the bulk bar can reuse this rather
+ * than grow a second recipient picker that would drift from this one.
+ */
+export function ShareDialog({
+  id, ids, name, channel, onClose, onDone,
 }: {
-  id: string; name: string; channel: ShareChannel; onClose: () => void; onDone: (msg: string) => void;
+  id?: string; ids?: string[]; name: string; channel: ShareChannel; onClose: () => void; onDone: (msg: string) => void;
 }) {
+  const targets = ids?.length ? ids : id ? [id] : [];
   const [data, setData] = React.useState<{ me: string; recipients: ShareRecipient[] } | null>(null);
   const [picked, setPicked] = React.useState<Set<string>>(new Set());
   const [note, setNote] = React.useState("");
@@ -207,15 +214,35 @@ function ShareDialog({
 
   async function send() {
     setBusy(true); setError(null);
-    const res = await fetch(`/api/deals/${id}/share`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ channel, recipient_ids: [...picked], note }),
-    });
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok) { setError(json.error ?? "Could not send."); setBusy(false); return; }
-    const sent = (json.sent as string[]) ?? [];
-    const skipped = (json.skipped as { name: string; reason: string }[]) ?? [];
-    onDone(`${CHANNEL_LABEL[channel]} sent to ${sent.length ? sent.join(", ") : "no one"}${skipped.length ? `; skipped ${skipped.map((s) => `${s.name} (${s.reason})`).join(", ")}` : ""}.`);
+    // One request per deal, because each carries its own summary. Sequential
+    // rather than parallel so a long selection cannot flood the mail provider.
+    const sentTo = new Set<string>();
+    const skippedAll = new Map<string, string>();
+    let failures = 0;
+
+    for (const target of targets) {
+      const res = await fetch(`/api/deals/${target}/share`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ channel, recipient_ids: [...picked], note }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        // A single failure on one deal should not lose the rest.
+        if (targets.length === 1) { setError(json.error ?? "Could not send."); setBusy(false); return; }
+        failures += 1;
+        continue;
+      }
+      for (const name of ((json.sent as string[]) ?? [])) sentTo.add(name);
+      for (const s of ((json.skipped as { name: string; reason: string }[]) ?? [])) skippedAll.set(s.name, s.reason);
+    }
+
+    const who = sentTo.size ? [...sentTo].join(", ") : "no one";
+    const many = targets.length > 1 ? ` for ${targets.length} deals` : "";
+    const skipped = skippedAll.size
+      ? `; skipped ${[...skippedAll].map(([n, r]) => `${n} (${r})`).join(", ")}`
+      : "";
+    const failed = failures ? `; ${failures} deal${failures === 1 ? "" : "s"} failed` : "";
+    onDone(`${CHANNEL_LABEL[channel]} sent to ${who}${many}${skipped}${failed}.`);
   }
 
   return (

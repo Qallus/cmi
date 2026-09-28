@@ -7,7 +7,7 @@ import {
   Mic, Sparkles, Package, CalendarClock, Users2, MapPin, ScanLine, CheckCircle2,
   Circle, ArrowRight, Clock, TrendingUp, Trophy, CalendarDays, ListChecks,
   List as ListIcon, Table2, Columns3, Map as MapIcon, ChevronLeft, ChevronRight,
-  ChevronUp, ChevronDown, GripVertical,
+  ChevronUp, ChevronDown, GripVertical, ArrowUp, ArrowDown, ArrowUpDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,8 @@ import { SearchableSelect } from "@/components/ui/searchable-select";
 import { DEAL_STAGE_META, DEAL_STAGES, LOST_REASONS, DEAL_SOURCES } from "@/lib/deals/stages";
 import type { Deal, DealStage, Activity, ActivityType, DealTask, DealStageHistoryRow } from "@/lib/deals/types";
 import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
-import { DealActions } from "./deal-actions";
+import { DealActions, ShareDialog } from "./deal-actions";
+import { BulkBar } from "./bulk-bar";
 import { PIPELINE_ORDER_KEY } from "@/lib/deals/order";
 import { DuplicateWarning, useDuplicateCheck } from "@/components/contacts/duplicate-warning";
 
@@ -69,7 +70,7 @@ function fmtWhen(iso: string | null | undefined) {
   return iso ? new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
 }
 
-type SortKey = "manual" | "job_number" | "title" | "stage" | "value" | "close" | "activity";
+type SortKey = "manual" | "job_number" | "title" | "stage" | "value" | "owner" | "close" | "activity";
 const SORT_OPTIONS: [SortKey, string][] = [
   // Manual is what dragging a row switches you into; it is listed so you can
   // get back to a hand-placed order after sorting by something else.
@@ -78,6 +79,7 @@ const SORT_OPTIONS: [SortKey, string][] = [
   ["title", "Name"],
   ["stage", "Stage"],
   ["value", "Value"],
+  ["owner", "Owner"],
   ["close", "Close date"],
   ["activity", "Last activity"],
 ];
@@ -100,6 +102,9 @@ export function PipelineDealsClient({
   const [stageFilter, setStageFilter] = React.useState<DealStage | "all">("all");
   const [jobTypeFilter, setJobTypeFilter] = React.useState("all");
   const [sort, setSort] = React.useState<SortKey>("job_number");
+  const [sortDir, setSortDir] = React.useState<SortDir>("asc");
+  const [selected, setSelected] = React.useState<Set<string>>(new Set());
+  const [bulkShare, setBulkShare] = React.useState<"email" | "sms" | "dm" | null>(null);
   const [dateFrom, setDateFrom] = React.useState("");
   const [dateTo, setDateTo] = React.useState("");
   const [showCreate, setShowCreate] = React.useState(false);
@@ -157,7 +162,10 @@ export function PipelineDealsClient({
     };
     const byDateDesc = (a: string | null | undefined, b: string | null | undefined) =>
       (b ? new Date(b).getTime() : 0) - (a ? new Date(a).getTime() : 0);
-    return [...filtered].sort((a, b) => {
+    const flip = sortDir === "desc" ? -1 : 1;
+    // Each case returns its own natural order; one flip at the end serves
+    // the arrow, so no comparator has to know about direction.
+    return [...filtered].sort((a, b) => flip * (() => {
       switch (sort) {
         // Hand-placed deals lead in their chosen order; anything never
         // dragged falls in behind by job number.
@@ -172,13 +180,30 @@ export function PipelineDealsClient({
         case "title": return txt(a.title).localeCompare(txt(b.title));
         case "stage": return DEAL_STAGES.indexOf(a.stage) - DEAL_STAGES.indexOf(b.stage) || natural(a.job_number, b.job_number);
         case "value": return (b.estimated_value ?? 0) - (a.estimated_value ?? 0);
+        // By name, not id, so the order matches what the column shows.
+        case "owner": return txt(ownerName(a.owner_id)).localeCompare(txt(ownerName(b.owner_id))) || natural(a.job_number, b.job_number);
         case "close": return natural(a.expected_close_date, b.expected_close_date);
         default: return byDateDesc(a.last_activity_at ?? a.created_at, b.last_activity_at ?? b.created_at);
       }
-    });
-  }, [filtered, sort]);
+    })());
+  }, [filtered, sort, sortDir, ownerName]);
 
   const orderedIds = React.useMemo(() => ordered.map((d) => d.id), [ordered]);
+
+  // First click sorts by that column in its natural direction; clicking the
+  // same one again reverses it.
+  // Not nested inside a setSort updater: updater functions must be pure, so a
+  // setState called from inside one does not reliably run.
+  const sortByColumn = React.useCallback((key: SortKey) => {
+    if (sort === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSort(key);
+    setSortDir("asc");
+  }, [sort]);
+
+  const sortState: SortState = { key: sort, dir: sortDir, onSort: sortByColumn };
 
   // Hand the deal page the exact order on screen, so its previous/next
   // arrows walk the same deals with the same sort and filters applied.
@@ -232,6 +257,28 @@ export function PipelineDealsClient({
   const reorder: Reorder | null = canWrite
     ? { onMove: moveDeal, onDrop: dropDeal, count: ordered.length }
     : null;
+
+  // Selecting is read-only, so everyone may do it; the bulk bar is what
+  // checks whether you can actually act on the selection.
+  const toggleOne = React.useCallback((id: string) => {
+    setSelected((cur) => {
+      const next = new Set(cur);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+  const toggleAll = React.useCallback(() => {
+    setSelected((cur) => (cur.size === orderedIds.length ? new Set() : new Set(orderedIds)));
+  }, [orderedIds]);
+  // Filtering away a selected deal should not leave it silently selected.
+  const visibleSelected = React.useMemo(
+    () => orderedIds.filter((id) => selected.has(id)),
+    [orderedIds, selected],
+  );
+  const selection: Selection = {
+    ids: selected, toggleOne, toggleAll,
+    allChecked: orderedIds.length > 0 && visibleSelected.length === orderedIds.length,
+  };
 
   const filtersActive = ownerFilter !== "all" || stageFilter !== "all" || jobTypeFilter !== "all" || !!dateFrom || !!dateTo || !!query;
   function clearFilters() { setOwnerFilter("all"); setStageFilter("all"); setJobTypeFilter("all"); setDateFrom(""); setDateTo(""); setQuery(""); }
@@ -334,9 +381,9 @@ export function PipelineDealsClient({
             {deals.length === 0 ? <>No deals yet. {canWrite && "Use “Add Deal” or “Add to Pipeline” to get started."}</> : "No deals match the current filters."}
           </div>
         ) : view === "list" ? (
-          <ListView deals={ordered} ownerName={ownerName} onOpen={openDeal} renderActions={renderActions} reorder={reorder} />
+          <ListView deals={ordered} ownerName={ownerName} onOpen={openDeal} renderActions={renderActions} reorder={reorder} sortState={sortState} selection={selection} />
         ) : view === "table" ? (
-          <TableView deals={ordered} ownerName={ownerName} onOpen={openDeal} renderActions={renderActions} reorder={reorder} />
+          <TableView deals={ordered} ownerName={ownerName} onOpen={openDeal} renderActions={renderActions} reorder={reorder} sortState={sortState} selection={selection} />
         ) : view === "kanban" ? (
           <KanbanView deals={ordered} onOpen={openDeal} canWrite={canWrite} onMove={moveStage} renderActions={renderActions} />
         ) : view === "calendar" ? (
@@ -345,6 +392,26 @@ export function PipelineDealsClient({
           <MapView deals={ordered} onOpen={openDeal} canWrite={canWrite} isSuperAdmin={isSuperAdmin} onChanged={() => void refresh()} />
         )}
       </div>
+
+      <BulkBar
+        ids={visibleSelected}
+        owners={owners}
+        canWrite={canWrite}
+        isSuperAdmin={isSuperAdmin}
+        showingArchived={showArchived}
+        onClear={() => setSelected(new Set())}
+        onDone={async () => { setSelected(new Set()); await refresh(); }}
+        onShare={setBulkShare}
+      />
+      {bulkShare && (
+        <ShareDialog
+          ids={visibleSelected}
+          name={`${visibleSelected.length} deal${visibleSelected.length === 1 ? "" : "s"}`}
+          channel={bulkShare}
+          onClose={() => setBulkShare(null)}
+          onDone={() => setBulkShare(null)}
+        />
+      )}
 
       {showCreate && (
         <DealFormModal
@@ -436,8 +503,84 @@ function useRowDrag(reorder: Reorder | null) {
   return { dragId, overId, rowProps };
 }
 
+
+export type SortDir = "asc" | "desc";
+export type SortState = { key: SortKey; dir: SortDir; onSort: (key: SortKey) => void };
+export type Selection = {
+  ids: Set<string>;
+  toggleOne: (id: string) => void;
+  toggleAll: () => void;
+  allChecked: boolean;
+};
+
+/**
+ * A column header you can sort by.
+ *
+ * The arrow only appears on the active column; the others show it on hover, so
+ * the header row stays quiet but still advertises that it is clickable.
+ */
+function SortableTh({
+  label, sortKey, state, className, align = "left",
+}: {
+  label: string;
+  sortKey: SortKey;
+  state?: SortState;
+  className?: string;
+  align?: "left" | "right";
+}) {
+  if (!state) return <th className={cn("px-3 py-2 font-medium", className)}>{label}</th>;
+  const active = state.key === sortKey;
+  const Icon = !active ? ArrowUpDown : state.dir === "asc" ? ArrowUp : ArrowDown;
+  return (
+    <th className={cn("px-3 py-2 font-medium", className)}>
+      <button
+        type="button"
+        onClick={() => state.onSort(sortKey)}
+        aria-label={`Sort by ${label}`}
+        className={cn(
+          "group inline-flex items-center gap-1 transition hover:text-foreground",
+          align === "right" && "flex-row-reverse",
+          active && "text-foreground",
+        )}
+      >
+        {label}
+        <Icon className={cn("h-3 w-3 transition", active ? "opacity-100" : "opacity-0 group-hover:opacity-50")} />
+      </button>
+    </th>
+  );
+}
+
+/** A row checkbox. Stops propagation so ticking never opens the deal. */
+function RowCheck({ id, selection }: { id: string; selection?: Selection }) {
+  if (!selection) return null;
+  return (
+    <td className="w-8 px-2" onClick={(e) => e.stopPropagation()}>
+      <input
+        type="checkbox"
+        aria-label="Select deal"
+        checked={selection.ids.has(id)}
+        onChange={() => selection.toggleOne(id)}
+      />
+    </td>
+  );
+}
+
+function HeadCheck({ selection }: { selection?: Selection }) {
+  if (!selection) return null;
+  return (
+    <th className="w-8 px-2 py-2">
+      <input
+        type="checkbox"
+        aria-label="Select all deals"
+        checked={selection.allChecked}
+        onChange={selection.toggleAll}
+      />
+    </th>
+  );
+}
+
 // ─── List view (roomy rows) ───────────────────────────────────────
-function ListView({ deals, ownerName, onOpen, renderActions, reorder }: { deals: Deal[]; ownerName: (id: string | null) => string; onOpen: (id: string) => void; renderActions: (d: Deal) => React.ReactNode; reorder: Reorder | null }) {
+function ListView({ deals, ownerName, onOpen, renderActions, reorder, sortState, selection }: { deals: Deal[]; ownerName: (id: string | null) => string; onOpen: (id: string) => void; renderActions: (d: Deal) => React.ReactNode; reorder: Reorder | null; sortState?: SortState; selection?: Selection }) {
   const today = new Date().toISOString().slice(0, 10);
   const { dragId, overId, rowProps } = useRowDrag(reorder);
   return (
@@ -445,12 +588,13 @@ function ListView({ deals, ownerName, onOpen, renderActions, reorder }: { deals:
       <table className="w-full text-sm">
         <thead className="bg-muted/50 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
           <tr>
+            <HeadCheck selection={selection} />
             {reorder && <th className="w-14 px-2 py-2"><span className="sr-only">Reorder</span></th>}
-            <th className="px-3 py-2 font-medium">Deal</th>
-            <th className="px-3 py-2 font-medium">Stage</th>
-            <th className="px-3 py-2 font-medium text-right">Value</th>
-            <th className="px-3 py-2 font-medium">Owner</th>
-            <th className="px-3 py-2 font-medium">Last activity</th>
+            <SortableTh label="Deal" sortKey="title" state={sortState} />
+            <SortableTh label="Stage" sortKey="stage" state={sortState} />
+            <SortableTh label="Value" sortKey="value" state={sortState} className="text-right" align="right" />
+            <SortableTh label="Owner" sortKey="owner" state={sortState} />
+            <SortableTh label="Last activity" sortKey="activity" state={sortState} />
             <th className="px-3 py-2 font-medium">Next action</th>
             <th className="w-10 px-3 py-2"><span className="sr-only">Actions</span></th>
           </tr>
@@ -469,6 +613,7 @@ function ListView({ deals, ownerName, onOpen, renderActions, reorder }: { deals:
                   overId === d.id && dragId !== d.id && "border-t-2 border-t-accent",
                 )}
               >
+                <RowCheck id={d.id} selection={selection} />
                 {reorder && <td className="px-2 py-2.5"><ReorderCell id={d.id} index={i} reorder={reorder} /></td>}
                 <td className="px-3 py-2.5"><div className="font-medium">{d.title}</div>{d.job_number && <div className="font-mono text-[11px] text-muted-foreground">{d.job_number}</div>}</td>
                 <td className="px-3 py-2.5"><StageBadge stage={d.stage} /></td>
@@ -487,21 +632,22 @@ function ListView({ deals, ownerName, onOpen, renderActions, reorder }: { deals:
 }
 
 // ─── Table view (compact, more columns) ───────────────────────────
-function TableView({ deals, ownerName, onOpen, renderActions, reorder }: { deals: Deal[]; ownerName: (id: string | null) => string; onOpen: (id: string) => void; renderActions: (d: Deal) => React.ReactNode; reorder: Reorder | null }) {
+function TableView({ deals, ownerName, onOpen, renderActions, reorder, sortState, selection }: { deals: Deal[]; ownerName: (id: string | null) => string; onOpen: (id: string) => void; renderActions: (d: Deal) => React.ReactNode; reorder: Reorder | null; sortState?: SortState; selection?: Selection }) {
   const { dragId, overId, rowProps } = useRowDrag(reorder);
   return (
     <div className="overflow-x-auto rounded-lg border border-border">
       <table className="w-full text-sm">
         <thead className="bg-muted/50 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
           <tr>
+            <HeadCheck selection={selection} />
             {reorder && <th className="w-14 px-2 py-2"><span className="sr-only">Reorder</span></th>}
-            <th className="px-3 py-2 font-medium">Deal</th>
-            <th className="px-3 py-2 font-medium">Stage</th>
-            <th className="px-3 py-2 font-medium">Owner</th>
+            <SortableTh label="Deal" sortKey="title" state={sortState} />
+            <SortableTh label="Stage" sortKey="stage" state={sortState} />
+            <SortableTh label="Owner" sortKey="owner" state={sortState} />
             <th className="px-3 py-2 font-medium">Job type</th>
-            <th className="px-3 py-2 font-medium text-right">Value</th>
+            <SortableTh label="Value" sortKey="value" state={sortState} className="text-right" align="right" />
             <th className="px-3 py-2 font-medium text-right">Prob.</th>
-            <th className="px-3 py-2 font-medium">Close</th>
+            <SortableTh label="Close" sortKey="close" state={sortState} />
             <th className="px-3 py-2 font-medium">Source</th>
             <th className="w-10 px-3 py-2"><span className="sr-only">Actions</span></th>
           </tr>
@@ -518,6 +664,7 @@ function TableView({ deals, ownerName, onOpen, renderActions, reorder }: { deals
                 overId === d.id && dragId !== d.id && "border-t-2 border-t-accent",
               )}
             >
+              <RowCheck id={d.id} selection={selection} />
               {reorder && <td className="px-2 py-2"><ReorderCell id={d.id} index={i} reorder={reorder} /></td>}
               <td className="px-3 py-2 font-medium">{d.title}</td>
               <td className="px-3 py-2"><StageBadge stage={d.stage} /></td>
