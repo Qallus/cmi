@@ -149,6 +149,7 @@ export function TradePartnersClient({
           staff={reviewers}
           meId={meId}
           canManageTemplates={canManageTemplates}
+          isSuperAdmin={isSuperAdmin}
         />
       )}
       {tab === "compliance" && <Compliance initial={initialCompliance} />}

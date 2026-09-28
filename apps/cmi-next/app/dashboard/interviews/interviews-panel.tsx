@@ -4,38 +4,30 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  CalendarClock, CalendarDays, CheckCircle2, ClipboardList, FileWarning,
-  Loader2, MessagesSquare, Plus, Search, X,
+  CalendarClock, CalendarDays, CalendarRange, CheckCircle2, ClipboardList,
+  FileWarning, LayoutGrid, List, Loader2, MessagesSquare, Plus, Rows3, Search,
+  Table as TableIcon, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import type { InterviewRow, InterviewTemplate } from "@/lib/interviews/data";
+import { CompanyPicker, type CompanyOption } from "./company-picker";
+import {
+  InterviewCalendar, InterviewCards, InterviewList, InterviewTable, type ViewMode,
+} from "./interview-views";
 
-export type CompanyOption = { id: string; name: string; trades: string[] };
+export type { CompanyOption };
 export type StaffOption = { id: string; name: string };
 
-const STATUS_TONE: Record<string, string> = {
-  draft: "bg-muted text-muted-foreground",
-  invited: "bg-info/15 text-info",
-  scheduled: "bg-info/15 text-info",
-  confirmed: "bg-info/15 text-info",
-  in_progress: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
-  completed: "bg-emerald-600/18 text-emerald-700 dark:text-emerald-300",
-  follow_up: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
-  awaiting_documents: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
-  approved: "bg-emerald-600/18 text-emerald-700 dark:text-emerald-300",
-  not_moving_forward: "bg-destructive/15 text-destructive",
-  reschedule: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
-  cancelled: "bg-destructive/15 text-destructive",
-};
+const VIEW_KEY = "cmi-interviews-view";
 
-const pretty = (s: string) => s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-
-const when = (iso: string | null) =>
-  iso
-    ? new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
-    : "—";
+const VIEWS: { value: ViewMode; label: string; icon: typeof List }[] = [
+  { value: "list", label: "List", icon: Rows3 },
+  { value: "table", label: "Table", icon: TableIcon },
+  { value: "cards", label: "Cards", icon: LayoutGrid },
+  { value: "calendar", label: "Calendar", icon: CalendarRange },
+];
 
 /**
  * The Interviews tab inside Trade Partners.
@@ -45,23 +37,42 @@ const when = (iso: string | null) =>
  * staff come in as props because Trade Partners already has them.
  */
 export function InterviewsPanel({
-  companies, staff, meId, canManageTemplates,
+  companies: initialCompanies, staff, meId, canManageTemplates, isSuperAdmin,
 }: {
   companies: CompanyOption[];
   staff: StaffOption[];
   meId: string;
   canManageTemplates: boolean;
+  isSuperAdmin: boolean;
 }) {
+  const [companies, setCompanies] = React.useState(initialCompanies);
   const [rows, setRows] = React.useState<InterviewRow[] | null>(null);
   const [templates, setTemplates] = React.useState<InterviewTemplate[]>([]);
   const [stats, setStats] = React.useState<Record<string, number>>({});
+  const [view, setView] = React.useState<ViewMode>("list");
   const [status, setStatus] = React.useState("all");
   const [interviewer, setInterviewer] = React.useState("");
+  const [showArchived, setShowArchived] = React.useState(false);
   const [q, setQ] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [starting, setStarting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
+  React.useEffect(() => {
+    let saved: string | null = null;
+    try { saved = window.localStorage.getItem(VIEW_KEY); } catch { /* private window */ }
+    if (!saved || !VIEWS.some((v) => v.value === saved)) return;
+    // eslint-disable-next-line -- one-time restore of saved preference on mount
+    setView(saved as ViewMode);
+  }, []);
+
+  const pickView = React.useCallback((next: ViewMode) => {
+    setView(next);
+    try { window.localStorage.setItem(VIEW_KEY, next); } catch { /* fine */ }
+  }, []);
+
+  // The first load. Inline rather than a called helper so the await is plainly
+  // before every setState, which is what makes this legal in an effect.
   React.useEffect(() => {
     let alive = true;
     void (async () => {
@@ -81,14 +92,14 @@ export function InterviewsPanel({
     const params = new URLSearchParams();
     if (status !== "all") params.set("status", status);
     if (interviewer) params.set("interviewer", interviewer);
+    if (showArchived) params.set("archived", "1");
     if (q) params.set("q", q);
     const res = await fetch(`/api/interviews?${params}`);
     if (res.ok) setRows(await res.json());
     setBusy(false);
-  }, [status, interviewer, q]);
+  }, [status, interviewer, showArchived, q]);
 
-  // Filters are a different query. Skips the first run, which the initial
-  // load already covered.
+  // Filters are a different query. Skips the first run, which `load` covered.
   const first = React.useRef(true);
   React.useEffect(() => {
     if (first.current) { first.current = false; return; }
@@ -103,6 +114,8 @@ export function InterviewsPanel({
       </p>
     );
   }
+
+  const shared = { rows, isSuperAdmin, onChanged: () => void refresh() };
 
   return (
     <div className="space-y-4">
@@ -119,7 +132,22 @@ export function InterviewsPanel({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-[180px] flex-1">
+        <div className="flex items-center gap-0.5 rounded-md border border-border p-0.5">
+          {VIEWS.map((v) => (
+            <button
+              key={v.value} type="button" onClick={() => pickView(v.value)}
+              aria-label={`${v.label} view`} aria-pressed={view === v.value} title={v.label}
+              className={cn(
+                "rounded p-1.5 transition",
+                view === v.value ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-muted",
+              )}
+            >
+              <v.icon className="h-4 w-4" />
+            </button>
+          ))}
+        </div>
+
+        <div className="relative min-w-[160px] flex-1">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input className="pl-8" placeholder="Search interviews…" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
@@ -137,6 +165,10 @@ export function InterviewsPanel({
           <option value={meId}>Mine</option>
           {staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
         </Select>
+        <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
+          <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
+          Archived
+        </label>
         {busy && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
         {canManageTemplates && (
           <Link
@@ -154,66 +186,27 @@ export function InterviewsPanel({
       {rows.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border p-10 text-center">
           <MessagesSquare className="mx-auto h-8 w-8 text-muted-foreground" />
-          <p className="mt-3 font-medium">No interviews yet</p>
+          <p className="mt-3 font-medium">{showArchived ? "Nothing archived" : "No interviews yet"}</p>
           <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-            Start one from a template. If the partner has already applied, their answers are
-            filled in for you, so the meeting is spent on what&apos;s missing.
+            {showArchived
+              ? "Interviews you archive are kept here, with every answer and follow-up, and can be restored."
+              : "Start one from a template. If the partner has already applied, their answers are filled in for you, so the meeting is spent on what's missing."}
           </p>
         </div>
+      ) : view === "table" ? (
+        <InterviewTable {...shared} />
+      ) : view === "cards" ? (
+        <InterviewCards {...shared} />
+      ) : view === "calendar" ? (
+        <InterviewCalendar {...shared} />
       ) : (
-        <div className="overflow-hidden rounded-lg border border-border">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/50 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
-              <tr>
-                <th className="px-3 py-2 font-medium">Interview</th>
-                <th className="px-3 py-2 font-medium">Company</th>
-                <th className="px-3 py-2 font-medium">Interviewer</th>
-                <th className="px-3 py-2 font-medium">Scheduled</th>
-                <th className="px-3 py-2 font-medium">Progress</th>
-                <th className="px-3 py-2 font-medium">Status</th>
-                <th className="px-3 py-2 font-medium">Follow-ups</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.id} className="border-t border-border transition hover:bg-muted/40">
-                  <td className="px-3 py-2.5">
-                    <Link href={`/dashboard/interviews/${r.id}`} className="font-medium hover:text-accent">
-                      {r.title}
-                    </Link>
-                    {r.template_name && <div className="text-[11px] text-muted-foreground">{r.template_name}</div>}
-                  </td>
-                  <td className="px-3 py-2.5 text-muted-foreground">{r.company_name || r.contact_name || "—"}</td>
-                  <td className="px-3 py-2.5 text-muted-foreground">{r.interviewer_name || "Unassigned"}</td>
-                  <td className="px-3 py-2.5 text-muted-foreground">{when(r.scheduled_at)}</td>
-                  <td className="px-3 py-2.5">
-                    <div className="flex items-center gap-2">
-                      <div className="h-1.5 w-16 overflow-hidden rounded-full bg-muted">
-                        <div className="h-full rounded-full bg-accent" style={{ width: `${r.progress}%` }} />
-                      </div>
-                      <span className="text-[11px] text-muted-foreground">{r.progress}%</span>
-                    </div>
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", STATUS_TONE[r.status] ?? "bg-muted")}>
-                      {pretty(r.status)}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2.5 text-muted-foreground">
-                    {r.open_followups > 0
-                      ? <span className="text-amber-700 dark:text-amber-300">{r.open_followups} open</span>
-                      : "—"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <InterviewList {...shared} />
       )}
 
       {starting && (
         <NewInterviewDialog
           templates={templates} companies={companies} staff={staff} meId={meId}
+          onCompanyCreated={(c) => setCompanies((list) => [...list, c].sort((a, b) => a.name.localeCompare(b.name)))}
           onClose={() => setStarting(false)}
         />
       )}
@@ -234,17 +227,17 @@ function Stat({ icon: Icon, label, value, tone }: { icon: typeof MessagesSquare;
 }
 
 function NewInterviewDialog({
-  templates, companies, staff, meId, onClose,
+  templates, companies, staff, meId, onClose, onCompanyCreated,
 }: {
   templates: InterviewTemplate[];
   companies: CompanyOption[];
   staff: StaffOption[];
   meId: string;
   onClose: () => void;
+  onCompanyCreated: (c: CompanyOption) => void;
 }) {
   const router = useRouter();
   const [templateId, setTemplateId] = React.useState(templates[0]?.id ?? "");
-  const [companyQuery, setCompanyQuery] = React.useState("");
   const [companyId, setCompanyId] = React.useState("");
   const [interviewerId, setInterviewerId] = React.useState(meId);
   const [scheduledAt, setScheduledAt] = React.useState("");
@@ -253,16 +246,6 @@ function NewInterviewDialog({
   const [error, setError] = React.useState<string | null>(null);
 
   const template = templates.find((t) => t.id === templateId) ?? null;
-
-  // Suggest partners whose trade matches the template, since that is nearly
-  // always who the interview is for.
-  const matches = React.useMemo(() => {
-    const needle = companyQuery.trim().toLowerCase();
-    const scored = companies.filter((c) => !needle || c.name.toLowerCase().includes(needle));
-    if (!template?.trade) return scored.slice(0, 30);
-    const trade = template.trade;
-    return [...scored].sort((a, b) => Number(b.trades.includes(trade)) - Number(a.trades.includes(trade))).slice(0, 30);
-  }, [companies, companyQuery, template]);
 
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -290,7 +273,7 @@ function NewInterviewDialog({
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-background/70 backdrop-blur-[2px]" onClick={onClose} />
-      <div role="dialog" aria-modal="true" aria-label="New interview" className="relative z-10 flex max-h-[85vh] w-full max-w-lg flex-col rounded-xl border border-border bg-card shadow-xl">
+      <div role="dialog" aria-modal="true" aria-label="New interview" className="relative z-10 flex max-h-[88vh] w-full max-w-lg flex-col rounded-xl border border-border bg-card shadow-xl">
         <div className="flex items-center justify-between border-b border-border px-5 py-3">
           <h3 className="font-semibold">New interview</h3>
           <button type="button" aria-label="Close" onClick={onClose} className="rounded p-1 text-muted-foreground hover:text-foreground">
@@ -307,34 +290,13 @@ function NewInterviewDialog({
             {template?.description && <span className="block text-xs text-muted-foreground">{template.description}</span>}
           </label>
 
-          <div className="space-y-1.5">
-            <span className="text-sm font-medium">Company</span>
-            <Input placeholder="Search partners…" value={companyQuery} onChange={(e) => setCompanyQuery(e.target.value)} />
-            <div className="max-h-44 overflow-y-auto rounded-md border border-border">
-              <button
-                type="button" onClick={() => setCompanyId("")}
-                className={cn("flex w-full items-center px-3 py-1.5 text-left text-sm transition hover:bg-muted", !companyId && "bg-muted font-medium")}
-              >
-                No company yet
-              </button>
-              {matches.map((c) => (
-                <button
-                  key={c.id} type="button" onClick={() => setCompanyId(c.id)}
-                  className={cn("flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-sm transition hover:bg-muted", companyId === c.id && "bg-muted font-medium")}
-                >
-                  <span className="truncate">{c.name}</span>
-                  {template?.trade && c.trades.includes(template.trade) && (
-                    <span className="shrink-0 rounded-full bg-accent px-1.5 text-[10px] text-accent-foreground">{template.trade}</span>
-                  )}
-                </button>
-              ))}
-            </div>
-            {companyId && (
-              <p className="text-xs text-muted-foreground">
-                Anything already on their profile will be filled in, so you can confirm it rather than ask again.
-              </p>
-            )}
-          </div>
+          <CompanyPicker
+            companies={companies}
+            value={companyId}
+            onChange={setCompanyId}
+            preferTrade={template?.trade}
+            onCreated={(c) => { onCompanyCreated(c); setCompanyId(c.id); }}
+          />
 
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block space-y-1.5">
