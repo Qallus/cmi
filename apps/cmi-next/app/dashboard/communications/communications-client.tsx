@@ -16,6 +16,7 @@ import { CONTACT_TYPES, type ContactType } from "@/lib/contacts/types";
 import { TemplateManager } from "@/components/email-builder/template-manager";
 import { PrintManager } from "@/components/print-builder/print-manager";
 import { DynamicFieldsBar } from "@/components/ui/dynamic-fields-bar";
+import { EmailPreview } from "@/components/email-builder/email-preview";
 import { CallsWorkspace } from "./calls-workspace";
 
 type Tab = "all" | MessageChannel | "contact_form" | "templates" | "prints";
@@ -833,8 +834,8 @@ export function CommunicationsClient({
                     Loading template...
                   </div>
                 ) : selectedTemplate ? (
-                  <div className="overflow-hidden rounded-md border border-border">
-                    <div className="flex items-center justify-between border-b border-border bg-muted/40 px-3 py-1.5">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
                       <span className="text-[11px] text-muted-foreground">Using: <strong className="text-foreground">{selectedTemplate.name}</strong></span>
                       <button type="button" onClick={() => setShowTemplatePreview(v => !v)}
                         className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground">
@@ -842,12 +843,7 @@ export function CommunicationsClient({
                       </button>
                     </div>
                     {showTemplatePreview && (
-                      <iframe
-                        srcDoc={selectedTemplate.html || "<p style='padding:16px;color:#888;font-family:sans-serif;font-size:13px'>No HTML content in this template.</p>"}
-                        className="h-64 w-full bg-white"
-                        title="Template preview"
-                        sandbox="allow-same-origin"
-                      />
+                      <EmailPreview html={selectedTemplate.html} inlineHeight={260} />
                     )}
                   </div>
                 ) : (

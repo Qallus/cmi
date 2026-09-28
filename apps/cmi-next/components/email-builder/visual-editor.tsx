@@ -10,6 +10,8 @@ import { cn } from "@/lib/utils";
 import type { EmailBlock, BlockType, ColumnItem } from "./types";
 import { blocksToHtml } from "./renderer";
 import { DynamicFieldsBar } from "@/components/ui/dynamic-fields-bar";
+import { useResizablePane } from "@/components/ui/resizable-pane";
+import { EmailPreview } from "./email-preview";
 
 // -- Palette -------------------------------------------------------------------
 
@@ -454,6 +456,11 @@ export function VisualEditor({ blocks, onChange, pageWidth = 560 }: {
   const [showPreview, setShowPreview] = React.useState(false);
   const previewHtml = React.useMemo(() => blocksToHtml(blocks), [blocks]);
 
+  // Both side panels are draggable. Their widths are per-person, because
+  // how much room the settings need depends on the screen you are on.
+  const palette = useResizablePane("cmi-email-palette-w", 192, { min: 150, max: 380, side: "left" });
+  const settings = useResizablePane("cmi-email-settings-w", 256, { min: 200, max: 520, side: "right" });
+
   const selected = blocks.find(b => b.id === selectedId) ?? null;
 
   function addBlock(type: BlockType) {
@@ -499,7 +506,7 @@ export function VisualEditor({ blocks, onChange, pageWidth = 560 }: {
   return (
     <div className="flex h-full">
       {/* Palette */}
-      <div className="w-48 shrink-0 overflow-y-auto border-r border-border bg-card p-3">
+      <div style={{ width: palette.width }} className="shrink-0 overflow-y-auto border-r border-border bg-card p-3">
         <div className="mb-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">Add Block</div>
         <div className="space-y-1.5">
           {PALETTE.map(({ type, label, icon: Icon, desc }) => (
@@ -518,6 +525,7 @@ export function VisualEditor({ blocks, onChange, pageWidth = 560 }: {
           ))}
         </div>
       </div>
+      {palette.handle}
 
       {/* Canvas */}
       <div className="flex flex-1 flex-col overflow-hidden">
@@ -567,8 +575,9 @@ export function VisualEditor({ blocks, onChange, pageWidth = 560 }: {
         </div>
       </div>
 
+      {settings.handle}
       {/* Settings Panel */}
-      <div className="w-64 shrink-0 overflow-y-auto border-l border-border bg-card">
+      <div style={{ width: settings.width }} className="shrink-0 overflow-y-auto border-l border-border bg-card">
         {selected ? (
           <BlockSettings
             block={selected}
@@ -582,23 +591,12 @@ export function VisualEditor({ blocks, onChange, pageWidth = 560 }: {
         )}
       </div>
 
-      {/* Full preview modal */}
+      {/* Full preview */}
       {showPreview && (
-        <div className="fixed inset-0 z-50 flex flex-col bg-background">
-          <div className="flex items-center justify-between border-b border-border px-5 py-3">
-            <span className="font-semibold text-sm">Email Preview</span>
-            <button type="button" onClick={() => setShowPreview(false)} className="rounded px-3 py-1.5 text-sm border border-border hover:bg-muted">Close</button>
-          </div>
-          <div className="flex-1 overflow-auto bg-[#f4f4f4] p-6">
-            <iframe
-              srcDoc={previewHtml}
-              style={{ width: pageWidth }}
-              className="mx-auto block h-[800px] max-w-full rounded-lg border border-border bg-white shadow"
-              title="Preview"
-              sandbox="allow-same-origin"
-            />
-          </div>
-        </div>
+        <EmailPreview
+          html={previewHtml} width={pageWidth}
+          startExpanded onClose={() => setShowPreview(false)}
+        />
       )}
     </div>
   );
