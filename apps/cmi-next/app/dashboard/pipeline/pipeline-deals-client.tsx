@@ -7,7 +7,7 @@ import {
   Mic, Sparkles, Package, CalendarClock, Users2, MapPin, ScanLine, CheckCircle2,
   Circle, ArrowRight, Clock, TrendingUp, Trophy, CalendarDays, ListChecks,
   List as ListIcon, Table2, Columns3, Map as MapIcon, ChevronLeft, ChevronRight,
-  ChevronUp, ChevronDown, GripVertical, ArrowUp, ArrowDown, ArrowUpDown,
+  ChevronUp, ChevronDown, GripVertical, ArrowUp, ArrowDown, ArrowUpDown, Maximize2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ import type { Deal, DealStage, Activity, ActivityType, DealTask, DealStageHistor
 import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
 import { DealActions, ShareDialog } from "./deal-actions";
 import { BulkBar } from "./bulk-bar";
+import { TextCell, MoneyCell, OwnerCell, StageCell, type CellEdit } from "./editable-cells";
 import { PIPELINE_ORDER_KEY } from "@/lib/deals/order";
 import { DuplicateWarning, useDuplicateCheck } from "@/components/contacts/duplicate-warning";
 
@@ -275,6 +276,46 @@ export function PipelineDealsClient({
     () => orderedIds.filter((id) => selected.has(id)),
     [orderedIds, selected],
   );
+  /**
+   * Save one field, optimistically.
+   *
+   * The row updates immediately and rolls back on failure, because a list
+   * that lags behind every keystroke is worse than one that occasionally
+   * has to undo. Returns an error string, or null when it worked.
+   */
+  const patchDeal = React.useCallback(async (id: string, patch: Partial<Deal>): Promise<string | null> => {
+    const before = deals.find((d) => d.id === id);
+    setDeals((list) => list.map((d) => (d.id === id ? { ...d, ...patch } : d)));
+    const res = await fetch(`/api/deals/${id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    if (res.ok) return null;
+    if (before) setDeals((list) => list.map((d) => (d.id === id ? before : d)));
+    const json = await res.json().catch(() => ({}));
+    return json.error ?? "Could not save.";
+  }, [deals]);
+
+  /**
+   * Stage goes through its own route so history is recorded and Closed Won
+   * runs the Pre-Con handoff. It can legitimately refuse when required
+   * fields are missing, and that refusal names them.
+   */
+  const setDealStage = React.useCallback(async (id: string, to: DealStage): Promise<string | null> => {
+    const res = await fetch(`/api/deals/${id}/stage`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ to }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (res.ok) { await refresh(); return null; }
+    const missing = Array.isArray(json.missing) && json.missing.length
+      ? ` Missing: ${json.missing.join(", ")}.`
+      : "";
+    return `${json.error ?? "Could not change stage."}${missing}`;
+  }, [refresh]);
+
+  const cellEdit: CellEdit = { patch: patchDeal, setStage: setDealStage, canWrite };
+
   const selection: Selection = {
     ids: selected, toggleOne, toggleAll,
     allChecked: orderedIds.length > 0 && visibleSelected.length === orderedIds.length,
@@ -381,9 +422,9 @@ export function PipelineDealsClient({
             {deals.length === 0 ? <>No deals yet. {canWrite && "Use “Add Deal” or “Add to Pipeline” to get started."}</> : "No deals match the current filters."}
           </div>
         ) : view === "list" ? (
-          <ListView deals={ordered} ownerName={ownerName} onOpen={openDeal} renderActions={renderActions} reorder={reorder} sortState={sortState} selection={selection} />
+          <ListView deals={ordered} ownerName={ownerName} onOpen={openDeal} renderActions={renderActions} reorder={reorder} sortState={sortState} selection={selection} edit={cellEdit} owners={owners} />
         ) : view === "table" ? (
-          <TableView deals={ordered} ownerName={ownerName} onOpen={openDeal} renderActions={renderActions} reorder={reorder} sortState={sortState} selection={selection} />
+          <TableView deals={ordered} ownerName={ownerName} onOpen={openDeal} renderActions={renderActions} reorder={reorder} sortState={sortState} selection={selection} edit={cellEdit} owners={owners} />
         ) : view === "kanban" ? (
           <KanbanView deals={ordered} onOpen={openDeal} canWrite={canWrite} onMove={moveStage} renderActions={renderActions} />
         ) : view === "calendar" ? (
@@ -516,8 +557,10 @@ export type Selection = {
 /**
  * A column header you can sort by.
  *
- * The arrow only appears on the active column; the others show it on hover, so
- * the header row stays quiet but still advertises that it is clickable.
+ * Every sortable column shows its arrow all the time — a hover-only affordance
+ * is invisible to anyone who has not already guessed it is there. The inactive
+ * ones are muted and the active one is accent-coloured and bold, so the header
+ * row still reads as a header rather than a row of buttons.
  */
 function SortableTh({
   label, sortKey, state, className, align = "left",
@@ -538,13 +581,13 @@ function SortableTh({
         onClick={() => state.onSort(sortKey)}
         aria-label={`Sort by ${label}`}
         className={cn(
-          "group inline-flex items-center gap-1 transition hover:text-foreground",
+          "inline-flex items-center gap-1 rounded px-1 py-0.5 transition hover:bg-muted hover:text-foreground",
           align === "right" && "flex-row-reverse",
-          active && "text-foreground",
+          active && "bg-accent/10 font-semibold text-accent",
         )}
       >
         {label}
-        <Icon className={cn("h-3 w-3 transition", active ? "opacity-100" : "opacity-0 group-hover:opacity-50")} />
+        <Icon className={cn("h-3.5 w-3.5 shrink-0", active ? "text-accent" : "text-muted-foreground/60")} />
       </button>
     </th>
   );
@@ -579,8 +622,30 @@ function HeadCheck({ selection }: { selection?: Selection }) {
   );
 }
 
+
+/**
+ * Opening a deal moved here when cells became editable: clicking the title now
+ * edits it, so the row can no longer double as a link. Shows on hover, and is
+ * always present for keyboard users.
+ */
+function OpenCell({ id, onOpen }: { id: string; onOpen: (id: string) => void }) {
+  return (
+    <td className="w-9 px-1" onClick={(e) => e.stopPropagation()}>
+      <button
+        type="button"
+        onClick={() => onOpen(id)}
+        aria-label="Open deal"
+        title="Open deal"
+        className="rounded p-1 text-muted-foreground opacity-0 transition hover:bg-muted hover:text-foreground focus-visible:opacity-100 group-hover/row:opacity-100"
+      >
+        <Maximize2 className="h-3.5 w-3.5" />
+      </button>
+    </td>
+  );
+}
+
 // ─── List view (roomy rows) ───────────────────────────────────────
-function ListView({ deals, ownerName, onOpen, renderActions, reorder, sortState, selection }: { deals: Deal[]; ownerName: (id: string | null) => string; onOpen: (id: string) => void; renderActions: (d: Deal) => React.ReactNode; reorder: Reorder | null; sortState?: SortState; selection?: Selection }) {
+function ListView({ deals, ownerName, onOpen, renderActions, reorder, sortState, selection, edit, owners }: { deals: Deal[]; ownerName: (id: string | null) => string; onOpen: (id: string) => void; renderActions: (d: Deal) => React.ReactNode; reorder: Reorder | null; sortState?: SortState; selection?: Selection; edit?: CellEdit; owners?: OwnerOption[] }) {
   const today = new Date().toISOString().slice(0, 10);
   const { dragId, overId, rowProps } = useRowDrag(reorder);
   return (
@@ -596,6 +661,7 @@ function ListView({ deals, ownerName, onOpen, renderActions, reorder, sortState,
             <SortableTh label="Owner" sortKey="owner" state={sortState} />
             <SortableTh label="Last activity" sortKey="activity" state={sortState} />
             <th className="px-3 py-2 font-medium">Next action</th>
+            <th className="w-9 px-1 py-2"><span className="sr-only">Open</span></th>
             <th className="w-10 px-3 py-2"><span className="sr-only">Actions</span></th>
           </tr>
         </thead>
@@ -605,22 +671,30 @@ function ListView({ deals, ownerName, onOpen, renderActions, reorder, sortState,
             return (
               <tr
                 key={d.id}
-                onClick={() => onOpen(d.id)}
                 {...rowProps(d.id)}
                 className={cn(
-                  "cursor-pointer border-t border-border transition hover:bg-muted/40",
+                  "group/row border-t border-border transition hover:bg-muted/40",
                   dragId === d.id && "opacity-40",
                   overId === d.id && dragId !== d.id && "border-t-2 border-t-accent",
                 )}
               >
                 <RowCheck id={d.id} selection={selection} />
                 {reorder && <td className="px-2 py-2.5"><ReorderCell id={d.id} index={i} reorder={reorder} /></td>}
-                <td className="px-3 py-2.5"><div className="font-medium">{d.title}</div>{d.job_number && <div className="font-mono text-[11px] text-muted-foreground">{d.job_number}</div>}</td>
-                <td className="px-3 py-2.5"><StageBadge stage={d.stage} /></td>
-                <td className="px-3 py-2.5 text-right tabular-nums">{money(d.estimated_value)}</td>
-                <td className="px-3 py-2.5 text-muted-foreground">{ownerName(d.owner_id)}</td>
+                <td className="px-3 py-2.5">
+                  {edit ? <TextCell deal={d} field="title" value={d.title} edit={edit} className="font-medium" /> : <div className="font-medium">{d.title}</div>}
+                  {edit ? <TextCell deal={d} field="job_number" value={d.job_number} placeholder="No job number" edit={edit} className="font-mono text-[11px] text-muted-foreground" mono />
+                        : d.job_number && <div className="font-mono text-[11px] text-muted-foreground">{d.job_number}</div>}
+                </td>
+                <td className="px-3 py-2.5">{edit ? <StageCell deal={d} edit={edit} badge={<StageBadge stage={d.stage} />} /> : <StageBadge stage={d.stage} />}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums">{edit ? <MoneyCell deal={d} value={d.estimated_value} edit={edit} /> : money(d.estimated_value)}</td>
+                <td className="px-3 py-2.5 text-muted-foreground">{edit && owners ? <OwnerCell deal={d} owners={owners} edit={edit} /> : ownerName(d.owner_id)}</td>
                 <td className="px-3 py-2.5 text-muted-foreground">{d.last_activity_at ? `${daysSince(d.last_activity_at)}d ago` : "—"}</td>
-                <td className="px-3 py-2.5">{d.next_action ? <div><div className="max-w-[220px] truncate">{d.next_action}</div>{d.next_action_due && <div className={cn("text-[11px]", overdue ? "text-destructive" : "text-muted-foreground")}>{fmtDate(d.next_action_due)}{overdue ? " · overdue" : ""}</div>}</div> : <span className="text-muted-foreground">—</span>}</td>
+                <td className="max-w-[240px] px-3 py-2.5">
+                  {edit ? <TextCell deal={d} field="next_action" value={d.next_action} placeholder="Add a next action" edit={edit} />
+                        : d.next_action ? <div className="max-w-[220px] truncate">{d.next_action}</div> : <span className="text-muted-foreground">—</span>}
+                  {d.next_action_due && <div className={cn("px-1.5 text-[11px]", overdue ? "text-destructive" : "text-muted-foreground")}>{fmtDate(d.next_action_due)}{overdue ? " · overdue" : ""}</div>}
+                </td>
+                <OpenCell id={d.id} onOpen={onOpen} />
                 <td className="px-3 py-2.5 text-right">{renderActions(d)}</td>
               </tr>
             );
@@ -632,7 +706,7 @@ function ListView({ deals, ownerName, onOpen, renderActions, reorder, sortState,
 }
 
 // ─── Table view (compact, more columns) ───────────────────────────
-function TableView({ deals, ownerName, onOpen, renderActions, reorder, sortState, selection }: { deals: Deal[]; ownerName: (id: string | null) => string; onOpen: (id: string) => void; renderActions: (d: Deal) => React.ReactNode; reorder: Reorder | null; sortState?: SortState; selection?: Selection }) {
+function TableView({ deals, ownerName, onOpen, renderActions, reorder, sortState, selection, edit, owners }: { deals: Deal[]; ownerName: (id: string | null) => string; onOpen: (id: string) => void; renderActions: (d: Deal) => React.ReactNode; reorder: Reorder | null; sortState?: SortState; selection?: Selection; edit?: CellEdit; owners?: OwnerOption[] }) {
   const { dragId, overId, rowProps } = useRowDrag(reorder);
   return (
     <div className="overflow-x-auto rounded-lg border border-border">
@@ -649,6 +723,7 @@ function TableView({ deals, ownerName, onOpen, renderActions, reorder, sortState
             <th className="px-3 py-2 font-medium text-right">Prob.</th>
             <SortableTh label="Close" sortKey="close" state={sortState} />
             <th className="px-3 py-2 font-medium">Source</th>
+            <th className="w-9 px-1 py-2"><span className="sr-only">Open</span></th>
             <th className="w-10 px-3 py-2"><span className="sr-only">Actions</span></th>
           </tr>
         </thead>
@@ -656,24 +731,24 @@ function TableView({ deals, ownerName, onOpen, renderActions, reorder, sortState
           {deals.map((d, i) => (
             <tr
               key={d.id}
-              onClick={() => onOpen(d.id)}
               {...rowProps(d.id)}
               className={cn(
-                "cursor-pointer border-t border-border transition hover:bg-muted/40",
+                "group/row border-t border-border transition hover:bg-muted/40",
                 dragId === d.id && "opacity-40",
                 overId === d.id && dragId !== d.id && "border-t-2 border-t-accent",
               )}
             >
               <RowCheck id={d.id} selection={selection} />
               {reorder && <td className="px-2 py-2"><ReorderCell id={d.id} index={i} reorder={reorder} /></td>}
-              <td className="px-3 py-2 font-medium">{d.title}</td>
-              <td className="px-3 py-2"><StageBadge stage={d.stage} /></td>
-              <td className="px-3 py-2 text-muted-foreground">{ownerName(d.owner_id)}</td>
+              <td className="px-3 py-2 font-medium">{edit ? <TextCell deal={d} field="title" value={d.title} edit={edit} className="font-medium" /> : d.title}</td>
+              <td className="px-3 py-2">{edit ? <StageCell deal={d} edit={edit} badge={<StageBadge stage={d.stage} />} /> : <StageBadge stage={d.stage} />}</td>
+              <td className="px-3 py-2 text-muted-foreground">{edit && owners ? <OwnerCell deal={d} owners={owners} edit={edit} /> : ownerName(d.owner_id)}</td>
               <td className="px-3 py-2 text-muted-foreground">{d.job_type || "—"}</td>
-              <td className="px-3 py-2 text-right tabular-nums">{money(d.estimated_value)}</td>
+              <td className="px-3 py-2 text-right tabular-nums">{edit ? <MoneyCell deal={d} value={d.estimated_value} edit={edit} /> : money(d.estimated_value)}</td>
               <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{d.probability != null ? `${d.probability}%` : "—"}</td>
               <td className="px-3 py-2 text-muted-foreground">{fmtDate(d.expected_close_date)}</td>
               <td className="px-3 py-2 text-muted-foreground">{d.source || "—"}</td>
+              <OpenCell id={d.id} onOpen={onOpen} />
               <td className="px-3 py-2 text-right">{renderActions(d)}</td>
             </tr>
           ))}
