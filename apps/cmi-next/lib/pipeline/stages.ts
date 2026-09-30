@@ -73,8 +73,9 @@ const REQUIRED_FOR_STAGE: Partial<Record<PipelineStage, (keyof Opportunity)[]>> 
   not_moving_forward: ["lost_reason"],
 };
 
-// Friendly labels for the required-field error messages.
-const FIELD_LABELS: Record<string, string> = {
+// Friendly labels for the required-field error messages, and for the guided
+// detail page, which prompts for exactly these before offering to advance.
+export const FIELD_LABELS: Record<string, string> = {
   construction_agreement_status: "Construction agreement status",
   start_date: "Start date (or defined start window)",
   project_manager: "Project manager",

@@ -13,7 +13,9 @@ export const dynamic = "force-dynamic";
 //   Leads (quotes) → Opportunities (pipeline) → Reports.
 export default async function SalesPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const { tab } = await searchParams;
-  const initialTab = tab === "opportunities" || tab === "reports" ? tab : "leads";
+  // Opportunities is the default, and an old ?tab=leads link lands there
+  // rather than on a tab that is no longer shown.
+  const initialTab = tab === "reports" ? "reports" : "opportunities";
   let quotes: Quote[] = [];
   let opportunities: Opportunity[] = [];
   let history: StageHistoryRow[] = [];

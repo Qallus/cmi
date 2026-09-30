@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowRight, LayoutGrid, Plus, Search, Table as TableIcon, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -111,6 +112,7 @@ export function PipelineClient({
   const [ownerFilter, setOwnerFilter] = React.useState<string>("all");
   const [typeFilter, setTypeFilter] = React.useState<string>("all");
   const [view, setView] = React.useState<ViewMode>("table");
+  const router = useRouter();
   const [modal, setModal] = React.useState<{ mode: ModalMode; opp?: Opportunity } | null>(null);
   const [draft, setDraft] = React.useState<OpportunityDraft>(EMPTY_DRAFT);
   const [saving, setSaving] = React.useState(false);
@@ -155,7 +157,10 @@ export function PipelineClient({
   }, [opps, search, stageFilter, ownerFilter, typeFilter]);
 
   function openAdd() { setDraft({ ...EMPTY_DRAFT }); setError(null); setModal({ mode: "add" }); }
-  function openView(o: Opportunity) { setError(null); setModal({ mode: "view", opp: o }); }
+  // Opening an opportunity goes to its own page, which draws the stage path
+  // and what each step needs. The modal remains for add and edit, where a
+  // short form is the right shape.
+  function openView(o: Opportunity) { router.push(`/dashboard/sales/${o.id}`); }
   function openEdit(o: Opportunity) {
     setDraft({
       opportunity_name: o.opportunity_name,

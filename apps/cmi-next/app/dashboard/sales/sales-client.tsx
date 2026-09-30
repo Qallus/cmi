@@ -12,6 +12,17 @@ import type { PipelineReport } from "@/lib/pipeline/reporting";
 
 type SalesTab = "leads" | "opportunities" | "reports";
 
+/**
+ * Leads is hidden pending a decision from the owner.
+ *
+ * A lead is worked through the stages in Pipeline and only reaches Pre-Con at
+ * Closed Won, so a Leads tab here is a second front door to the same records.
+ * Nothing is lost by hiding it: the same workspace lives at
+ * /dashboard/quotes-leads. Flip this back to false to restore the tab, or
+ * delete the "leads" branch entirely once the call is made.
+ */
+const HIDE_LEADS_TAB = true;
+
 const TABS: { key: SalesTab; label: string; icon: typeof Workflow; hint: string }[] = [
   { key: "leads", label: "Leads", icon: BriefcaseBusiness, hint: "Marketing & intake — quote requests and CRM leads, each with a pre-construction number (CM-YYYY-####) that follows it into Opportunities and Jobs." },
   { key: "opportunities", label: "Opportunities", icon: Workflow, hint: "Real projects with a job number, moving through the build lifecycle." },
@@ -30,6 +41,7 @@ export function SalesClient({
   initialReport: PipelineReport;
 }) {
   const [tab, setTab] = React.useState<SalesTab>(initialTab);
+  const visibleTabs = TABS.filter((t) => !(HIDE_LEADS_TAB && t.key === "leads"));
 
   // Keep the URL in sync (deep-links / refresh / old-route redirects land on the
   // right tab) without triggering a navigation + data reload.
@@ -47,7 +59,7 @@ export function SalesClient({
       {/* Tab bar — the single 'Sales' hub's sub-navigation */}
       <div className="flex shrink-0 flex-col gap-1 border-b border-border bg-card px-4 pt-2 md:px-6">
         <div className="flex items-center gap-1">
-          {TABS.map((t) => (
+          {visibleTabs.map((t) => (
             <button
               key={t.key}
               type="button"
