@@ -1,23 +1,23 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import {
   Mail, MessageSquare, Phone, Send, Plus, RefreshCw, Clock,
   CheckCircle2, XCircle, ArrowDownLeft, ArrowUpRight, X,
   ClipboardList, ChevronDown, UserRound, LayoutTemplate, Users, Eye, Printer,
-  Check, HardHat, FolderKanban, BriefcaseBusiness, ExternalLink, Tag,
-  Workflow, Archive, Trash2,
+  Check, BriefcaseBusiness, Workflow, Archive, Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { Message, MessageChannel } from "@/lib/communications/types";
 import type { ContactSubmission, ContactSubmissionStatus } from "@/lib/contact-submissions/types";
-import { CONTACT_TYPES, type ContactType } from "@/lib/contacts/types";
 import { TemplateManager } from "@/components/email-builder/template-manager";
 import { PrintManager } from "@/components/print-builder/print-manager";
 import { DynamicFieldsBar } from "@/components/ui/dynamic-fields-bar";
 import { EmailPreview } from "@/components/email-builder/email-preview";
 import { CallsWorkspace } from "./calls-workspace";
+import { SUBMISSION_ORDER_KEY } from "./submissions/[id]/submission-detail-client";
 
 type Tab = "all" | MessageChannel | "contact_form" | "templates" | "prints";
 
@@ -138,6 +138,7 @@ export function CommunicationsClient({
   initialSubmissions: ContactSubmission[];
   serverNow?: number;
 }) {
+  const router = useRouter();
   const nowMs = useServerNow(serverNow);
   const [messages, setMessages] = React.useState<Message[]>(initialMessages);
   const [submissions, setSubmissions] = React.useState<ContactSubmission[]>(initialSubmissions);
@@ -154,7 +155,6 @@ export function CommunicationsClient({
   const [sending, setSending] = React.useState(false);
   const [sendError, setSendError] = React.useState<string | null>(null);
   const [selected, setSelected] = React.useState<Message | null>(null);
-  const [selectedSubmission, setSelectedSubmission] = React.useState<ContactSubmission | null>(null);
   const [submissionFilter, setSubmissionFilter] = React.useState<ContactSubmissionStatus | "all">("all");
   // Contact Form multi-select + action feedback.
   const [subSelected, setSubSelected] = React.useState<Set<string>>(new Set());
@@ -282,9 +282,6 @@ export function CommunicationsClient({
       setSubmissions((prev) =>
         prev.map((s) => s.id === id ? { ...s, status } : s)
       );
-      if (selectedSubmission?.id === id) {
-        setSelectedSubmission((prev) => prev ? { ...prev, status } : prev);
-      }
     } catch {
       // silent fail -- optimistic update already applied
     }
@@ -295,11 +292,18 @@ export function CommunicationsClient({
     setDraft((d) => ({ ...d, channel: "sms", to: phone }));
   }
 
+  // A submission opens its own page, not a modal: long enquiries were being
+  // clipped at both ends, and these are the highest-value leads we get. The
+  // page marks it read on arrival, so this only hands over the ordering the
+  // list is currently showing, for the page's prev/next arrows.
   function openSubmission(sub: ContactSubmission) {
-    setSelectedSubmission(sub);
-    if (sub.status === "new") {
-      void updateSubmissionStatus(sub.id, "read");
-    }
+    try {
+      window.sessionStorage.setItem(
+        SUBMISSION_ORDER_KEY,
+        JSON.stringify(filteredSubmissions.map((s) => s.id)),
+      );
+    } catch { /* the page falls back to its own ordering */ }
+    router.push(`/dashboard/communications/submissions/${sub.id}`);
   }
 
   // ── Contact Form multi-select ──
@@ -325,7 +329,6 @@ export function CommunicationsClient({
       });
       if (!res.ok) throw new Error((await res.json()).error || "Update failed.");
       setSubmissions((prev) => prev.map((s) => ids.includes(s.id) ? { ...s, status } : s));
-      if (selectedSubmission && ids.includes(selectedSubmission.id)) setSelectedSubmission((p) => p ? { ...p, status } : p);
       flashToast(`Marked ${ids.length} as ${status}.`);
       clearSubSelection();
     } catch (e) { flashToast(e instanceof Error ? e.message : "Update failed."); }
@@ -342,7 +345,6 @@ export function CommunicationsClient({
       });
       if (!res.ok) throw new Error((await res.json()).error || "Delete failed.");
       setSubmissions((prev) => prev.filter((s) => !ids.includes(s.id)));
-      if (selectedSubmission && ids.includes(selectedSubmission.id)) setSelectedSubmission(null);
       flashToast(`Deleted ${ids.length} submission${ids.length === 1 ? "" : "s"}.`);
       clearSubSelection();
     } catch (e) { flashToast(e instanceof Error ? e.message : "Delete failed."); }
@@ -364,9 +366,6 @@ export function CommunicationsClient({
       if (target === "contact") {
         const map = new Map(ids.map((id, i) => [id, json.results?.[i]?.contactId as string | undefined]));
         setSubmissions((prev) => prev.map((s) => map.get(s.id) ? { ...s, contact_id: map.get(s.id) as string } : s));
-        if (selectedSubmission && map.get(selectedSubmission.id)) {
-          setSelectedSubmission((p) => p ? { ...p, contact_id: map.get(p.id) as string } : p);
-        }
       }
       clearSubSelection();
     } catch (e) { flashToast(e instanceof Error ? e.message : "Conversion failed."); }
@@ -400,7 +399,7 @@ export function CommunicationsClient({
           <button
             key={key}
             type="button"
-            onClick={() => { setTab(key); setSelected(null); setSelectedSubmission(null); }}
+            onClick={() => { setTab(key); setSelected(null); }}
             className={cn(
               "flex shrink-0 items-center gap-2 px-4 py-3 text-sm font-medium transition border-b-2 -mb-px whitespace-nowrap",
               tab === key
@@ -513,7 +512,7 @@ export function CommunicationsClient({
                       onClick={() => openSubmission(sub)}
                       className={cn(
                         "cursor-pointer transition hover:bg-muted/40",
-                        (selectedSubmission?.id === sub.id || subSelected.has(sub.id)) && "bg-accent/5",
+                        subSelected.has(sub.id) && "bg-accent/5",
                         sub.status === "new" && "font-medium"
                       )}
                     >
@@ -882,139 +881,6 @@ export function CommunicationsClient({
         </div>
       )}
 
-      {/* Submission detail modal */}
-      {selectedSubmission && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={() => setSelectedSubmission(null)} />
-          <div className="relative z-10 w-full max-w-xl rounded-xl border border-border bg-card shadow-xl">
-            {/* Modal header */}
-            <div className="flex items-start justify-between border-b border-border px-6 py-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <ClipboardList className="h-4 w-4 text-accent" />
-                  <span className="font-semibold text-sm">Contact Form Submission</span>
-                  {submissionStatusBadge(selectedSubmission.status)}
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Submitted {new Date(selectedSubmission.submitted_at).toLocaleString()}
-                </p>
-              </div>
-              <button
-                type="button"
-                className="rounded p-1 text-muted-foreground hover:text-foreground"
-                onClick={() => setSelectedSubmission(null)}
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            {/* Modal body */}
-            <div className="space-y-5 p-6">
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <ModalField label="First Name" value={selectedSubmission.first_name} />
-                <ModalField label="Last Name" value={selectedSubmission.last_name} />
-                <ContactActionField label="Email" value={selectedSubmission.email} email={selectedSubmission.email} contactId={selectedSubmission.contact_id} />
-                <ContactActionField label="Phone" value={selectedSubmission.phone ?? "--"} phone={selectedSubmission.phone} contactId={selectedSubmission.contact_id} />
-                <ModalField label="How They Heard" value={selectedSubmission.how_heard ?? "--"} />
-                <ModalField label="Subject" value={selectedSubmission.subject} />
-                {formatSubmissionAddress(selectedSubmission) && (
-                  <ModalField label="Project Address" value={formatSubmissionAddress(selectedSubmission)} />
-                )}
-                {selectedSubmission.project_budget && (
-                  <ModalField label="Project Budget" value={selectedSubmission.budget_amount || selectedSubmission.project_budget} />
-                )}
-              </div>
-
-              {selectedSubmission.project_status?.length > 0 && (
-                <div>
-                  <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Project Status</div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {selectedSubmission.project_status.map((s) => (
-                      <span key={s} className="rounded-full border border-accent/30 bg-accent/10 px-2.5 py-1 text-xs font-medium text-accent">{s}</span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Message</div>
-                <div className="rounded-lg border border-border bg-background p-4 text-sm leading-relaxed whitespace-pre-wrap">
-                  {selectedSubmission.message}
-                </div>
-              </div>
-
-              {/* Convert — transfer the full submission to a Contact / Lead / Deal */}
-              <div className="rounded-lg border border-border bg-muted/20 p-4">
-                <div className="mb-2.5 flex items-center gap-2">
-                  <Workflow className="h-3.5 w-3.5 text-accent" />
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Convert</span>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  <BulkBtn disabled={subBusy || !!selectedSubmission.contact_id} icon={UserRound} onClick={() => convertSubs([selectedSubmission.id], "contact")}>
-                    {selectedSubmission.contact_id ? "Contact linked" : "Add Contact"}
-                  </BulkBtn>
-                  <BulkBtn disabled={subBusy} icon={BriefcaseBusiness} onClick={() => convertSubs([selectedSubmission.id], "lead")}>Convert to Lead</BulkBtn>
-                  <BulkBtn disabled={subBusy} icon={Workflow} onClick={() => convertSubs([selectedSubmission.id], "deal")}>Add to Pipeline</BulkBtn>
-                </div>
-                {subToast && <p className="mt-2 text-xs font-medium text-accent">{subToast}</p>}
-              </div>
-
-              {/* Assign / route */}
-              <AssignPanel submission={selectedSubmission} />
-
-              {/* Status actions */}
-              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">Mark as:</span>
-                  {(["new", "read", "archived"] as ContactSubmissionStatus[]).map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      disabled={selectedSubmission.status === s}
-                      onClick={() => void updateSubmissionStatus(selectedSubmission.id, s)}
-                      className={cn(
-                        "rounded-full border px-3 py-1 text-[12px] font-medium transition",
-                        selectedSubmission.status === s
-                          ? "border-accent bg-accent/10 text-accent cursor-default"
-                          : "border-border text-muted-foreground hover:border-accent/40 hover:text-foreground"
-                      )}
-                    >
-                      {s.charAt(0).toUpperCase() + s.slice(1)}
-                    </button>
-                  ))}
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-destructive/30 text-destructive hover:bg-destructive/10"
-                    disabled={subBusy}
-                    onClick={() => void deleteSubs([selectedSubmission.id])}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" /> Delete
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="accent"
-                    onClick={() => {
-                      openCompose("email");
-                      setDraft({
-                        channel: "email",
-                        to: selectedSubmission.email,
-                        subject: `Re: ${selectedSubmission.subject}`,
-                        body: "",
-                      });
-                      setSelectedSubmission(null);
-                    }}
-                  >
-                    <Send className="h-3.5 w-3.5" /> Reply by Email
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -1046,164 +912,10 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ModalField({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <div className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">{label}</div>
-      <div className="text-sm">{value}</div>
-    </div>
-  );
-}
-
-function ContactActionField({
-  label,
-  value,
-  email,
-  phone,
-  contactId,
-}: {
-  label: string;
-  value: string;
-  email?: string | null;
-  phone?: string | null;
-  contactId?: string | null;
-}) {
-  const profileHref = contactId ? `/dashboard/contacts?id=${encodeURIComponent(contactId)}` : email ? `/dashboard/contacts?search=${encodeURIComponent(email)}` : "/dashboard/contacts";
-  return (
-    <div className="group relative">
-      <div className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">{label}</div>
-      <a href={email ? `mailto:${email}` : phone ? `tel:${phone}` : profileHref} className="text-sm font-medium text-foreground underline-offset-4 transition hover:text-accent hover:underline">
-        {value}
-      </a>
-      <div className="pointer-events-none absolute left-0 top-full z-20 mt-2 hidden min-w-44 rounded-lg border border-border bg-card p-1 text-xs shadow-xl group-hover:block group-hover:pointer-events-auto">
-        {email ? (
-          <a href={`mailto:${email}`} className="flex items-center gap-2 rounded-md px-2.5 py-2 hover:bg-muted">
-            <Mail className="h-3.5 w-3.5 text-accent" /> Email
-          </a>
-        ) : null}
-        {phone ? (
-          <a href={`tel:${phone}`} className="flex items-center gap-2 rounded-md px-2.5 py-2 hover:bg-muted">
-            <Phone className="h-3.5 w-3.5 text-accent" /> Call
-          </a>
-        ) : null}
-        <a href={profileHref} className="flex items-center gap-2 rounded-md px-2.5 py-2 hover:bg-muted">
-          <UserRound className="h-3.5 w-3.5 text-accent" /> Contact profile
-        </a>
-      </div>
-    </div>
-  );
-}
-
-function formatSubmissionAddress(s: ContactSubmission): string {
-  const l1 = [s.address_line1, s.address_line2].filter(Boolean).join(", ");
-  const cityState = [s.city, s.state].filter(Boolean).join(", ");
-  const l2 = [cityState, s.zip].filter(Boolean).join(" ");
-  return [l1, l2].filter(Boolean).join(" · ");
-}
-
 // Route a submission onward: tag the linked contact (Lead / Client / Vendor / …)
 // and jump into the workspace where the next record lives (Pre-Con, Jobs,
 // Projects). The contact profile is the hub — every downstream record links back
 // to it — so we deep-link there with the contact pre-selected.
-function AssignPanel({ submission }: { submission: ContactSubmission }) {
-  const contactId = submission.contact_id;
-  const [assignedType, setAssignedType] = React.useState<ContactType | null>(null);
-  const [saving, setSaving] = React.useState<ContactType | null>(null);
-  const [error, setError] = React.useState<string | null>(null);
-
-  async function assignType(type: ContactType) {
-    if (!contactId) return;
-    setSaving(type); setError(null);
-    try {
-      const res = await fetch(`/api/contacts/${contactId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type }),
-      });
-      if (!res.ok) throw new Error();
-      setAssignedType(type);
-    } catch {
-      setError("Couldn't update. Try again.");
-    } finally {
-      setSaving(null);
-    }
-  }
-
-  const profileHref = contactId
-    ? `/dashboard/contacts?id=${encodeURIComponent(contactId)}`
-    : `/dashboard/contacts?search=${encodeURIComponent(submission.email)}`;
-  const q = contactId ? `?contact=${encodeURIComponent(contactId)}` : "";
-
-  const routes: { label: string; href: string; icon: React.ElementType }[] = [
-    { label: "Contact Profile", href: profileHref, icon: UserRound },
-    { label: "Pre-Con", href: `/dashboard/sales${q}`, icon: BriefcaseBusiness },
-    { label: "New Job", href: `/dashboard/jobs/new${q}`, icon: HardHat },
-    { label: "Projects", href: `/dashboard/project-manager${q}`, icon: FolderKanban },
-  ];
-
-  return (
-    <div className="rounded-lg border border-border bg-muted/20 p-4">
-      <div className="mb-2.5 flex items-center gap-2">
-        <Tag className="h-3.5 w-3.5 text-accent" />
-        <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Assign / Route</span>
-      </div>
-
-      {/* Tag the linked contact */}
-      <div className="mb-3">
-        <div className="mb-1.5 text-xs text-muted-foreground">
-          Tag {submission.first_name || "this contact"} as:
-        </div>
-        {!contactId ? (
-          <p className="text-xs text-muted-foreground">
-            No linked contact record — open the contact profile to create one.
-          </p>
-        ) : (
-          <div className="flex flex-wrap gap-1.5">
-            {CONTACT_TYPES.map((type) => {
-              const active = assignedType === type;
-              return (
-                <button
-                  key={type}
-                  type="button"
-                  disabled={saving !== null}
-                  onClick={() => void assignType(type)}
-                  className={cn(
-                    "inline-flex items-center gap-1 rounded-full border px-3 py-1 text-[12px] font-medium transition disabled:opacity-60",
-                    active
-                      ? "border-accent bg-accent/10 text-accent"
-                      : "border-border text-muted-foreground hover:border-accent/40 hover:text-foreground"
-                  )}
-                >
-                  {active && <Check className="h-3 w-3" />}
-                  {saving === type ? "Saving…" : type}
-                </button>
-              );
-            })}
-          </div>
-        )}
-        {error && <p className="mt-1.5 text-xs text-destructive">{error}</p>}
-      </div>
-
-      {/* Jump to a workspace */}
-      <div>
-        <div className="mb-1.5 text-xs text-muted-foreground">Open in:</div>
-        <div className="flex flex-wrap gap-1.5">
-          {routes.map(({ label, href, icon: Icon }) => (
-            <a
-              key={label}
-              href={href}
-              className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs font-medium text-foreground transition hover:border-accent/40 hover:text-accent"
-            >
-              <Icon className="h-3.5 w-3.5" /> {label}
-              <ExternalLink className="h-3 w-3 opacity-50" />
-            </a>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function CF({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1">

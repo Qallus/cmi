@@ -146,3 +146,72 @@ export async function convertSubmissionToDeal(id: string, actor?: Actor): Promis
   const { deal, created } = await addSubmissionToPipeline(id, { notes: submissionNotes(sub) }, actor);
   return { dealId: deal.id, created };
 }
+
+// ─── Detail page support ──────────────────────────────────────────
+/** One submission, or null. Used by the detail page. */
+export async function getContactSubmission(id: string): Promise<ContactSubmission | null> {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase.from("contact_submissions").select("*").eq("id", id).maybeSingle();
+  if (error) throw new Error(error.message);
+  return (data as ContactSubmission | null) ?? null;
+}
+
+/**
+ * Newest-first ids, for the detail page's prev/next arrows.
+ *
+ * The list hands over its own ordering (which respects the active filter) when
+ * you arrive by clicking a row; this is the fallback for a deep link or a
+ * bookmarked submission, so the arrows always work.
+ */
+export async function loadSubmissionOrder(limit = 500): Promise<string[]> {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("contact_submissions")
+    .select("id")
+    .order("submitted_at", { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as { id: string }[]).map((r) => r.id);
+}
+
+/**
+ * Everything we have already said to, or heard from, this person.
+ *
+ * Matched on email and phone rather than contact_id, because most submissions
+ * arrive before anyone has converted them to a contact — and knowing that a
+ * lead already emailed twice last month is exactly what stops them being
+ * answered as if they were new.
+ */
+export async function loadSubmissionThread(
+  email: string | null,
+  phone: string | null,
+  limit = 25,
+): Promise<ThreadMessage[]> {
+  const handles = [email?.trim(), phone?.trim()].filter((v): v is string => !!v);
+  if (handles.length === 0) return [];
+
+  const supabase = getSupabaseAdmin();
+  const or = handles
+    .flatMap((h) => [`to_address.eq.${h}`, `from_address.eq.${h}`])
+    .join(",");
+
+  const { data, error } = await supabase
+    .from("messages")
+    .select("id, direction, channel, subject, body, status, sent_at, created_at")
+    .or(or)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) return [];
+  return (data ?? []) as ThreadMessage[];
+}
+
+export type ThreadMessage = {
+  id: string;
+  direction: "inbound" | "outbound";
+  channel: string;
+  subject: string | null;
+  body: string | null;
+  status: string | null;
+  sent_at: string | null;
+  created_at: string;
+};
