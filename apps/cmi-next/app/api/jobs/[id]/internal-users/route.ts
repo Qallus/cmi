@@ -9,7 +9,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const { staff } = await requireAdmin(request);
     if (!WRITE_ROLES.includes(staff.role_slug)) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
     const { id } = await params;
-    return NextResponse.json(await addJobInternalUser(id, await request.json()), { status: 201 });
+    return NextResponse.json(await addJobInternalUser(id, await request.json(), staff.id), { status: 201 });
   } catch (err) {
     if (err instanceof JobError) return NextResponse.json({ error: err.message }, { status: err.status });
     const e = err as AuthError;

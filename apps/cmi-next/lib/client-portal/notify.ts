@@ -19,7 +19,7 @@ async function generateClientInviteLink(email: string): Promise<string | null> {
 
 function buildHtml(firstName: string, jobName: string, link: string): string {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://my.constructedmatter.com";
-  const logoUrl = `${appUrl}/brand/CMI_Line_Logo_White.svg`;
+  const logoUrl = `${appUrl}/brand/cmi_line_logo_white.png`;
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
 <body style="margin:0;padding:0;background:#f4f4f4;font-family:Arial,sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;padding:40px 20px;"><tr><td align="center">

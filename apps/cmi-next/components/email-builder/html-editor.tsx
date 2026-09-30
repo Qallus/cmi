@@ -103,7 +103,7 @@ const DEFAULT_HTML = `<!DOCTYPE html>
       <table width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:8px;overflow:hidden;max-width:560px;width:100%;">
         <tr>
           <td style="background:#111;padding:28px 40px;text-align:center;">
-            <img src="https://my.constructedmatter.com/brand/CMI_Line_Logo_White.svg" alt="CMI" width="180" style="display:block;margin:0 auto;" />
+            <img src="https://my.constructedmatter.com/brand/cmi_line_logo_white.png" alt="CMI" width="180" style="display:block;margin:0 auto;" />
           </td>
         </tr>
         <tr>

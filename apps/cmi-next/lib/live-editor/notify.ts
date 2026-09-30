@@ -13,7 +13,7 @@ export function buildStatusEmailHtml(args: {
 }): string {
   const { session, data, statusLabel, editorUrl, note } = args;
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://my.constructedmatter.com";
-  const logoUrl = `${appUrl}/brand/CMI_Line_Logo_White.svg`;
+  const logoUrl = `${appUrl}/brand/cmi_line_logo_white.png`;
 
   const items = data.notes.slice(0, 25).map((en) => {
     const el = en.element;

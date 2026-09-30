@@ -2,21 +2,22 @@
 // Aggregates the same four "unread" sources counted by
 // /api/notifications/unread-count into a listable, mark-readable feed:
 //   1. new contact-form submissions (contact_submissions.status = 'new')
-//   2. unread inbound messages       (messages: inbound + received + notification_read_at null)
-//   3. new business-card leads        (business_card_leads.status = 'new' + notification_read_at null)
+//   2. unread inbound messages       (messages: inbound + received)
+//   3. new business-card leads        (business_card_leads.status = 'new')
 //   4. shared dashboard review notes  (dashboard_notes, unread by this user's email in read_by[])
+//   5. directed alerts                (staff_notifications rows addressed to this person)
 //
-// messages and business_card_leads have no natural "read" status (their status
-// enums are delivery-/pipeline-state), so we track notification-read separately
-// via notification_read_at without touching their business status. Submissions
-// use status='read'; notes append the reader's email to read_by[].
+// Read state for the shared-record kinds lives in notification_reads, one row
+// per person — see lib/notifications/reads.ts for why. Notes append the
+// reader's email or id to read_by[]; alerts stamp their own read_at.
 
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { listConversations } from "@/lib/direct-messages/data";
 import { markBroadcastRead, unreadBroadcastsForStaff } from "@/lib/broadcasts/data";
 import { listScheduleNotifications, markScheduleNotificationRead } from "@/lib/schedules/notify";
+import { loadReadKeys, markReadForUser, readKey } from "@/lib/notifications/reads";
 
-export type StaffNotificationKind = "submission" | "message" | "lead" | "note" | "booking" | "dm" | "broadcast" | "note_link" | "schedule";
+export type StaffNotificationKind = "submission" | "message" | "lead" | "note" | "booking" | "dm" | "broadcast" | "note_link" | "schedule" | "alert";
 
 export type StaffNotification = {
   id: string;
@@ -39,6 +40,7 @@ const HREF: Record<StaffNotificationKind, string> = {
   broadcast: "/dashboard/overview",
   note_link: "/dashboard/documents",
   schedule: "/dashboard/schedules",
+  alert: "/dashboard",
 };
 
 function bookingWhen(iso: string | null): string {
@@ -75,7 +77,8 @@ export async function loadStaffNotifications(ctx: Ctx): Promise<StaffNotificatio
     .limit(50);
   if (!ctx.isAdmin) leadsQuery = leadsQuery.eq("owner_staff_id", ctx.staffId);
 
-  const [submissionsRes, messagesRes, leadsRes, notesRes, bookingsRes, noteLinksRes] = await Promise.all([
+  const [readKeys, submissionsRes, messagesRes, leadsRes, notesRes, bookingsRes, noteLinksRes, alertsRes] = await Promise.all([
+    loadReadKeys(ctx.staffId),
     supabase
       .from("contact_submissions")
       .select("id, first_name, last_name, subject, message, submitted_at, created_at")
@@ -115,11 +118,20 @@ export async function loadStaffNotifications(ctx: Ctx): Promise<StaffNotificatio
       .neq("status", "archived")
       .order("created_at", { ascending: false })
       .limit(50),
+    // Alerts addressed to this person specifically, written by notifyStaff.
+    supabase
+      .from("staff_notifications")
+      .select("id, kind, title, body, url, created_at")
+      .eq("recipient_staff_id", ctx.staffId)
+      .is("read_at", null)
+      .order("created_at", { ascending: false })
+      .limit(50),
   ]);
 
   const items: StaffNotification[] = [];
 
   for (const s of (submissionsRes.data ?? []) as Record<string, unknown>[]) {
+    if (readKeys.has(readKey("submission", String(s.id)))) continue;
     const name = [s.first_name, s.last_name].filter(Boolean).join(" ").trim() || "Someone";
     items.push({
       id: String(s.id),
@@ -132,6 +144,7 @@ export async function loadStaffNotifications(ctx: Ctx): Promise<StaffNotificatio
   }
 
   for (const m of (messagesRes.data ?? []) as Record<string, unknown>[]) {
+    if (readKeys.has(readKey("message", String(m.id)))) continue;
     items.push({
       id: String(m.id),
       kind: "message",
@@ -143,6 +156,7 @@ export async function loadStaffNotifications(ctx: Ctx): Promise<StaffNotificatio
   }
 
   for (const l of (leadsRes.data ?? []) as Record<string, unknown>[]) {
+    if (readKeys.has(readKey("lead", String(l.id)))) continue;
     const name = String(l.name ?? "").trim() || String(l.email ?? "").trim() || "New lead";
     items.push({
       id: String(l.id),
@@ -168,6 +182,7 @@ export async function loadStaffNotifications(ctx: Ctx): Promise<StaffNotificatio
   }
 
   for (const b of (bookingsRes.data ?? []) as Record<string, unknown>[]) {
+    if (readKeys.has(readKey("booking", String(b.id)))) continue;
     const who = [b.customer_first_name, b.customer_last_name].filter(Boolean).join(" ").trim()
       || String(b.customer_email ?? "").trim() || "Someone";
     const label = String(b.title ?? "").trim();
@@ -227,6 +242,17 @@ export async function loadStaffNotifications(ctx: Ctx): Promise<StaffNotificatio
     }
   } catch { /* best-effort */ }
 
+  for (const a of (alertsRes.data ?? []) as Record<string, unknown>[]) {
+    items.push({
+      id: String(a.id),
+      kind: "alert",
+      title: String(a.title ?? "Notification"),
+      subtitle: snippet(String(a.body ?? "")),
+      time: String(a.created_at),
+      href: String(a.url ?? HREF.alert),
+    });
+  }
+
   items.sort((a, b) => (a.time < b.time ? 1 : a.time > b.time ? -1 : 0));
   return items;
 }
@@ -241,14 +267,13 @@ export async function markStaffNotificationRead(
   const nowExpr = new Date().toISOString();
 
   try {
-    if (kind === "submission") {
-      await supabase.from("contact_submissions").update({ status: "read" }).eq("id", id);
-    } else if (kind === "message") {
-      await supabase.from("messages").update({ notification_read_at: nowExpr }).eq("id", id);
-    } else if (kind === "lead") {
-      let q = supabase.from("business_card_leads").update({ notification_read_at: nowExpr }).eq("id", id);
-      if (!ctx.isAdmin) q = q.eq("owner_staff_id", ctx.staffId);
-      await q;
+    if (kind === "submission" || kind === "message" || kind === "lead" || kind === "booking") {
+      // Dismiss it for this person only. The record's own status is business
+      // state and is left to the page that owns it.
+      await markReadForUser(ctx.staffId, kind, id);
+    } else if (kind === "alert") {
+      await supabase.from("staff_notifications")
+        .update({ read_at: nowExpr }).eq("id", id).eq("recipient_staff_id", ctx.staffId);
     } else if (kind === "note") {
       const email = ctx.email.toLowerCase();
       const { data } = await supabase.from("dashboard_notes").select("read_by").eq("id", id).maybeSingle();
@@ -256,8 +281,6 @@ export async function markStaffNotificationRead(
       if (!readBy.includes(email)) {
         await supabase.from("dashboard_notes").update({ read_by: [...readBy, email] }).eq("id", id);
       }
-    } else if (kind === "booking") {
-      await supabase.from("booking_appointments").update({ notification_read_at: nowExpr }).eq("id", id);
     } else if (kind === "dm") {
       // Mark the conversation read for this staff user.
       await supabase.from("dm_participants").update({ last_read_at: nowExpr }).eq("conversation_id", id).eq("user_id", ctx.staffId);

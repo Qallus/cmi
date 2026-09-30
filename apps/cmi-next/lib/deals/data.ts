@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { createOpportunity } from "@/lib/pipeline/data";
 import { linkDealToOpportunity } from "@/lib/projections/links";
 import { geocodeAddress } from "@/lib/jobs/geocode";
+import { notifyDealOwner, notifyTaskAssignee } from "@/lib/notifications/assignments";
 import { requiredFieldsForStage, DEAL_STAGE_META } from "./stages";
 import type {
   Actor, Activity, ActivityDraft, Deal, DealChecklistItem, DealChecklistProgress, DealDraft, DealSourceType,
@@ -64,6 +65,7 @@ export async function createDeal(draft: DealDraft, actor?: Actor): Promise<Deal>
   if (error) throw new Error(error.message);
   const created = data as Deal;
   await recordStageChange(created.id, created.job_number, null, created.stage, actor, "Deal created");
+  await notifyDealOwner(created, actor?.id, null);
   return created;
 }
 
@@ -72,6 +74,11 @@ export async function updateDeal(id: string, patch: Partial<DealDraft>, actor?: 
   const supabase = getSupabaseAdmin();
   // Re-geocode only when an address field is part of this update.
   const addressTouched = ["street_address", "city", "state", "zip"].some((k) => k in patch);
+  // Read the outgoing owner before the write so a re-assignment can be told
+  // apart from a save that merely happened to include owner_id unchanged.
+  const previousOwner = "owner_id" in patch
+    ? (await supabase.from("deals").select("owner_id").eq("id", id).maybeSingle()).data?.owner_id ?? null
+    : undefined;
   const clean = sanitizeDraft(patch);
   const finalPatch = addressTouched ? await withGeocode({ ...clean, latitude: null, longitude: null }) : clean;
   if (actor?.id) (finalPatch as Record<string, unknown>).updated_by = actor.id;
@@ -82,7 +89,9 @@ export async function updateDeal(id: string, patch: Partial<DealDraft>, actor?: 
     .select()
     .single();
   if (error) throw new Error(error.message);
-  return data as Deal;
+  const updated = data as Deal;
+  if (previousOwner !== undefined) await notifyDealOwner(updated, actor?.id, previousOwner);
+  return updated;
 }
 
 /**
@@ -395,7 +404,9 @@ export async function createDealTask(draft: DealTaskDraft, actor?: Actor): Promi
   const insert = { ...draft, created_by: actor?.id ?? draft.created_by ?? null };
   const { data, error } = await supabase.from("deal_tasks").insert(insert).select().single();
   if (error) throw new Error(error.message);
-  return data as DealTask;
+  const created = data as DealTask;
+  await notifyTaskAssignee(created, actor?.id, null);
+  return created;
 }
 
 export async function deleteDealTask(id: string): Promise<void> {
@@ -404,11 +415,16 @@ export async function deleteDealTask(id: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
-export async function updateDealTask(id: string, patch: Partial<DealTaskDraft>): Promise<DealTask> {
+export async function updateDealTask(id: string, patch: Partial<DealTaskDraft>, actor?: Actor): Promise<DealTask> {
   const supabase = getSupabaseAdmin();
+  const previousAssignee = "assigned_to" in patch
+    ? (await supabase.from("deal_tasks").select("assigned_to").eq("id", id).maybeSingle()).data?.assigned_to ?? null
+    : undefined;
   const { data, error } = await supabase.from("deal_tasks").update(patch).eq("id", id).select().single();
   if (error) throw new Error(error.message);
-  return data as DealTask;
+  const updated = data as DealTask;
+  if (previousAssignee !== undefined) await notifyTaskAssignee(updated, actor?.id, previousAssignee);
+  return updated;
 }
 
 // ─── Stage checklist progress ─────────────────────────────────────

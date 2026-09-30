@@ -52,7 +52,7 @@ function row(labelText: string, valueHtml: string): string {
 }
 
 function buildHtml(n: ContactNotification): string {
-  const logoUrl = `${appUrl()}/brand/CMI_Line_Logo_White.svg`;
+  const logoUrl = `${appUrl()}/brand/cmi_line_logo_white.png`;
   const name = [n.firstName, n.lastName].filter(Boolean).join(" ").trim() || "—";
   const rows: string[] = [];
   rows.push(row("Name", esc(name)));

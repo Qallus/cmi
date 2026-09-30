@@ -49,7 +49,7 @@ function defaultColumnItem(): Omit<ColumnItem, "id"> {
 function defaultBlock(type: BlockType): Omit<EmailBlock, "id"> {
   const APP_URL = typeof window !== "undefined" ? window.location.origin : "https://my.constructedmatter.com";
   switch (type) {
-    case "header":  return { type, logo_url: `${APP_URL}/brand/CMI_Line_Logo_White.svg`, bg_color: "#111111", logo_width: 180 };
+    case "header":  return { type, logo_url: `${APP_URL}/brand/cmi_line_logo_white.png`, bg_color: "#111111", logo_width: 180 };
     case "heading": return { type, text: "Your Heading", level: "h1", color: "#111111", font_size: 28, align: "left" };
     case "text":    return { type, content: "Write your message here. Keep it clear and concise.", color: "#4b5563", font_size: 15, align: "left" };
     case "button":  return { type, label: "Click Here", url: "#", btn_bg: "#C87A3A", btn_color: "#ffffff", btn_radius: 6, align: "center" };
@@ -468,15 +468,20 @@ function LineHeightField({
 }
 
 /** The brand marks that ship with the app, for the header block. */
-const BRAND_LOGOS: { label: string; file: string }[] = [
-  { label: "Line, white", file: "/brand/CMI_Line_Logo_White.svg" },
-  { label: "Line, black", file: "/brand/CMI_Line_Logo_Black.svg" },
-  { label: "Line, black PNG", file: "/brand/cmi-line-logo-black.png" },
+const BRAND_LOGOS: { label: string; file: string; svg?: boolean }[] = [
+  // The full-resolution line lockup first: it is the primary mark and what the
+  // site header uses, so an email led by it looks like the rest of the brand.
+  { label: "Line, white", file: "/brand/cmi_line_logo_white.png" },
+  { label: "Line, black", file: "/brand/cmi_line_logo_black.png" },
   { label: "Stacked, light", file: "/brand/cmi-logo-light.png" },
   { label: "Stacked, dark", file: "/brand/cmi-logo-dark.png" },
-  { label: "Mark", file: "/brand/cmi-mark.svg" },
-  { label: "Icon, white", file: "/brand/cmi-favicon-white.png" },
-  { label: "Icon, black", file: "/brand/cmi-favicon-black.png" },
+  { label: "App icon, white", file: "/brand/cmi_app_icon_white.png" },
+  { label: "App icon, black", file: "/brand/cmi_app_icon_black.png" },
+  // SVG last and marked: Gmail and Outlook strip it, so these render as
+  // nothing in most inboxes. Fine for a Print document, not for email.
+  { label: "Line, white", file: "/brand/CMI_Line_Logo_White.svg", svg: true },
+  { label: "Line, black", file: "/brand/CMI_Line_Logo_Black.svg", svg: true },
+  { label: "Mark", file: "/brand/cmi-mark.svg", svg: true },
 ];
 
 /**
@@ -497,15 +502,16 @@ function LogoPicker({ value, bg, onChange }: { value: string; bg: string; onChan
         return (
           <button
             key={logo.file} type="button" onClick={() => onChange(url)}
-            title={logo.label}
+            title={logo.svg ? `${logo.label} — SVG, will not show in most email clients` : logo.label}
             className={cn(
-              "flex h-12 items-center justify-center rounded border p-1.5 transition",
+              "relative flex h-12 items-center justify-center rounded border p-1.5 transition",
               selected ? "border-accent ring-1 ring-accent" : "border-border hover:border-accent/40",
             )}
             style={{ background: bg }}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={logo.file} alt={logo.label} className="max-h-full max-w-full object-contain" />
+            {logo.svg && <span className="absolute right-0.5 top-0.5 rounded bg-amber-500 px-1 text-[8px] font-bold text-white">SVG</span>}
           </button>
         );
       })}

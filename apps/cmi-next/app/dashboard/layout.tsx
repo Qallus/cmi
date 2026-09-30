@@ -11,6 +11,7 @@ import { ReviewFab } from "@/components/dashboard/review-fab";
 import { MobileBottomNav } from "@/components/dashboard/mobile-bottom-nav";
 import { GlobalSearch } from "@/components/dashboard/global-search";
 import { InstallAppButton } from "@/components/pwa/install-app-button";
+import { PushPrompt } from "@/components/pwa/push-prompt";
 import { SidebarContext } from "@/components/dashboard/sidebar-context";
 import { cn } from "@/lib/utils";
 
@@ -134,6 +135,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             </button>
           </div>
         </header>
+        <PushPrompt />
         <div className={cn("min-h-[calc(100vh-56px)] pb-24 lg:pb-0 print:pb-0", onJobPage && collapsed && "lg:pl-52")}>{children}</div>
       </main>
       {/* Leadership review FAB — Super Admin only, on every dashboard page. */}

@@ -3,6 +3,7 @@
 // API routes / agent registry, matching the rest of the app).
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { validateTransition, derivedTransitionPatch, STAGE_META } from "./stages";
+import { notifyOpportunityOwner } from "@/lib/notifications/assignments";
 import type { Opportunity, OpportunityDraft, PipelineStage, StageHistoryRow, WarrantyRequest } from "./types";
 
 // job_number is intentionally NOT accepted from callers — the DB trigger owns it.
@@ -55,11 +56,21 @@ export async function createOpportunity(
   const created = data as Opportunity;
 
   await recordStageChange(created.id, created.job_number, null, created.stage, actor, "Opportunity created");
+  await notifyOpportunityOwner(created, actor?.id, null);
   return created;
 }
 
-export async function updateOpportunity(id: string, patch: Partial<OpportunityDraft>): Promise<Opportunity> {
+export async function updateOpportunity(
+  id: string,
+  patch: Partial<OpportunityDraft>,
+  actor?: { name?: string | null; id?: string | null },
+): Promise<Opportunity> {
   const supabase = getSupabaseAdmin();
+  // Read the outgoing owner first, so a genuine hand-off is distinguishable
+  // from a save that merely carried assigned_owner_id along unchanged.
+  const previousOwner = "assigned_owner_id" in patch
+    ? (await supabase.from("pipeline_opportunities").select("assigned_owner_id").eq("id", id).maybeSingle()).data?.assigned_owner_id ?? null
+    : undefined;
   const { data, error } = await supabase
     .from("pipeline_opportunities")
     .update({ ...sanitizeDraft(patch), updated_at: new Date().toISOString() })
@@ -67,7 +78,9 @@ export async function updateOpportunity(id: string, patch: Partial<OpportunityDr
     .select()
     .single();
   if (error) throw new Error(error.message);
-  return data as Opportunity;
+  const updated = data as Opportunity;
+  if (previousOwner !== undefined) await notifyOpportunityOwner(updated, actor?.id, previousOwner);
+  return updated;
 }
 
 export async function deleteOpportunity(id: string): Promise<void> {

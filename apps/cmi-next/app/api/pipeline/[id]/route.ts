@@ -18,7 +18,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     // Guardrail: stage changes are not allowed here — use the transition route
     // so allowed-path + required-field rules are enforced.
     if ("stage" in body) delete body.stage;
-    return NextResponse.json(await updateOpportunity(id, body));
+    return NextResponse.json(await updateOpportunity(id, body, { id: staff.id }));
   } catch (err) {
     const e = err as AuthError;
     return NextResponse.json({ error: e.message }, { status: e.status ?? 500 });

@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { notifyStaff } from "@/lib/notifications/dispatch";
 
 // Direct Messages data layer (service-role; the API authorizes the requester as
 // a participant). Participants/senders are polymorphic — a "party" is a
@@ -193,7 +194,87 @@ export async function sendMessage(
     .eq("id", conversationId);
   await supabase.from("dm_participants").update({ last_read_at: message.created_at }).eq("conversation_id", conversationId).eq("user_id", userId);
 
+  // Tell the other people in the thread. Until this existed a DM produced no
+  // signal at all unless the recipient happened to have the dashboard open
+  // when the bell polled.
+  await notifyConversation(conversationId, userId, body, attachments.length, input.importance ?? "normal");
+
   return { id: message.id, created_at: message.created_at };
+}
+
+/**
+ * Notify the other staff participants of a new message.
+ *
+ * Staff only: client participants have their own portal notifications, and
+ * emailing a client a staff-styled alert would be wrong. Muted participants
+ * are skipped, and `last_notified_at` is stamped so the history is auditable.
+ *
+ * Deliberately not awaited for its result by the caller's error path — a
+ * notification failing must never fail the send.
+ */
+async function notifyConversation(
+  conversationId: string,
+  senderId: string,
+  body: string,
+  attachmentCount: number,
+  importance: DmImportance,
+): Promise<void> {
+  try {
+    const supabase = getSupabaseAdmin();
+
+    const { data: parts } = await supabase
+      .from("dm_participants")
+      .select("user_id, user_kind, muted")
+      .eq("conversation_id", conversationId);
+
+    const recipients = ((parts ?? []) as { user_id: string; user_kind: string; muted: boolean }[])
+      .filter((p) => p.user_kind === "staff" && p.user_id !== senderId && !p.muted)
+      .map((p) => p.user_id);
+    if (recipients.length === 0) return;
+
+    const { data: sender } = await supabase
+      .from("staff_users").select("display_name, email").eq("id", senderId).maybeSingle();
+    const senderName = (sender as { display_name: string | null; email: string | null } | null)?.display_name
+      || (sender as { email: string | null } | null)?.email
+      || "A teammate";
+
+    const excerpt = body
+      ? (body.length > 180 ? `${body.slice(0, 180)}\u2026` : body)
+      : `${attachmentCount} attachment${attachmentCount === 1 ? "" : "s"}`;
+
+    await notifyStaff({
+      recipientIds: recipients,
+      actorId: senderId,
+      kind: "dm",
+      title: `${senderName} sent you a message`,
+      body: excerpt,
+      url: "/dashboard/direct-messages",
+      sourceTable: "dm_messages",
+      // One notification per message, not per conversation, so a second
+      // message still gets through.
+      dedupeKey: null,
+      email: {
+        subject: importance === "urgent"
+          ? `[Urgent] ${senderName} messaged you`
+          : `${senderName} sent you a message`,
+        ctaLabel: "Read and reply",
+        content: {
+          eyebrow: importance === "urgent" ? "Urgent message" : "Direct message",
+          heading: `${senderName} sent you a message`,
+          quote: excerpt,
+          closing: "Replying in the dashboard keeps the thread together.",
+        },
+      },
+    });
+
+    await supabase
+      .from("dm_participants")
+      .update({ last_notified_at: new Date().toISOString() })
+      .eq("conversation_id", conversationId)
+      .in("user_id", recipients);
+  } catch {
+    // Never let a notification failure lose the message itself.
+  }
 }
 
 /** Find or create a 1:1 conversation between two parties (optionally job-scoped). */

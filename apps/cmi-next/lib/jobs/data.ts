@@ -5,6 +5,7 @@ import { geocodeAddress } from "./geocode";
 import { opportunityStageToJobStatus } from "./status";
 import { jobTeamRole } from "./team-roles";
 import { linkOpportunityToJob } from "@/lib/projections/links";
+import { notifyJobTeamAdded } from "@/lib/notifications/assignments";
 import type {
   Job, JobDraft, JobType, JobGroup, JobContact, JobInternalUser, JobVendor,
   JobSettings, JobInsurance, JobWithRelations, JobStats, PriceSummary, JobStatus,
@@ -328,12 +329,48 @@ export async function removeJobContact(id: string): Promise<void> {
   if (error) throw new JobError(error.message);
 }
 
-export async function addJobInternalUser(jobId: string, input: Partial<JobInternalUser>): Promise<JobInternalUser> {
+export async function addJobInternalUser(jobId: string, input: Partial<JobInternalUser>, actorId?: string | null): Promise<JobInternalUser> {
+  const notify = input.notifications_enabled ?? true;
   const { data, error } = await getSupabaseAdmin().from("job_internal_users")
-    .insert({ job_id: jobId, staff_user_id: input.staff_user_id, role: input.role ?? null, access_statuses: input.access_statuses ?? ["open"], notifications_enabled: input.notifications_enabled ?? true })
+    .insert({ job_id: jobId, staff_user_id: input.staff_user_id, role: input.role ?? null, access_statuses: input.access_statuses ?? ["open"], notifications_enabled: notify })
     .select("*, user:staff_users(id,display_name,email,role_slug)").single();
   if (error) throw new JobError(error.message);
-  return data as JobInternalUser;
+  const added = data as JobInternalUser;
+
+  // The per-member Notifications checkbox now means something: unticking it
+  // while adding someone puts them on the job without telling them.
+  if (notify && added.staff_user_id) {
+    const { data: job } = await getSupabaseAdmin()
+      .from("jobs").select("id, name, job_number").eq("id", jobId).maybeSingle();
+    if (job) {
+      await notifyJobTeamAdded(
+        job as { id: string; name: string | null; job_number: string | null },
+        [added.staff_user_id],
+        actorId,
+        added.role,
+      );
+    }
+  }
+  return added;
+}
+
+/**
+ * Who on a job's team wants to hear about it.
+ *
+ * The Notifications checkbox on each team member is stored per job, so a
+ * superintendent on eight jobs can stay loud on the two they are actively
+ * running. Anything job-scoped should route its recipients through here
+ * rather than notifying the whole team.
+ */
+export async function jobTeamRecipients(jobId: string): Promise<string[]> {
+  const { data } = await getSupabaseAdmin()
+    .from("job_internal_users")
+    .select("staff_user_id")
+    .eq("job_id", jobId)
+    .eq("notifications_enabled", true);
+  return ((data ?? []) as { staff_user_id: string | null }[])
+    .map((r) => r.staff_user_id)
+    .filter((id): id is string => !!id);
 }
 export async function updateJobInternalUser(id: string, patch: Partial<JobInternalUser>): Promise<JobInternalUser> {
   const { data, error } = await getSupabaseAdmin().from("job_internal_users").update(patch).eq("id", id)

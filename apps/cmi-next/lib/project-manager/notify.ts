@@ -65,7 +65,7 @@ function escapeHtml(value: string): string {
 }
 
 function buildEditEmailHtml(pageTitle: string, projectTitle: string | null, edit: CompletedEdit, appUrl: string): string {
-  const logoUrl = `${appUrl}/brand/CMI_Line_Logo_White.svg`;
+  const logoUrl = `${appUrl}/brand/cmi_line_logo_white.png`;
   const boardUrl = `${appUrl}/dashboard/project-manager`;
   const rows: string[] = [];
   const field = (label: string, value?: string) => {

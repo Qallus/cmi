@@ -10,6 +10,7 @@ import { createDealTask, loadDealTasks, updateDealTask } from "@/lib/deals/data"
 import type { DealTask } from "@/lib/deals/types";
 import { answersToCompany, progressOf, type Answers, type Section } from "@/lib/prequal/form";
 import { SEED_TEMPLATES } from "./seed-templates";
+import { notifyInterviewer } from "@/lib/notifications/assignments";
 
 export class InterviewError extends Error {
   status: number;
@@ -332,6 +333,8 @@ export async function createInterview(input: {
   const interview = data as Interview;
   await logEvent(interview.id, "created", `From template “${template.name}”`, actorId);
   if (input.scheduledAt) await logEvent(interview.id, "scheduled", input.scheduledAt, actorId);
+  // notifyInterviewer skips the actor, so assigning yourself stays silent.
+  await notifyInterviewer({ ...interview, company_name: company?.name ?? null }, actorId, null);
   return interview;
 }
 
@@ -407,6 +410,12 @@ export async function updateInterview(id: string, patch: Partial<Interview>, act
   }
   if (Object.keys(allowed).length === 0) throw new InterviewError("Nothing to change.");
 
+  // Captured before the write so handing the interview to someone else can be
+  // told apart from a save that left the interviewer alone.
+  const previousInterviewer = "interviewer_id" in allowed
+    ? (await getSupabaseAdmin().from("interviews").select("interviewer_id").eq("id", id).maybeSingle()).data?.interviewer_id ?? null
+    : undefined;
+
   const { data, error } = await getSupabaseAdmin()
     .from("interviews").update({ ...allowed, updated_at: new Date().toISOString() })
     .eq("id", id).select().single();
@@ -414,7 +423,9 @@ export async function updateInterview(id: string, patch: Partial<Interview>, act
 
   if (typeof allowed.status === "string") await logEvent(id, "status", String(allowed.status), actorId);
   if (typeof allowed.scheduled_at === "string") await logEvent(id, "scheduled", String(allowed.scheduled_at), actorId);
-  return data as Interview;
+  const updated = data as Interview;
+  if (previousInterviewer !== undefined) await notifyInterviewer(updated, actorId, previousInterviewer);
+  return updated;
 }
 
 /**

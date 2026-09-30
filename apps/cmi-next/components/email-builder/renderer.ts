@@ -83,7 +83,9 @@ function renderBlock(block: EmailBlock): string {
   switch (block.type) {
     case "header": {
       const bg   = block.bg_color ?? "#111111";
-      const logo = block.logo_url ?? `${APP_URL}/brand/CMI_Line_Logo_White.svg`;
+      // PNG, not the SVG the site uses: Gmail and Outlook strip SVG, so an
+      // <img> pointing at one renders as nothing.
+      const logo = block.logo_url ?? `${APP_URL}/brand/cmi_line_logo_white.png`;
       const w    = block.logo_width ?? 180;
       const ta   = align(block.align);
       const pad  = tdPad(block, 28, 40, 28);

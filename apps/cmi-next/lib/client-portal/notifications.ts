@@ -19,7 +19,7 @@ function appUrl(): string {
 }
 
 function emailHtml(title: string, body: string | null | undefined, url: string): string {
-  const logo = `${appUrl()}/brand/CMI_Line_Logo_White.svg`;
+  const logo = `${appUrl()}/brand/cmi_line_logo_white.png`;
   return `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f4f4f4;font-family:Arial,sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0" style="padding:32px 16px;"><tr><td align="center">
     <table width="520" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:8px;overflow:hidden;max-width:520px;width:100%;">
