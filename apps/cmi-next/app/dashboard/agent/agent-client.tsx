@@ -3,12 +3,13 @@
 import * as React from "react";
 import {
   Bot, BookOpen, Check, CheckCircle2, ClipboardCopy, Loader2, MessageSquare, Send, Sparkles,
-  Trash2, Wrench, X, AlertTriangle, User,
+  Trash2, Wrench, X, AlertTriangle, User, Workflow,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { AgentTrainingPanel } from "@/components/dashboard/agent-training-panel";
+import { PaperclipPanel } from "@/components/dashboard/paperclip-panel";
 import type { PendingAction, ToolActivity } from "@/lib/agent/types";
 
 type Message = {
@@ -41,7 +42,7 @@ export function AgentClient({ configured }: { configured: boolean }) {
   const [error, setError] = React.useState<string | null>(null);
   const [copied, setCopied] = React.useState(false);
   const [actionStatus, setActionStatus] = React.useState<Record<string, ActionStatus>>({});
-  const [tab, setTab] = React.useState<"chat" | "training">("chat");
+  const [tab, setTab] = React.useState<"chat" | "paperclip" | "training">("chat");
   const bottomRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, loading]);
@@ -126,9 +127,10 @@ export function AgentClient({ configured }: { configured: boolean }) {
           <p className="mt-1 text-sm text-muted-foreground">Your dashboard copilot — Bolt can look up, create, update, and (with your OK) delete or message across the dashboard.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex rounded-md border border-border p-0.5">
+          <div className="inline-flex shrink-0 whitespace-nowrap rounded-md border border-border p-0.5">
             <button type="button" onClick={() => setTab("chat")} className={cn("inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium transition", tab === "chat" ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground")}><MessageSquare className="h-3.5 w-3.5" /> Chat</button>
-            <button type="button" onClick={() => setTab("training")} className={cn("inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium transition", tab === "training" ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground")}><BookOpen className="h-3.5 w-3.5" /> Agent Training Doc</button>
+            <button type="button" onClick={() => setTab("training")} className={cn("inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium transition", tab === "training" ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground")}><BookOpen className="h-3.5 w-3.5" /> Training</button>
+            <button type="button" onClick={() => setTab("paperclip")} className={cn("inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium transition", tab === "paperclip" ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground")}><Workflow className="h-3.5 w-3.5" /> Paperclip Agents</button>
           </div>
           {tab === "chat" && messages.length > 0 && (
             <>
@@ -145,6 +147,10 @@ export function AgentClient({ configured }: { configured: boolean }) {
       {tab === "training" ? (
         <div className="min-h-0 flex-1 overflow-hidden">
           <AgentTrainingPanel />
+        </div>
+      ) : tab === "paperclip" ? (
+        <div className="min-h-0 flex-1 overflow-hidden">
+          <PaperclipPanel />
         </div>
       ) : (
       <>
