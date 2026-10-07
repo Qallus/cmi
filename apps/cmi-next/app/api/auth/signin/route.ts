@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { SESSION_COOKIE, REFRESH_COOKIE, SESSION_MAX_AGE, REFRESH_MAX_AGE, cookieOptions } from "@/lib/auth/tokens";
+import { isStaffRole } from "@/lib/auth/roles";
 
 export async function POST(request: NextRequest) {
   try {
@@ -28,7 +29,10 @@ export async function POST(request: NextRequest) {
       .in("status", ["active", "invited"])
       .maybeSingle();
 
-    if (!staff) {
+    // Role, not just status. `staff_users` also holds clients, vendors and
+    // subcontractors; without this check any of them with a password could
+    // trade it for a staff session. Clients sign in at /api/client/auth/signin.
+    if (!staff || !isStaffRole(staff.role_slug)) {
       return NextResponse.json({ error: "Access denied — not an active staff member." }, { status: 403 });
     }
 

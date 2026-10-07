@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/server";
 import {
   SESSION_COOKIE, REFRESH_COOKIE, SESSION_MAX_AGE, REFRESH_MAX_AGE, cookieOptions, needsRefresh, refreshSession,
 } from "@/lib/auth/tokens";
+import { isStaffRole } from "@/lib/auth/roles";
 
 export type SessionStaff = {
   id: string;
@@ -47,7 +48,10 @@ export async function getSessionStaff(): Promise<SessionStaff | null> {
     .in("status", ["active", "invited"])
     .maybeSingle();
 
-  if (!staff) return null;
+  // Same rule as requireAdmin: a staff row is not a staff role. This guards
+  // the ~20 dashboard pages that authenticate via getSessionStaff rather than
+  // through an API route.
+  if (!staff || !isStaffRole(staff.role_slug)) return null;
   return {
     id: staff.id,
     email: staff.email ?? user.email ?? "",

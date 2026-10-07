@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 import {
   SESSION_COOKIE, REFRESH_COOKIE, SESSION_MAX_AGE, REFRESH_MAX_AGE, cookieOptions, needsRefresh, refreshSession,
 } from "@/lib/auth/tokens";
+import { isStaffRole } from "@/lib/auth/roles";
 
 // Swap an expiring access token for a fresh one and write both cookies back.
 // Route handlers may set cookies; server components can't, so failures here
@@ -54,15 +55,23 @@ export async function requireAdmin(request: Request | NextRequest) {
     throw new AuthError("Unauthorized — invalid or expired session.", 401);
   }
 
-  // Verify the user has a staff record
+  // Verify the user has a staff record. `display_name` is selected because
+  // callers reach for it and silently fell back to the email without it.
   const { data: staff, error: staffErr } = await supabase
     .from("staff_users")
-    .select("id, role_slug, status")
+    .select("id, role_slug, status, display_name")
     .eq("email", user.email ?? "")
     .in("status", ["active", "invited"])
     .maybeSingle();
 
   if (staffErr || !staff) {
+    throw new AuthError("Forbidden — not a staff member.", 403);
+  }
+
+  // A staff *row* is not a staff *role*. Clients, vendors and subcontractors
+  // have rows here too; they belong to the client portal, not the dashboard.
+  // This is the single gate behind every route that calls requireAdmin.
+  if (!isStaffRole(staff.role_slug)) {
     throw new AuthError("Forbidden — not a staff member.", 403);
   }
 
