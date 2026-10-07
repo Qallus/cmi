@@ -1,20 +1,18 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireAdmin, AuthError } from "@/lib/auth/require-admin";
+import { requireBolt, boltErrorResponse } from "@/lib/agent/guard";
 import { buildSystemPrompt } from "@/lib/agent/prompt";
 import { loadTrainingContext } from "@/lib/agent/training";
 import { toolDefsFor, dispatchTool } from "@/lib/agent/tools";
 import type { ChatMessage, PendingAction, StaffContext, ToolActivity } from "@/lib/agent/types";
 
-const ADMIN_ROLES = ["super_admin", "admin"];
 const MAX_ITERATIONS = 6;
 
 export async function POST(req: NextRequest) {
-  let user, staff;
+  let ctx: StaffContext;
   try {
-    ({ user, staff } = await requireAdmin(req));
+    ({ ctx } = await requireBolt(req));
   } catch (err) {
-    const e = err as AuthError;
-    return NextResponse.json({ error: e.message }, { status: e.status ?? 401 });
+    return boltErrorResponse(err);
   }
 
   const hermesUrl = process.env.HERMES_AGENT_URL;
@@ -27,14 +25,6 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null) as { messages?: Array<{ role: string; content: string }>; jobContext?: string } | null;
   if (!body?.messages?.length) return NextResponse.json({ error: "messages are required." }, { status: 400 });
   const jobContext = typeof body.jobContext === "string" && body.jobContext.trim() ? body.jobContext.trim() : null;
-
-  const ctx: StaffContext = {
-    id: staff.id,
-    email: user.email ?? "",
-    displayName: (staff as { display_name?: string }).display_name || user.email || "Staff",
-    role: staff.role_slug,
-    isAdmin: ADMIN_ROLES.includes(staff.role_slug),
-  };
 
   // Rebuild the conversation: our trusted system prompt (plus any staff-uploaded
   // training knowledge) + the user/assistant history.
