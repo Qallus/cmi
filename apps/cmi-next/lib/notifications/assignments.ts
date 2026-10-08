@@ -9,6 +9,7 @@
 // All of them swallow their own errors via notifyStaff, so an assignment is
 // never lost because the notification failed.
 import { notifyStaff } from "@/lib/notifications/dispatch";
+import { getSupabaseAdmin } from "@/lib/supabase/server";
 
 /** Only notify when the name actually changed, and never for self-assignment. */
 function changed(next: string | null | undefined, previous: string | null | undefined): next is string {
@@ -86,38 +87,127 @@ export async function notifyOpportunityOwner(
 }
 
 export async function notifyTaskAssignee(
-  task: { id: string; title: string; assigned_to?: string | null; due_at?: string | null; deal_id?: string | null; interview_id?: string | null; description?: string | null },
+  task: {
+    id: string; title: string; assigned_to?: string | null; due_at?: string | null;
+    deal_id?: string | null; interview_id?: string | null; description?: string | null; created_by?: string | null;
+  },
   actorId: string | null | undefined,
   previousAssignee?: string | null,
 ): Promise<void> {
   if (!changed(task.assigned_to, previousAssignee)) return;
-  const url = task.deal_id ? `/dashboard/pipeline/${task.deal_id}` : "/dashboard/trade-partners";
-  const due = task.due_at ? new Date(task.due_at) : null;
-  const dueLabel = due && !Number.isNaN(due.getTime())
-    ? due.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })
-    : null;
+  const assignerId = actorId ?? task.created_by ?? null;
+  const ctx = await loadTaskContext(task, assignerId);
+
+  // ?task= opens the deal on its Tasks tab with this one highlighted.
+  const url = task.deal_id
+    ? `/dashboard/pipeline/${task.deal_id}?task=${task.id}`
+    : task.interview_id
+      ? `/dashboard/interviews/${task.interview_id}`
+      : "/dashboard/trade-partners";
+  const dueLabel = formatDue(task.due_at);
+  const where = ctx.project ? ` · ${ctx.project}` : "";
+
   await notifyStaff({
     recipientIds: [task.assigned_to],
     actorId,
     kind: "task",
     title: `New task: ${task.title}`,
-    body: dueLabel ? `Due ${dueLabel}` : "No due date set.",
+    body: [ctx.assignedBy ? `From ${ctx.assignedBy}` : null, ctx.project, dueLabel ? `Due ${dueLabel}` : "No due date"]
+      .filter(Boolean).join(" · "),
     url,
     sourceTable: "deal_tasks",
     sourceId: task.id,
     dedupeKey: `task:${task.id}:${task.assigned_to}`,
     email: {
-      subject: dueLabel ? `Task for you — due ${dueLabel}` : "A task has been assigned to you",
+      // Several of these can land at once, so the subject carries the task and
+      // where it came from — the inbox line alone should say what this is.
+      subject: `Task: ${task.title}${where}${dueLabel ? ` — due ${dueLabel}` : ""}`,
       ctaLabel: "Open the task",
       content: {
-        eyebrow: "Task assigned",
+        eyebrow: ctx.assignedBy ? `Task assigned by ${ctx.assignedBy}` : "Task assigned",
         heading: task.title,
-        paragraphs: task.description ? [task.description] : [],
-        facts: dueLabel ? [{ label: "Due", value: dueLabel }] : [],
+        facts: [
+          { label: "Assigned by", value: ctx.assignedBy ?? "—" },
+          { label: "Assigned to", value: ctx.assignedTo ?? "You" },
+          ...(ctx.project ? [{ label: ctx.projectLabel, value: ctx.project }] : []),
+          ...(ctx.jobNumber ? [{ label: "Job number", value: ctx.jobNumber }] : []),
+          ...(ctx.company ? [{ label: "Company", value: ctx.company }] : []),
+          { label: "Due", value: dueLabel ?? "No due date" },
+        ],
+        quote: task.description?.trim() || null,
         closing: "Mark it complete in the dashboard when it is done.",
       },
     },
   });
+}
+
+/** Phoenix has no DST and is where the team works; the server runs in UTC. */
+function formatDue(dueAt: string | null | undefined): string | null {
+  const due = dueAt ? new Date(dueAt) : null;
+  if (!due || Number.isNaN(due.getTime())) return null;
+  const tz = "America/Phoenix";
+  const date = due.toLocaleDateString("en-US", { timeZone: tz, weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  const time = due.toLocaleTimeString("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" });
+  // A date-only due is stored as local midnight; a time there is noise.
+  return time === "12:00 AM" ? date : `${date} at ${time}`;
+}
+
+type TaskContext = {
+  assignedBy: string | null;
+  assignedTo: string | null;
+  projectLabel: string;
+  project: string | null;
+  jobNumber: string | null;
+  company: string | null;
+};
+
+/**
+ * Who and what a task belongs to, for the email. Every lookup is best-effort:
+ * a missing name makes the email thinner, never stops it.
+ */
+async function loadTaskContext(
+  task: { assigned_to?: string | null; deal_id?: string | null; interview_id?: string | null },
+  assignerId: string | null,
+): Promise<TaskContext> {
+  const supabase = getSupabaseAdmin();
+  const ctx: TaskContext = { assignedBy: null, assignedTo: null, projectLabel: "Project", project: null, jobNumber: null, company: null };
+  try {
+    const ids = [assignerId, task.assigned_to].filter((x): x is string => !!x);
+    const { data } = await supabase.from("staff_users").select("id, display_name, email").in("id", ids);
+    const names = new Map(((data ?? []) as { id: string; display_name: string | null; email: string | null }[])
+      .map((s) => [s.id, (s.display_name ?? "").trim() || s.email || null]));
+    ctx.assignedBy = assignerId ? names.get(assignerId) ?? null : null;
+    ctx.assignedTo = task.assigned_to ? names.get(task.assigned_to) ?? null : null;
+  } catch { /* names are a nicety */ }
+
+  try {
+    if (task.deal_id) {
+      const { data: deal } = await supabase.from("deals")
+        .select("title, job_number, company_id").eq("id", task.deal_id).maybeSingle();
+      const d = deal as { title: string | null; job_number: string | null; company_id: string | null } | null;
+      ctx.project = (d?.title ?? "").trim() || null;
+      ctx.jobNumber = d?.job_number ?? null;
+      ctx.company = await companyName(d?.company_id);
+    } else if (task.interview_id) {
+      const { data: interview } = await supabase.from("interviews")
+        .select("title, job_id, company_id").eq("id", task.interview_id).maybeSingle();
+      const i = interview as { title: string | null; job_id: string | null; company_id: string | null } | null;
+      ctx.projectLabel = "Interview";
+      ctx.project = (i?.title ?? "").trim() || null;
+      ctx.company = await companyName(i?.company_id);
+      if (i?.job_id) {
+        const { data: job } = await supabase.from("jobs").select("job_number").eq("id", i.job_id).maybeSingle();
+        ctx.jobNumber = (job as { job_number: string | null } | null)?.job_number ?? null;
+      }
+    }
+  } catch { /* context is a nicety */ }
+  return ctx;
+}
+
+async function companyName(id: string | null | undefined): Promise<string | null> {
+  if (!id) return null;
+  const { data } = await getSupabaseAdmin().from("companies").select("name").eq("id", id).maybeSingle();
+  return ((data as { name: string | null } | null)?.name ?? "").trim() || null;
 }
 
 export async function notifyInterviewer(

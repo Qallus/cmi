@@ -89,6 +89,22 @@ export function DealDetailClient({
   const [showContactEdit, setShowContactEdit] = React.useState(false);
   const [tab, setTab] = React.useState<ActivityType | "all" | "tasks">("all");
 
+  // A task notification links here with ?task=<id>: open the Tasks tab and
+  // bring that task into view so the email lands on the thing it was about.
+  const [focusTask, setFocusTask] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("task");
+    if (!id) return;
+    const t = window.setTimeout(() => { setTab("tasks"); setFocusTask(id); }, 0);
+    return () => window.clearTimeout(t);
+  }, []);
+  React.useEffect(() => {
+    if (!focusTask) return;
+    document.getElementById(`task-${focusTask}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    const t = window.setTimeout(() => setFocusTask(null), 4000);
+    return () => window.clearTimeout(t);
+  }, [focusTask, tab]);
+
   // Prefer the order the list was showing when you clicked through, so the
   // arrows walk the deals you can actually see — same sort, same filters.
   // A deep link has no such handover, so it falls back to the board order.
@@ -483,7 +499,7 @@ export function DealDetailClient({
             {timelineItems.length === 0 ? <p className="text-sm text-muted-foreground">{tab === "tasks" ? "No tasks yet." : "No activity yet."}</p> : (
               <ul className="space-y-3">
                 {timelineItems.map((item) => item.kind === "task" ? (
-                  <li key={`task-${item.t.id}`} className="flex gap-3">
+                  <li key={`task-${item.t.id}`} id={`task-${item.t.id}`} className={cn("flex gap-3 rounded-md transition-colors", focusTask === item.t.id && "bg-accent/10 ring-1 ring-accent/40")}>
                     <button disabled={!canWrite} onClick={() => toggleTask(item.t)} className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-muted text-accent disabled:opacity-50" title={item.t.completed_at ? "Mark incomplete" : "Mark complete"}>
                       {item.t.completed_at ? <CheckCircle2 className="h-4 w-4" /> : <Circle className="h-3.5 w-3.5 text-muted-foreground" />}
                     </button>
