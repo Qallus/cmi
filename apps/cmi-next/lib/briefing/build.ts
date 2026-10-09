@@ -72,12 +72,16 @@ async function safe<T>(fallback: T, fn: () => Promise<T>): Promise<T> {
   try { return await fn(); } catch { return fallback; }
 }
 
-/** Staff who get a briefing: anyone live on the team, never client logins. */
+/**
+ * Staff who get a briefing: everyone on the team, including people who were
+ * invited but haven't signed in yet (the email is often what brings them in).
+ * Never client logins.
+ */
 export async function loadBriefingStaff(): Promise<BriefingStaff[]> {
   const { data } = await getSupabaseAdmin()
     .from("staff_users")
     .select("id, email, display_name, role_slug, status")
-    .eq("status", "active")
+    .in("status", ["active", "invited"])
     .neq("role_slug", "client");
   return ((data ?? []) as BriefingStaff[]).filter((s) => !!s.email);
 }
