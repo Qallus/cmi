@@ -341,10 +341,11 @@ export async function addJobInternalUser(jobId: string, input: Partial<JobIntern
   // while adding someone puts them on the job without telling them.
   if (notify && added.staff_user_id) {
     const { data: job } = await getSupabaseAdmin()
-      .from("jobs").select("id, name, job_number").eq("id", jobId).maybeSingle();
+      .from("jobs").select("id, job_name, job_number").eq("id", jobId).maybeSingle();
     if (job) {
+      const j = job as { id: string; job_name: string | null; job_number: string | null };
       await notifyJobTeamAdded(
-        job as { id: string; name: string | null; job_number: string | null },
+        { id: j.id, name: j.job_name, job_number: j.job_number },
         [added.staff_user_id],
         actorId,
         added.role,
