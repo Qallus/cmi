@@ -3,7 +3,7 @@ import { getSessionStaff } from "@/lib/auth/server-session";
 import { canUseBolt } from "@/lib/agent/access";
 import { AgentClient } from "./agent-client";
 
-export const metadata = { title: "Agent — CMI Dashboard" };
+export const metadata = { title: "AI Agents — CMI Dashboard" };
 export const dynamic = "force-dynamic";
 
 export default async function AgentPage() {

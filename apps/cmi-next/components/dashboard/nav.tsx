@@ -86,7 +86,7 @@ const nav: NavItem[] = [
       { href: "/dashboard/messaging-consent", label: "Messaging Consent", icon: ShieldCheck, roles: ["super_admin", "admin"] },
     ],
   },
-  { href: "/dashboard/agent",          label: "Bolt AI Agent",  icon: Sparkles,       roles: ["super_admin", "admin", "project_manager", "designer", "estimator", "superintendent"] },
+  { href: "/dashboard/agent",          label: "AI Agents",      icon: Sparkles,       roles: ["super_admin", "admin", "project_manager", "designer", "estimator", "superintendent"] },
 
   // ── Account / administration ──
   { section: "Account" },

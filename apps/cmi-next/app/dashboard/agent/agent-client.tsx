@@ -3,7 +3,7 @@
 import * as React from "react";
 import {
   Bot, BookOpen, Check, CheckCircle2, ClipboardCopy, Loader2, MessageSquare, Send, Sparkles,
-  Trash2, Wrench, X, AlertTriangle, User, Workflow,
+  Trash2, Wrench, X, AlertTriangle, User, Workflow, ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
@@ -119,18 +119,24 @@ export function AgentClient({ configured }: { configured: boolean }) {
     <div className="flex h-[calc(100vh-56px)] flex-col p-4 md:p-6">
       <header className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
-          <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">AI Agent</div>
+          <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">AI Agents</div>
           <h1 className="mt-2 flex items-center gap-2 font-display text-2xl font-semibold tracking-tight">
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent/15 text-accent"><Sparkles className="h-4 w-4" /></span>
-            Bolt
+            {tab === "chat" ? "Bolt" : tab === "training" ? "Training" : "Paperclip"}
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">Your dashboard copilot — Bolt can look up, create, update, and (with your OK) delete or message across the dashboard.</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {tab === "chat"
+              ? "Bolt is CMI's main dashboard agent. It can look up, create and update records, and with your OK delete or send messages."
+              : tab === "training"
+                ? "What the agents know about CMI: the documents and guidance they read before answering."
+                : "Paperclip runs CMI's specialist agents. See who is working, their tasks and anything waiting for approval."}
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="inline-flex shrink-0 whitespace-nowrap rounded-md border border-border p-0.5">
             <button type="button" onClick={() => setTab("chat")} className={cn("inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium transition", tab === "chat" ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground")}><MessageSquare className="h-3.5 w-3.5" /> Chat</button>
             <button type="button" onClick={() => setTab("training")} className={cn("inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium transition", tab === "training" ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground")}><BookOpen className="h-3.5 w-3.5" /> Training</button>
-            <button type="button" onClick={() => setTab("paperclip")} className={cn("inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium transition", tab === "paperclip" ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground")}><Workflow className="h-3.5 w-3.5" /> Paperclip Agents</button>
+            <button type="button" onClick={() => setTab("paperclip")} className={cn("inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium transition", tab === "paperclip" ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground")}><Workflow className="h-3.5 w-3.5" /> Paperclip</button>
           </div>
           {tab === "chat" && messages.length > 0 && (
             <>
@@ -149,8 +155,24 @@ export function AgentClient({ configured }: { configured: boolean }) {
           <AgentTrainingPanel />
         </div>
       ) : tab === "paperclip" ? (
-        <div className="min-h-0 flex-1 overflow-hidden">
-          <PaperclipPanel />
+        <div className="flex min-h-0 flex-1 flex-col gap-4">
+          {/* Always visible, even before the API key is set up, so the app is one click away. */}
+          <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent"><Workflow className="h-4 w-4" /></span>
+              <div>
+                <p className="text-sm font-medium">Manage agents in Paperclip</p>
+                <p className="text-xs text-muted-foreground">Create agents, assign their skills and tools, set guardrails and approve their work at paperclip.constructedmatter.com.</p>
+              </div>
+            </div>
+            <a href="https://paperclip.constructedmatter.com" target="_blank" rel="noreferrer"
+              className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md bg-accent px-3 py-2 text-xs font-semibold text-accent-foreground transition hover:bg-accent/90">
+              Open Paperclip <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          </div>
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <PaperclipPanel />
+          </div>
         </div>
       ) : (
       <>

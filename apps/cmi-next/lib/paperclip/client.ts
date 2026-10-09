@@ -35,10 +35,12 @@ export function paperclipConfigured(): boolean {
   return !("reason" in readConfig());
 }
 
-/** The instance URL, for deep links out of the dashboard. Null if unset. */
-export function paperclipBaseUrl(): string | null {
+/** Where people open Paperclip. Falls back to CMI's own instance, so the link works before the API is wired up. */
+export const PAPERCLIP_APP_URL = "https://paperclip.constructedmatter.com";
+
+export function paperclipBaseUrl(): string {
   const url = process.env.PAPERCLIP_BASE_URL?.trim().replace(/\/+$/, "");
-  return url || null;
+  return url || PAPERCLIP_APP_URL;
 }
 
 async function get<T>(path: string): Promise<PaperclipResult<T>> {
