@@ -30,6 +30,8 @@ export type Briefing = {
   staff: { id: string; name: string; firstName: string; email: string };
   /** "Thursday, October 8" in Phoenix time. */
   dateLabel: string;
+  /** "Good morning" / "Good afternoon" / "Good evening", by the hour in Phoenix. */
+  greeting: string;
   generatedAt: string;
   meetings: BriefingItem[];
   tasks: { overdue: BriefingItem[]; today: BriefingItem[]; week: BriefingItem[]; undated: number };
@@ -42,6 +44,14 @@ const MAX_PER_LIST = 8;
 /** YYYY-MM-DD for an instant, in Phoenix. */
 function ymd(d: Date): string {
   return d.toLocaleDateString("en-CA", { timeZone: BRIEFING_TZ });
+}
+
+/** Morning until noon, afternoon until 5 PM, evening after. */
+export function greetingFor(now: Date): string {
+  const hour = Number(now.toLocaleString("en-US", { timeZone: BRIEFING_TZ, hour: "numeric", hourCycle: "h23" }));
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
 }
 
 function addDays(dateYmd: string, days: number): string {
@@ -104,6 +114,7 @@ export async function buildBriefing(staff: BriefingStaff, now = new Date()): Pro
   return {
     staff: { id: staff.id, name, firstName: name.split(/\s+/)[0] || name, email: staff.email },
     dateLabel: now.toLocaleDateString("en-US", { timeZone: BRIEFING_TZ, weekday: "long", month: "long", day: "numeric" }),
+    greeting: greetingFor(now),
     generatedAt: now.toISOString(),
     meetings,
     tasks,

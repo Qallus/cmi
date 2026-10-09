@@ -23,7 +23,7 @@ export default async function TodayPage() {
     <div className="space-y-6 p-4 md:p-6">
       <div>
         <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Today · {briefing.dateLabel}</div>
-        <h1 className="mt-2 font-display text-2xl font-semibold tracking-tight">Good morning, {briefing.staff.firstName}</h1>
+        <h1 className="mt-2 font-display text-2xl font-semibold tracking-tight">{briefing.greeting}, {briefing.staff.firstName}</h1>
         <p className="mt-1 text-sm text-muted-foreground">Your meetings, tasks and what&apos;s waiting on you, in one place.</p>
       </div>
 
