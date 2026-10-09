@@ -180,16 +180,24 @@ summary. The same content is always live at `/dashboard/today`.
 | Command | `curl -fsS -H "Authorization: Bearer $AUTOMATION_SECRET" http://localhost:3000/api/briefings/run` |
 | Frequency | `0 13 * * *` (13:00 UTC = 6:00 AM Arizona, all year — no DST) |
 
-Who receives it is one env var, so widening it is a config change:
+Super Admins control it from **Dashboard → Notifications → Morning Briefing**
+(`/dashboard/notifications?tab=briefing`): pause or resume the automatic send,
+choose all staff or a selected list, turn the AI summary on or off, send it now
+to anyone, preview anyone's email, and see every send. Those settings live in
+the `briefing_settings` row and are read on every run.
 
-| `BRIEFING_AUDIENCE` | Sends to |
+`BRIEFING_AUDIENCE` in the environment overrides the dashboard, for emergencies:
+
+| `BRIEFING_AUDIENCE` | Automatic send goes to |
 | --- | --- |
-| unset or `all` | every active staff member except client logins |
+| unset | whatever the dashboard says (the normal case) |
+| `all` | every staff member (active or invited), never client logins |
 | `jwaters@qallus.co` (comma-separated list) | just those staff members |
-| `none` | nobody: pauses the briefing (test sends still work) |
+| `none` | nobody; manual and test sends still work |
 
-Anyone with email notifications turned off in My Profile is skipped, and each
-person gets at most one per day (`automation_events`, kind `morning_briefing`).
+Anyone with email notifications turned off in My Profile is skipped, and the
+automatic send reaches each person at most once a day (`automation_events`,
+kind `morning_briefing`, which is also the history the dashboard shows).
 
 Useful one-offs (same secret):
 
@@ -199,4 +207,5 @@ Useful one-offs (same secret):
 
 Code: `apps/cmi-next/lib/briefing/` (build, summary, send),
 `lib/email/briefing-email.ts`, `app/api/briefings/run/route.ts`,
-`app/dashboard/today/page.tsx`.
+`app/dashboard/today/page.tsx`, `app/dashboard/notifications/briefing-panel.tsx`,
+`app/api/notifications/briefing/` (settings, send now, preview).

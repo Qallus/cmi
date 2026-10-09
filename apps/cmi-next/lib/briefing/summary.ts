@@ -9,9 +9,9 @@ import { briefingCounts, type Briefing } from "./build";
 
 const TIMEOUT_MS = 20_000;
 
-export async function briefingSummary(b: Briefing): Promise<{ text: string; fromAi: boolean }> {
+export async function briefingSummary(b: Briefing, opts: { useAi?: boolean } = {}): Promise<{ text: string; fromAi: boolean }> {
   const fallback = { text: plainSummary(b), fromAi: false };
-  if (!hermesConfigured()) return fallback;
+  if (opts.useAi === false || !hermesConfigured()) return fallback;
 
   const facts = {
     date: b.dateLabel,

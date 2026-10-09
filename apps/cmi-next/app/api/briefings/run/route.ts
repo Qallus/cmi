@@ -32,6 +32,7 @@ export async function POST(request: Request) {
       return new NextResponse(briefingEmailHtml(briefing, summary.text), { headers: { "Content-Type": "text/html; charset=utf-8" } });
     }
     const result = await runBriefings({
+      trigger: "scheduled",
       testTo: url.searchParams.get("to"),
       dryRun: url.searchParams.get("dry") === "1",
     });
