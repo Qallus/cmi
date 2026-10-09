@@ -20,10 +20,11 @@ export default async function TodayPage() {
   const t = briefing.tasks;
 
   return (
-    <div className="mx-auto max-w-5xl space-y-5 p-4 sm:p-6">
+    <div className="space-y-6 p-4 md:p-6">
       <div>
-        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-accent">{briefing.dateLabel}</p>
-        <h1 className="mt-1 text-2xl font-semibold">Good morning, {briefing.staff.firstName}</h1>
+        <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Today · {briefing.dateLabel}</div>
+        <h1 className="mt-2 font-display text-2xl font-semibold tracking-tight">Good morning, {briefing.staff.firstName}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Your meetings, tasks and what&apos;s waiting on you, in one place.</p>
       </div>
 
       {/* The AI summary streams in after the cards, so a slow model never holds up the page. */}
@@ -45,7 +46,7 @@ export default async function TodayPage() {
         <Stat label="Waiting on you" value={c.attention} />
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2">
         <Section icon={CalendarClock} title="Today's meetings" count={c.meetings}>
           <Rows items={briefing.meetings} empty="No meetings or bookings on your calendar today." />
         </Section>
