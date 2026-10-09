@@ -42,7 +42,7 @@ export function buildInviteHtml(firstName: string, roleSlug: string, inviteLink:
     <tr><td align="center">
       <table role="presentation" width="600" cellpadding="0" cellspacing="0" bgcolor="#ffffff" style="width:600px;max-width:100%;background-color:#ffffff;border-radius:10px;overflow:hidden;">
 
-        <tr><td align="center" bgcolor="#ffffff" style="padding:30px 32px 26px;border-bottom:1px solid ${BRAND.hairline};">
+        <tr><td align="left" bgcolor="#ffffff" style="padding:30px 40px 26px;border-bottom:1px solid ${BRAND.hairline};">
           <img src="${app}/brand/cmi_line_logo_black.png" alt="Constructed Matter, Inc." width="200"
                style="display:block;width:200px;max-width:100%;height:auto;border:0;" />
         </td></tr>
