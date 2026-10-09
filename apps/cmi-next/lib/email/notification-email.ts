@@ -67,7 +67,7 @@ export function notificationEmailHtml(email: NotificationEmail): string {
 
   const cta = email.cta
     ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 6px;">
-        <tr><td style="background:${BRAND.accent};border-radius:6px;">
+        <tr><td bgcolor="${BRAND.accent}" style="background:${BRAND.accent};border-radius:6px;">
           <a href="${email.cta.url}" style="display:inline-block;padding:11px 22px;font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none;">${e(email.cta.label)}</a>
         </td></tr>
       </table>`
@@ -85,11 +85,11 @@ export function notificationEmailHtml(email: NotificationEmail): string {
   <!-- Preheader: what the inbox shows beside the subject. -->
   <div style="display:none;max-height:0;overflow:hidden;opacity:0;">${e(email.heading)}</div>
 
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${BRAND.page};padding:32px 16px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="${BRAND.page}" style="background:${BRAND.page};padding:32px 16px;">
     <tr><td align="center">
-      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:100%;background:#ffffff;border-radius:10px;overflow:hidden;">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" bgcolor="#ffffff" style="width:600px;max-width:100%;background:#ffffff;border-radius:10px;overflow:hidden;">
 
-        <tr><td style="background:${BRAND.ink};padding:22px 32px;">
+        <tr><td bgcolor="${BRAND.ink}" style="background:${BRAND.ink};padding:22px 32px;">
           <img src="${app}/brand/cmi_line_logo_white.png" alt="${COMPANY}" width="200"
                style="display:block;width:200px;max-width:100%;height:auto;border:0;" />
         </td></tr>

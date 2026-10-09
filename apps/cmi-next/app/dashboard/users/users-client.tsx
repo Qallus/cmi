@@ -325,10 +325,14 @@ export function UsersClient({ initialData, demoMode, setupMessage }: { initialDa
                 </div>
                 <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm text-muted-foreground">
                   <div className="mb-1 font-medium text-foreground">Email and SMS</div>
-                  Invites create an invite history record now. The email/SMS delivery layer can attach to Resend and Twilio when those integrations are migrated into this app.
+                  Invites are emailed through Resend with a one-time sign-in link that expires in 24 hours. Use Preview Invite to see the email before resending it.
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button variant="outline" onClick={() => setDraft(draftFromUser(selected))}>Edit User</Button>
+                  <Button variant="outline" onClick={() => window.open(`/api/admin/users/${selected.id}/invite-preview`, "_blank", "noopener")}>
+                    <Eye className="h-4 w-4" />
+                    Preview Invite
+                  </Button>
                   <Button variant="outline" disabled={saving} onClick={() => updateUser(selected, "resend")}>
                     {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
                     Resend Invite

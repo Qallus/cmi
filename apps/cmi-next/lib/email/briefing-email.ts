@@ -100,11 +100,11 @@ export function briefingEmailHtml(b: Briefing, summary: string): string {
 <body style="margin:0;padding:0;background:${BRAND.page};font-family:Helvetica,Arial,sans-serif;">
   <div style="display:none;max-height:0;overflow:hidden;opacity:0;">${e(summary)}</div>
 
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${BRAND.page};padding:32px 16px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="${BRAND.page}" style="background:${BRAND.page};padding:32px 16px;">
     <tr><td align="center">
-      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:100%;background:#ffffff;border-radius:10px;overflow:hidden;">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" bgcolor="#ffffff" style="width:600px;max-width:100%;background:#ffffff;border-radius:10px;overflow:hidden;">
 
-        <tr><td style="background:${BRAND.ink};padding:22px 32px;">
+        <tr><td bgcolor="${BRAND.ink}" style="background:${BRAND.ink};padding:22px 32px;">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
             <td><img src="${app}/brand/cmi_line_logo_white.png" alt="Constructed Matter, Inc." width="180"
                      style="display:block;width:180px;max-width:100%;height:auto;border:0;" /></td>
@@ -118,7 +118,7 @@ export function briefingEmailHtml(b: Briefing, summary: string): string {
         </td></tr>
 
         <tr><td style="padding:0 32px 18px;">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${WARM};border-left:4px solid ${BRAND.accent};border-radius:6px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="${WARM}" style="background:${WARM};border-left:4px solid ${BRAND.accent};border-radius:6px;">
             <tr><td style="padding:16px 18px;">
               <div style="font-size:11px;font-weight:bold;text-transform:uppercase;letter-spacing:0.12em;color:${BRAND.accent};">Here's what needs you today</div>
               <p style="margin:8px 0 0;font-size:15px;line-height:1.65;color:${BRAND.ink};">${e(summary)}</p>
@@ -142,7 +142,7 @@ export function briefingEmailHtml(b: Briefing, summary: string): string {
 
         <tr><td style="padding:4px 32px 8px;">
           <table role="presentation" cellpadding="0" cellspacing="0">
-            <tr><td style="background:${BRAND.accent};border-radius:6px;">
+            <tr><td bgcolor="${BRAND.accent}" style="background:${BRAND.accent};border-radius:6px;">
               <a href="${app}/dashboard/today" style="display:inline-block;padding:11px 22px;font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none;">Open your Today page</a>
             </td></tr>
           </table>
