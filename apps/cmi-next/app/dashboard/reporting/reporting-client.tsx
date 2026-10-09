@@ -37,44 +37,51 @@ export function ReportingClient({
   }, []);
 
   return (
-    <div className="space-y-5">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="font-serif text-2xl">Reporting</h1>
-          <p className="text-sm text-muted-foreground">
-            Weekly workload meetings, what moved since last week, and who owes what.
-          </p>
-        </div>
-        {canWrite && (
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setModal("import")}><Upload className="h-4 w-4" /> Import a past meeting</Button>
-            <Button variant="accent" onClick={() => setModal("new")}><Plus className="h-4 w-4" /> New report</Button>
+    <div className="flex min-h-[calc(100vh-56px)] flex-col">
+      <div className="border-b border-border bg-card px-4 py-4 md:px-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Management</div>
+            <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight">Reporting</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Weekly workload meetings, what moved since last week, and who owes what.
+            </p>
           </div>
-        )}
-      </header>
-
-      <div className="flex gap-1 rounded-lg border border-border bg-card p-1 text-sm">
-        {([
-          ["reports", "Reports", FileBarChart],
-          ["changes", "Changes since…", History],
-          ["actions", "Action items", ListChecks],
-        ] as const).map(([key, label, Icon]) => (
-          <button
-            key={key}
-            onClick={() => setTab(key)}
-            className={cn(
-              "inline-flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-1.5 transition",
-              tab === key ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-muted",
-            )}
-          >
-            <Icon className="h-4 w-4" /> {label}
-          </button>
-        ))}
+          {canWrite && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button size="sm" variant="outline" onClick={() => setModal("import")}><Upload className="h-3.5 w-3.5" /> Import a past meeting</Button>
+              <Button size="sm" variant="accent" onClick={() => setModal("new")}><Plus className="h-3.5 w-3.5" /> New report</Button>
+            </div>
+          )}
+        </div>
       </div>
 
-      {tab === "reports" && <ReportList reports={reports} />}
-      {tab === "changes" && <ChangesView reports={reports} />}
-      {tab === "actions" && <ActionsView initial={initialActions} />}
+      <div className="flex-1 space-y-4 p-4 md:p-6">
+        <div role="tablist" className="inline-flex overflow-hidden rounded-md border border-border text-xs">
+          {([
+            ["reports", "Reports", FileBarChart],
+            ["changes", "Changes since…", History],
+            ["actions", "Action items", ListChecks],
+          ] as const).map(([key, label, Icon]) => (
+            <button
+              key={key}
+              role="tab"
+              aria-selected={tab === key}
+              onClick={() => setTab(key)}
+              className={cn(
+                "inline-flex items-center gap-1.5 px-3 py-1.5 transition-colors",
+                tab === key ? "bg-accent/15 text-accent" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <Icon className="h-3.5 w-3.5" /> {label}
+            </button>
+          ))}
+        </div>
+
+        {tab === "reports" && <ReportList reports={reports} />}
+        {tab === "changes" && <ChangesView reports={reports} />}
+        {tab === "actions" && <ActionsView initial={initialActions} />}
+      </div>
 
       {modal === "new" && <NewReportModal onClose={() => setModal(null)} onDone={refresh} />}
       {modal === "import" && <ImportModal onClose={() => setModal(null)} onDone={refresh} />}

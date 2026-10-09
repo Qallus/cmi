@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft, Plus, Trash2, Loader2, FileDown, RefreshCw, Check,
   CircleCheck, Circle, ChevronDown, ChevronRight, ExternalLink, Lock, LockOpen,
+  List, Table2, Columns3, X, CalendarDays, ArrowRightLeft, ListPlus, Tag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -72,75 +73,357 @@ export function ReportDetailClient({
 
   const locked = report.status === "final" || !canWrite;
 
+  // ── View + selection ──
+  const [view, setView] = React.useState<ReportView>("list");
+  const [selected, setSelected] = React.useState<Set<string>>(new Set());
+  const allIds = React.useMemo(() => report.sections.flatMap((s) => s.items.map((i) => i.id)), [report]);
+  // Items removed by a reload drop out of the selection on their own.
+  const selectedIds = allIds.filter((id) => selected.has(id));
+  const allChecked = allIds.length > 0 && selectedIds.length === allIds.length;
+  const selection: Selection = {
+    enabled: !locked,
+    has: (id) => selected.has(id),
+    toggle: (id) => setSelected((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; }),
+    setMany: (ids, on) => setSelected((prev) => { const next = new Set(prev); for (const id of ids) { if (on) next.add(id); else next.delete(id); } return next; }),
+  };
+
   return (
-    <div className="space-y-5">
-      <Link href="/dashboard/reporting" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" /> Back to reporting
-      </Link>
-
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">Weekly workload meeting</p>
-          <h1 className="font-serif text-2xl">{report.title}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {fmtDate(report.meeting_date)} · {totals.items} items · {totals.open} of {totals.actions} action items open
-            {report.compare_since && <> · changes since {fmtDate(report.compare_since)}</>}
-          </p>
+    <div className="flex min-h-[calc(100vh-56px)] flex-col">
+      <div className="border-b border-border bg-card px-4 py-4 md:px-6">
+        <Link href="/dashboard/reporting" className="mb-2 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="h-3.5 w-3.5" /> Back to reporting
+        </Link>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Weekly workload meeting</div>
+            <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight">{report.title}</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {fmtDate(report.meeting_date)} · {totals.items} items · {totals.open} of {totals.actions} action items open
+              {report.compare_since && <> · changes since {fmtDate(report.compare_since)}</>}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <a href={`/api/reporting/reports/${report.id}/pdf`} target="_blank" rel="noreferrer"
+              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs font-medium hover:bg-muted">
+              <FileDown className="h-3.5 w-3.5" /> PDF
+            </a>
+            {canWrite && report.status === "draft" && (
+              <Button size="sm" variant="outline" onClick={() => void populate()} disabled={busy}>
+                {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />} Pull in current work
+              </Button>
+            )}
+            {canWrite && (
+              report.status === "draft"
+                ? <Button size="sm" variant="accent" onClick={() => void setStatus("final")} disabled={busy}><Lock className="h-3.5 w-3.5" /> Mark final</Button>
+                : <Button size="sm" variant="outline" onClick={() => void setStatus("draft")} disabled={busy}><LockOpen className="h-3.5 w-3.5" /> Reopen</Button>
+            )}
+          </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <a href={`/api/reporting/reports/${report.id}/pdf`} target="_blank" rel="noreferrer">
-            <Button variant="outline"><FileDown className="h-4 w-4" /> PDF</Button>
-          </a>
-          {canWrite && report.status === "draft" && (
-            <Button variant="outline" onClick={() => void populate()} disabled={busy}>
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Pull in current work
-            </Button>
-          )}
-          {canWrite && (
-            report.status === "draft"
-              ? <Button variant="accent" onClick={() => void setStatus("final")} disabled={busy}><Lock className="h-4 w-4" /> Mark final</Button>
-              : <Button variant="outline" onClick={() => void setStatus("draft")} disabled={busy}><LockOpen className="h-4 w-4" /> Reopen</Button>
-          )}
-        </div>
-      </header>
-
-      {error && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
-      {report.status === "final" && (
-        <p className="rounded-md border border-border bg-muted px-3 py-2 text-sm text-muted-foreground">
-          This report is final. Reopen it to make changes.
-        </p>
-      )}
-
-      <div className="space-y-4">
-        {report.sections.map((section) => (
-          <Section
-            key={section.id}
-            section={section}
-            owners={owners}
-            locked={locked}
-            call={call}
-            reload={reload}
-            reportId={report.id}
-          />
-        ))}
       </div>
 
-      {!locked && <AddSection reportId={report.id} call={call} reload={reload} />}
+      <div className="flex-1 space-y-4 p-4 md:p-6">
+        {error && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+        {report.status === "final" && (
+          <p className="rounded-md border border-border bg-muted px-3 py-2 text-sm text-muted-foreground">
+            This report is final. Reopen it to make changes.
+          </p>
+        )}
 
-      {canWrite && (
-        <div className="pt-4">
-          <button
-            onClick={async () => {
-              if (!window.confirm("Delete this report? The projects and leads themselves aren't touched.")) return;
-              await fetch(`/api/reporting/reports/${report.id}`, { method: "DELETE" });
-              router.push("/dashboard/reporting");
-            }}
-            className="text-xs text-muted-foreground hover:text-destructive"
-          >
-            Delete this report
-          </button>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            {!locked && allIds.length > 0 && (
+              <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+                <input type="checkbox" className="h-4 w-4 accent-[var(--accent)]" checked={allChecked}
+                  ref={(el) => { if (el) el.indeterminate = selectedIds.length > 0 && !allChecked; }}
+                  onChange={() => selection.setMany(allIds, !allChecked)} aria-label="Select all items" />
+                {selectedIds.length ? `${selectedIds.length} of ${allIds.length} selected` : "Select all"}
+              </label>
+            )}
+          </div>
+          <div role="tablist" className="flex overflow-hidden rounded-md border border-border text-xs">
+            {VIEWS.map((v) => (
+              <button key={v.key} role="tab" aria-selected={view === v.key} onClick={() => setView(v.key)} title={v.label}
+                className={cn("flex items-center gap-1.5 px-3 py-1.5 transition-colors", view === v.key ? "bg-accent/15 text-accent" : "text-muted-foreground hover:text-foreground")}>
+                <v.icon className="h-3.5 w-3.5" /><span className="hidden sm:inline">{v.label}</span>
+              </button>
+            ))}
+          </div>
         </div>
+
+        {view === "list" && (
+          <div className="space-y-4">
+            {report.sections.map((section) => (
+              <Section
+                key={section.id}
+                section={section}
+                owners={owners}
+                locked={locked}
+                call={call}
+                reload={reload}
+                reportId={report.id}
+                selection={selection}
+              />
+            ))}
+          </div>
+        )}
+        {view === "table" && <TableView sections={report.sections} selection={selection} />}
+        {view === "board" && <BoardView sections={report.sections} selection={selection} />}
+
+        {!locked && view === "list" && <AddSection reportId={report.id} call={call} reload={reload} />}
+
+        {canWrite && (
+          <div className="pt-4">
+            <button
+              onClick={async () => {
+                if (!window.confirm("Delete this report? The projects and leads themselves aren't touched.")) return;
+                await fetch(`/api/reporting/reports/${report.id}`, { method: "DELETE" });
+                router.push("/dashboard/reporting");
+              }}
+              className="text-xs text-muted-foreground hover:text-destructive"
+            >
+              Delete this report
+            </button>
+          </div>
+        )}
+      </div>
+
+      {!locked && (
+        <BulkBar
+          ids={selectedIds}
+          sections={report.sections}
+          owners={owners}
+          call={call}
+          onClear={() => setSelected(new Set())}
+          onDone={async () => { setSelected(new Set()); await reload(); }}
+        />
       )}
+    </div>
+  );
+}
+
+// ─── Views & selection ─────────────────────────────────────────────────────
+
+type ReportView = "list" | "table" | "board";
+const VIEWS: { key: ReportView; label: string; icon: typeof List }[] = [
+  { key: "list", label: "List", icon: List },
+  { key: "table", label: "Table", icon: Table2 },
+  { key: "board", label: "Board", icon: Columns3 },
+];
+
+type Selection = {
+  enabled: boolean;
+  has: (id: string) => boolean;
+  toggle: (id: string) => void;
+  setMany: (ids: string[], on: boolean) => void;
+};
+
+const itemLabel = (item: ReportItem) => [item.job_number, item.title].filter(Boolean).join("_");
+
+function RowCheck({ id, selection }: { id: string; selection: Selection }) {
+  if (!selection.enabled) return null;
+  return (
+    <input type="checkbox" className="h-4 w-4 shrink-0 accent-[var(--accent)]" checked={selection.has(id)}
+      onChange={() => selection.toggle(id)} onClick={(e) => e.stopPropagation()} aria-label="Select item" />
+  );
+}
+
+function GroupCheck({ ids, selection, label }: { ids: string[]; selection: Selection; label: string }) {
+  if (!selection.enabled || ids.length === 0) return null;
+  const on = ids.filter((id) => selection.has(id)).length;
+  return (
+    <input type="checkbox" className="h-4 w-4 shrink-0 accent-[var(--accent)]" checked={on === ids.length}
+      ref={(el) => { if (el) el.indeterminate = on > 0 && on < ids.length; }}
+      onChange={() => selection.setMany(ids, on !== ids.length)} aria-label={label} />
+  );
+}
+
+function TableView({ sections, selection }: { sections: ReportSection[]; selection: Selection }) {
+  const rows = sections.flatMap((s) => s.items.map((item) => ({ item, section: s })));
+  if (!rows.length) return <p className="rounded-lg border border-border bg-card px-4 py-6 text-sm text-muted-foreground">No items in this report yet.</p>;
+  return (
+    <div className="overflow-x-auto rounded-lg border border-border bg-card">
+      <table className="w-full min-w-[820px] text-sm">
+        <thead className="border-b border-border text-left text-[11px] uppercase tracking-[0.1em] text-muted-foreground">
+          <tr>
+            <th className="w-10 px-3 py-2.5"><GroupCheck ids={rows.map((r) => r.item.id)} selection={selection} label="Select all items" /></th>
+            <th className="px-3 py-2.5 font-medium">Project / item</th>
+            <th className="px-3 py-2.5 font-medium">Section</th>
+            <th className="px-3 py-2.5 font-medium">Status</th>
+            <th className="px-3 py-2.5 font-medium">Current completion</th>
+            <th className="px-3 py-2.5 font-medium">Open actions</th>
+            <th className="px-3 py-2.5 font-medium">Latest update</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border">
+          {rows.map(({ item, section }) => {
+            const open = item.action_items.filter((a) => !a.completed_at).length;
+            return (
+              <tr key={item.id} className={cn("hover:bg-muted/40", selection.has(item.id) && "bg-accent/5")}>
+                <td className="px-3 py-2.5"><RowCheck id={item.id} selection={selection} /></td>
+                <td className="px-3 py-2.5 font-medium">{itemLabel(item)}</td>
+                <td className="px-3 py-2.5 text-muted-foreground">{section.title}</td>
+                <td className="px-3 py-2.5">{item.status_text ? <span className="rounded-full bg-muted px-2 py-0.5 text-xs">{item.status_text}</span> : <span className="text-muted-foreground">—</span>}</td>
+                <td className="px-3 py-2.5 text-muted-foreground">{fmtDate(item.current_completion) || "—"}</td>
+                <td className="px-3 py-2.5 text-muted-foreground">{open || "—"}</td>
+                <td className="max-w-[320px] px-3 py-2.5 text-xs text-muted-foreground"><span className="line-clamp-2">{item.latest_update || "—"}</span></td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function BoardView({ sections, selection }: { sections: ReportSection[]; selection: Selection }) {
+  return (
+    <div className="flex gap-4 overflow-x-auto pb-2">
+      {sections.map((section) => (
+        <div key={section.id} className="flex w-72 shrink-0 flex-col rounded-lg border border-border bg-muted/30">
+          <div className="flex items-center gap-2 border-b border-border px-3 py-2.5">
+            <GroupCheck ids={section.items.map((i) => i.id)} selection={selection} label={`Select all in ${section.title}`} />
+            <span className="flex-1 truncate text-sm font-medium">{section.title}</span>
+            <span className="text-xs text-muted-foreground">{section.items.length}</span>
+          </div>
+          <div className="space-y-2 p-2">
+            {section.items.length === 0 && <p className="px-1 py-3 text-xs text-muted-foreground">Nothing here.</p>}
+            {section.items.map((item) => {
+              const open = item.action_items.filter((a) => !a.completed_at).length;
+              return (
+                <div key={item.id} className={cn("rounded-md border border-border bg-card p-3 text-sm", selection.has(item.id) && "border-accent/50 bg-accent/5")}>
+                  <div className="flex items-start gap-2">
+                    <RowCheck id={item.id} selection={selection} />
+                    <span className="min-w-0 flex-1 font-medium leading-snug">{itemLabel(item)}</span>
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    {item.status_text && <span className="rounded-full bg-muted px-2 py-0.5">{item.status_text}</span>}
+                    {open > 0 && <span>{open} open</span>}
+                    {item.current_completion && <span>Due {fmtDate(item.current_completion)}</span>}
+                  </div>
+                  {item.latest_update && <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">{item.latest_update}</p>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Quick actions for selected items ──────────────────────────────────────
+
+type BulkPanel = "status" | "date" | "move" | "action" | null;
+
+function BulkBar({
+  ids, sections, owners, call, onClear, onDone,
+}: {
+  ids: string[]; sections: ReportSection[]; owners: Owner[]; call: Call;
+  onClear: () => void; onDone: () => Promise<void>;
+}) {
+  const [panel, setPanel] = React.useState<BulkPanel>(null);
+  const [text, setText] = React.useState("");
+  const [date, setDate] = React.useState("");
+  const [sectionId, setSectionId] = React.useState("");
+  const [owner, setOwner] = React.useState("");
+  const [working, setWorking] = React.useState(false);
+  const [toast, setToast] = React.useState<string | null>(null);
+  if (!ids.length && !toast) return null;
+
+  const n = ids.length;
+  const plural = `${n} item${n === 1 ? "" : "s"}`;
+
+  // Each item is its own request, so one failure doesn't block the rest.
+  async function run(label: string, each: (id: string, index: number) => Promise<unknown | null>) {
+    setWorking(true);
+    const results = await Promise.all(ids.map((id, i) => each(id, i)));
+    const ok = results.filter((r) => r !== null).length;
+    setWorking(false);
+    setPanel(null); setText(""); setDate(""); setOwner("");
+    setToast(ok === n ? `${label}: ${plural}.` : `${label}: ${ok} of ${n} saved.`);
+    window.setTimeout(() => setToast(null), 4000);
+    await onDone();
+  }
+
+  const patch = (body: Record<string, unknown>) => (id: string) =>
+    call(`/api/reporting/items/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+
+  const btn = "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium hover:bg-muted";
+  return (
+    <div className="fixed inset-x-0 bottom-4 z-50 flex justify-center px-4">
+      <div className="w-full max-w-3xl rounded-xl border border-border bg-card p-2 shadow-xl">
+        {toast && !n ? (
+          <p className="flex items-center gap-1.5 px-2 py-1.5 text-sm"><Check className="h-4 w-4 text-[#2e7d5b]" /> {toast}</p>
+        ) : (
+          <>
+            <div className="flex flex-wrap items-center gap-1">
+              <span className="px-2 text-sm font-medium">{n} selected</span>
+              <span className="mx-1 h-5 w-px bg-border" />
+              <button className={cn(btn, panel === "status" && "bg-muted")} onClick={() => setPanel(panel === "status" ? null : "status")}><Tag className="h-3.5 w-3.5" /> Status</button>
+              <button className={cn(btn, panel === "date" && "bg-muted")} onClick={() => setPanel(panel === "date" ? null : "date")}><CalendarDays className="h-3.5 w-3.5" /> Completion date</button>
+              <button className={cn(btn, panel === "move" && "bg-muted")} onClick={() => setPanel(panel === "move" ? null : "move")}><ArrowRightLeft className="h-3.5 w-3.5" /> Move</button>
+              <button className={cn(btn, panel === "action" && "bg-muted")} onClick={() => setPanel(panel === "action" ? null : "action")}><ListPlus className="h-3.5 w-3.5" /> Action item</button>
+              <button className={cn(btn, "text-destructive hover:bg-destructive/10")} disabled={working}
+                onClick={() => {
+                  if (!window.confirm(`Remove ${plural} from this report? The projects and leads themselves aren't touched.`)) return;
+                  void run("Removed", (id) => call(`/api/reporting/items/${id}`, { method: "DELETE" }));
+                }}>
+                <Trash2 className="h-3.5 w-3.5" /> Remove
+              </button>
+              <span className="flex-1" />
+              {working && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+              <button className="rounded p-1.5 text-muted-foreground hover:bg-muted" onClick={onClear} aria-label="Clear selection"><X className="h-4 w-4" /></button>
+            </div>
+
+            {panel === "status" && (
+              <form className="mt-2 flex gap-2 border-t border-border px-1 pt-2" onSubmit={(e) => { e.preventDefault(); if (text.trim()) void run("Status set", patch({ status_text: text.trim() })); }}>
+                <Input autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder="e.g. In Progress, Contracted, Signed LOI" />
+                <Button size="sm" variant="accent" type="submit" disabled={working || !text.trim()}>Apply to {plural}</Button>
+              </form>
+            )}
+            {panel === "date" && (
+              <form className="mt-2 flex gap-2 border-t border-border px-1 pt-2" onSubmit={(e) => { e.preventDefault(); if (date) void run("Completion date set", patch({ current_completion: date })); }}>
+                <Input type="date" autoFocus value={date} onChange={(e) => setDate(e.target.value)} />
+                <Button size="sm" variant="accent" type="submit" disabled={working || !date}>Apply to {plural}</Button>
+              </form>
+            )}
+            {panel === "move" && (
+              <form className="mt-2 flex gap-2 border-t border-border px-1 pt-2" onSubmit={(e) => {
+                e.preventDefault();
+                const target = sections.find((s) => s.id === sectionId);
+                if (!target) return;
+                const base = target.items.length;
+                void run(`Moved to ${target.title}`, (id, i) => patch({ section_id: target.id, sort_order: base + i })(id));
+              }}>
+                <Select value={sectionId} onChange={(e) => setSectionId(e.target.value)}>
+                  <option value="">Choose a section…</option>
+                  {sections.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
+                </Select>
+                <Button size="sm" variant="accent" type="submit" disabled={working || !sectionId}>Move {plural}</Button>
+              </form>
+            )}
+            {panel === "action" && (
+              <form className="mt-2 grid gap-2 border-t border-border px-1 pt-2 sm:grid-cols-[1fr_180px_150px_auto]" onSubmit={(e) => {
+                e.preventDefault();
+                if (!text.trim()) return;
+                const who = owners.find((o) => o.id === owner);
+                void run("Action item added", (id) => call(`/api/reporting/items/${id}/actions`, {
+                  method: "POST", headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ body: text.trim(), owner_staff_id: who?.id ?? null, owner_label: who?.name ?? null, due_date: date || null }),
+                }));
+              }}>
+                <Input autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder="What needs to happen next" />
+                <Select value={owner} onChange={(e) => setOwner(e.target.value)}>
+                  <option value="">No owner</option>
+                  {owners.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                </Select>
+                <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+                <Button size="sm" variant="accent" type="submit" disabled={working || !text.trim()}>Add to {plural}</Button>
+              </form>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -150,9 +433,9 @@ export function ReportDetailClient({
 type Call = (url: string, init: RequestInit) => Promise<unknown | null>;
 
 function Section({
-  section, owners, locked, call, reload, reportId,
+  section, owners, locked, call, reload, reportId, selection,
 }: {
-  section: ReportSection; owners: Owner[]; locked: boolean; call: Call; reload: () => Promise<void>; reportId: string;
+  section: ReportSection; owners: Owner[]; locked: boolean; call: Call; reload: () => Promise<void>; reportId: string; selection: Selection;
 }) {
   const [open, setOpen] = React.useState(true);
   const [adding, setAdding] = React.useState(false);
@@ -170,11 +453,14 @@ function Section({
   return (
     <section className="rounded-lg border border-border bg-card">
       <header className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
-        <button onClick={() => setOpen((v) => !v)} className="flex items-center gap-2 text-left">
-          {open ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
-          <span className="font-medium">{section.title}</span>
-          <span className="text-xs text-muted-foreground">{section.items.length}</span>
-        </button>
+        <div className="flex items-center gap-3">
+          <GroupCheck ids={section.items.map((i) => i.id)} selection={selection} label={`Select all in ${section.title}`} />
+          <button onClick={() => setOpen((v) => !v)} className="flex items-center gap-2 text-left">
+            {open ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+            <span className="font-medium">{section.title}</span>
+            <span className="text-xs text-muted-foreground">{section.items.length}</span>
+          </button>
+        </div>
         {!locked && (
           <div className="flex items-center gap-1">
             <Button variant="outline" size="sm" onClick={() => setAdding(true)}><Plus className="h-3.5 w-3.5" /> Item</Button>
@@ -200,7 +486,7 @@ function Section({
             <p className="px-4 py-6 text-sm text-muted-foreground">Nothing in this section.</p>
           )}
           {section.items.map((item) => (
-            <Item key={item.id} item={item} owners={owners} locked={locked} call={call} reload={reload} />
+            <Item key={item.id} item={item} owners={owners} locked={locked} call={call} reload={reload} selection={selection} />
           ))}
           {adding && <QuickAdd placeholder="Project or lead name" onCancel={() => setAdding(false)} onSave={addItem} />}
         </div>
@@ -236,9 +522,9 @@ function AddSection({ reportId, call, reload }: { reportId: string; call: Call; 
 // ─── Item ──────────────────────────────────────────────────────────────────
 
 function Item({
-  item, owners, locked, call, reload,
+  item, owners, locked, call, reload, selection,
 }: {
-  item: ReportItem; owners: Owner[]; locked: boolean; call: Call; reload: () => Promise<void>;
+  item: ReportItem; owners: Owner[]; locked: boolean; call: Call; reload: () => Promise<void>; selection: Selection;
 }) {
   const [expanded, setExpanded] = React.useState(false);
   const [addingAction, setAddingAction] = React.useState(false);
@@ -252,15 +538,16 @@ function Item({
     }).then(() => reload());
 
   return (
-    <div className="px-4 py-3">
+    <div className={cn("px-4 py-3", selection.has(item.id) && "bg-accent/5")}>
       <div className="flex items-start justify-between gap-3">
-        <button onClick={() => setExpanded((v) => !v)} className="flex min-w-0 items-center gap-2 text-left">
-          {expanded ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
-          <span className="truncate text-sm font-medium">
-            {[item.job_number, item.title].filter(Boolean).join("_")}
-          </span>
-          {item.value_note && <span className="shrink-0 text-xs text-muted-foreground">{item.value_note}</span>}
-        </button>
+        <div className="flex min-w-0 items-center gap-3">
+          <RowCheck id={item.id} selection={selection} />
+          <button onClick={() => setExpanded((v) => !v)} className="flex min-w-0 items-center gap-2 text-left">
+            {expanded ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+            <span className="truncate text-sm font-medium">{itemLabel(item)}</span>
+            {item.value_note && <span className="shrink-0 text-xs text-muted-foreground">{item.value_note}</span>}
+          </button>
+        </div>
         <div className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
           {item.status_text && <span className="rounded-full bg-muted px-2 py-0.5">{item.status_text}</span>}
           {openActions > 0 && <span>{openActions} open</span>}
