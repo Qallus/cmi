@@ -24,7 +24,7 @@ export async function POST(req: Request) {
       .select("email")
       .in("email", contacts.map((c) => c.email).filter(Boolean));
 
-    const existingEmails = new Set((existing ?? []).map((r: { email: string }) => r.email.toLowerCase()));
+    const existingEmails = new Set((existing ?? []).map((r: { email: string | null }) => (r.email ?? "").toLowerCase()).filter(Boolean));
 
     const toInsert: ContactDraft[] = [];
     const toUpdate: ContactDraft[] = [];

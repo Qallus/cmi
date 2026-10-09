@@ -11,7 +11,8 @@ export type Contact = {
   fluent_crm_id: number | null;
   first_name: string;
   last_name: string;
-  email: string;
+  /** Optional: a deal's contact can be saved before their email is shared. */
+  email: string | null;
   phone: string | null;
   company: string | null;
   type: ContactType | null;

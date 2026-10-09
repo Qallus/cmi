@@ -19,6 +19,7 @@ import { RichTextEditor } from "@/components/notes/rich-text-editor";
 import { DEAL_STAGE_META, DEAL_STAGES, DEAL_STAGE_CHECKLIST, LOST_REASONS } from "@/lib/deals/stages";
 import { PIPELINE_ORDER_KEY } from "@/lib/deals/order";
 import { CONTACT_TYPES } from "@/lib/contacts/types";
+import { DealContactsCard } from "./deal-contacts-card";
 import { ProjectionLinkButton } from "@/components/projections/projection-link-button";
 import type { Activity, ActivityType, Deal, DealChecklistItem, DealChecklistProgress, DealStage, DealStageHistoryRow, DealTask } from "@/lib/deals/types";
 
@@ -410,20 +411,8 @@ export function DealDetailClient({
         <div className="min-w-0 space-y-4">
           {/* Contact + key fields */}
           <div className="grid gap-4 md:grid-cols-2">
-            <Card title="Lead / Contact details" action={contact && <button onClick={() => setShowContactEdit(true)} className="text-xs text-accent hover:underline">Open contact →</button>}>
-              {contact ? (
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <span className="grid h-11 w-11 place-items-center rounded-full bg-accent/15 text-sm font-semibold text-accent">{contact.name.split(" ").map((n) => n[0]).slice(0, 2).join("")}</span>
-                    <div><div className="font-semibold">{contact.name}</div>{contact.role && <div className="text-xs text-muted-foreground">{contact.role}</div>}</div>
-                  </div>
-                  <Field label="Email">{contact.email ? <EmailMenu email={contact.email} subject={`Re: ${deal.title}`} canWrite={canWrite} onComposeInApp={() => setAction("email")} /> : <span className="text-muted-foreground">—</span>}</Field>
-                  <Field label="Phone"><Inline canWrite={canWrite} value={contact.phone ?? ""} placeholder="Add phone" onSave={(v) => saveContact({ phone: v })} /></Field>
-                  <Field label="Company"><Inline canWrite={canWrite} value={contact.company ?? ""} placeholder="Add company" onSave={(v) => saveContact({ company: v })} /></Field>
-                  <Field label="Role"><Inline canWrite={canWrite} kind="select" value={contact.role ?? ""} options={[{ value: "", label: "—" }, ...CONTACT_TYPES.map((t) => ({ value: t, label: t }))]} onSave={(v) => saveContact({ type: v || null })} /></Field>
-                  {contact.tags?.length ? <div><div className="mb-1 text-[11px] uppercase tracking-wide text-muted-foreground">Tags</div><div className="flex gap-1 overflow-x-auto pb-0.5">{contact.tags.map((t) => <span key={t} className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px]">{t}</span>)}</div></div> : null}
-                </div>
-              ) : <p className="text-sm text-muted-foreground">No contact linked to this deal.</p>}
+            <Card title="Lead / Contact details" action={contact && <button onClick={() => setShowContactEdit(true)} className="text-xs text-accent hover:underline">Open primary contact →</button>}>
+              <DealContactsCard dealId={deal.id} canWrite={canWrite} onPrimaryChange={setContact} />
             </Card>
 
             <Card title="Key fields" action={canWrite && <button onClick={() => setEditKey(true)} className="inline-flex items-center gap-1 text-xs text-accent hover:underline"><Pencil className="h-3 w-3" /> Edit</button>}>

@@ -41,6 +41,7 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
+import { ContactPipelineSection } from "@/components/contacts/assign-to-pipeline";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -224,7 +225,7 @@ function initials(c: Contact) {
 }
 
 function fullName(c: Contact) {
-  return [c.first_name, c.last_name].filter(Boolean).join(" ") || c.email;
+  return [c.first_name, c.last_name].filter(Boolean).join(" ") || c.email || c.phone || "Unnamed contact";
 }
 
 const EMPTY_DRAFT: ContactDraft = {
@@ -300,7 +301,7 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
     const q = search.toLowerCase();
     return contacts.filter((c) => {
       if (tab !== "all" && (c.type ?? "Other") !== tab) return false;
-      if (q && !fullName(c).toLowerCase().includes(q) && !c.email.toLowerCase().includes(q) && !(c.phone ?? "").includes(q) && !(c.company ?? "").toLowerCase().includes(q)) return false;
+      if (q && !fullName(c).toLowerCase().includes(q) && !(c.email ?? "").toLowerCase().includes(q) && !(c.phone ?? "").includes(q) && !(c.company ?? "").toLowerCase().includes(q)) return false;
       if (statusFilter !== "all" && c.status !== statusFilter) return false;
       return true;
     });
@@ -389,7 +390,7 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
 
   // Live duplicate lookup for the add/edit modal.
   const dupe = useDuplicateCheck({
-    first: draft.first_name, last: draft.last_name, email: draft.email,
+    first: draft.first_name, last: draft.last_name, email: draft.email ?? undefined,
     phone: draft.phone ?? "", company: draft.company ?? "",
     excludeId: modal?.mode === "edit" ? modal.contact?.id : undefined,
   }, !!modal && modal.mode !== "view");
@@ -795,7 +796,7 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
               </div>
             </div>
             <div className="grid gap-3 rounded-lg border border-border p-4 text-sm sm:grid-cols-2">
-              <InfoRow icon={Mail} label="Email" value={viewContact.email} />
+              <InfoRow icon={Mail} label="Email" value={viewContact.email ?? "--"} />
               <InfoRow icon={Phone} label="Phone" value={viewContact.phone ?? "--"} />
               <InfoRow icon={Building2} label="Company" value={viewContact.company ?? "--"} />
               <InfoRow icon={User} label="Source" value={viewContact.source ?? "--"} />
@@ -804,6 +805,8 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
                 <InfoRow icon={Building2} label="Location" value={[viewContact.city, viewContact.state, viewContact.zip].filter(Boolean).join(", ")} />
               )}
             </div>
+            <ContactPipelineSection contactId={viewContact.id} />
+
             {(viewContact.tags ?? []).length > 0 && (
               <div className="flex flex-wrap gap-1.5">
                 {(viewContact.tags ?? []).map((t) => (
@@ -856,7 +859,7 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
                 <input className={inputCls} value={draft.last_name} onChange={(e) => setDraft((d) => ({ ...d, last_name: e.target.value }))} />
               </Field>
               <Field label="Email" required>
-                <input type="email" className={inputCls} value={draft.email} onChange={(e) => setDraft((d) => ({ ...d, email: e.target.value }))} />
+                <input type="email" className={inputCls} value={draft.email ?? ""} onChange={(e) => setDraft((d) => ({ ...d, email: e.target.value }))} />
               </Field>
               <Field label="Phone">
                 <input type="tel" className={inputCls} value={draft.phone ?? ""} onChange={(e) => setDraft((d) => ({ ...d, phone: e.target.value }))} />
@@ -1205,7 +1208,7 @@ function ContactActionModal({
         ) : (
           <>
             <Field label={action === "email" ? "Email" : "Phone"}>
-              <input className={inputCls} value={action === "email" ? contact.email : contact.phone ?? ""} readOnly />
+              <input className={inputCls} value={action === "email" ? contact.email ?? "" : contact.phone ?? ""} readOnly />
             </Field>
             {action === "email" ? (
               <Field label="Subject" required>
