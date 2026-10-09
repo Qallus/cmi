@@ -27,13 +27,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "No staff record found. Contact your administrator." }, { status: 403 });
     }
 
-    // Activate invited users on first login
-    if (staff.status === "invited" || staff.status === "pending") {
-      await getSupabaseAdmin()
-        .from("staff_users")
-        .update({ status: "active", updated_at: new Date().toISOString() })
-        .eq("id", staff.id);
-    }
+    // Activate invited users on first login, and record every login.
+    const now = new Date().toISOString();
+    await getSupabaseAdmin()
+      .from("staff_users")
+      .update({
+        last_login_at: now,
+        ...(staff.status === "invited" || staff.status === "pending" ? { status: "active", updated_at: now } : {}),
+      })
+      .eq("id", staff.id);
 
     const response = NextResponse.json({
       ok: true,

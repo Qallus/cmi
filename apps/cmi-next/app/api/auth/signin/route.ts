@@ -36,6 +36,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Access denied — not an active staff member." }, { status: 403 });
     }
 
+    // Signing in is what makes an invite "used". Until this, only the invite
+    // link flipped invited → active, so anyone who signed in with a password
+    // stayed "Invited" forever; and nothing recorded a last login at all.
+    await getSupabaseAdmin()
+      .from("staff_users")
+      .update({
+        last_login_at: new Date().toISOString(),
+        ...(staff.status === "invited" ? { status: "active", updated_at: new Date().toISOString() } : {}),
+      })
+      .eq("id", staff.id)
+      .then(undefined, () => { /* bookkeeping must never block a sign-in */ });
+
     const response = NextResponse.json({ ok: true });
     // Access token expires in ~1 hour; the refresh token keeps the session
     // alive so staff aren't signed out mid-task.
