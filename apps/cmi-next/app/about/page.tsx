@@ -156,11 +156,11 @@ export default function AboutPage() {
         {/* ── CTA ── */}
         <section className="relative overflow-hidden py-24 text-center text-white lg:py-32">
           <img
-            src="https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=1920&q=80"
-            alt=""
-            className="absolute inset-0 h-full w-full object-cover"
+            src="https://uoerzrmeibavqgisfzso.supabase.co/storage/v1/object/public/cmi-media/portfolio/1788298921850-dfa3f66a-cd66-4230-a03d-af8a9f17b1fb-cmi-office-2.jpg"
+            alt="Constructed Matter headquarters in Scottsdale at dusk"
+            className="absolute inset-0 h-full w-full object-cover object-[center_72%]"
           />
-          <div className="absolute inset-0 bg-black/85" />
+          <div className="absolute inset-0 bg-black/70" />
           <div className="relative z-10 mx-auto max-w-7xl px-5 lg:px-8">
             <div className="text-[12px] font-semibold uppercase tracking-[0.25em] text-accent">Work With Us</div>
             <h2 className="mt-5 font-display text-4xl font-semibold tracking-tight lg:text-5xl">
