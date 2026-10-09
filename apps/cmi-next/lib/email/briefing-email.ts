@@ -113,7 +113,7 @@ export function briefingEmailHtml(b: Briefing, summary: string): string {
         </td></tr>
 
         <tr><td style="padding:28px 32px 18px;">
-          <div style="font-size:11px;font-weight:bold;text-transform:uppercase;letter-spacing:0.18em;color:${BRAND.accent};">Morning briefing</div>
+          <div style="font-size:11px;font-weight:bold;text-transform:uppercase;letter-spacing:0.18em;color:${BRAND.accent};">${e(b.greeting.replace("Good ", ""))} briefing</div>
           <h1 style="margin:8px 0 0;font-size:24px;line-height:1.3;font-weight:bold;color:${BRAND.ink};">${e(b.greeting)}, ${e(b.staff.firstName)}</h1>
         </td></tr>
 
