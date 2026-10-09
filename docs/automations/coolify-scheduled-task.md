@@ -58,7 +58,7 @@ Coolify → your CMI application → **Scheduled Tasks** → **+ Add**.
 **Command** (one line, paste as-is):
 
 ```sh
-wget -qO- --header="Authorization: Bearer $AUTOMATION_SECRET" http://localhost:3000/api/automations/run
+wget -qO- --header="Authorization: Bearer $AUTOMATION_SECRET" http://127.0.0.1:3000/api/automations/run
 ```
 
 Two constraints shaped that line, both learned the hard way:
@@ -75,7 +75,7 @@ Two constraints shaped that line, both learned the hard way:
 
 It's a GET; the endpoint accepts either verb, and GET keeps the command short.
 
-`localhost:3000` because the task runs *inside* the app container — it doesn't
+`127.0.0.1:3000` because the task runs *inside* the app container. Not `localhost`, which can resolve to IPv6 `::1` where the server isn't listening. This also depends on `ENV HOSTNAME=0.0.0.0` in the Dockerfile: without it, Next binds only to the container's own network address and refuses 127.0.0.1. The task doesn't
 need to go back out through the internet. The secret is read from the
 environment at run time, so it never appears in the task definition.
 
@@ -177,7 +177,7 @@ summary. The same content is always live at `/dashboard/today`.
 | Field | Value |
 | --- | --- |
 | Name | `morning-briefing` |
-| Command | `curl -fsS -H "Authorization: Bearer $AUTOMATION_SECRET" http://localhost:3000/api/briefings/run` |
+| Command | `wget -qO- --header="Authorization: Bearer $AUTOMATION_SECRET" http://127.0.0.1:3000/api/briefings/run` |
 | Frequency | `0 13 * * *` (13:00 UTC = 6:00 AM Arizona, all year — no DST) |
 
 Super Admins control it from **Dashboard → Notifications → Morning Briefing**

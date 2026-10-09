@@ -40,6 +40,11 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 ENV PORT=3000
+# Listen on every interface. Without this, Next's standalone server binds to
+# $HOSTNAME, which Docker sets to the container ID — reachable from the proxy,
+# but not on 127.0.0.1, so Coolify Scheduled Tasks calling localhost:3000 from
+# inside the container were refused.
+ENV HOSTNAME=0.0.0.0
 
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
