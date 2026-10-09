@@ -5,6 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { ProjectCanvasVisibility } from "@/components/dashboard/project-canvas-visibility";
 import { ExtensionAccessPanel } from "@/components/dashboard/extension-access-panel";
 import { FabVisibility } from "@/components/dashboard/fab-visibility";
+import { NavVisibilityPanel } from "@/components/dashboard/nav-visibility-panel";
+import { getSessionStaff } from "@/lib/auth/server-session";
 
 export const metadata = { title: "Settings — CMI Dashboard" };
 
@@ -26,7 +28,8 @@ function EnvRow({ label, envKey, masked }: { label: string; envKey: string; mask
   );
 }
 
-export default function SettingsPage() {
+export default async function SettingsPage() {
+  const staff = await getSessionStaff();
   return (
     <div className="p-4 md:p-6">
       <div className="mb-6">
@@ -39,6 +42,11 @@ export default function SettingsPage() {
         <Card>
           <CardHeader><CardTitle>Appearance</CardTitle></CardHeader>
           <CardContent className="pt-0"><FabVisibility /></CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle>Sidebar Navigation</CardTitle></CardHeader>
+          <CardContent className="pt-0"><NavVisibilityPanel canEdit={staff?.role_slug === "super_admin"} /></CardContent>
         </Card>
 
         <Card>

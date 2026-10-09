@@ -28,3 +28,18 @@ export async function deleteDailyLog(id: string): Promise<void> {
   const { error } = await getSupabaseAdmin().from("daily_logs").delete().eq("id", id);
   if (error) throw new Error(error.message);
 }
+
+export type DailyLogWithJob = DailyLog & { job_name: string | null; job_number: string | null };
+
+/** Daily logs across every job, newest first, for the all-jobs Daily Logs page. */
+export async function loadAllDailyLogs(limit = 500): Promise<DailyLogWithJob[]> {
+  const { data, error } = await getSupabaseAdmin()
+    .from("daily_logs").select("*, jobs(job_name, job_number, archived_at)")
+    .order("log_date", { ascending: false }).order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(error.message);
+  type Row = DailyLog & { jobs: { job_name: string | null; job_number: string | null; archived_at: string | null } | null };
+  return ((data ?? []) as Row[])
+    .filter((r) => !r.jobs?.archived_at)
+    .map(({ jobs, ...log }) => ({ ...log, job_name: jobs?.job_name ?? null, job_number: jobs?.job_number ?? null }));
+}

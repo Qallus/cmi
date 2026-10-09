@@ -9,7 +9,7 @@ import {
   CreditCard, FileText, FolderKanban, HardHat, Home, IdCard, Inbox, LayoutDashboard, LayoutGrid,
   BarChart3, FileBarChart, HandshakeIcon,
   Megaphone, MessageCircle, MessagesSquare, Mic, Minus, Newspaper, Package, Plus, Settings, ShieldCheck,
-  Ruler, Sparkles, SquarePen, Sun, TrendingUp, User, UserRoundCog, Users, Workflow,
+  Ruler, Sparkles, SquarePen, Sun, NotebookPen, TrendingUp, User, UserRoundCog, Users, Workflow,
 } from "lucide-react";
 
 export type UserRole =
@@ -22,14 +22,14 @@ type IconType = typeof FolderKanban;
 // A nested child link that lives inside a parent's dropdown.
 type NavChild = { href: string; label: string; icon: IconType; roles?: UserRole[]; flag?: string };
 
-type NavItem =
+export type NavItem =
   | { href: string; label: string; icon: IconType; roles?: UserRole[]; children?: NavChild[]; flag?: string; section?: never }
   | { section: string; roles?: UserRole[]; label?: never; icon?: never; href?: never; flag?: never };
 
 // roles: undefined = visible to all; defined array = visible only to those roles.
 // A parent item keeps its own `href` (clicking the label navigates there) and an
 // optional `children` list that expands/collapses via the +/- toggle.
-const nav: NavItem[] = [
+export const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard/overview",       label: "Overview",       icon: Home },
   { href: "/dashboard/today",          label: "Today",          icon: Sun,            roles: ["super_admin", "admin", "project_manager", "designer", "estimator", "superintendent"] },
   {
@@ -39,7 +39,6 @@ const nav: NavItem[] = [
     ],
   },
   { href: "/dashboard/project-manager",label: "Projects",       icon: FolderKanban,   roles: ["super_admin", "admin", "project_manager", "designer", "estimator", "superintendent", "subcontractor", "client"] },
-  { href: "/dashboard/selections",     label: "Selections",     icon: Package,        roles: ["super_admin", "admin", "project_manager", "designer", "client"] },
   {
     href: "/dashboard/canvas",          label: "Project Canvas", icon: SquarePen,      roles: ["super_admin", "admin", "project_manager", "designer", "estimator", "superintendent"], flag: "project_canvas",
     children: [
@@ -61,11 +60,13 @@ const nav: NavItem[] = [
     children: [
       { href: "/dashboard/jobs/map",               label: "Jobs Map",         icon: LayoutGrid, roles: ["super_admin", "admin", "project_manager", "estimator", "superintendent", "designer"] },
       { href: "/dashboard/jobs/new-from-template",  label: "Templates",        icon: FileText,   roles: ["super_admin", "admin", "project_manager"] },
+      { href: "/dashboard/schedules",               label: "Schedules",        icon: CalendarClock, roles: ["super_admin", "admin", "project_manager", "superintendent", "estimator", "designer", "staff"] },
+      { href: "/dashboard/selections",              label: "Selections",       icon: Package,    roles: ["super_admin", "admin", "project_manager", "designer", "client"] },
+      { href: "/dashboard/daily-logs",              label: "Daily Logs",       icon: NotebookPen, roles: ["super_admin", "admin", "project_manager", "estimator", "superintendent", "designer"] },
       { href: "/dashboard/client-engagement",       label: "Client Engagement", icon: Users,     roles: ["super_admin", "admin", "project_manager"] },
     ],
   },
   { href: "/dashboard/cloud",          label: "Cloud",          icon: Cloud,          roles: ["super_admin", "admin", "project_manager", "estimator", "superintendent", "designer", "staff"] },
-  { href: "/dashboard/schedules",      label: "Schedules",      icon: CalendarClock,  roles: ["super_admin", "admin", "project_manager", "superintendent", "estimator", "designer", "staff"] },
   { href: "/dashboard/billing",        label: "Billing",        icon: CreditCard,     roles: ["super_admin", "admin", "estimator", "client"] },
   { href: "/dashboard/bookings",       label: "Bookings",       icon: CalendarRange,  roles: ["super_admin", "admin", "project_manager", "estimator", "client"] },
   {
@@ -114,11 +115,23 @@ export function DashboardNav({ collapsed = false, role = "viewer" }: { collapsed
   }, []);
   const flagOk = React.useCallback((flag?: string) => !flag || flags[flag] === true, [flags]);
 
+  // Items a Super Admin hid in Settings → Sidebar navigation. Settings fires
+  // `cmi:nav-settings` after a change so the sidebar updates without a reload.
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
+  React.useEffect(() => {
+    const load = () => fetch("/api/nav-settings").then((r) => r.json())
+      .then((d: { hidden?: string[] }) => setHidden(new Set(d.hidden ?? []))).catch(() => {});
+    void load();
+    window.addEventListener("cmi:nav-settings", load);
+    return () => window.removeEventListener("cmi:nav-settings", load);
+  }, []);
+  const shown = React.useCallback((href: string) => !hidden.has(href), [hidden]);
+
   const isActive = (href: string) => href !== "/" && pathname.startsWith(href);
 
   // Which parent group contains the current route (used to auto-expand it).
   const activeParent = React.useMemo(() => {
-    for (const item of nav) {
+    for (const item of NAV_ITEMS) {
       if ("children" in item && item.children) {
         if (isActive(item.href) || item.children.some((c) => isActive(c.href))) return item.href;
       }
@@ -157,7 +170,7 @@ export function DashboardNav({ collapsed = false, role = "viewer" }: { collapsed
 
   return (
     <nav className="flex-1 space-y-1 overflow-y-auto px-2 py-4">
-      {nav.map((item, i) => {
+      {NAV_ITEMS.map((item, i) => {
         if ("section" in item) {
           if (!canSee(item, role)) return null;
           return <div key={`section-${i}`} className={`mt-5 border-t border-border pt-4 text-[10px] uppercase tracking-[0.16em] text-muted-foreground ${collapsed ? "mx-2 px-0" : "px-3"}`} />;
@@ -165,7 +178,9 @@ export function DashboardNav({ collapsed = false, role = "viewer" }: { collapsed
 
         // ── Parent with nested children ──
         if ("children" in item && item.children) {
-          const visibleChildren = item.children.filter((c) => canSeeRoles(c.roles, role) && flagOk(c.flag));
+          // Hiding a parent hides its whole group.
+          if (!shown(item.href)) return null;
+          const visibleChildren = item.children.filter((c) => canSeeRoles(c.roles, role) && flagOk(c.flag) && shown(c.href));
           const parentVisible = canSee(item, role) && flagOk(item.flag);
           if (!parentVisible && visibleChildren.length === 0) return null;
 
@@ -224,7 +239,7 @@ export function DashboardNav({ collapsed = false, role = "viewer" }: { collapsed
         }
 
         // ── Regular leaf item ──
-        if (!canSee(item, role) || !flagOk(item.flag)) return null;
+        if (!canSee(item, role) || !flagOk(item.flag) || !shown(item.href)) return null;
         return <LeafLink key={item.href} href={item.href} label={item.label} icon={item.icon} />;
       })}
     </nav>
