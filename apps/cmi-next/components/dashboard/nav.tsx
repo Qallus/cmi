@@ -9,7 +9,7 @@ import {
   CreditCard, FileText, FolderKanban, HardHat, Home, IdCard, Inbox, LayoutDashboard, LayoutGrid,
   BarChart3, FileBarChart, HandshakeIcon,
   Megaphone, MessageCircle, MessagesSquare, Mic, Minus, Newspaper, Package, Plus, Settings, ShieldCheck,
-  Ruler, Sparkles, SquarePen, TrendingUp, User, UserRoundCog, Users, Workflow,
+  Ruler, Sparkles, SquarePen, Sun, TrendingUp, User, UserRoundCog, Users, Workflow,
 } from "lucide-react";
 
 export type UserRole =
@@ -31,6 +31,7 @@ type NavItem =
 // optional `children` list that expands/collapses via the +/- toggle.
 const nav: NavItem[] = [
   { href: "/dashboard/overview",       label: "Overview",       icon: Home },
+  { href: "/dashboard/today",          label: "Today",          icon: Sun,            roles: ["super_admin", "admin", "project_manager", "designer", "estimator", "superintendent"] },
   {
     href: "/dashboard/contacts",       label: "Contacts",       icon: Users,          roles: ["super_admin", "admin", "project_manager", "estimator"],
     children: [

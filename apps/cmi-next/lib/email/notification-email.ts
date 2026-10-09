@@ -6,7 +6,7 @@
 import { escapeHtml } from "@/lib/messaging/send";
 import { publicAppUrl } from "@/lib/twilio";
 
-const BRAND = {
+export const BRAND = {
   ink: "#111111",
   accent: "#9E6F2E",
   body: "#3F3F46",
@@ -104,7 +104,21 @@ export function notificationEmailHtml(email: NotificationEmail): string {
           ${closing}
         </td></tr>
 
-        <tr><td style="padding:24px 32px 28px;">
+        ${emailFooterRow(app)}
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+/**
+ * The footer row shared by every staff email: app mark, company details and
+ * the notification-settings link. A `<tr>` for a 600px card table.
+ */
+export function emailFooterRow(app = publicAppUrl()): string {
+  return `        <tr><td style="padding:24px 32px 28px;">
           <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-top:1px solid ${BRAND.hairline};border-collapse:collapse;">
             <tr>
               <!-- The app mark, so the footer is recognisable even where images
@@ -131,11 +145,5 @@ export function notificationEmailHtml(email: NotificationEmail): string {
               </td>
             </tr>
           </table>
-        </td></tr>
-
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`;
+        </td></tr>`;
 }

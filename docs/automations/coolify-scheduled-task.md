@@ -166,3 +166,37 @@ for a one-off "what would this send right now?" without sending it.
 - `apps/cmi-next/app/api/automations/run/route.ts` — auth and the entry point
 - `apps/cmi-next/lib/automations/runner.ts` — the scans and the dispatcher
 - `automation_events`, `automation_runs` — the log tables
+
+## Morning briefing (6 AM)
+
+A second Scheduled Task sends each staff member their daily briefing: today's
+meetings, overdue / due-today / this-week tasks, anything waiting on a reply,
+and overnight changes on their jobs and deals, under a short Bolt-written
+summary. The same content is always live at `/dashboard/today`.
+
+| Field | Value |
+| --- | --- |
+| Name | `morning-briefing` |
+| Command | `curl -fsS -H "Authorization: Bearer $AUTOMATION_SECRET" http://localhost:3000/api/briefings/run` |
+| Frequency | `0 13 * * *` (13:00 UTC = 6:00 AM Arizona, all year — no DST) |
+
+Who receives it is one env var, so widening it is a config change:
+
+| `BRIEFING_AUDIENCE` | Sends to |
+| --- | --- |
+| unset or `all` | every active staff member except client logins |
+| `jwaters@qallus.co` (comma-separated list) | just those staff members |
+| `none` | nobody: pauses the briefing (test sends still work) |
+
+Anyone with email notifications turned off in My Profile is skipped, and each
+person gets at most one per day (`automation_events`, kind `morning_briefing`).
+
+Useful one-offs (same secret):
+
+- `?preview=<email>` — that person's briefing as a web page, nothing sent
+- `?to=<email>` — send one briefing to that staff member now, ignoring the audience and the once-a-day limit
+- `?dry=1` — build every briefing, send none
+
+Code: `apps/cmi-next/lib/briefing/` (build, summary, send),
+`lib/email/briefing-email.ts`, `app/api/briefings/run/route.ts`,
+`app/dashboard/today/page.tsx`.
