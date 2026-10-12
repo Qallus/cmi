@@ -27,6 +27,10 @@ export function AddDailyLogDialog({ onClose, onSaved, preselect }: {
     crew: "", visitors: "", delays: "", client_visible: false,
   });
   const [saving, setSaving] = React.useState(false);
+  // Weather fills itself from the first site picked and the date, until
+  // someone types over it.
+  const [weatherNote, setWeatherNote] = React.useState<string | null>(null);
+  const weatherTouched = React.useRef(false);
   const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
@@ -45,6 +49,26 @@ export function AddDailyLogDialog({ onClose, onSaved, preselect }: {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
+
+  const first = picked[0];
+  React.useEffect(() => {
+    if (!first || weatherTouched.current) return;
+    let live = true;
+    const t = window.setTimeout(async () => {
+      setWeatherNote("Looking up the weather…");
+      const res = await fetch(`/api/weather?kind=${first.kind}&id=${first.id}&date=${f.log_date}`).catch(() => null);
+      const json = res && res.ok ? ((await res.json()) as { weather: { weather: string; temperature: string } | null }) : null;
+      if (!live || weatherTouched.current) return;
+      if (json?.weather) {
+        setF((s) => ({ ...s, weather: json.weather!.weather, temperature: json.weather!.temperature }));
+        setWeatherNote(`Filled in for ${first.label}${picked.length > 1 ? " (each site gets its own if you clear these)" : ""}. Edit if needed.`);
+      } else {
+        setWeatherNote(null);
+      }
+    }, 0);
+    return () => { live = false; window.clearTimeout(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch when the first site or the date changes
+  }, [first?.kind, first?.id, f.log_date]);
 
   const key = (t: { kind: string; id: string }) => `${t.kind}:${t.id}`;
   const isPicked = (t: Target) => picked.some((p) => key(p) === key(t));
@@ -137,10 +161,11 @@ export function AddDailyLogDialog({ onClose, onSaved, preselect }: {
             <textarea value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} rows={5} placeholder="Work completed, deliveries, decisions, anything the team should know" className={cn(input, "resize-y")} />
           </label>
           <div className="grid gap-3 sm:grid-cols-3">
-            <label><span className={label}>Weather</span><input value={f.weather} onChange={(e) => setF({ ...f, weather: e.target.value })} placeholder="Sunny" className={input} /></label>
-            <label><span className={label}>Temperature</span><input value={f.temperature} onChange={(e) => setF({ ...f, temperature: e.target.value })} placeholder="92°F" className={input} /></label>
+            <label><span className={label}>Weather</span><input value={f.weather} onChange={(e) => { weatherTouched.current = true; setWeatherNote(null); setF({ ...f, weather: e.target.value }); }} placeholder="Fills in automatically" className={input} /></label>
+            <label><span className={label}>Temperature</span><input value={f.temperature} onChange={(e) => { weatherTouched.current = true; setWeatherNote(null); setF({ ...f, temperature: e.target.value }); }} placeholder="Fills in automatically" className={input} /></label>
             <label><span className={label}>Hours worked</span><input type="number" inputMode="decimal" min="0" step="0.5" value={f.hours_worked} onChange={(e) => setF({ ...f, hours_worked: e.target.value })} className={input} /></label>
           </div>
+          {weatherNote && <p className="-mt-2 text-xs text-muted-foreground">{weatherNote}</p>}
           <div className="grid gap-3 sm:grid-cols-2">
             <label><span className={label}>Crew on site (comma separated)</span><input value={f.crew} onChange={(e) => setF({ ...f, crew: e.target.value })} placeholder="Framing crew, Electrician" className={input} /></label>
             <label><span className={label}>Visitors</span><input value={f.visitors} onChange={(e) => setF({ ...f, visitors: e.target.value })} placeholder="Inspector, client" className={input} /></label>

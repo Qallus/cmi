@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import type { DailyLog, DailyLogDraft } from "./types";
+import { weatherForSite } from "@/lib/weather";
 
 export async function loadDailyLogs(jobId: string): Promise<DailyLog[]> {
   const { data, error } = await getSupabaseAdmin()
@@ -9,8 +10,10 @@ export async function loadDailyLogs(jobId: string): Promise<DailyLog[]> {
 }
 
 export async function createDailyLog(jobId: string, draft: DailyLogDraft, actor?: string | null): Promise<DailyLog> {
+  // Blank weather is looked up for the job site and date.
+  const auto = !draft.weather?.trim() && !draft.temperature?.trim() ? await weatherForSite("job", jobId, draft.log_date) : null;
   const { data, error } = await getSupabaseAdmin().from("daily_logs")
-    .insert({ ...draft, job_id: jobId, created_by: actor ?? null }).select().single();
+    .insert({ ...draft, ...(auto ?? {}), job_id: jobId, created_by: actor ?? null }).select().single();
   if (error) throw new Error(error.message);
   return data as DailyLog;
 }
@@ -65,8 +68,14 @@ export type LogTarget = { kind: "job" | "opportunity"; id: string };
 export async function createDailyLogs(targets: LogTarget[], draft: DailyLogDraft, actor?: string | null): Promise<DailyLog[]> {
   const clean = { ...draft } as Record<string, unknown>;
   delete clean.job_id; delete clean.opportunity_id; delete clean.id;
-  const rows = targets.map((t) => ({
+  // Weather left blank is looked up per site, since several sites can differ.
+  const needWeather = !draft.weather?.trim() && !draft.temperature?.trim();
+  const weather = needWeather
+    ? await Promise.all(targets.map((t) => weatherForSite(t.kind, t.id, draft.log_date)))
+    : targets.map(() => null);
+  const rows = targets.map((t, i) => ({
     ...clean,
+    ...(weather[i] ? { weather: weather[i]!.weather, temperature: weather[i]!.temperature } : {}),
     job_id: t.kind === "job" ? t.id : null,
     opportunity_id: t.kind === "opportunity" ? t.id : null,
     // Clients only see logs on their own job's portal.
