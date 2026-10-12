@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarRange, Camera, CheckCircle2, ChevronUp, Eye, HardHat, Home, IdCard, Image as ImageIcon, Images, LayoutDashboard, Loader2, Mail, Mic, Package, Phone, Sparkles, Users, Video, X } from "lucide-react";
+import { CalendarRange, Camera, CheckCircle2, ChevronUp, Eye, HardHat, Home, IdCard, Image as ImageIcon, Images, LayoutDashboard, Loader2, Mail, Mic, NotebookPen, Package, Phone, Sparkles, Users, Video, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { JobVoiceRecorder } from "./job-voice-recorder";
 
@@ -15,6 +15,7 @@ const ITEMS: NavItem[] = [
   { href: "/dashboard/contacts", label: "Contacts", icon: Users },
   { href: "/dashboard/selections", label: "Selections", icon: Package },
   { href: "/dashboard/jobs", label: "Jobs", icon: HardHat },
+  { href: "/dashboard/daily-logs?new=1", label: "Daily Log", icon: NotebookPen },
   { href: "/dashboard/bookings", label: "Bookings", icon: CalendarRange },
   { href: "/dashboard/documents", label: "Workspace", icon: LayoutDashboard },
   { href: "/dashboard/communications?panel=dialer", label: "Call", icon: Phone },
@@ -27,6 +28,13 @@ const ITEMS: NavItem[] = [
 
 const STORAGE_KEY = "cmi_mobilenav_closed";
 type JobOpt = { id: string; label: string };
+// Where captured media goes. A Daily Log target is "job:<id>" or "opportunity:<id>".
+type Dest = "job" | "precon" | "dailylog";
+const DESTS: { key: Dest; label: string }[] = [
+  { key: "job", label: "Job" },
+  { key: "precon", label: "Pre-Con" },
+  { key: "dailylog", label: "Daily Log" },
+];
 type MediaKind = "image" | "video";
 type Picked = { file: File; url: string; kind: MediaKind };
 
@@ -48,6 +56,10 @@ export function MobileBottomNav() {
   const [jobs, setJobs] = React.useState<JobOpt[]>([]);
   const [jobsLoaded, setJobsLoaded] = React.useState(false);
   const [jobId, setJobId] = React.useState("");
+  const [dest, setDest] = React.useState<Dest>("job");
+  const [opps, setOpps] = React.useState<JobOpt[]>([]);
+  const [oppId, setOppId] = React.useState("");
+  const [logTarget, setLogTarget] = React.useState("");
   const [note, setNote] = React.useState("");
   const [clientVisible, setClientVisible] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
@@ -73,15 +85,28 @@ export function MobileBottomNav() {
   async function ensureJobs() {
     if (jobsLoaded) return;
     try {
-      const rows = await fetch("/api/jobs").then((r) => r.json());
+      const [rows, targets] = await Promise.all([
+        fetch("/api/jobs").then((r) => r.json()),
+        fetch("/api/daily-logs/targets").then((r) => (r.ok ? r.json() : [])),
+      ]);
       if (Array.isArray(rows)) setJobs(rows.map((r: { id: string; job_number?: string; job_name?: string }) => ({ id: r.id, label: [r.job_number, r.job_name].filter(Boolean).join(" · ") || r.job_name || "Job" })));
+      if (Array.isArray(targets)) {
+        setOpps((targets as { kind: string; id: string; label: string; sub: string }[])
+          .filter((t) => t.kind === "opportunity")
+          .map((t) => ({ id: t.id, label: [t.sub.replace(/^Pre-Con( · )?/, ""), t.label].filter(Boolean).join(" · ") })));
+      }
       setJobsLoaded(true);
     } catch { /* modal shows empty state */ }
   }
 
+  // Whether the chosen destination has its record picked.
+  const destReady = dest === "job" ? !!jobId : dest === "precon" ? !!oppId : !!logTarget;
+  // Client portal sharing only exists for Jobs.
+  const canShareWithClient = dest === "job" || (dest === "dailylog" && logTarget.startsWith("job:"));
+
   function openCapture() {
     setCaptureOpen(true);
-    setMode(null); setItems([]); setJobId(""); setNote(""); setClientVisible(false); setSaveErr(""); setSaveDone(false);
+    setMode(null); setItems([]); setJobId(""); setOppId(""); setLogTarget(""); setNote(""); setClientVisible(false); setSaveErr(""); setSaveDone(false);
   }
 
   // Add picked/captured files. `append` accumulates (gallery); otherwise replaces.
@@ -101,34 +126,69 @@ export function MobileBottomNav() {
     });
   }
 
-  async function save() {
-    if (!items.length || !jobId) return;
-    setSaving(true); setSaveErr("");
-    try {
-      const media: { url: string; type: MediaKind; name: string }[] = [];
-      for (const it of items) {
-        const fd = new FormData();
-        fd.append("file", it.file, it.file.name || `${it.kind}-${Date.now()}`);
-        fd.append("folder", it.kind === "video" ? "Job Videos" : "Job Photos");
+  /** Upload every picked file. Job uploads also land in that job's Files. */
+  async function uploadAll(jobFolderFor: string | null, folder: string): Promise<{ url: string; type: MediaKind; name: string }[]> {
+    const media: { url: string; type: MediaKind; name: string }[] = [];
+    for (const it of items) {
+      const fd = new FormData();
+      fd.append("file", it.file, it.file.name || `${it.kind}-${Date.now()}`);
+      fd.append("folder", folder);
+      if (jobFolderFor) {
         fd.append("category", it.kind);
-        const res = await fetch(`/api/jobs/${jobId}/files`, { method: "POST", body: fd });
+        const res = await fetch(`/api/jobs/${jobFolderFor}/files`, { method: "POST", body: fd });
         if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || "Upload failed."); }
         const rec = await res.json();
         media.push({ url: rec.file_url, type: it.kind, name: rec.name });
+      } else {
+        const res = await fetch("/api/admin/uploads", { method: "POST", body: fd });
+        const j = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(j.message || "Upload failed.");
+        media.push({ url: j.url, type: it.kind, name: j.name });
       }
-      const firstImage = media.find((m) => m.type === "image");
+    }
+    return media;
+  }
+
+  async function save() {
+    if (!items.length || !destReady) return;
+    setSaving(true); setSaveErr("");
+    try {
       const kindLabel = items[0].kind === "video" ? "Video" : items.length > 1 ? "Photos" : "Photo";
-      await fetch(`/api/jobs/${jobId}/updates`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: note.trim() ? note.trim().slice(0, 80) : `Job ${kindLabel}`,
-          body: note.trim() || null,
-          media,
-          photo_url: firstImage?.url ?? null,
-          update_type: "photo_update",
-          visibility: clientVisible ? "client_visible" : "internal",
-        }),
-      });
+      if (dest === "job") {
+        const media = await uploadAll(jobId, items[0].kind === "video" ? "Job Videos" : "Job Photos");
+        const firstImage = media.find((m) => m.type === "image");
+        await fetch(`/api/jobs/${jobId}/updates`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: note.trim() ? note.trim().slice(0, 80) : `Job ${kindLabel}`,
+            body: note.trim() || null,
+            media,
+            photo_url: firstImage?.url ?? null,
+            update_type: "photo_update",
+            visibility: clientVisible ? "client_visible" : "internal",
+          }),
+        });
+      } else if (dest === "precon") {
+        const media = await uploadAll(null, `pre-con/${oppId}`);
+        const res = await fetch(`/api/pipeline/${oppId}/media`, {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ media, note }),
+        });
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Save failed.");
+      } else {
+        const [kind, id] = logTarget.split(":") as ["job" | "opportunity", string];
+        const media = await uploadAll(kind === "job" ? id : null, kind === "job" ? "Daily Log Photos" : `daily-logs/${id}`);
+        const res = await fetch("/api/daily-logs", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            targets: [{ kind, id }],
+            title: note.trim() ? note.trim().slice(0, 80) : `Site ${kindLabel.toLowerCase()}`,
+            notes: note.trim() || null,
+            photos: media.map((m) => m.url),
+            client_visible: kind === "job" && clientVisible,
+          }),
+        });
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Save failed.");
+      }
       setSaveDone(true);
     } catch (err) {
       setSaveErr(err instanceof Error ? err.message : "Save failed.");
@@ -139,7 +199,7 @@ export function MobileBottomNav() {
 
   function closeCapture() {
     for (const it of items) URL.revokeObjectURL(it.url);
-    setCaptureOpen(false); setMode(null); setItems([]); setSaveDone(false); setSaveErr(""); setJobId(""); setNote(""); setClientVisible(false);
+    setCaptureOpen(false); setMode(null); setItems([]); setSaveDone(false); setSaveErr(""); setJobId(""); setOppId(""); setLogTarget(""); setNote(""); setClientVisible(false);
   }
 
   const bar = !open ? (
@@ -199,14 +259,14 @@ export function MobileBottomNav() {
         <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 backdrop-blur-sm sm:items-center sm:p-4 lg:hidden" role="dialog" aria-modal="true">
           <div className="w-full max-w-md overflow-hidden rounded-t-2xl border border-border bg-card shadow-2xl sm:rounded-2xl">
             <div className="flex items-center justify-between border-b border-border px-4 py-3">
-              <h2 className="text-sm font-semibold">{saveDone ? "Added to job" : mode ? "Attach to a job" : "Add media"}</h2>
+              <h2 className="text-sm font-semibold">{saveDone ? "Saved" : mode ? "Save media" : "Add media"}</h2>
               <button type="button" onClick={closeCapture} aria-label="Close" className="rounded p-1 text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
             </div>
 
             {saveDone ? (
               <div className="flex flex-col items-center gap-3 p-8 text-center">
                 <CheckCircle2 className="h-10 w-10 text-accent" />
-                <p className="text-sm font-medium">{items.length > 1 ? `${items.length} photos` : items[0]?.kind === "video" ? "Video" : "Photo"} added to the job{clientVisible ? " and shared with the client" : ""}.</p>
+                <p className="text-sm font-medium">{items.length > 1 ? `${items.length} photos` : items[0]?.kind === "video" ? "Video" : "Photo"} {dest === "job" ? " added to the job" : dest === "precon" ? " added to the Pre-Con project" : " saved as a daily log"}{canShareWithClient && clientVisible ? " and shared with the client" : ""}.</p>
                 <div className="flex gap-2">
                   <button type="button" onClick={closeCapture} className="rounded-lg border border-border px-4 py-2 text-sm">Done</button>
                   <button type="button" onClick={openCapture} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white">Add more</button>
@@ -256,26 +316,62 @@ export function MobileBottomNav() {
                 ) : null}
 
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-muted-foreground">Attach to job</label>
-                  <select value={jobId} onChange={(e) => setJobId(e.target.value)} className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-accent">
-                    <option value="">Select a job…</option>
-                    {jobs.map((j) => <option key={j.id} value={j.id}>{j.label}</option>)}
-                  </select>
-                  {jobsLoaded && jobs.length === 0 && <p className="mt-1 text-xs text-muted-foreground">No jobs available.</p>}
+                  <span className="mb-1 block text-xs font-medium text-muted-foreground">Save to</span>
+                  <div role="radiogroup" aria-label="Save to" className="grid grid-cols-3 gap-1 rounded-lg border border-border p-1">
+                    {DESTS.map((d) => (
+                      <button key={d.key} type="button" role="radio" aria-checked={dest === d.key} onClick={() => setDest(d.key)}
+                        className={cn("rounded-md px-2 py-2 text-sm font-medium transition", dest === d.key ? "bg-accent text-white" : "text-muted-foreground hover:bg-muted")}>
+                        {d.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  {dest === "job" && (
+                    <>
+                      <label className="mb-1 block text-xs font-medium text-muted-foreground">Job</label>
+                      <select value={jobId} onChange={(e) => setJobId(e.target.value)} className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-accent">
+                        <option value="">Select a job…</option>
+                        {jobs.map((j) => <option key={j.id} value={j.id}>{j.label}</option>)}
+                      </select>
+                      {jobsLoaded && jobs.length === 0 && <p className="mt-1 text-xs text-muted-foreground">No jobs available.</p>}
+                    </>
+                  )}
+                  {dest === "precon" && (
+                    <>
+                      <label className="mb-1 block text-xs font-medium text-muted-foreground">Pre-Con project</label>
+                      <select value={oppId} onChange={(e) => setOppId(e.target.value)} className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-accent">
+                        <option value="">Select a Pre-Con project…</option>
+                        {opps.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+                      </select>
+                      {jobsLoaded && opps.length === 0 && <p className="mt-1 text-xs text-muted-foreground">No Pre-Con projects available.</p>}
+                    </>
+                  )}
+                  {dest === "dailylog" && (
+                    <>
+                      <label className="mb-1 block text-xs font-medium text-muted-foreground">Daily log for</label>
+                      <select value={logTarget} onChange={(e) => setLogTarget(e.target.value)} className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-accent">
+                        <option value="">Select a Job or Pre-Con…</option>
+                        <optgroup label="Jobs">{jobs.map((j) => <option key={`j${j.id}`} value={`job:${j.id}`}>{j.label}</option>)}</optgroup>
+                        <optgroup label="Pre-Con">{opps.map((o) => <option key={`o${o.id}`} value={`opportunity:${o.id}`}>{o.label}</option>)}</optgroup>
+                      </select>
+                      <p className="mt-1 text-xs text-muted-foreground">Saved as today&apos;s daily log, with your note as the log.</p>
+                    </>
+                  )}
                 </div>
                 <div>
                   <label className="mb-1 block text-xs font-medium text-muted-foreground">Notes / summary (optional)</label>
                   <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="Describe this media…" className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent" />
                 </div>
-                <label className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm">
+                {canShareWithClient && <label className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm">
                   <input type="checkbox" checked={clientVisible} onChange={(e) => setClientVisible(e.target.checked)} className="h-4 w-4 accent-[var(--accent)]" />
                   <Eye className="h-3.5 w-3.5 text-muted-foreground" />
                   <span>Visible to client <span className="text-muted-foreground">— posts to the client portal</span></span>
-                </label>
+                </label>}
                 {saveErr && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-400">{saveErr}</p>}
                 <div className="flex gap-2">
                   <button type="button" onClick={closeCapture} className="flex-1 rounded-lg border border-border px-3 py-2.5 text-sm font-semibold transition hover:bg-muted">Cancel</button>
-                  <button type="button" onClick={() => void save()} disabled={!jobId || saving || items.length === 0} className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-accent px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-accent/90 disabled:opacity-60">
+                  <button type="button" onClick={() => void save()} disabled={!destReady || saving || items.length === 0} className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-accent px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-accent/90 disabled:opacity-60">
                     {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Save
                   </button>
                 </div>

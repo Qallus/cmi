@@ -10,6 +10,7 @@ import { Input, Select, Textarea } from "@/components/ui/input";
 import { STAGE_META } from "@/lib/pipeline/stages";
 import type { Opportunity, PipelineStage, StageHistoryRow } from "@/lib/pipeline/types";
 import { StageBadge, StageRail } from "./stage-rail";
+import { OpportunityMedia } from "./opportunity-media";
 
 export type OwnerOption = { id: string; name: string };
 export type OppContact = {
@@ -312,6 +313,8 @@ export function OpportunityDetailClient({
             </div>
           </div>
         )}
+
+        <OpportunityMedia opportunityId={opp.id} canWrite={canWrite} />
       </div>
 
       {!isAdmin && opp.stage === "closed" && (
