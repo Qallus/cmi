@@ -6,7 +6,7 @@ import * as React from "react";
 import { Camera, ImagePlus, Loader2, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-type Media = { id: string; url: string; media_type: "image" | "video"; name: string | null; note: string | null; created_by: string | null; created_at: string };
+type Media = { id: string; url: string; media_type: "image" | "video" | "audio"; name: string | null; note: string | null; created_by: string | null; created_at: string };
 
 export function OpportunityMedia({ opportunityId, canWrite }: { opportunityId: string; canWrite: boolean }) {
   const [media, setMedia] = React.useState<Media[] | null>(null);
@@ -52,7 +52,7 @@ export function OpportunityMedia({ opportunityId, canWrite }: { opportunityId: s
   return (
     <section className="rounded-lg border border-border bg-card p-5">
       <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 className="flex items-center gap-2 font-display text-lg font-semibold"><Camera className="h-4 w-4 text-accent" /> Photos</h2>
+        <h2 className="flex items-center gap-2 font-display text-lg font-semibold"><Camera className="h-4 w-4 text-accent" /> Photos &amp; voice notes</h2>
         {canWrite && (
           <>
             <input ref={inputRef} type="file" accept="image/*,video/*" multiple hidden
@@ -70,7 +70,13 @@ export function OpportunityMedia({ opportunityId, canWrite }: { opportunityId: s
         <p className="text-sm text-muted-foreground">No photos yet. Add them here, or use the Camera button on a phone.</p>
       ) : (
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          {media.map((m) => (
+          {media.map((m) => m.media_type === "audio" ? (
+            <li key={m.id} className="col-span-2 rounded-md border border-border p-3">
+              <audio src={m.url} controls className="w-full" />
+              {m.note && <p className="mt-2 line-clamp-4 whitespace-pre-wrap text-xs text-muted-foreground">{m.note}</p>}
+              <p className="mt-1 text-[11px] text-muted-foreground">Voice note · {new Date(m.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</p>
+            </li>
+          ) : (
             <li key={m.id}>
               <a href={m.url} target="_blank" rel="noreferrer" className="group block overflow-hidden rounded-md border border-border bg-muted">
                 {m.media_type === "video" ? (

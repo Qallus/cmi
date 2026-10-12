@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { AlertTriangle, Camera, Check, Clock, CloudSun, Eye, NotebookPen, Plus, Search, Users } from "lucide-react";
+import { AlertTriangle, Camera, Check, Clock, CloudSun, Eye, Mic, NotebookPen, Plus, Search, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { AddDailyLogDialog } from "@/components/dashboard/add-daily-log";
@@ -117,6 +117,7 @@ export function AllDailyLogsClient({ logs }: { logs: DailyLogWithJob[] }) {
                     {(l.weather || l.temperature) && <span className="flex items-center gap-1"><CloudSun className="h-3.5 w-3.5" /> {[l.weather, l.temperature].filter(Boolean).join(" · ")}</span>}
                     {l.hours_worked != null && <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> {l.hours_worked} hrs</span>}
                     {(l.crew?.length ?? 0) > 0 && <span className="flex items-center gap-1"><Users className="h-3.5 w-3.5" /> {l.crew!.length} crew</span>}
+                    {(l.attachments ?? []).some((a) => a.type === "audio") && <span className="flex items-center gap-1"><Mic className="h-3.5 w-3.5" /> Voice note</span>}
                     {(l.photos?.length ?? 0) > 0 && <span className="flex items-center gap-1"><Camera className="h-3.5 w-3.5" /> {l.photos!.length} photo{l.photos!.length === 1 ? "" : "s"}</span>}
                   </div>
                 </Link>

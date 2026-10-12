@@ -30,7 +30,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (!media.length) return NextResponse.json({ error: "Nothing to save." }, { status: 400 });
     const note = (body.note ?? "").trim() || null;
     const { data, error } = await getSupabaseAdmin().from("opportunity_media").insert(media.map((m) => ({
-      opportunity_id: id, url: m.url, media_type: m.type === "video" ? "video" : "image", name: m.name ?? null, note, created_by: user.email ?? null,
+      opportunity_id: id, url: m.url, media_type: m.type === "video" || m.type === "audio" ? m.type : "image", name: m.name ?? null, note, created_by: user.email ?? null,
     }))).select();
     if (error) throw new Error(error.message);
     return NextResponse.json(data, { status: 201 });

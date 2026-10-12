@@ -6,15 +6,39 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
 import type { DailyLog, DailyLogDraft } from "@/lib/daily-logs/types";
+import { LogMedia } from "@/components/dashboard/log-media";
 import { JobModuleShell, ModuleModal, Field, inputCls, fmtDate } from "../job-module-shell";
 
 type Modal = { mode: "add" } | { mode: "edit"; log: DailyLog } | null;
+
+// What a log holds decides its tab: a voice note (usually transcribed),
+// photos/video from the camera, or a standard written log.
+type LogTab = "all" | "standard" | "photos" | "voice";
+const TABS: { key: LogTab; label: string }[] = [
+  { key: "all", label: "All Logs" },
+  { key: "standard", label: "Standard" },
+  { key: "photos", label: "Photos" },
+  { key: "voice", label: "Voice" },
+];
+function logKind(log: DailyLog): Exclude<LogTab, "all"> {
+  const att = log.attachments ?? [];
+  if (att.some((a) => a.type === "audio")) return "voice";
+  if ((log.photos ?? []).length > 0 || att.some((a) => a.type === "video")) return "photos";
+  return "standard";
+}
 
 export function DailyLogsClient({ jobId, jobName, initial }: { jobId: string; jobName: string; initial: DailyLog[] }) {
   const [rows, setRows] = React.useState<DailyLog[]>(initial);
   const [modal, setModal] = React.useState<Modal>(null);
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [tab, setTab] = React.useState<LogTab>("all");
+  const counts = React.useMemo(() => {
+    const c = { all: rows.length, standard: 0, photos: 0, voice: 0 };
+    for (const r of rows) c[logKind(r)] += 1;
+    return c;
+  }, [rows]);
+  const shown = tab === "all" ? rows : rows.filter((r) => logKind(r) === tab);
   const [d, setD] = React.useState({ log_date: "", title: "", notes: "", weather: "", temperature: "", hours_worked: "", crew: "", visitors: "", delays: "", client_visible: false });
 
   function openAdd() { setD({ log_date: new Date().toISOString().slice(0, 10), title: "", notes: "", weather: "", temperature: "", hours_worked: "", crew: "", visitors: "", delays: "", client_visible: false }); setError(null); setModal({ mode: "add" }); }
@@ -43,9 +67,22 @@ export function DailyLogsClient({ jobId, jobName, initial }: { jobId: string; jo
   return (
     <JobModuleShell jobId={jobId} jobName={jobName} active="daily-logs" title="Daily Logs"
       action={<Button size="sm" variant="accent" onClick={openAdd}><Plus className="h-3.5 w-3.5" /> Add Log</Button>}>
+      <div role="tablist" className="mb-4 flex gap-1 overflow-x-auto border-b border-border">
+        {TABS.map((t) => (
+          <button key={t.key} type="button" role="tab" aria-selected={tab === t.key} onClick={() => setTab(t.key)}
+            className={`-mb-px flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors ${tab === t.key ? "border-accent text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+            {t.label}
+            <span className="rounded-full bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">{counts[t.key]}</span>
+          </button>
+        ))}
+      </div>
       <div className="space-y-3">
-        {rows.length === 0 && <div className="rounded-lg border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">No daily logs yet.</div>}
-        {rows.map((log) => (
+        {shown.length === 0 && (
+          <div className="rounded-lg border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
+            {rows.length === 0 ? "No daily logs yet." : tab === "voice" ? "No voice notes yet. Record one from the Record button on your phone." : tab === "photos" ? "No photo logs yet. Take one with the Camera button on your phone." : "No standard logs yet."}
+          </div>
+        )}
+        {shown.map((log) => (
           <div key={log.id} className="rounded-lg border border-border p-4">
             <div className="flex items-start justify-between">
               <div>
@@ -63,6 +100,7 @@ export function DailyLogsClient({ jobId, jobName, initial }: { jobId: string; jo
             </div>
             {log.notes && <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{log.notes}</p>}
             {log.delays && <p className="mt-1 text-sm text-destructive">Delays: {log.delays}</p>}
+            <LogMedia photos={log.photos} attachments={log.attachments} />
           </div>
         ))}
       </div>

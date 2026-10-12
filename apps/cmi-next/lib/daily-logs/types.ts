@@ -14,6 +14,8 @@ export type DailyLog = {
   visitors: string | null;
   delays: string | null;
   photos: string[] | null;
+  /** Voice notes and other non-photo files: [{ url, type, name }]. */
+  attachments: { url: string; type: string; name?: string | null }[] | null;
   client_visible: boolean;
   created_by: string | null;
   created_at: string;

@@ -116,6 +116,10 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         <EnvRow label="Reply-To" envKey="RESEND_REPLY_TO" />
       </CredentialCard>
 
+      <CredentialCard title="OpenAI" note="Transcribes voice notes and meeting recordings.">
+        <EnvRow label="API Key" envKey="OPENAI_API_KEY" masked />
+      </CredentialCard>
+
       <CredentialCard title="Twilio (SMS & Voice)">
         <EnvRow label="Account SID" envKey="TWILIO_ACCOUNT_SID" />
         <EnvRow label="Auth Token" envKey="TWILIO_AUTH_TOKEN" masked />
