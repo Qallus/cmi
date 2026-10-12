@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { BadgeDollarSign, CalendarClock, Clock, Contact, FileSignature, FileText, HardHat, LayoutGrid, MapPin, MessagesSquare, Pencil, ReceiptText, ScrollText, SlidersHorizontal, Users, X } from "lucide-react";
+import { BadgeDollarSign, CalendarClock, Clock, Contact, FileSignature, FileText, HardHat, LayoutGrid, MapPin, MessagesSquare, NotebookPen, Pencil, ReceiptText, SlidersHorizontal, Users, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -284,7 +284,7 @@ function JobStatsRow({ stats, jobId }: { stats: JobStats; jobId: string }) {
   const tiles: { label: string; value: number; icon: React.ComponentType<{ className?: string }>; href: string }[] = [
     { label: "Documents", value: stats.documents, icon: FileText, href: `/dashboard/jobs/${jobId}/documents` },
     { label: "Contracts", value: stats.contracts, icon: FileSignature, href: `/dashboard/jobs/${jobId}/documents` },
-    { label: "SOWs", value: stats.sows, icon: ScrollText, href: `/dashboard/jobs/${jobId}/documents` },
+    { label: "Daily Logs", value: stats.dailyLogs, icon: NotebookPen, href: `/dashboard/jobs/${jobId}/daily-logs` },
     { label: "Selections", value: stats.selections, icon: SlidersHorizontal, href: `/dashboard/jobs/${jobId}/selections` },
     { label: "Change Orders", value: stats.changeOrders, icon: LayoutGrid, href: `/dashboard/jobs/${jobId}/change-orders` },
     { label: "Invoices", value: stats.invoices, icon: ReceiptText, href: `/dashboard/jobs/${jobId}/invoices` },

@@ -14,6 +14,7 @@ const TABS: { slug: string; label: string; href: (id: string) => string }[] = [
   { slug: "price-summary", label: "Price Summary", href: (id) => `/dashboard/jobs/${id}/price-summary` },
   { slug: "client-portal", label: "Client Portal", href: (id) => `/dashboard/jobs/${id}/client-portal` },
   { slug: "schedule", label: "Schedule", href: (id) => `/dashboard/jobs/${id}/schedule` },
+  { slug: "daily-logs", label: "Daily Logs", href: (id) => `/dashboard/jobs/${id}/daily-logs` },
   { slug: "projects", label: "Projects & Tasks", href: (id) => `/dashboard/jobs/${id}/projects` },
   { slug: "documents", label: "Documents", href: (id) => `/dashboard/jobs/${id}/documents` },
   { slug: "files", label: "Files", href: (id) => `/dashboard/jobs/${id}/files` },

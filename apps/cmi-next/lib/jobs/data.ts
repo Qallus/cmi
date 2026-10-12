@@ -181,7 +181,7 @@ export async function getJob(id: string): Promise<JobWithRelations | null> {
 }
 
 // Per-job stat-tile counts for the summary. invoices/staff/contacts are true
-// job FKs; documents/contracts/sows match by project name (that table links by
+// job FKs; documents/contracts match by project name (that table links by
 // text, not job_id); quotes/bookings match by the job's client contacts.
 export async function getJobStats(job: JobWithRelations): Promise<JobStats> {
   const sb = getSupabaseAdmin();
@@ -192,7 +192,7 @@ export async function getJobStats(job: JobWithRelations): Promise<JobStats> {
 
   const docsQ = name ? head("documents").ilike("project", name) : null;
   const contractsQ = name ? head("documents").ilike("project", name).ilike("type", "%contract%") : null;
-  const sowsQ = name ? head("documents").ilike("project", name).or("type.ilike.%sow%,type.ilike.%statement of work%,type.ilike.%scope of work%") : null;
+  const dailyLogsQ = head("daily_logs").eq("job_id", job.id);
   const invoicesQ = head("invoices").eq("job_id", job.id);
   // Selections attached directly (job_id) OR via a reusable association row —
   // mirror loadJobSelections so the stat matches the Selections tab list.
@@ -211,10 +211,10 @@ export async function getJobStats(job: JobWithRelations): Promise<JobStats> {
   const quotesQ = clientIds.length ? head("quotes").in("contact_id", clientIds) : null;
   const bookingsQ = clientIds.length ? head("booking_appointments").in("contact_id", clientIds) : null;
 
-  const [documents, contracts, sows, invoices, selections, changeOrders, updates, quotes, bookings] = await Promise.all([
+  const [documents, contracts, dailyLogs, invoices, selections, changeOrders, updates, quotes, bookings] = await Promise.all([
     docsQ ? docsQ.then(num) : Promise.resolve(0),
     contractsQ ? contractsQ.then(num) : Promise.resolve(0),
-    sowsQ ? sowsQ.then(num) : Promise.resolve(0),
+    dailyLogsQ.then(num),
     invoicesQ.then(num),
     selectionsCountP,
     changeOrdersQ.then(num),
@@ -224,7 +224,7 @@ export async function getJobStats(job: JobWithRelations): Promise<JobStats> {
   ]);
 
   return {
-    documents, contracts, sows, selections, changeOrders,
+    documents, contracts, dailyLogs, selections, changeOrders,
     staff: job.internal_users.length,
     vendors: job.vendors.length,
     quotes, invoices,
@@ -234,13 +234,16 @@ export async function getJobStats(job: JobWithRelations): Promise<JobStats> {
 }
 
 // ─── Create / update / archive ─────────────────────────────────
-// Creating a job mints its YY_###_Name job number (via the DB trigger), unless a
-// job_number is passed explicitly (staff override). Default job_settings and
-// job_insurance rows are created so the Info tabs always have a record to edit.
-export async function createJob(draft: JobDraft, actor?: Actor): Promise<Job> {
+// Creating a job mints its YY_###_Name job number (via the DB trigger), unless
+// `numberPrefix` carries the YY_### its deal/opportunity already holds, so a
+// won deal's job keeps the number it has had since the first pipeline stage.
+// Default job_settings and job_insurance rows are created so the Info tabs
+// always have a record to edit.
+export async function createJob(draft: JobDraft, actor?: Actor, opts?: { numberPrefix?: string | null }): Promise<Job> {
   const sb = getSupabaseAdmin();
   const clean = sanitize(draft);
   clean.job_name = await ensureUniqueJobName(draft.job_name);
+  if (opts?.numberPrefix) clean.job_number = `${opts.numberPrefix}_${clean.job_name}`;
   clean.full_address = fullAddress(clean);
 
   // Best-effort geocode when we have an address but no coordinates.
@@ -448,7 +451,10 @@ export async function convertOpportunityToJob(
     internal_notes: opp.notes ?? null,
     ...overrides,
   };
-  const job = await createJob(draft, actor);
+  // A YY_### number came from the deal: the job carries it rather than taking
+  // the next one. Legacy CM-YYYY-#### numbers still get a fresh job number.
+  const inherited = /^\d{2}_\d{3}$/.test(opp.job_number ?? "") ? opp.job_number : null;
+  const job = await createJob(draft, actor, { numberPrefix: inherited });
 
   // Thread the pre-construction number (CM-YYYY-####) onto the job so the lead →
   // opportunity → job chain shares one traceable number, alongside the job's own

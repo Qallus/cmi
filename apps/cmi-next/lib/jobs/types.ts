@@ -20,11 +20,11 @@ export type ContractType = "fixed_price" | "open_book";
 
 // Per-job stat tiles shown on the summary. Counts are job-scoped where a FK
 // exists (invoices, staff, contacts) or matched by client/project otherwise
-// (documents, contracts, sows link by project name; quotes/bookings by client).
+// (documents and contracts link by project name; quotes/bookings by client).
 export type JobStats = {
   documents: number;
   contracts: number;
-  sows: number;
+  dailyLogs: number;
   selections: number;
   changeOrders: number;
   staff: number;
