@@ -19,3 +19,7 @@ insert into public.briefing_settings (id) values (true) on conflict (id) do noth
 
 -- Server-only: read and written through the service role by Super Admin routes.
 alter table public.briefing_settings enable row level security;
+
+-- 2026-10-12: the automatic send skips Saturday and Sunday (Arizona time)
+-- unless this is turned off. Manual and test sends are unaffected.
+alter table public.briefing_settings add column if not exists weekdays_only boolean not null default true;

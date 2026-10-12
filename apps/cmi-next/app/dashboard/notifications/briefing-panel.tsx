@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-type Settings = { auto_enabled: boolean; audience: "all" | "selected"; recipient_ids: string[]; include_ai: boolean; updated_at: string | null };
+type Settings = { auto_enabled: boolean; audience: "all" | "selected"; recipient_ids: string[]; include_ai: boolean; weekdays_only: boolean; updated_at: string | null };
 type Staff = { id: string; name: string; email: string; role: string; status: string; emailOff: boolean };
 type HistoryRow = { id: string; recipient: string; status: string; created_at: string; sent_at: string | null; error: string | null; subject: string | null; trigger: string | null; sent_by: string | null; summary_from_ai: boolean | null };
 type RunResult = { sent: string[]; skipped: { email: string; reason: string }[]; failed: { email: string; error: string }[] };
@@ -68,7 +68,7 @@ export function BriefingPanel() {
     try {
       const res = await fetch("/api/notifications/briefing", {
         method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ auto_enabled: draft.auto_enabled, audience: draft.audience, recipient_ids: draft.recipient_ids, include_ai: draft.include_ai }),
+        body: JSON.stringify({ auto_enabled: draft.auto_enabled, audience: draft.audience, recipient_ids: draft.recipient_ids, include_ai: draft.include_ai, weekdays_only: draft.weekdays_only }),
       });
       const json = (await res.json()) as { settings?: Settings; error?: string };
       if (!res.ok || json.error || !json.settings) throw new Error(json.error ?? `HTTP ${res.status}`);
@@ -118,7 +118,7 @@ export function BriefingPanel() {
           <CardHeader className="flex-row items-start justify-between gap-3">
             <div>
               <CardTitle className="flex items-center gap-2"><Clock className="h-4 w-4 text-accent" /> Automatic daily send</CardTitle>
-              <p className="mt-1 text-sm text-muted-foreground">Goes out every morning at 6:00 AM Arizona time. Each person gets one a day, and anyone who has turned off email notifications is skipped.</p>
+              <p className="mt-1 text-sm text-muted-foreground">Goes out at 6:00 AM Arizona time{draft.weekdays_only ? ", Monday to Friday" : ", every day"}. Each person gets one a day, and anyone who has turned off email notifications is skipped.</p>
             </div>
             <Badge tone={draft.auto_enabled ? "success" : "warning"}>{draft.auto_enabled ? "On" : "Paused"}</Badge>
           </CardHeader>
@@ -129,6 +129,7 @@ export function BriefingPanel() {
               </p>
             )}
             <Toggle label="Send the briefing automatically every morning" checked={draft.auto_enabled} onChange={(v) => setDraft({ ...draft, auto_enabled: v })} />
+            <Toggle label="Weekdays only (Monday to Friday)" hint="Skips Saturday and Sunday. Manual sends work any day." checked={draft.weekdays_only} onChange={(v) => setDraft({ ...draft, weekdays_only: v })} />
             <Toggle label="Include the AI summary (“Here's what needs you today”)" hint="Off uses a plain sentence built from the counts." checked={draft.include_ai} onChange={(v) => setDraft({ ...draft, include_ai: v })} />
             <Field label="Who receives it">
               <select value={draft.audience} onChange={(e) => setDraft({ ...draft, audience: e.target.value as Settings["audience"] })} className={inputCls}>

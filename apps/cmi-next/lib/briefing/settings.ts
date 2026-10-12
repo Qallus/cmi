@@ -7,12 +7,14 @@ export type BriefingSettings = {
   audience: "all" | "selected";
   recipient_ids: string[];
   include_ai: boolean;
+  /** Skip the automatic send on Saturday and Sunday (Arizona time). */
+  weekdays_only: boolean;
   updated_by: string | null;
   updated_at: string | null;
 };
 
 export const DEFAULT_BRIEFING_SETTINGS: BriefingSettings = {
-  auto_enabled: true, audience: "all", recipient_ids: [], include_ai: true, updated_by: null, updated_at: null,
+  auto_enabled: true, audience: "all", recipient_ids: [], include_ai: true, weekdays_only: true, updated_by: null, updated_at: null,
 };
 
 /** Never throws: a missing row or table falls back to the defaults (send to everyone). */
@@ -26,12 +28,13 @@ export async function loadBriefingSettings(): Promise<BriefingSettings> {
 }
 
 export async function saveBriefingSettings(
-  patch: Partial<Pick<BriefingSettings, "auto_enabled" | "audience" | "recipient_ids" | "include_ai">>,
+  patch: Partial<Pick<BriefingSettings, "auto_enabled" | "audience" | "recipient_ids" | "include_ai" | "weekdays_only">>,
   staffId: string,
 ): Promise<BriefingSettings> {
   const clean: Record<string, unknown> = { id: true, updated_by: staffId, updated_at: new Date().toISOString() };
   if (typeof patch.auto_enabled === "boolean") clean.auto_enabled = patch.auto_enabled;
   if (typeof patch.include_ai === "boolean") clean.include_ai = patch.include_ai;
+  if (typeof patch.weekdays_only === "boolean") clean.weekdays_only = patch.weekdays_only;
   if (patch.audience === "all" || patch.audience === "selected") clean.audience = patch.audience;
   if (Array.isArray(patch.recipient_ids)) clean.recipient_ids = patch.recipient_ids.filter((x) => typeof x === "string");
   const { data, error } = await getSupabaseAdmin().from("briefing_settings").upsert(clean, { onConflict: "id" }).select("*").single();

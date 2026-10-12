@@ -67,6 +67,8 @@ export async function runBriefings(opts: BriefingRunOptions = {}): Promise<Brief
     const ids = opts.recipientIds ?? [];
     recipients = ids === "all" ? staff : staff.filter((s) => ids.includes(s.id));
     result.audience = ids === "all" ? "all staff (manual)" : `${recipients.length} selected (manual)`;
+  } else if (settings.weekdays_only && isWeekendAz()) {
+    result.audience = "nobody (weekend; the automatic send runs Monday to Friday)";
   } else {
     const env = envAudience();
     if (env === "none") {
@@ -127,6 +129,12 @@ export async function runBriefings(opts: BriefingRunOptions = {}): Promise<Brief
     }
   }
   return result;
+}
+
+/** Saturday or Sunday in Arizona. */
+function isWeekendAz(now = new Date()): boolean {
+  const day = now.toLocaleDateString("en-US", { timeZone: BRIEFING_TZ, weekday: "short" });
+  return day === "Sat" || day === "Sun";
 }
 
 export async function emailOptOuts(ids: string[]): Promise<Set<string>> {
