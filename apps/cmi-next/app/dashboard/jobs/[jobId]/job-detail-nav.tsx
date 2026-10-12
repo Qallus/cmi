@@ -27,21 +27,37 @@ const TABS: { slug: string; label: string; href: (id: string) => string }[] = [
   { slug: "activity", label: "Activity", href: (id) => `/dashboard/jobs/${id}/activity` },
 ];
 
-// Single-row job header: back-to-all-jobs (left), the scrollable tab menu
-// (center), and an optional action such as "Edit Job Info" (right).
+// Job header: back-to-all-jobs, the scrollable tab menu, and an optional
+// action such as "Edit Job Info". One row on desktop. On phones and tablets
+// the back link and action share the top row and the tabs get a full-width
+// row of their own; squeezed between them, only a tab or two was visible.
 export function JobDetailNav({ jobId, active, action }: { jobId: string; active: string; action?: React.ReactNode }) {
   const { collapsed } = useSidebar();
 
+  // Bring the current tab into view: on a phone it's often off to the right.
+  const activeRef = React.useRef<HTMLAnchorElement>(null);
+  React.useEffect(() => {
+    activeRef.current?.scrollIntoView({ block: "nearest", inline: "center" });
+  }, [active]);
+
+  const back = (
+    <Link href="/dashboard/jobs" className="shrink-0 whitespace-nowrap text-sm text-muted-foreground transition hover:text-foreground">
+      ← All jobs
+    </Link>
+  );
+
   // Horizontal bar — the default, and the mobile layout even when collapsed.
   const horizontal = (
-    <div className="flex items-center gap-3 border-b border-border bg-card px-4 md:px-6">
-      <Link href="/dashboard/jobs" className="shrink-0 whitespace-nowrap text-sm text-muted-foreground transition hover:text-foreground">
-        ← All jobs
-      </Link>
-      <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto">
+    <div className="border-b border-border bg-card lg:flex lg:items-center lg:gap-3 lg:px-6">
+      <div className="flex items-center justify-between gap-3 px-4 pt-2.5 md:px-6 lg:contents">
+        {back}
+        {action ? <div className="shrink-0 lg:order-last">{action}</div> : null}
+      </div>
+      <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto px-2 md:px-4 lg:px-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {TABS.map((t) => (
           <Link
             key={t.slug}
+            ref={active === t.slug ? activeRef : undefined}
             href={t.href(jobId)}
             className={cn(
               "shrink-0 border-b-2 px-3 py-2.5 text-sm font-medium transition",
@@ -52,7 +68,6 @@ export function JobDetailNav({ jobId, active, action }: { jobId: string; active:
           </Link>
         ))}
       </div>
-      {action ? <div className="shrink-0">{action}</div> : null}
     </div>
   );
 
