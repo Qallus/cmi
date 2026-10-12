@@ -53,6 +53,51 @@ async function ensureUniqueSlug(table: string, base: string): Promise<string> {
   return `${root}-${Date.now().toString(36)}`;
 }
 
+// Models pick the wrong field ("status": "Prospect" when Prospect is a contact
+// type) or filter on the record type itself ("status": "Contact"), and a
+// silent 0 gets reported as fact. Before querying, a value that belongs to a
+// different enum field moves there, a filter naming the entity is dropped,
+// and every change is reported back so Bolt can say what it searched.
+function normalizeFilters(entity: AgentEntity, filters?: Record<string, unknown>): { filters: Record<string, unknown>; notes: string[] } {
+  const out: Record<string, unknown> = {};
+  const notes: string[] = [];
+  if (!filters) return { filters: out, notes };
+  const enumFields = entity.fields.filter((f) => f.type === "enum" && f.enumValues?.length);
+  const owner = (v: string) => enumFields.find((f) => f.enumValues!.some((e) => e.toLowerCase() === v.toLowerCase()));
+  const selfNames = [entity.key, entity.label, entity.plural].map((n) => n.toLowerCase());
+
+  for (const [k, v] of Object.entries(filters)) {
+    const field = entity.fields.find((f) => f.name === k);
+    if (typeof v !== "string") { if (field || k === entity.idColumn) out[k] = v; continue; }
+    if (selfNames.includes(v.toLowerCase()) || selfNames.includes(`${v.toLowerCase()}s`)) {
+      notes.push(`Ignored ${k}="${v}": that's the record type itself, not a value.`);
+      continue;
+    }
+    const fits = field?.type === "enum" ? field.enumValues?.some((e) => e.toLowerCase() === v.toLowerCase()) : !!field;
+    if (fits || k === entity.idColumn) { out[k] = v; continue; }
+    const right = owner(v);
+    if (right && !(right.name in out)) {
+      notes.push(`"${v}" is a ${right.name}, not a ${k}; searched ${right.name}="${v}".`);
+      out[right.name] = v;
+    } else if (field) {
+      out[k] = v;
+      if (field.enumValues) notes.push(`"${v}" isn't a known ${k}. Valid ${k} values: ${field.enumValues.join(", ")}.`);
+    } else {
+      notes.push(`Ignored unknown field "${k}".`);
+    }
+  }
+  return { filters: out, notes };
+}
+
+/** When a filtered search finds nothing, the valid values for those fields. */
+function zeroHint(entity: AgentEntity, filters: Record<string, unknown>): string | undefined {
+  const parts = Object.keys(filters)
+    .map((k) => entity.fields.find((f) => f.name === k))
+    .filter((f): f is NonNullable<typeof f> => !!f?.enumValues?.length)
+    .map((f) => `${f.name}: ${f.enumValues!.join(", ")}`);
+  return parts.length ? `No matches. Check the filter values against: ${parts.join("; ")}. Try again with a corrected filter, or count with no filter.` : undefined;
+}
+
 // Filters and search shared by list and count, so a count always matches the
 // list it summarises. Text and enum values match case-insensitively ("lead"
 // finds "Lead"); a null value matches empty fields.
@@ -84,15 +129,21 @@ export async function listRecords(entityKey: string, opts: { search?: string; fi
   const sb = getSupabaseAdmin();
   const limit = Math.min(Math.max(opts.limit ?? 20, 1), 50);
 
+  const { filters, notes } = normalizeFilters(entity, opts.filters);
   let q = sb.from(entity.table).select(selectColumns(entity), { count: "exact" }).limit(limit);
   if (entity.orderBy) q = q.order(entity.orderBy.column, { ascending: entity.orderBy.ascending });
-  q = applyFilters(q, entity, opts.filters, opts.search);
+  q = applyFilters(q, entity, filters, opts.search);
 
   const { data, error, count } = await q;
   if (error) return { error: error.message };
   // `returned` is this page; `total` is every match. Totals must come from
   // `total` (or count_records), never from how many rows came back.
-  return { returned: data?.length ?? 0, total: count ?? data?.length ?? 0, records: data ?? [] };
+  const total = count ?? data?.length ?? 0;
+  return {
+    returned: data?.length ?? 0, total, records: data ?? [],
+    ...(notes.length ? { adjusted: notes } : {}),
+    ...(total === 0 && Object.keys(filters).length ? { hint: zeroHint(entity, filters) } : {}),
+  };
 }
 
 /**
@@ -105,12 +156,17 @@ export async function countRecords(entityKey: string, opts: { search?: string; f
   if (!entity) return { error: `Unknown entity "${entityKey}".` };
   const sb = getSupabaseAdmin();
 
-  const head = applyFilters(sb.from(entity.table).select("*", { count: "exact", head: true }), entity, opts.filters, opts.search);
+  const { filters, notes } = normalizeFilters(entity, opts.filters);
+  const extra = (total: number) => ({
+    ...(notes.length ? { adjusted: notes } : {}),
+    ...(total === 0 && Object.keys(filters).length ? { hint: zeroHint(entity, filters) } : {}),
+  });
+  const head = applyFilters(sb.from(entity.table).select("*", { count: "exact", head: true }), entity, filters, opts.search);
   const { count, error } = await head;
   if (error) return { error: error.message };
   const total = count ?? 0;
 
-  if (!opts.group_by) return { entity: entity.plural, total };
+  if (!opts.group_by) return { entity: entity.plural, total, ...extra(total) };
   if (!entity.fields.some((f) => f.name === opts.group_by)) return { error: `"${opts.group_by}" isn't a field of ${entity.plural}. Call describe_entity to see fields.` };
 
   const groups: Record<string, number> = {};
@@ -118,14 +174,14 @@ export async function countRecords(entityKey: string, opts: { search?: string; f
   for (let from = 0; from < Math.min(total, 20000); from += PAGE) {
     const field = opts.group_by;
     const res: { data: unknown[] | null; error: { message: string } | null } =
-      await applyFilters(sb.from(entity.table).select(field).range(from, from + PAGE - 1), entity, opts.filters, opts.search);
+      await applyFilters(sb.from(entity.table).select(field).range(from, from + PAGE - 1), entity, filters, opts.search);
     if (res.error) return { error: res.error.message };
     for (const row of (res.data ?? []) as Record<string, unknown>[]) {
       const key = row[opts.group_by] == null || row[opts.group_by] === "" ? "(none)" : String(row[opts.group_by]);
       groups[key] = (groups[key] ?? 0) + 1;
     }
   }
-  return { entity: entity.plural, total, by: opts.group_by, groups };
+  return { entity: entity.plural, total, by: opts.group_by, groups, ...extra(total) };
 }
 
 export async function getRecord(entityKey: string, id: string): Promise<ToolResult> {
