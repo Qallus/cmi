@@ -4,8 +4,11 @@
 import { ENTITIES, getEntity } from "./entities";
 import { getJobOverview } from "./job-context";
 import {
-  createRecord, deleteRecord, getRecord, listRecords, sendMessage, updateRecord,
+  countRecords, createRecord, deleteRecord, getRecord, listRecords, sendMessage, updateRecord,
 } from "./registry";
+import { DASHBOARD_GUIDE, searchGuide } from "./dashboard-guide";
+import { loadHiddenNav } from "@/lib/nav-settings";
+import { publicAppUrl } from "@/lib/twilio";
 import type { PendingAction, StaffContext, ToolActivity, ToolResult } from "./types";
 import { isFeatureEnabled } from "@/lib/flags";
 import { canUseProjections, PROJECTIONS_FLAG } from "@/lib/projections/access";
@@ -16,6 +19,35 @@ const entityEnum = ENTITIES.map((e) => e.key);
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const TOOL_DEFS: any[] = [
+  {
+    type: "function",
+    function: {
+      name: "count_records",
+      description: "EXACT count of records, counted by the database. Use this for EVERY 'how many' / 'total' / 'number of' question, never list_records. Optional filters (exact field matches, case-insensitive for text, e.g. {\"type\":\"Lead\"}), search, and group_by to break the total down by one field (e.g. contacts by type, jobs by status).",
+      parameters: {
+        type: "object",
+        properties: {
+          entity: { type: "string", enum: entityEnum },
+          filters: { type: "object", description: "Exact field matches, e.g. {\"type\":\"Lead\"}", additionalProperties: true },
+          search: { type: "string", description: "Keyword to match common text fields" },
+          group_by: { type: "string", description: "Field to break the count down by, e.g. \"type\" or \"status\"" },
+        },
+        required: ["entity"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "dashboard_help",
+      description: "Look up where something is in the CMI dashboard and how to use it: the page, a link, how to get there from the sidebar or phone menu, what it does, and step-by-step directions. Use for any 'how do I', 'where is', 'can the dashboard…', or 'what does X do' question. Pass the user's words as the query.",
+      parameters: {
+        type: "object",
+        properties: { query: { type: "string", description: "What the user wants to find or do, e.g. 'add a daily log' or 'hide a sidebar item'" } },
+        required: ["query"],
+      },
+    },
+  },
   {
     type: "function",
     function: {
@@ -52,7 +84,7 @@ export const TOOL_DEFS: any[] = [
     type: "function",
     function: {
       name: "list_records",
-      description: "List/search records of an entity. Use filters for exact field matches and search for keyword lookups.",
+      description: "List/search records of an entity (up to 50 per call). The result's `total` is the number of ALL matches; `returned` is just this page. For totals use count_records. Filters are exact matches (case-insensitive for text); search is a keyword lookup.",
       parameters: {
         type: "object",
         properties: {
@@ -213,9 +245,30 @@ export async function dispatchTool(name: string, args: Record<string, unknown>, 
         return { result: r, activity: act(r.error ? String(r.error) : `Loaded job overview${label ? ` for ${label}` : ""}`, !r.error) };
       }
 
+      case "count_records": {
+        const r = await countRecords(String(args.entity), { search: args.search as string, filters: args.filters as Record<string, unknown>, group_by: args.group_by as string });
+        return { result: r, activity: act(r.error ? `Count failed: ${r.error}` : `Counted ${String(args.entity)}: ${String((r as { total?: number }).total ?? 0)}`, !r.error) };
+      }
+
+      case "dashboard_help": {
+        const query = String(args.query ?? "");
+        const matches = searchGuide(query);
+        const hidden = new Set(await loadHiddenNav());
+        const app = publicAppUrl();
+        const entries = (matches.length ? matches : DASHBOARD_GUIDE.filter((e) => ["overview", "today"].includes(e.id))).map((e) => ({
+          name: e.name,
+          link: `${app}${e.path}`,
+          how_to_get_there: hidden.has(e.path) ? `${e.nav} (currently hidden from the sidebar; use the link, or show it again in Settings → Sidebar Navigation)` : e.nav,
+          who_can_use_it: e.roles ?? "All staff",
+          what_it_does: e.summary,
+          steps: e.steps ?? [],
+        }));
+        return { result: { matches: entries, note: matches.length ? undefined : "No close match; showing the main pages." }, activity: act(`Looked up "${query}" in the dashboard guide`) };
+      }
+
       case "list_records": {
         const r = await listRecords(String(args.entity), { search: args.search as string, filters: args.filters as Record<string, unknown>, limit: args.limit as number });
-        return { result: r, activity: act(r.error ? `Search failed: ${r.error}` : `Found ${r.count ?? 0} ${String(args.entity)} record(s)`, !r.error) };
+        return { result: r, activity: act(r.error ? `Search failed: ${r.error}` : `Found ${String((r as { total?: number }).total ?? 0)} ${String(args.entity)} record(s)`, !r.error) };
       }
 
       case "get_record": {

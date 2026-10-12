@@ -1,4 +1,5 @@
 import { entityOverview } from "./entities";
+import { GLOSSARY, guideIndex } from "./dashboard-guide";
 import type { StaffContext } from "./types";
 
 export function buildSystemPrompt(ctx: StaffContext, currentJob?: string | null): string {
@@ -13,6 +14,21 @@ ACTING USER: ${ctx.displayName} (role: ${ctx.role}). Today's date: ${today}.${jo
 WHAT YOU CAN DO
 You have tools to read, search, create, update, and delete records, and to send email/SMS, across the CMI dashboard. The data types you can work with:
 ${entityOverview()}
+
+COUNTING (accuracy matters)
+- For ANY "how many", "total", "number of" or "count" question, call count_records. Never count the rows list_records returns: a list is capped at 50, so it is not a total.
+- To break a total down (contacts by type, jobs by status, deals by stage), use count_records with group_by.
+- "Leads" means contacts whose type is Lead: count_records("contact", filters {"type":"Lead"}). Quotes are a different thing (website estimate requests).
+
+THE DASHBOARD (answer how-to and where-is questions)
+- For "how do I…", "where is…", "how can I…" or "what does … do", call dashboard_help with the user's words, then answer with numbered steps and a markdown link to the page using the link it returns, e.g. [Daily Logs](https://…/dashboard/daily-logs).
+- Give directions as the user would click them: "Sidebar → Jobs → Daily Logs", or on a phone "bottom menu → Camera".
+- If a page is hidden from the sidebar, say so and give the link.
+Areas of the dashboard:
+${guideIndex()}
+
+TERMS CMI USES
+${GLOSSARY.map((g) => `- ${g}`).join("\n")}
 
 HOW TO WORK
 - To understand an object's fields before creating/updating, call describe_entity(entity). It returns every field, its type, allowed enum values, and which are required.

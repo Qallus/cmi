@@ -53,32 +53,79 @@ async function ensureUniqueSlug(table: string, base: string): Promise<string> {
   return `${root}-${Date.now().toString(36)}`;
 }
 
+// Filters and search shared by list and count, so a count always matches the
+// list it summarises. Text and enum values match case-insensitively ("lead"
+// finds "Lead"); a null value matches empty fields.
+function applyFilters<Q extends { eq: any; ilike: any; is: any; or: any }>(q: Q, entity: AgentEntity, filters?: Record<string, unknown>, search?: string): Q {
+  if (filters) {
+    for (const [k, v] of Object.entries(filters)) {
+      const field = entity.fields.find((f) => f.name === k);
+      if (!field && k !== entity.idColumn) continue;
+      if (v === null) q = q.is(k, null);
+      else if (field && (field.type === "string" || field.type === "enum" || field.type === "text") && typeof v === "string") {
+        q = q.ilike(k, v.replace(/[\\%_]/g, (c) => `\\${c}`));
+      } else q = q.eq(k, v as never);
+    }
+  }
+  if (search && entity.searchColumns?.length) {
+    // Tokenize: each word must match at least one search column (AND across
+    // words, OR across columns) so "Jeremy Waters" matches first+last name.
+    const tokens = search.replace(/[,%()]/g, " ").split(/\s+/).map((t) => t.trim()).filter(Boolean);
+    for (const token of tokens) {
+      q = q.or(entity.searchColumns.map((c) => `${c}.ilike.%${token}%`).join(","));
+    }
+  }
+  return q;
+}
+
 export async function listRecords(entityKey: string, opts: { search?: string; filters?: Record<string, unknown>; limit?: number }): Promise<ToolResult> {
   const entity = getEntity(entityKey);
   if (!entity) return { error: `Unknown entity "${entityKey}".` };
   const sb = getSupabaseAdmin();
   const limit = Math.min(Math.max(opts.limit ?? 20, 1), 50);
 
-  let q = sb.from(entity.table).select(selectColumns(entity)).limit(limit);
+  let q = sb.from(entity.table).select(selectColumns(entity), { count: "exact" }).limit(limit);
   if (entity.orderBy) q = q.order(entity.orderBy.column, { ascending: entity.orderBy.ascending });
+  q = applyFilters(q, entity, opts.filters, opts.search);
 
-  if (opts.filters) {
-    for (const [k, v] of Object.entries(opts.filters)) {
-      if (entity.fields.some((f) => f.name === k) || k === entity.idColumn) q = q.eq(k, v as never);
-    }
-  }
-  if (opts.search && entity.searchColumns?.length) {
-    // Tokenize: each word must match at least one search column (AND across
-    // words, OR across columns) so "Jeremy Waters" matches first+last name.
-    const tokens = opts.search.replace(/[,%()]/g, " ").split(/\s+/).map((t) => t.trim()).filter(Boolean);
-    for (const token of tokens) {
-      q = q.or(entity.searchColumns.map((c) => `${c}.ilike.%${token}%`).join(","));
-    }
-  }
-
-  const { data, error } = await q;
+  const { data, error, count } = await q;
   if (error) return { error: error.message };
-  return { count: data?.length ?? 0, records: data ?? [] };
+  // `returned` is this page; `total` is every match. Totals must come from
+  // `total` (or count_records), never from how many rows came back.
+  return { returned: data?.length ?? 0, total: count ?? data?.length ?? 0, records: data ?? [] };
+}
+
+/**
+ * Exact number of matching records, optionally broken down by one field
+ * (e.g. contacts by type). Counting is done by the database, not by reading a
+ * page of rows, so "how many contacts" gets 987, not the 20 that fit a list.
+ */
+export async function countRecords(entityKey: string, opts: { search?: string; filters?: Record<string, unknown>; group_by?: string }): Promise<ToolResult> {
+  const entity = getEntity(entityKey);
+  if (!entity) return { error: `Unknown entity "${entityKey}".` };
+  const sb = getSupabaseAdmin();
+
+  const head = applyFilters(sb.from(entity.table).select("*", { count: "exact", head: true }), entity, opts.filters, opts.search);
+  const { count, error } = await head;
+  if (error) return { error: error.message };
+  const total = count ?? 0;
+
+  if (!opts.group_by) return { entity: entity.plural, total };
+  if (!entity.fields.some((f) => f.name === opts.group_by)) return { error: `"${opts.group_by}" isn't a field of ${entity.plural}. Call describe_entity to see fields.` };
+
+  const groups: Record<string, number> = {};
+  const PAGE = 1000;
+  for (let from = 0; from < Math.min(total, 20000); from += PAGE) {
+    const field = opts.group_by;
+    const res: { data: unknown[] | null; error: { message: string } | null } =
+      await applyFilters(sb.from(entity.table).select(field).range(from, from + PAGE - 1), entity, opts.filters, opts.search);
+    if (res.error) return { error: res.error.message };
+    for (const row of (res.data ?? []) as Record<string, unknown>[]) {
+      const key = row[opts.group_by] == null || row[opts.group_by] === "" ? "(none)" : String(row[opts.group_by]);
+      groups[key] = (groups[key] ?? 0) + 1;
+    }
+  }
+  return { entity: entity.plural, total, by: opts.group_by, groups };
 }
 
 export async function getRecord(entityKey: string, id: string): Promise<ToolResult> {
