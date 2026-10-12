@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { requireAdmin, AuthError } from "@/lib/auth/require-admin";
+import { baseMime } from "@/lib/storage";
 
 const BUCKET = "cmi-media";
 const ALLOWED_MIME_PREFIXES = ["image/", "video/", "audio/"];
@@ -36,12 +37,12 @@ export async function POST(request: Request) {
     }
 
     // Server-side MIME type validation
-    const mimeType = file.type || "";
+    const mimeType = baseMime(file.type);
     const isAllowed =
       ALLOWED_MIME_PREFIXES.some((prefix) => mimeType.startsWith(prefix)) ||
       ALLOWED_MIME_EXACT.includes(mimeType);
     if (!isAllowed) {
-      throw new Error(`File type "${mimeType || "unknown"}" is not allowed. Only images, videos, and PDFs are accepted.`);
+      throw new Error(`File type "${mimeType || "unknown"}" is not allowed. Only images, video, audio, PDFs and Office documents are accepted.`);
     }
 
     if (file.size > MAX_FILE_SIZE) {
@@ -56,7 +57,7 @@ export async function POST(request: Request) {
     // and retry, rather than probing on every upload.
     const uploadOnce = () => supabase.storage.from(BUCKET).upload(path, file, {
       cacheControl: "3600",
-      contentType: file.type || "application/octet-stream",
+      contentType: mimeType || "application/octet-stream",
       upsert: false
     });
 

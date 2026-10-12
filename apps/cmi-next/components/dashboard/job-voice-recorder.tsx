@@ -96,7 +96,9 @@ export function JobVoiceRecorder({ open, onClose }: { open: boolean; onClose: ()
   async function upload(jobId: string | null, folder: string): Promise<{ url: string; name: string }> {
     const filename = `voice-note-${Date.now()}.webm`;
     const fd = new FormData();
-    fd.append("file", new File([audio!.blob], filename, { type: audio!.blob.type || "audio/webm" }), filename);
+    // Drop codec parameters ("audio/webm;codecs=opus"): storage matches on the bare type.
+    const type = (audio!.blob.type || "audio/webm").split(";")[0];
+    fd.append("file", new File([audio!.blob], filename, { type }), filename);
     fd.append("folder", folder);
     if (jobId) {
       fd.append("category", "audio");
