@@ -1,6 +1,9 @@
 export type DailyLog = {
   id: string;
-  job_id: string;
+  /** One of job_id / opportunity_id is always set. */
+  job_id: string | null;
+  /** Set when the log is for Pre-Con work rather than a Job. */
+  opportunity_id: string | null;
   log_date: string;
   title: string | null;
   notes: string | null;
