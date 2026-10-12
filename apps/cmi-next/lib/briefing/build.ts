@@ -317,7 +317,12 @@ async function loadAttention(staff: BriefingStaff): Promise<BriefingItem[]> {
       isAdmin: ["super_admin", "admin"].includes(staff.role_slug),
       role: staff.role_slug,
     });
-    const relevant = bell.filter((b) => b.kind !== "booking" && b.kind !== "schedule" && !b.title.startsWith("New task:"));
+    // Text messages more than 3 days old have gone stale for a morning list;
+    // they stay in the bell and Communications, just not in the briefing.
+    const smsCutoff = Date.now() - 3 * 24 * 60 * 60 * 1000;
+    const staleSms = (b: { kind: string; title: string; time: string }) =>
+      b.kind === "message" && b.title === "New text message" && new Date(b.time).getTime() < smsCutoff;
+    const relevant = bell.filter((b) => b.kind !== "booking" && b.kind !== "schedule" && !b.title.startsWith("New task:") && !staleSms(b));
     // Website form submissions arrive in bulk (much of it solicitation), so
     // they share one line rather than crowding out messages from people.
     const forms = relevant.filter((b) => b.kind === "submission");
