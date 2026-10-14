@@ -26,7 +26,7 @@ ${context.summary}`;
 
 type HermesResult = { content: string } | { error: string };
 
-export async function callHermes(messages: BoltMessage[]): Promise<HermesResult> {
+export async function callHermes(messages: BoltMessage[], opts?: { temperature?: number }): Promise<HermesResult> {
   const url = process.env.HERMES_AGENT_URL;
   const key = process.env.HERMES_AGENT_API_KEY;
   const model = process.env.HERMES_AGENT_MODEL ?? "hermes-agent";
@@ -39,7 +39,7 @@ export async function callHermes(messages: BoltMessage[]): Promise<HermesResult>
     const res = await fetch(`${url.replace(/\/$/, "")}/v1/chat/completions`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ model, messages, temperature: 0.6 }),
+      body: JSON.stringify({ model, messages, temperature: opts?.temperature ?? 0.6 }),
     });
     if (!res.ok) return { error: `Bolt gateway error (${res.status}).` };
     const json = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };

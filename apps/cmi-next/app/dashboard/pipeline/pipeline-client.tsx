@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowRight, LayoutGrid, Plus, Search, Table as TableIcon, X } from "lucide-react";
+import { ArrowRight, Download, LayoutGrid, Plus, Search, Table as TableIcon, Upload, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, Textarea, Input } from "@/components/ui/input";
@@ -17,6 +17,8 @@ import {
 } from "@/lib/pipeline/types";
 import type { PipelineReport } from "@/lib/pipeline/reporting";
 import { ProjectionLinkButton } from "@/components/projections/projection-link-button";
+import { RecordsImportModal } from "@/components/dashboard/records-import-modal";
+import { exportPreconCsv } from "@/lib/records-io/export";
 
 // Reason/status option lists that are also selectable at the Active Project /
 // Pre-Con transitions.
@@ -118,6 +120,8 @@ export function PipelineClient({
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = React.useState<string | null>(null);
+  const [selected, setSelected] = React.useState<Set<string>>(new Set());
+  const [importOpen, setImportOpen] = React.useState(false);
 
   // Refresh the list + report from the server after a mutation.
   const refresh = React.useCallback(async () => {
@@ -155,6 +159,10 @@ export function PipelineClient({
       return true;
     });
   }, [opps, search, stageFilter, ownerFilter, typeFilter]);
+
+  // Export the checked rows, or everything currently shown when none are checked.
+  const selectedRows = filtered.filter((o) => selected.has(o.id));
+  function exportCsv() { exportPreconCsv(selectedRows.length ? selectedRows : filtered); }
 
   function openAdd() { setDraft({ ...EMPTY_DRAFT }); setError(null); setModal({ mode: "add" }); }
   // Opening an opportunity goes to its own page, which draws the stage path
@@ -244,6 +252,10 @@ export function PipelineClient({
                 <LayoutGrid className="h-3.5 w-3.5" /> Kanban
               </button>
             </div>
+            <Button size="sm" variant="outline" onClick={exportCsv} disabled={filtered.length === 0} title={selectedRows.length ? "Export the checked opportunities" : "Export every opportunity shown"}>
+              <Download className="h-3.5 w-3.5" /> {selectedRows.length ? `Export ${selectedRows.length}` : "Export"}
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}><Upload className="h-3.5 w-3.5" /> Import</Button>
             <Button size="sm" variant="accent" onClick={openAdd}><Plus className="h-3.5 w-3.5" /> Add Opportunity</Button>
           </div>
         </div>
@@ -295,7 +307,7 @@ export function PipelineClient({
       {/* Body */}
       <div className="flex-1 overflow-auto">
         {view === "table"
-          ? <TableView rows={filtered} onOpen={openView} onEdit={openEdit} />
+          ? <TableView rows={filtered} onOpen={openView} onEdit={openEdit} selected={selected} setSelected={setSelected} />
           : <KanbanView rows={filtered} onOpen={openView} />}
       </div>
 
@@ -377,6 +389,8 @@ export function PipelineClient({
         </Modal>
       )}
 
+      {importOpen && <RecordsImportModal defaultTarget="precon" onClose={() => setImportOpen(false)} onImported={() => { void refresh(); router.refresh(); }} />}
+
       {/* Delete confirm */}
       {deleteConfirm && (
         <Modal title="Delete Opportunity" onClose={() => setDeleteConfirm(null)}>
@@ -434,11 +448,22 @@ function ReportingStrip({ report }: { report: PipelineReport }) {
 
 // ─── Table view ────────────────────────────────────────────────
 
-function TableView({ rows, onOpen, onEdit }: { rows: Opportunity[]; onOpen: (o: Opportunity) => void; onEdit: (o: Opportunity) => void }) {
+function TableView({ rows, onOpen, onEdit, selected, setSelected }: {
+  rows: Opportunity[];
+  onOpen: (o: Opportunity) => void;
+  onEdit: (o: Opportunity) => void;
+  selected: Set<string>;
+  setSelected: React.Dispatch<React.SetStateAction<Set<string>>>;
+}) {
   return (
     <table className="w-full min-w-[760px] border-collapse text-sm">
       <thead className="sticky top-0 z-10 bg-card">
         <tr className="border-b border-border text-left">
+          <th className="w-8 px-3 py-3">
+            <input type="checkbox" aria-label="Select all"
+              checked={rows.length > 0 && rows.every((o) => selected.has(o.id))}
+              onChange={(e) => setSelected(e.target.checked ? new Set(rows.map((o) => o.id)) : new Set())} />
+          </th>
           {["Job #", "Opportunity", "Stage", "Type", "Owner", "Est. Value", "Updated", ""].map((h, i) => (
             <th key={i} className={cn("px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground", i > 3 && i < 7 && "hidden md:table-cell")}>{h}</th>
           ))}
@@ -446,10 +471,13 @@ function TableView({ rows, onOpen, onEdit }: { rows: Opportunity[]; onOpen: (o: 
       </thead>
       <tbody className="divide-y divide-border">
         {rows.length === 0 && (
-          <tr><td colSpan={8} className="px-4 py-12 text-center text-sm text-muted-foreground">No opportunities found.</td></tr>
+          <tr><td colSpan={9} className="px-4 py-12 text-center text-sm text-muted-foreground">No opportunities found.</td></tr>
         )}
         {rows.map((o) => (
           <tr key={o.id} className="cursor-pointer transition hover:bg-muted/30" onClick={() => onOpen(o)}>
+            <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+              <input type="checkbox" checked={selected.has(o.id)} onChange={(e) => setSelected((prev) => { const n = new Set(prev); if (e.target.checked) n.add(o.id); else n.delete(o.id); return n; })} />
+            </td>
             <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{o.job_number ?? "—"}</td>
             <td className="px-4 py-3">
               <div className="font-medium">{o.opportunity_name}</div>

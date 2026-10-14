@@ -4,8 +4,8 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  Calendar as CalendarIcon, ChevronDown, ChevronLeft, ChevronRight, Columns3,
-  LayoutGrid, List as ListIcon, Map as MapIcon, Plus, Search, Table as TableIcon,
+  Calendar as CalendarIcon, ChevronDown, ChevronLeft, ChevronRight, Columns3, Download,
+  LayoutGrid, List as ListIcon, Map as MapIcon, Plus, Search, Table as TableIcon, Upload,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/input";
@@ -15,6 +15,8 @@ import type { JobListRow } from "@/lib/jobs/data";
 import type { JobType, JobGroup, JobStatus } from "@/lib/jobs/types";
 import type { JobReport } from "@/lib/jobs/reporting";
 import { JobStatusBadge, JobColorDot, money, formatDate } from "./job-ui";
+import { RecordsImportModal } from "@/components/dashboard/records-import-modal";
+import { exportJobsCsv } from "@/lib/records-io/export";
 
 type SortKey = "job_name" | "job_number" | "city" | "status" | "projected_start_date" | "projected_completion_date" | "updated_at";
 type ViewMode = "list" | "table" | "card" | "kanban" | "calendar";
@@ -47,6 +49,7 @@ export function JobsListClient({
   const [sort, setSort] = React.useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "updated_at", dir: "desc" });
   const [newMenu, setNewMenu] = React.useState(false);
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
+  const [importOpen, setImportOpen] = React.useState(false);
 
   const pms = React.useMemo(() => Array.from(new Set(rows.flatMap((r) => r.project_managers))).sort(), [rows]);
 
@@ -73,6 +76,14 @@ export function JobsListClient({
     setSort((s) => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
   }
   const open = (id: string) => router.push(`/dashboard/jobs/${id}/summary`);
+
+  // Export the checked rows, or everything currently shown when none are checked.
+  const selectedRows = filtered.filter((r) => selected.has(r.id));
+  function exportCsv() { exportJobsCsv(selectedRows.length ? selectedRows : filtered); }
+  async function reload() {
+    try { const res = await fetch("/api/jobs"); if (res.ok) setRows(await res.json()); } catch { /* keep list */ }
+    router.refresh();
+  }
 
   // Kanban drag → change status (optimistic, rollback on failure).
   async function updateStatus(id: string, status: JobStatus) {
@@ -116,6 +127,10 @@ export function JobsListClient({
               </Link>
             </div>
             <div className="w-40"><Select value="standard" onChange={() => {}} disabled><option value="standard">Standard View</option></Select></div>
+            <Button size="sm" variant="outline" onClick={exportCsv} disabled={filtered.length === 0} title={selectedRows.length ? "Export the checked jobs" : "Export every job shown"}>
+              <Download className="h-3.5 w-3.5" /> {selectedRows.length ? `Export ${selectedRows.length}` : "Export"}
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}><Upload className="h-3.5 w-3.5" /> Import</Button>
             <div className="relative">
               <Button size="sm" variant="accent" onClick={() => setNewMenu((v) => !v)}><Plus className="h-3.5 w-3.5" /> New Job <ChevronDown className="h-3 w-3" /></Button>
               {newMenu && (
@@ -178,6 +193,7 @@ export function JobsListClient({
         {view === "kanban" && <KanbanView rows={filtered} onOpen={open} onStatusChange={updateStatus} />}
         {view === "calendar" && <CalendarView rows={filtered} onOpen={open} />}
       </div>
+      {importOpen && <RecordsImportModal defaultTarget="jobs" onClose={() => setImportOpen(false)} onImported={() => void reload()} />}
     </div>
   );
 }
@@ -188,7 +204,11 @@ function TableView({ rows, sort, onSort, onOpen, selected, setSelected }: { rows
     <table className="w-full min-w-[1100px] border-collapse text-sm">
       <thead className="sticky top-0 z-10 bg-card">
         <tr className="border-b border-border text-left">
-          <th className="w-8 px-3 py-3" />
+          <th className="w-8 px-3 py-3">
+            <input type="checkbox" aria-label="Select all"
+              checked={rows.length > 0 && rows.every((j) => selected.has(j.id))}
+              onChange={(e) => setSelected(e.target.checked ? new Set(rows.map((j) => j.id)) : new Set())} />
+          </th>
           <SortableTh label="Job" k="job_name" sort={sort} onSort={onSort} />
           <SortableTh label="Job #" k="job_number" sort={sort} onSort={onSort} />
           <Th>Street</Th>
