@@ -8,6 +8,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Input, Select } from "@/components/ui/input";
 import { DEAL_STAGE_META, DEAL_STAGES } from "@/lib/deals/stages";
+import { confirmAction } from "@/components/ui/confirm-action";
 import type { DealStage } from "@/lib/deals/types";
 
 export type OwnerOption = { id: string; name: string };
@@ -131,8 +132,11 @@ export function BulkBar({
                 ) : (
                   <Action
                     icon={Archive} label="Archive" disabled={busy}
-                    onClick={() => {
-                      if (window.confirm(`Archive ${noun}?\n\nThey leave the active board but keep their notes, tasks and stage history, and can be restored.`)) void run("archive");
+                    onClick={async () => {
+                      if (await confirmAction({
+                        title: `Archive ${noun}?`, tone: "archive",
+                        body: "They leave the active board but keep their notes, tasks and stage history, and can be restored.",
+                      })) void run("archive");
                     }}
                   />
                 )}
@@ -141,8 +145,11 @@ export function BulkBar({
             {isSuperAdmin && (
               <Action
                 icon={Trash2} label="Delete" danger disabled={busy}
-                onClick={() => {
-                  if (window.confirm(`Permanently delete ${noun}?\n\nNotes, tasks and stage history go with them and cannot be recovered. Archive instead if you may need them later.`)) void run("delete");
+                onClick={async () => {
+                  if (await confirmAction({
+                    title: `Permanently delete ${noun}?`, tone: "danger",
+                    body: "Notes, tasks and stage history go with them and can't be recovered. Archive instead if you may need them later.",
+                  })) void run("delete");
                 }}
               />
             )}

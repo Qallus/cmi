@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmAction } from "@/components/ui/confirm-action";
 import * as React from "react";
 import {
   Archive, ArchiveRestore, Copy, ExternalLink, Link2, Mail, MessageSquare,
@@ -94,7 +95,10 @@ export function DealActions({ row, variant, ...h }: { row: DealActionRow; varian
   }
 
   async function archive() {
-    if (!window.confirm(`Archive “${label(row)}”? It leaves the active pipeline but keeps its notes, tasks and stage history, and can be restored.`)) return;
+    if (!(await confirmAction({
+      title: `Archive “${label(row)}”?`, tone: "archive",
+      body: "It leaves the active pipeline but keeps its notes, tasks and stage history, and can be restored.",
+    }))) return;
     if (await call(`/api/deals/${row.id}/archive`, { method: "POST" })) { h.onChanged(); h.onRemoved?.(); setToast("Archived."); }
   }
 
@@ -103,7 +107,10 @@ export function DealActions({ row, variant, ...h }: { row: DealActionRow; varian
   }
 
   async function destroy() {
-    if (!window.confirm(`Permanently delete “${label(row)}”?\n\nIts notes, tasks and stage history go with it and can't be restored. Archive instead if you may need it later.`)) return;
+    if (!(await confirmAction({
+      title: `Permanently delete “${label(row)}”?`, tone: "danger",
+      body: "Its notes, tasks and stage history go with it and can't be restored. Archive instead if you may need it later.",
+    }))) return;
     if (await call(`/api/deals/${row.id}`, { method: "DELETE" })) { h.onChanged(); h.onRemoved?.(); setToast("Deleted."); }
   }
 

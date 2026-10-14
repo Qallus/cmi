@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { Action, NextActionPanel, Row } from "@/app/dashboard/pipeline/bulk-bar";
 import { ShareDialog } from "@/app/dashboard/pipeline/deal-actions";
+import { confirmAction } from "@/components/ui/confirm-action";
 import type { RecordTarget } from "@/lib/records-io/fields";
 
 const NOUN: Record<RecordTarget, string> = { precon: "opportunity", jobs: "job" };
@@ -119,8 +120,11 @@ export function QuickActionBar({
                   ) : (
                     <Action
                       icon={Archive} label="Archive" disabled={busy}
-                      onClick={() => {
-                        if (window.confirm(`Archive ${label}?\n\nThey leave the list but keep all their details, and can be restored from "Show archived".`)) void run("archive");
+                      onClick={async () => {
+                        if (await confirmAction({
+                          title: `Archive ${label}?`, tone: "archive",
+                          body: "They leave the list but keep all their details, and can be restored from “Show archived”.",
+                        })) void run("archive");
                       }}
                     />
                   )}
@@ -133,11 +137,14 @@ export function QuickActionBar({
               {canDelete && (
                 <Action
                   icon={Trash2} label="Delete" danger disabled={busy}
-                  onClick={() => {
+                  onClick={async () => {
                     const extra = target === "jobs"
-                      ? "Its logs, files, invoices, schedules and client links go with it"
-                      : "Its stage history goes with it";
-                    if (window.confirm(`Permanently delete ${label}?\n\n${extra} and cannot be recovered. Archive instead if you may need it later.`)) void run("delete");
+                      ? "Logs, files, invoices, schedules and client links go with it"
+                      : "Stage history goes with it";
+                    if (await confirmAction({
+                      title: `Permanently delete ${label}?`, tone: "danger",
+                      body: `${extra} and can't be recovered. Archive instead if you may need it later.`,
+                    })) void run("delete");
                   }}
                 />
               )}

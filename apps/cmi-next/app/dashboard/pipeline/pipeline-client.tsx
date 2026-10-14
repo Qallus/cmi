@@ -19,6 +19,7 @@ import type { PipelineReport } from "@/lib/pipeline/reporting";
 import { ProjectionLinkButton } from "@/components/projections/projection-link-button";
 import { RecordsImportModal } from "@/components/dashboard/records-import-modal";
 import { QuickActionBar } from "@/components/dashboard/quick-action-bar";
+import { confirmAction } from "@/components/ui/confirm-action";
 import { DELETE_ROLES, WRITE_ROLES } from "@/lib/records-io/fields";
 import { exportPreconCsv } from "@/lib/records-io/export";
 
@@ -127,7 +128,6 @@ export function PipelineClient({
   const [draft, setDraft] = React.useState<OpportunityDraft>(EMPTY_DRAFT);
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
-  const [deleteConfirm, setDeleteConfirm] = React.useState<string | null>(null);
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [importOpen, setImportOpen] = React.useState(false);
   const [showArchived, setShowArchived] = React.useState(false);
@@ -238,7 +238,6 @@ export function PipelineClient({
     try {
       const res = await fetch(`/api/pipeline/${id}`, { method: "DELETE" });
       if (!res.ok && res.status !== 204) { const j = await res.json().catch(() => ({})); throw new Error(j.error ?? `HTTP ${res.status}`); }
-      setDeleteConfirm(null);
       if (modal?.opp?.id === id) closeModal();
       await refresh();
     } catch (err) { setError(err instanceof Error ? err.message : "Delete failed."); }
@@ -348,7 +347,12 @@ export function PipelineClient({
           opp={viewOpp}
           onClose={closeModal}
           onEdit={() => { closeModal(); setTimeout(() => openEdit(viewOpp), 40); }}
-          onDelete={() => setDeleteConfirm(viewOpp.id)}
+          onDelete={async () => {
+            if (await confirmAction({
+              title: `Delete “${viewOpp.opportunity_name}”?`, tone: "danger",
+              body: "This permanently deletes the opportunity and its stage history, and can't be undone.",
+            })) void confirmDelete(viewOpp.id);
+          }}
           onTransitioned={onTransitioned}
         />
       )}
@@ -434,16 +438,6 @@ export function PipelineClient({
 
       {importOpen && <RecordsImportModal defaultTarget="precon" onClose={() => setImportOpen(false)} onImported={() => { void refresh(); router.refresh(); }} />}
 
-      {/* Delete confirm */}
-      {deleteConfirm && (
-        <Modal title="Delete Opportunity" onClose={() => setDeleteConfirm(null)}>
-          <p className="text-sm text-muted-foreground">This permanently deletes the opportunity, its stage history, and cannot be undone.</p>
-          <div className="mt-4 flex justify-end gap-2">
-            <Button size="sm" variant="outline" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
-            <Button size="sm" variant="destructive" onClick={() => void confirmDelete(deleteConfirm)}>{saving ? "Deleting…" : "Delete"}</Button>
-          </div>
-        </Modal>
-      )}
     </div>
   );
 }
