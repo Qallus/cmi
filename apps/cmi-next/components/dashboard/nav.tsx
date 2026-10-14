@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Tooltip } from "@/components/ui/tooltip";
-import {
+import { ClipboardCheck,
   ArrowLeft, BookOpen, BriefcaseBusiness, CalendarClock, CalendarRange, Cloud,
   CreditCard, FileText, FolderKanban, HardHat, Home, IdCard, Inbox, LayoutDashboard, LayoutGrid,
   BarChart3, FileBarChart, HandshakeIcon,
@@ -63,6 +63,7 @@ export const NAV_ITEMS: NavItem[] = [
       { href: "/dashboard/schedules",               label: "Schedules",        icon: CalendarClock, roles: ["super_admin", "admin", "project_manager", "superintendent", "estimator", "designer", "staff"] },
       { href: "/dashboard/selections",              label: "Selections",       icon: Package,    roles: ["super_admin", "admin", "project_manager", "designer", "client"] },
       { href: "/dashboard/daily-logs",              label: "Daily Logs",       icon: NotebookPen, roles: ["super_admin", "admin", "project_manager", "estimator", "superintendent", "designer"] },
+      { href: "/dashboard/punch-lists",             label: "Punch Lists",      icon: ClipboardCheck, roles: ["super_admin", "admin", "project_manager", "estimator", "superintendent", "designer", "staff"] },
       { href: "/dashboard/client-engagement",       label: "Client Engagement", icon: Users,     roles: ["super_admin", "admin", "project_manager"] },
     ],
   },

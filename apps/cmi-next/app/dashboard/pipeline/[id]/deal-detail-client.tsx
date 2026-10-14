@@ -8,6 +8,7 @@ import {
   Ban, Check, ChevronRight, Loader2, X, Pencil, Trash2, CircleDot, Circle, CheckCircle2,
   Clock, ArrowRight, Plus, Maximize2, Minimize2,
 } from "lucide-react";
+import { PunchListPanel } from "@/components/punch/punch-list-panel";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -464,6 +465,11 @@ export function DealDetailClient({
           </Card>
 
           {/* Activity timeline */}
+          {/* Punch lists */}
+          <div className="rounded-lg border border-border bg-card p-4">
+            <PunchListPanel parentType="deal" parentId={deal.id} parentLabel={[deal.job_number, deal.title].filter(Boolean).join("_")} />
+          </div>
+
           <Card title="Activity timeline" action={
             <div className="flex flex-wrap items-center gap-1 text-xs">
               {canWrite && <button onClick={() => setShowAddActivity(true)} className="mr-1 inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 font-medium hover:border-accent/40 hover:text-accent"><Plus className="h-3 w-3" /> Add</button>}

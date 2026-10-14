@@ -2,9 +2,10 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import {
+import { ClipboardCheck,
   ArrowLeft, BriefcaseBusiness, ChevronLeft, ChevronRight, Clock, Loader2, Mail, MapPin, Phone,
 } from "lucide-react";
+import { PunchListPanel } from "@/components/punch/punch-list-panel";
 import { cn } from "@/lib/utils";
 import { Input, Select, Textarea } from "@/components/ui/input";
 import { STAGE_META } from "@/lib/pipeline/stages";
@@ -133,7 +134,10 @@ export function OpportunityDetailClient({
   const [opp, setOpp] = React.useState(initial);
   // The tab you land on is the one for the stage you are in, so the page opens
   // showing the work that is actually current.
-  const [tab, setTab] = React.useState(() => TABS.find((t) => t.stage === initial.stage)?.key ?? "opportunity");
+  const [tab, setTab] = React.useState<string>(() => {
+    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("tab") === "punch") return "punch";
+    return TABS.find((t) => t.stage === initial.stage)?.key ?? "opportunity";
+  });
   const [saving, setSaving] = React.useState<string | null>(null);
   const [toast, setToast] = React.useState<string | null>(null);
 
@@ -280,8 +284,15 @@ export function OpportunityDetailClient({
             );
           })}
           <button
-            type="button" onClick={() => setTab("history")}
+            type="button" onClick={() => setTab("punch")}
             className={cn("ml-auto inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 transition",
+              tab === "punch" ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-muted")}
+          >
+            <ClipboardCheck className="h-3.5 w-3.5" /> Punch List
+          </button>
+          <button
+            type="button" onClick={() => setTab("history")}
+            className={cn("inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 transition",
               tab === "history" ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-muted")}
           >
             <Clock className="h-3.5 w-3.5" /> History
@@ -290,6 +301,8 @@ export function OpportunityDetailClient({
 
         {tab === "history" ? (
           <History rows={history} />
+        ) : tab === "punch" ? (
+          <PunchListPanel parentType="precon" parentId={opp.id} parentLabel={opp.opportunity_name} />
         ) : (
           <div className="rounded-lg border border-border bg-card p-5">
             <div className="mb-4 flex items-center justify-between">
