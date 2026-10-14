@@ -7,7 +7,7 @@ import {
   countRecords, createRecord, deleteRecord, getRecord, listRecords, sendMessage, updateRecord,
 } from "./registry";
 import { DASHBOARD_GUIDE, searchGuide } from "./dashboard-guide";
-import { findPeople, loadTeamDirectory } from "./team-directory";
+import { COMPANY_LINES, findPeople, loadTeamDirectory } from "./team-directory";
 import { loadHiddenNav } from "@/lib/nav-settings";
 import { publicAppUrl } from "@/lib/twilio";
 import type { PendingAction, StaffContext, ToolActivity, ToolResult } from "./types";
@@ -267,7 +267,9 @@ export async function dispatchTool(name: string, args: Record<string, unknown>, 
         const query = String(args.name ?? "").trim();
         const people = query ? findPeople(everyone, query) : everyone;
         return {
-          result: people.length ? { people } : { people: [], note: `No one at CMI matches "${query}". The team is: ${everyone.map((p) => p.name).join(", ")}.` },
+          result: people.length
+            ? { people, company_lines: COMPANY_LINES }
+            : { people: [], company_lines: COMPANY_LINES, note: `No one at CMI matches "${query}". The team is: ${everyone.map((p) => p.name).join(", ")}.` },
           activity: act(query ? `Looked up ${query} in the team directory` : "Loaded the team directory"),
         };
       }

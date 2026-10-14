@@ -9,6 +9,13 @@ import { getSupabaseAdmin } from "@/lib/supabase/server";
 
 const SITE = "https://www.constructedmatter.com";
 
+/** Company-wide numbers, for "what's the office number" and the like. */
+export const COMPANY_LINES = {
+  hq: "(480) 628-4458",
+  twilio: "(480) 906-4400",
+  note: "HQ is the main office line. The Twilio line is CMI's business number for texts and calls made from the dashboard.",
+};
+
 /** The company's two owners. */
 const OWNERS: Record<string, string> = {
   "brandon@constructedmatter.com": "Owner and co-founder",
@@ -29,8 +36,8 @@ export type TeamPerson = {
   job_title: string | null;
   owner: string | null;
   email: string | null;
+  /** Direct line for the dashboard and Bolt; not shown on the public website. */
   phone: string | null;
-  office_phone: string | null;
   dashboard_role: string | null;
   account_status: string | null;
   bio: string | null;
@@ -102,16 +109,16 @@ export async function loadTeamDirectory(): Promise<TeamPerson[]> {
     let details: { linkedin_url?: string } = {};
     try { details = t?.tagline?.startsWith("{") ? JSON.parse(t.tagline) : {}; } catch { /* plain tagline */ }
     const email = (s?.email || t?.email || "").trim() || null;
-    const staffPhone = formatPhone(s?.phone);
-    const sitePhone = formatPhone(t?.phone);
+    // Staff accounts hold each person's direct number; the website profile
+    // phone is only a fallback for someone without an account.
+    const phone = formatPhone(s?.phone) ?? formatPhone(t?.phone);
     const meta = s?.metadata ?? {};
     people.push({
       name: s?.display_name || t?.name || key,
       job_title: s?.job_title || s?.title || t?.role || null,
       owner: email ? OWNERS[email.toLowerCase()] ?? null : null,
       email,
-      phone: staffPhone ?? sitePhone,
-      office_phone: sitePhone && sitePhone !== staffPhone ? sitePhone : null,
+      phone,
       dashboard_role: s?.role_slug ? s.role_slug.replace(/_/g, " ") : null,
       account_status: s?.status ?? null,
       bio: t?.bio || (typeof meta.bio === "string" ? meta.bio : null),
