@@ -45,7 +45,7 @@ export async function getJobOverview(identifier: string): Promise<ToolResult> {
     sb.from("project_schedule_items").select("id,title,type,phase,status,progress,start_date,end_date,client_start_date,client_end_date,client_visible").eq("board_id", jobId).order("start_date", { ascending: true }).limit(50),
     sb.from("change_orders").select("id,co_number,title,status,amount,co_date").eq("job_id", jobId).order("created_at", { ascending: false }).limit(20),
     sb.from("invoices").select("id,invoice_number,title,status,amount,amount_paid,due_date").eq("job_id", jobId).order("created_at", { ascending: false }).limit(20),
-    sb.from("daily_logs").select("id,log_date,title").eq("job_id", jobId).order("log_date", { ascending: false }).limit(10),
+    sb.from("daily_logs").select("id,log_date,title").eq("job_id", jobId).neq("visibility", "private").order("log_date", { ascending: false }).limit(10),
     sb.from("job_files").select("id", { count: "exact", head: true }).eq("job_id", jobId),
     sb.from("job_updates").select("id,title,visibility,client_action_required,created_at").eq("job_id", jobId).order("created_at", { ascending: false }).limit(10),
     sb.from("job_action_items").select("id,title,status,priority,due_date,assigned_contact_id").eq("job_id", jobId).order("created_at", { ascending: false }).limit(20),

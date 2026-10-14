@@ -1,13 +1,17 @@
 "use client";
 
 import * as React from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Lock, Plus, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input, Textarea } from "@/components/ui/input";
-import type { DailyLog, DailyLogDraft } from "@/lib/daily-logs/types";
+import type { DailyLog } from "@/lib/daily-logs/types";
 import { LogMedia } from "@/components/dashboard/log-media";
-import { JobModuleShell, ModuleModal, Field, inputCls, fmtDate } from "../job-module-shell";
+import { LogNotes } from "@/components/dashboard/log-notes";
+import { AddDailyLogDialog } from "@/components/dashboard/add-daily-log";
+import { RichTextEditor } from "@/components/notes/rich-text-editor";
+import { confirmAction } from "@/components/ui/confirm-action";
+import { JobModuleShell, ModuleModal, fmtDate } from "../job-module-shell";
 
 type Modal = { mode: "add" } | { mode: "edit"; log: DailyLog } | null;
 
@@ -39,27 +43,37 @@ export function DailyLogsClient({ jobId, jobName, initial }: { jobId: string; jo
     return c;
   }, [rows]);
   const shown = tab === "all" ? rows : rows.filter((r) => logKind(r) === tab);
-  const [d, setD] = React.useState({ log_date: "", title: "", notes: "", weather: "", temperature: "", hours_worked: "", crew: "", visitors: "", delays: "", client_visible: false });
+  const router = useRouter();
+  // Editing keeps to what the new form collects: the log text and who sees it.
+  const [d, setD] = React.useState({ notes: "", client_visible: false, include_in_brief: false, private: false });
 
-  function openAdd() { setD({ log_date: new Date().toISOString().slice(0, 10), title: "", notes: "", weather: "", temperature: "", hours_worked: "", crew: "", visitors: "", delays: "", client_visible: false }); setError(null); setModal({ mode: "add" }); }
+  function openAdd() { setError(null); setModal({ mode: "add" }); }
   function openEdit(log: DailyLog) {
-    setD({ log_date: log.log_date, title: log.title ?? "", notes: log.notes ?? "", weather: log.weather ?? "", temperature: log.temperature ?? "", hours_worked: log.hours_worked?.toString() ?? "", crew: (log.crew ?? []).join(", "), visitors: log.visitors ?? "", delays: log.delays ?? "", client_visible: log.client_visible });
+    // Plain-text logs open in the editor as paragraphs.
+    const notes = log.notes && !/<\w/.test(log.notes) ? log.notes.split(/\n+/).map((l) => `<p>${l.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</p>`).join("") : log.notes ?? "";
+    setD({ notes, client_visible: log.client_visible, include_in_brief: !!log.include_in_brief, private: log.visibility === "private" });
     setError(null); setModal({ mode: "edit", log });
   }
   async function save() {
-    if (!d.log_date) { setError("Date is required."); return; }
+    if (modal?.mode !== "edit") return;
     setSaving(true); setError(null);
     try {
-      const payload: DailyLogDraft = { log_date: d.log_date, title: d.title || null, notes: d.notes || null, weather: d.weather || null, temperature: d.temperature || null, hours_worked: d.hours_worked ? Number(d.hours_worked) : null, crew: d.crew ? d.crew.split(",").map((s) => s.trim()).filter(Boolean) : null, visitors: d.visitors || null, delays: d.delays || null, client_visible: d.client_visible };
-      const url = modal?.mode === "add" ? `/api/jobs/${jobId}/daily-logs` : `/api/jobs/${jobId}/daily-logs/${(modal as { log: DailyLog }).log.id}`;
-      const res = await fetch(url, { method: modal?.mode === "add" ? "POST" : "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const res = await fetch(`/api/jobs/${jobId}/daily-logs/${modal.log.id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notes: d.notes, client_visible: d.client_visible && !d.private, include_in_brief: d.include_in_brief, visibility: d.private ? "private" : "team" }),
+      });
       const j = await res.json(); if (!res.ok) throw new Error(j.error);
-      setRows((r) => (modal?.mode === "add" ? [j, ...r] : r.map((x) => (x.id === j.id ? j : x))));
+      setRows((r) => r.map((x) => (x.id === j.id ? j : x)));
       setModal(null);
     } catch (e) { setError(e instanceof Error ? e.message : "Save failed."); } finally { setSaving(false); }
   }
+  async function reload() {
+    const res = await fetch(`/api/jobs/${jobId}/daily-logs`);
+    if (res.ok) setRows(await res.json());
+    router.refresh();
+  }
   async function remove(id: string) {
-    if (!confirm("Delete this log?")) return;
+    if (!(await confirmAction({ title: "Delete this daily log?", tone: "danger", body: "Its text, photos and recordings are removed from this job." }))) return;
     const res = await fetch(`/api/jobs/${jobId}/daily-logs/${id}`, { method: "DELETE" });
     if (res.ok || res.status === 204) setRows((r) => r.filter((x) => x.id !== id));
   }
@@ -86,7 +100,7 @@ export function DailyLogsClient({ jobId, jobName, initial }: { jobId: string; jo
           <div key={log.id} className="rounded-lg border border-border p-4">
             <div className="flex items-start justify-between">
               <div>
-                <div className="flex items-center gap-2"><span className="font-medium">{fmtDate(log.log_date)}</span>{log.title && <span className="text-sm text-muted-foreground">· {log.title}</span>}{log.client_visible && <Badge tone="accent">Client-visible</Badge>}</div>
+                <div className="flex flex-wrap items-center gap-2"><span className="font-medium">{fmtDate(log.log_date)}</span><span className="text-xs text-muted-foreground">{new Date(log.created_at).toLocaleTimeString("en-US", { timeZone: "America/Phoenix", hour: "numeric", minute: "2-digit" })}</span>{log.client_visible && <Badge tone="accent">Client-visible</Badge>}{log.visibility === "private" && <Badge><Lock className="mr-1 inline h-3 w-3" />Private</Badge>}</div>
                 <div className="mt-1 flex flex-wrap gap-3 text-xs text-muted-foreground">
                   {log.weather && <span>☁ {log.weather}{log.temperature ? ` · ${log.temperature}` : ""}</span>}
                   {log.hours_worked != null && <span>⏱ {log.hours_worked}h</span>}
@@ -98,29 +112,29 @@ export function DailyLogsClient({ jobId, jobName, initial }: { jobId: string; jo
                 <button type="button" onClick={() => void remove(log.id)} className="text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></button>
               </div>
             </div>
-            {log.notes && <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{log.notes}</p>}
+            <LogNotes notes={log.notes} className="mt-2" />
             {log.delays && <p className="mt-1 text-sm text-destructive">Delays: {log.delays}</p>}
             <LogMedia photos={log.photos} attachments={log.attachments} />
           </div>
         ))}
       </div>
 
-      {modal && (
-        <ModuleModal title={modal.mode === "add" ? "Add Daily Log" : "Edit Daily Log"} onClose={() => setModal(null)} wide>
+      {modal?.mode === "add" && (
+        <AddDailyLogDialog preselect={{ kind: "job", id: jobId }} onClose={() => setModal(null)} onSaved={() => { setModal(null); void reload(); }} />
+      )}
+      {modal?.mode === "edit" && (
+        <ModuleModal title="Edit Daily Log" onClose={() => setModal(null)} wide>
           <div className="space-y-4">
             {error && <div className="rounded bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Date"><Input type="date" value={d.log_date} onChange={(e) => setD({ ...d, log_date: e.target.value })} /></Field>
-              <Field label="Title"><input className={inputCls} value={d.title} onChange={(e) => setD({ ...d, title: e.target.value })} /></Field>
-              <Field label="Weather"><input className={inputCls} value={d.weather} onChange={(e) => setD({ ...d, weather: e.target.value })} /></Field>
-              <Field label="Temperature"><input className={inputCls} value={d.temperature} onChange={(e) => setD({ ...d, temperature: e.target.value })} /></Field>
-              <Field label="Hours Worked"><input type="number" className={inputCls} value={d.hours_worked} onChange={(e) => setD({ ...d, hours_worked: e.target.value })} /></Field>
-              <Field label="Crew (comma-separated)"><input className={inputCls} value={d.crew} onChange={(e) => setD({ ...d, crew: e.target.value })} /></Field>
-              <Field label="Visitors" className="sm:col-span-2"><input className={inputCls} value={d.visitors} onChange={(e) => setD({ ...d, visitors: e.target.value })} /></Field>
+            <div className="space-y-1">
+              <span className="text-xs font-medium text-muted-foreground">What happened</span>
+              <RichTextEditor key={modal.log.id} value={d.notes} onChange={(v) => setD((x) => ({ ...x, notes: v }))} />
             </div>
-            <Field label="Notes"><Textarea value={d.notes} onChange={(e) => setD({ ...d, notes: e.target.value })} /></Field>
-            <Field label="Delays / Issues"><Textarea value={d.delays} onChange={(e) => setD({ ...d, delays: e.target.value })} /></Field>
-            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={d.client_visible} onChange={(e) => setD({ ...d, client_visible: e.target.checked })} /> Visible to client</label>
+            <div className="grid gap-2 sm:grid-cols-3">
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={d.client_visible && !d.private} disabled={d.private} onChange={(e) => setD({ ...d, client_visible: e.target.checked })} /> Client visible</label>
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={d.include_in_brief} onChange={(e) => setD({ ...d, include_in_brief: e.target.checked })} /> My Daily Brief</label>
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={d.private} onChange={(e) => setD({ ...d, private: e.target.checked, client_visible: e.target.checked ? false : d.client_visible })} /> Private (only me)</label>
+            </div>
             <div className="flex justify-end gap-2"><Button size="sm" variant="outline" onClick={() => setModal(null)}>Cancel</Button><Button size="sm" variant="accent" onClick={() => void save()} disabled={saving}>{saving ? "Saving…" : "Save"}</Button></div>
           </div>
         </ModuleModal>

@@ -105,11 +105,12 @@ export async function buildBriefing(staff: BriefingStaff, now = new Date()): Pro
   const since = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
   const name = (staff.display_name ?? "").trim() || staff.email;
 
-  const [meetings, tasks, updates, attention] = await Promise.all([
+  const [meetings, tasks, updates, attention, logNotes] = await Promise.all([
     safe([], () => loadMeetings(staff.id, dayStart, dayEnd)),
     safe({ overdue: [], today: [], week: [], undated: 0 }, () => loadTasks(staff.id, today, weekEnd)),
     safe([], () => loadUpdates(staff.id, since)),
     safe([], () => loadAttention(staff)),
+    safe([], () => loadBriefLogs(staff.id, since)),
   ]);
 
   return {
@@ -120,8 +121,25 @@ export async function buildBriefing(staff: BriefingStaff, now = new Date()): Pro
     meetings,
     tasks,
     updates,
-    attention,
+    attention: [...logNotes, ...attention],
   };
+}
+
+// ─── Daily logs the author asked to see in their brief ──────────
+async function loadBriefLogs(staffId: string, since: string): Promise<BriefingItem[]> {
+  const { data } = await getSupabaseAdmin().from("daily_logs")
+    .select("id, title, notes, job_id, opportunity_id, deal_id, jobs(job_name), pipeline_opportunities(opportunity_name), deals(title)")
+    .eq("created_by_id", staffId).eq("include_in_brief", true).gte("created_at", since)
+    .order("created_at", { ascending: true }).limit(MAX_PER_LIST);
+  type Row = { id: string; title: string | null; notes: string | null; job_id: string | null; opportunity_id: string | null; deal_id: string | null;
+    jobs: { job_name: string | null } | null; pipeline_opportunities: { opportunity_name: string | null } | null; deals: { title: string | null } | null };
+  return ((data ?? []) as unknown as Row[]).map((l) => ({
+    title: snippet(l.notes, 110) || l.title || "Daily log",
+    detail: ["Your daily log", l.jobs?.job_name ?? l.pipeline_opportunities?.opportunity_name ?? l.deals?.title].filter(Boolean).join(" · "),
+    href: l.job_id ? `/dashboard/jobs/${l.job_id}/daily-logs` : l.opportunity_id ? `/dashboard/sales/${l.opportunity_id}` : l.deal_id ? `/dashboard/pipeline/${l.deal_id}` : "/dashboard/daily-logs",
+    tag: "Reminder",
+    tone: "warn" as const,
+  }));
 }
 
 // ─── Meetings ─────────────────────────────────────────────────────

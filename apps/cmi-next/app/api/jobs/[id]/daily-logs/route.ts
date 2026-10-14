@@ -6,9 +6,9 @@ const WRITE_ROLES = ["super_admin", "admin", "project_manager", "superintendent"
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireAdmin(request);
+    const { staff } = await requireAdmin(request);
     const { id } = await params;
-    return NextResponse.json(await loadDailyLogs(id));
+    return NextResponse.json(await loadDailyLogs(id, staff.id));
   } catch (err) { const e = err as AuthError; return NextResponse.json({ error: e.message }, { status: e.status ?? 500 }); }
 }
 

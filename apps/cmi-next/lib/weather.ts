@@ -53,7 +53,7 @@ export async function weatherFor(latitude: number, longitude: number, date: stri
 }
 
 /** Where a Job or Pre-Con is: stored coordinates, else its address, else the office. */
-export async function siteLocation(kind: "job" | "opportunity", id: string): Promise<{ latitude: number; longitude: number }> {
+export async function siteLocation(kind: "job" | "opportunity" | "deal", id: string): Promise<{ latitude: number; longitude: number }> {
   const sb = getSupabaseAdmin();
   try {
     if (kind === "job") {
@@ -61,6 +61,11 @@ export async function siteLocation(kind: "job" | "opportunity", id: string): Pro
       const j = data as { latitude: number | null; longitude: number | null; street_address: string | null; city: string | null; state: string | null; zip_code: string | null } | null;
       if (j?.latitude != null && j.longitude != null) return { latitude: j.latitude, longitude: j.longitude };
       if (j) return (await geocodeAddress(j)) ?? OFFICE;
+    } else if (kind === "deal") {
+      const { data } = await sb.from("deals").select("latitude, longitude, street_address, city, state, zip").eq("id", id).maybeSingle();
+      const d = data as { latitude: number | null; longitude: number | null; street_address: string | null; city: string | null; state: string | null; zip: string | null } | null;
+      if (d?.latitude != null && d.longitude != null) return { latitude: d.latitude, longitude: d.longitude };
+      if (d) return (await geocodeAddress({ street_address: d.street_address, city: d.city, state: d.state, zip_code: d.zip })) ?? OFFICE;
     } else {
       const { data } = await sb.from("pipeline_opportunities").select("project_address, city, state, zip_code").eq("id", id).maybeSingle();
       const o = data as { project_address: string | null; city: string | null; state: string | null; zip_code: string | null } | null;
@@ -70,7 +75,7 @@ export async function siteLocation(kind: "job" | "opportunity", id: string): Pro
   return OFFICE;
 }
 
-export async function weatherForSite(kind: "job" | "opportunity", id: string, date: string): Promise<DayWeather | null> {
+export async function weatherForSite(kind: "job" | "opportunity" | "deal", id: string, date: string): Promise<DayWeather | null> {
   const where = await siteLocation(kind, id);
   return weatherFor(where.latitude, where.longitude, date);
 }

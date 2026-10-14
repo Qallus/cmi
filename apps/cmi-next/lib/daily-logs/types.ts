@@ -4,6 +4,8 @@ export type DailyLog = {
   job_id: string | null;
   /** Set when the log is for Pre-Con work rather than a Job. */
   opportunity_id: string | null;
+  /** Set when the log is for a Pipeline deal. */
+  deal_id: string | null;
   log_date: string;
   title: string | null;
   notes: string | null;
@@ -17,7 +19,12 @@ export type DailyLog = {
   /** Voice notes and other non-photo files: [{ url, type, name }]. */
   attachments: { url: string; type: string; name?: string | null }[] | null;
   client_visible: boolean;
+  /** "team" = every CMI staff member; "private" = only the author. */
+  visibility: "team" | "private";
+  /** The author wants this in their next Daily Brief email. */
+  include_in_brief: boolean;
   created_by: string | null;
+  created_by_id: string | null;
   created_at: string;
   updated_at: string;
 };

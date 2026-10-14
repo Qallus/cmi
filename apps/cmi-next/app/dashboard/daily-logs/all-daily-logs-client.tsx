@@ -3,21 +3,23 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { AlertTriangle, Camera, Check, Clock, CloudSun, Eye, Mic, NotebookPen, Plus, Search, Users } from "lucide-react";
+import { AlertTriangle, Camera, Check, Clock, CloudSun, Eye, Lock, Mic, NotebookPen, Plus, Search, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { AddDailyLogDialog } from "@/components/dashboard/add-daily-log";
+import { LogNotes } from "@/components/dashboard/log-notes";
 import type { DailyLogWithJob } from "@/lib/daily-logs/data";
 
 const fmtDay = (ymd: string) =>
   new Date(`${ymd.slice(0, 10)}T12:00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric", year: "numeric" });
 
-// Every log belongs to a Job or a Pre-Con opportunity; this is the key both share.
-const targetKey = (l: DailyLogWithJob) => (l.job_id ? `job:${l.job_id}` : `opportunity:${l.opportunity_id}`);
+// Every log belongs to a Job, a Pre-Con opportunity or a Pipeline deal.
+const targetKey = (l: DailyLogWithJob) => (l.job_id ? `job:${l.job_id}` : l.opportunity_id ? `opportunity:${l.opportunity_id}` : `deal:${l.deal_id}`);
 const targetLabel = (l: DailyLogWithJob) =>
   l.job_id ? [l.job_number, l.job_name].filter(Boolean).join(" · ") || "Job"
-    : `Pre-Con · ${[l.opportunity_number, l.opportunity_name].filter(Boolean).join(" · ") || "Opportunity"}`;
-const targetHref = (l: DailyLogWithJob) => (l.job_id ? `/dashboard/jobs/${l.job_id}/daily-logs` : `/dashboard/sales/${l.opportunity_id}`);
+    : l.opportunity_id ? `Pre-Con · ${[l.opportunity_number, l.opportunity_name].filter(Boolean).join(" · ") || "Opportunity"}`
+    : `Pipeline · ${[l.deal_number, l.deal_name].filter(Boolean).join(" · ") || "Deal"}`;
+const targetHref = (l: DailyLogWithJob) => (l.job_id ? `/dashboard/jobs/${l.job_id}/daily-logs` : l.opportunity_id ? `/dashboard/sales/${l.opportunity_id}` : `/dashboard/pipeline/${l.deal_id}`);
 
 export function AllDailyLogsClient({ logs }: { logs: DailyLogWithJob[] }) {
   const router = useRouter();
@@ -106,8 +108,9 @@ export function AllDailyLogsClient({ logs }: { logs: DailyLogWithJob[] }) {
                       <div className="mt-0.5 font-medium">{l.title || "Daily log"}</div>
                     </div>
                     {l.client_visible && <span className="flex shrink-0 items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"><Eye className="h-3 w-3" /> Client visible</span>}
+                    {l.visibility === "private" && <span className="flex shrink-0 items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"><Lock className="h-3 w-3" /> Private</span>}
                   </div>
-                  {l.notes && <p className="mt-2 line-clamp-3 text-sm text-muted-foreground">{l.notes}</p>}
+                  <LogNotes notes={l.notes} clamp className="mt-2" />
                   {l.delays?.trim() && (
                     <p className="mt-2 flex items-start gap-1.5 rounded-md bg-destructive/10 px-2 py-1.5 text-xs text-destructive">
                       <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {l.delays}

@@ -123,7 +123,7 @@ async function jobSnapshot(jobId: string, audience: Audience): Promise<Snapshot 
     sb.from("jobs").select("client_description,square_feet,permit_number,funded_by_construction_loan").eq("id", jobId).maybeSingle(),
     sb.from("schedule_items").select("title,kind,status,start_date,end_date,percent_complete,client_visible,client_notes,internal_notes")
       .eq("job_id", jobId).order("start_date", { ascending: true }).limit(400),
-    sb.from("daily_logs").select("log_date,title,notes,delays,photos,client_visible,created_at").eq("job_id", jobId)
+    sb.from("daily_logs").select("log_date,title,notes,delays,photos,client_visible,created_at").eq("job_id", jobId).neq("visibility", "private")
       .order("log_date", { ascending: false }).limit(25),
     punchSummary("job", jobId, client),
     sb.from("project_selections").select("name,category,selection_status,approval_status,target_delivery_date,delivery_date,delivered_at,target_install_date,installed_at")
@@ -245,7 +245,7 @@ async function preconSnapshot(id: string, audience: Audience): Promise<Snapshot 
   const [contact, history, logs, punch, deal, media] = await Promise.all([
     opp.contact_id ? sb.from("contacts").select("first_name,last_name,company").eq("id", opp.contact_id).maybeSingle() : Promise.resolve({ data: null }),
     sb.from("pipeline_stage_history").select("from_stage,to_stage,changed_at").eq("opportunity_id", id).order("changed_at", { ascending: true }),
-    sb.from("daily_logs").select("log_date,title,notes,photos,client_visible").eq("opportunity_id", id).order("log_date", { ascending: false }).limit(15),
+    sb.from("daily_logs").select("log_date,title,notes,photos,client_visible").eq("opportunity_id", id).neq("visibility", "private").order("log_date", { ascending: false }).limit(15),
     punchSummary("precon", id, client),
     sb.from("deals").select("title,stage,notes,next_action,next_action_due,source,estimated_value,created_at").eq("opportunity_id", id).maybeSingle(),
     sb.from("opportunity_media").select("url,media_type,name,note,created_at").eq("opportunity_id", id).order("created_at", { ascending: false }).limit(20),
