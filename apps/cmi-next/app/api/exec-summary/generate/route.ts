@@ -1,5 +1,6 @@
 // Bolt drafts an executive summary: { target, id, audience, guidance? } →
-// { headline, facts, body_html, project }. Nothing is saved or sent here.
+// { headline, opening, facts, completed, coming_soon, body_html, photos,
+//   firstNames, project }. Nothing is saved or sent here.
 import { NextResponse } from "next/server";
 import { buildSnapshot } from "@/lib/exec-summary/snapshot";
 import { generateSummary } from "@/lib/exec-summary/generate";
@@ -20,12 +21,19 @@ export async function POST(request: Request) {
 
     const snapshot = await buildSnapshot(t.target, t.id, audience);
     if (!snapshot) return NextResponse.json({ error: "That record wasn't found." }, { status: 404 });
-    const summary = await generateSummary(snapshot, audience, typeof body?.guidance === "string" ? body.guidance : null);
+    const s = await generateSummary(snapshot, audience, typeof body?.guidance === "string" ? body.guidance : null);
 
     return NextResponse.json({
-      headline: summary.headline,
-      facts: summary.facts,
-      body_html: sectionsToHtml(summary),
+      headline: s.headline,
+      opening: s.opening,
+      facts: s.facts,
+      completed: s.completed,
+      coming_soon: s.coming_soon,
+      body_html: sectionsToHtml(s),
+      // Client summaries start with only client-visible photos ticked; the
+      // team version starts with the four most recent.
+      photos: snapshot.photos.map((p, i) => ({ ...p, include: audience === "client" ? p.clientVisible && i < 6 : i < 4 })),
+      firstNames: snapshot.clientFirstNames,
       project: { name: snapshot.name, number: snapshot.number, kind: snapshot.kind },
     });
   } catch (err) {

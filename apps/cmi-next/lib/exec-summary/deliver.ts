@@ -15,12 +15,12 @@ import { htmlToText } from "@/lib/notes/html";
 import { sanitizeHtmlServer } from "@/lib/html/sanitize-server";
 import { summaryDocumentHtml } from "./render";
 import type { Audience, SummaryTarget } from "./snapshot";
-import type { SummaryFact } from "./generate";
+import type { ComingSoon, SummaryFact } from "./generate";
 
 export const SUMMARY_ROLES = ["super_admin", "admin", "project_manager", "estimator", "staff", "designer", "superintendent"];
 export const CLIENT_SEND_ROLES = ["super_admin", "admin", "project_manager", "estimator"];
 
-export type Recipient = { id: string; name: string; email: string | null; onRecord?: boolean };
+export type Recipient = { id: string; name: string; firstName: string | null; email: string | null; onRecord?: boolean };
 
 export async function loadRecipients(target: SummaryTarget, id: string): Promise<{ staff: Recipient[]; contacts: Recipient[] }> {
   const sb = getSupabaseAdmin();
@@ -37,17 +37,17 @@ export async function loadRecipients(target: SummaryTarget, id: string): Promise
     ]);
     for (const u of users ?? []) if (u.staff_user_id) onRecord.add(u.staff_user_id as string);
     for (const row of (jcs ?? []) as unknown as { role: string; contact: { id: string; first_name: string | null; last_name: string | null; company: string | null; email: string | null } | null }[]) {
-      if (row.contact && row.role === "client") contacts.push({ id: row.contact.id, name: name(row.contact), email: row.contact.email });
+      if (row.contact && row.role === "client") contacts.push({ id: row.contact.id, name: name(row.contact), firstName: row.contact.first_name, email: row.contact.email });
     }
   } else {
     const { data: o } = await sb.from("pipeline_opportunities").select("contact_id,assigned_owner_id").eq("id", id).maybeSingle();
     if (o?.assigned_owner_id) onRecord.add(o.assigned_owner_id as string);
     if (o?.contact_id) {
       const { data: c } = await sb.from("contacts").select("id,first_name,last_name,company,email").eq("id", o.contact_id).maybeSingle();
-      if (c) contacts.push({ id: c.id as string, name: name(c), email: (c.email as string) ?? null });
+      if (c) contacts.push({ id: c.id as string, name: name(c), firstName: (c.first_name as string) ?? null, email: (c.email as string) ?? null });
     }
   }
-  const staff = people.map((p) => ({ id: p.id, name: p.name, email: p.email, onRecord: onRecord.has(p.id) }))
+  const staff = people.map((p) => ({ id: p.id, name: p.name, firstName: p.name.split(/\s+/)[0] || null, email: p.email, onRecord: onRecord.has(p.id) }))
     .sort((a, b) => Number(b.onRecord) - Number(a.onRecord) || a.name.localeCompare(b.name));
   return { staff, contacts };
 }
@@ -57,7 +57,11 @@ export type SendInput = {
   id: string;
   audience: Audience;
   headline: string;
+  opening: string;
   facts: SummaryFact[];
+  completed: string[];
+  coming_soon: ComingSoon[];
+  photos: { url: string; caption: string | null }[];
   body_html: string;
   note?: string | null;
   staff_ids?: string[];
@@ -87,21 +91,29 @@ export async function sendSummary(input: SendInput, actor: { id: string; name: s
   const project = await projectInfo(input.target, input.id);
   if (!project) throw Object.assign(new Error("That record wasn't found."), { status: 404 });
   const facts = (input.facts ?? []).slice(0, 6).map((f) => ({ label: String(f.label).slice(0, 40), value: String(f.value).slice(0, 80) }));
+  const opening = String(input.opening ?? "").slice(0, 1500);
+  const completed = (input.completed ?? []).map((c) => String(c).slice(0, 160)).filter(Boolean).slice(0, 10);
+  const comingSoon = (input.coming_soon ?? []).filter((c) => c?.item).slice(0, 8)
+    .map((c) => ({ item: String(c.item).slice(0, 160), when: c.when ? String(c.when).slice(0, 40) : null }));
+  // Photos must be our own stored images (public Supabase storage), never an arbitrary URL.
+  const storage = (process.env.SUPABASE_URL ?? "").replace(/\/$/, "");
+  const photos = (input.photos ?? []).filter((p) => typeof p?.url === "string" && storage && p.url.startsWith(`${storage}/storage/v1/object/public/`))
+    .slice(0, 8).map((p) => ({ url: p.url, caption: p.caption ? String(p.caption).slice(0, 80) : null }));
 
   const { staff, contacts } = await loadRecipients(input.target, input.id);
-  const to: { name: string; email: string; kind: "staff" | "client" | "other" }[] = [];
+  const to: { name: string; firstName: string | null; email: string; kind: "staff" | "client" | "other" }[] = [];
   for (const sid of input.staff_ids ?? []) {
     const s = staff.find((x) => x.id === sid);
-    if (s?.email) to.push({ name: s.name, email: s.email, kind: "staff" });
+    if (s?.email) to.push({ name: s.name, firstName: s.firstName, email: s.email, kind: "staff" });
   }
   if (input.audience === "client") {
     for (const cid of input.contact_ids ?? []) {
       const c = contacts.find((x) => x.id === cid);
-      if (c?.email) to.push({ name: c.name, email: c.email, kind: "client" });
+      if (c?.email) to.push({ name: c.name, firstName: c.firstName, email: c.email, kind: "client" });
     }
     for (const raw of input.extra_emails ?? []) {
       const e = raw.trim().toLowerCase();
-      if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) to.push({ name: e, email: e, kind: "other" });
+      if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) to.push({ name: e, firstName: null, email: e, kind: "other" });
     }
   }
   const unique = [...new Map(to.map((t) => [t.email.toLowerCase(), t])).values()];
@@ -109,10 +121,11 @@ export async function sendSummary(input: SendInput, actor: { id: string; name: s
 
   const app = publicAppUrl();
   const href = input.target === "job" ? `/dashboard/jobs/${input.id}/summary` : `/dashboard/sales/${input.id}`;
-  const html = summaryDocumentHtml({
+  // One document per reader so the greeting uses their first name.
+  const htmlFor = (firstName: string | null) => summaryDocumentHtml({
     audience: input.audience, kind: project.kind,
     projectName: project.name, projectNumber: project.number,
-    headline, facts, bodyHtml: body, preparedBy: actor.name,
+    headline, opening, firstName, facts, completed, comingSoon, photos, bodyHtml: body, preparedBy: actor.name,
     dateLabel: new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "America/Phoenix" }).format(new Date()),
     appUrl: app, note: input.note ?? null,
     cta: input.audience === "team"
@@ -125,7 +138,7 @@ export async function sendSummary(input: SendInput, actor: { id: string; name: s
   const skipped: { name: string; reason: string }[] = [];
   for (const r of unique) {
     if (r.kind !== "staff" && (await isSuppressed("email", r.email).catch(() => false))) { skipped.push({ name: r.name, reason: "unsubscribed from email" }); continue; }
-    const ok = await sendEmail(r.email, subject, html).catch(() => false);
+    const ok = await sendEmail(r.email, subject, htmlFor(r.firstName)).catch(() => false);
     if (ok) sent.push(r.name); else skipped.push({ name: r.name, reason: "email failed" });
   }
 
@@ -133,7 +146,8 @@ export async function sendSummary(input: SendInput, actor: { id: string; name: s
   if (input.post_to_portal && input.audience === "client" && input.target === "job") {
     await createJobUpdate(input.id, {
       title: headline,
-      body: [htmlToText(body)].join("\n\n"),
+      body: [opening.replace(/\{\{\s*first_name\s*\}\}/gi, "there"), completed.length ? `Completed:\n${completed.map((c) => `• ${c}`).join("\n")}` : "", comingSoon.length ? `Coming soon:\n${comingSoon.map((c) => `• ${c.item}${c.when ? ` (${c.when})` : ""}`).join("\n")}` : "", htmlToText(body)].filter(Boolean).join("\n\n"),
+      media: photos.map((p) => ({ url: p.url, type: "image" as const, name: p.caption ?? undefined })),
       update_type: "general",
       visibility: "client_visible",
     }, actor.name);
@@ -144,6 +158,7 @@ export async function sendSummary(input: SendInput, actor: { id: string; name: s
     job_id: input.target === "job" ? input.id : null,
     opportunity_id: input.target === "precon" ? input.id : null,
     audience: input.audience, headline, body_html: body, facts,
+    content: { opening, completed, coming_soon: comingSoon, photos },
     status: "sent", sent_to: unique.filter((u) => sent.includes(u.name)), posted_to_portal: posted,
     created_by: actor.id, created_by_name: actor.name, sent_at: new Date().toISOString(),
   });
@@ -153,7 +168,7 @@ export async function sendSummary(input: SendInput, actor: { id: string; name: s
 
 export async function loadHistory(target: SummaryTarget, id: string) {
   const { data } = await getSupabaseAdmin().from("executive_summaries")
-    .select("id,audience,headline,body_html,facts,sent_to,posted_to_portal,created_by_name,sent_at,created_at")
+    .select("id,audience,headline,body_html,facts,content,sent_to,posted_to_portal,created_by_name,sent_at,created_at")
     .eq(target === "job" ? "job_id" : "opportunity_id", id)
     .order("created_at", { ascending: false }).limit(20);
   return data ?? [];

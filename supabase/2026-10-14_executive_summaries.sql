@@ -38,3 +38,8 @@ ALTER TABLE executive_summaries ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Service role manages executive summaries" ON executive_summaries;
 CREATE POLICY "Service role manages executive summaries" ON executive_summaries FOR ALL
   USING (auth.role() = 'service_role') WITH CHECK (auth.role() = 'service_role');
+
+-- Structured parts of the summary (opening paragraph with a {{first_name}}
+-- token, completed / coming-soon lists, chosen photos), kept alongside the
+-- editable body so a sent summary can be reopened exactly.
+ALTER TABLE executive_summaries ADD COLUMN IF NOT EXISTS content JSONB NOT NULL DEFAULT '{}'::JSONB;

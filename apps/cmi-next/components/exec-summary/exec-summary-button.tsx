@@ -18,9 +18,15 @@ import { summaryDocumentHtml } from "@/lib/exec-summary/render";
 type Target = "job" | "precon";
 type Audience = "team" | "client";
 type Fact = { label: string; value: string };
-type Draft = { headline: string; facts: Fact[]; body_html: string; project: { name: string; number: string | null; kind: "Job" | "Pre-Con" } };
+type Coming = { item: string; when: string | null };
+type Photo = { url: string; caption: string | null; date?: string | null; clientVisible?: boolean; include: boolean };
+type Draft = {
+  headline: string; opening: string; facts: Fact[]; completed: string[]; coming_soon: Coming[];
+  photos: Photo[]; firstNames: string[]; body_html: string;
+  project: { name: string; number: string | null; kind: "Job" | "Pre-Con" };
+};
 type Person = { id: string; name: string; email: string | null; onRecord?: boolean };
-type HistoryRow = { id: string; audience: Audience; headline: string; body_html: string; facts: Fact[]; sent_to: { name: string }[]; posted_to_portal: boolean; created_by_name: string | null; sent_at: string | null; created_at: string };
+type HistoryRow = { id: string; audience: Audience; headline: string; body_html: string; facts: Fact[]; content?: { opening?: string; completed?: string[]; coming_soon?: Coming[]; photos?: { url: string; caption: string | null }[] }; sent_to: { name: string }[]; posted_to_portal: boolean; created_by_name: string | null; sent_at: string | null; created_at: string };
 
 async function json<T>(res: Response): Promise<T> {
   const j = await res.json().catch(() => ({}));
@@ -88,29 +94,35 @@ function ExecSummaryDialog({ target, id, name, onClose }: { target: Target; id: 
 
   function openPast(h: HistoryRow) {
     setAudience(h.audience);
-    setDraft({ headline: h.headline, facts: h.facts ?? [], body_html: h.body_html, project: { name, number: null, kind: target === "job" ? "Job" : "Pre-Con" } });
+    setDraft({
+      headline: h.headline, opening: h.content?.opening ?? "", facts: h.facts ?? [],
+      completed: h.content?.completed ?? [], coming_soon: h.content?.coming_soon ?? [],
+      photos: (h.content?.photos ?? []).map((p) => ({ ...p, include: true })), firstNames: [],
+      body_html: h.body_html, project: { name, number: null, kind: target === "job" ? "Job" : "Pre-Con" },
+    });
     setVersion((v) => v + 1); setTab("preview"); setResult(null);
   }
 
-  const doc = React.useMemo(() => draft && summaryDocumentHtml({
-    audience, kind: draft.project.kind, projectName: draft.project.name, projectNumber: draft.project.number,
-    headline: draft.headline, facts: draft.facts.filter((f) => f.label.trim() && f.value.trim()),
-    bodyHtml: sanitizeHtml(draft.body_html), preparedBy: null,
+  // The preview greets the first client (or "team"); each email is personalized on send.
+  const docProps = React.useCallback((d: Draft) => ({
+    audience, kind: d.project.kind, projectName: d.project.name, projectNumber: d.project.number,
+    headline: d.headline, opening: d.opening,
+    firstName: audience === "client" ? d.firstNames[0] ?? null : "team",
+    facts: d.facts.filter((f) => f.label.trim() && f.value.trim()),
+    completed: d.completed.map((c) => c.trim()).filter(Boolean),
+    comingSoon: d.coming_soon.filter((c) => c.item.trim()),
+    photos: d.photos.filter((p) => p.include).map((p) => ({ url: p.url, caption: p.caption })),
+    bodyHtml: sanitizeHtml(d.body_html), preparedBy: null,
     dateLabel: new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric" }).format(new Date()),
     appUrl: typeof window !== "undefined" ? window.location.origin : "",
-    note: sending ? note : null,
-  }), [draft, audience, note, sending]);
+  }), [audience]);
+  const doc = React.useMemo(() => draft && summaryDocumentHtml({ ...docProps(draft), note: sending ? note : null }), [draft, docProps, note, sending]);
 
   function downloadPdf() {
     if (!draft) return;
     const w = window.open("", "_blank");
     if (!w) { setError("Allow pop-ups to save the PDF."); return; }
-    w.document.write(summaryDocumentHtml({
-      audience, kind: draft.project.kind, projectName: draft.project.name, projectNumber: draft.project.number,
-      headline: draft.headline, facts: draft.facts.filter((f) => f.label.trim() && f.value.trim()), bodyHtml: sanitizeHtml(draft.body_html),
-      preparedBy: null, dateLabel: new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric" }).format(new Date()),
-      appUrl: window.location.origin,
-    }, { print: true }));
+    w.document.write(summaryDocumentHtml(docProps(draft), { print: true }));
     w.document.close();
     w.onload = () => { w.focus(); w.print(); };
   }
@@ -119,7 +131,10 @@ function ExecSummaryDialog({ target, id, name, onClose }: { target: Target; id: 
     if (!draft) return;
     const facts = draft.facts.map((f) => `${f.label}: ${f.value}`).join("\n");
     const body = draft.body_html.replace(/<\/(h2|p|li)>/g, "\n").replace(/<li>/g, "• ");
-    await navigator.clipboard.writeText(`${draft.headline}\n\n${facts}\n\n${htmlToText(body.replace(/\n/g, "§")).replace(/§/g, "\n")}`.trim());
+    const opening = draft.opening.replace(/\{\{\s*first_name\s*\}\}/gi, audience === "client" ? draft.firstNames[0] ?? "there" : "team");
+    const done = draft.completed.length ? `Completed\n${draft.completed.map((c) => `✓ ${c}`).join("\n")}` : "";
+    const next = draft.coming_soon.length ? `Coming Soon\n${draft.coming_soon.map((c) => `• ${c.item}${c.when ? ` — ${c.when}` : ""}`).join("\n")}` : "";
+    await navigator.clipboard.writeText([draft.headline, opening, facts, done, next, htmlToText(body.replace(/\n/g, "§")).replace(/§/g, "\n")].filter(Boolean).join("\n\n").trim());
     setCopied(true); setTimeout(() => setCopied(false), 2000);
   }
 
@@ -130,7 +145,11 @@ function ExecSummaryDialog({ target, id, name, onClose }: { target: Target; id: 
       const r = await json<{ sent: string[]; skipped: { name: string; reason: string }[]; posted: boolean }>(await fetch("/api/exec-summary/send", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          target, id, audience, headline: draft.headline, facts: draft.facts.filter((f) => f.label.trim() && f.value.trim()),
+          target, id, audience, headline: draft.headline, opening: draft.opening,
+          facts: draft.facts.filter((f) => f.label.trim() && f.value.trim()),
+          completed: draft.completed.map((c) => c.trim()).filter(Boolean),
+          coming_soon: draft.coming_soon.filter((c) => c.item.trim()),
+          photos: draft.photos.filter((p) => p.include).map((p) => ({ url: p.url, caption: p.caption })),
           body_html: sanitizeHtml(draft.body_html), note,
           staff_ids: [...staffIds], contact_ids: audience === "client" ? [...contactIds] : [],
           extra_emails: audience === "client" ? extra.split(/[,\s;]+/).filter(Boolean) : [],
@@ -212,6 +231,44 @@ function ExecSummaryDialog({ target, id, name, onClose }: { target: Target; id: 
                   <input value={draft.headline} onChange={(e) => setDraft({ ...draft, headline: e.target.value })}
                     className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm font-medium outline-none focus:border-accent" />
                 </label>
+                <label className="block space-y-1">
+                  <span className="text-xs font-medium text-muted-foreground">Opening paragraph <span className="font-normal">— keep {"{{first_name}}"}; it becomes each reader&apos;s first name</span></span>
+                  <textarea value={draft.opening} rows={6} onChange={(e) => setDraft({ ...draft, opening: e.target.value })}
+                    className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm leading-relaxed outline-none focus:border-accent" />
+                </label>
+                <ListEditor label="Completed" items={draft.completed} placeholder="Foundation inspection passed"
+                  onChange={(completed) => setDraft({ ...draft, completed })} />
+                <div className="space-y-1">
+                  <span className="text-xs font-medium text-muted-foreground">Coming soon</span>
+                  {draft.coming_soon.map((c, i) => (
+                    <div key={i} className="flex gap-1.5">
+                      <input value={c.item} placeholder="Rough electrical" onChange={(e) => setDraft({ ...draft, coming_soon: draft.coming_soon.map((x, j) => (j === i ? { ...x, item: e.target.value } : x)) })}
+                        className="h-9 flex-1 rounded-md border border-border bg-background px-2 text-sm outline-none focus:border-accent" />
+                      <input value={c.when ?? ""} placeholder="Oct 22" onChange={(e) => setDraft({ ...draft, coming_soon: draft.coming_soon.map((x, j) => (j === i ? { ...x, when: e.target.value || null } : x)) })}
+                        className="h-9 w-28 rounded-md border border-border bg-background px-2 text-sm outline-none focus:border-accent" />
+                      <button type="button" aria-label="Remove" onClick={() => setDraft({ ...draft, coming_soon: draft.coming_soon.filter((_, j) => j !== i) })}
+                        className="rounded p-2 text-muted-foreground hover:text-destructive"><Trash2 className="h-3.5 w-3.5" /></button>
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => setDraft({ ...draft, coming_soon: [...draft.coming_soon, { item: "", when: null }] })}
+                    className="flex items-center gap-1 text-xs text-accent hover:underline"><Plus className="h-3 w-3" /> Add item</button>
+                </div>
+                {draft.photos.length > 0 && (
+                  <div className="space-y-1">
+                    <span className="text-xs font-medium text-muted-foreground">Photos <span className="font-normal">— tick the ones to include{audience === "client" ? "; internal photos start unticked" : ""}</span></span>
+                    <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                      {draft.photos.map((p, i) => (
+                        <button key={p.url} type="button" onClick={() => setDraft({ ...draft, photos: draft.photos.map((x, j) => (j === i ? { ...x, include: !x.include } : x)) })}
+                          className={cn("relative overflow-hidden rounded-md border-2", p.include ? "border-accent" : "border-transparent opacity-60")}>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={p.url} alt={p.caption ?? "Project photo"} className="aspect-square w-full object-cover" />
+                          <span className={cn("absolute right-1 top-1 grid h-5 w-5 place-items-center rounded-full text-white", p.include ? "bg-accent" : "bg-black/40")}>{p.include && <Check className="h-3 w-3" />}</span>
+                          {audience === "client" && !p.clientVisible && <span className="absolute bottom-1 left-1 rounded bg-black/60 px-1 text-[9px] text-white">internal</span>}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className="space-y-1">
                   <span className="text-xs font-medium text-muted-foreground">Key facts</span>
                   {draft.facts.map((f, i) => (
@@ -230,7 +287,7 @@ function ExecSummaryDialog({ target, id, name, onClose }: { target: Target; id: 
                   )}
                 </div>
                 <div className="space-y-1">
-                  <span className="text-xs font-medium text-muted-foreground">Summary</span>
+                  <span className="text-xs font-medium text-muted-foreground">More sections</span>
                   <RichTextEditor key={version} value={draft.body_html} onChange={(v) => setDraft((d) => (d ? { ...d, body_html: v } : d))} />
                 </div>
               </div>
@@ -315,5 +372,22 @@ function ExecSummaryDialog({ target, id, name, onClose }: { target: Target; id: 
         )}
       </div>
     </Modal>
+  );
+}
+
+function ListEditor({ label, items, placeholder, onChange }: { label: string; items: string[]; placeholder: string; onChange: (items: string[]) => void }) {
+  return (
+    <div className="space-y-1">
+      <span className="text-xs font-medium text-muted-foreground">{label}</span>
+      {items.map((v, i) => (
+        <div key={i} className="flex gap-1.5">
+          <input value={v} placeholder={placeholder} onChange={(e) => onChange(items.map((x, j) => (j === i ? e.target.value : x)))}
+            className="h-9 flex-1 rounded-md border border-border bg-background px-2 text-sm outline-none focus:border-accent" />
+          <button type="button" aria-label="Remove" onClick={() => onChange(items.filter((_, j) => j !== i))}
+            className="rounded p-2 text-muted-foreground hover:text-destructive"><Trash2 className="h-3.5 w-3.5" /></button>
+        </div>
+      ))}
+      <button type="button" onClick={() => onChange([...items, ""])} className="flex items-center gap-1 text-xs text-accent hover:underline"><Plus className="h-3 w-3" /> Add item</button>
+    </div>
   );
 }
