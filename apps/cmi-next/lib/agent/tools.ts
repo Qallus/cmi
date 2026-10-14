@@ -2,6 +2,8 @@
 // executes them. Reads/creates/updates run inline; deletes and sends are staged
 // as pending actions for the staff member to confirm.
 import { ENTITIES, getEntity } from "./entities";
+import { PUNCH_TOOL_DEF, executePunchPending, stagePunchList } from "@/lib/punch/bolt";
+import { canWritePunch } from "@/lib/punch/types";
 import { getJobOverview } from "./job-context";
 import {
   countRecords, createRecord, deleteRecord, getRecord, listRecords, sendMessage, updateRecord,
@@ -202,7 +204,8 @@ async function projectionsAllowed(ctx: StaffContext): Promise<boolean> {
 
 // Tool list for this staff member (adds role-gated tools).
 export async function toolDefsFor(ctx: StaffContext): Promise<any[]> {
-  return (await projectionsAllowed(ctx)) ? [...TOOL_DEFS, PROJECTIONS_TOOL_DEF] : TOOL_DEFS;
+  const defs = canWritePunch(ctx.role) ? [...TOOL_DEFS, PUNCH_TOOL_DEF] : [...TOOL_DEFS];
+  return (await projectionsAllowed(ctx)) ? [...defs, PROJECTIONS_TOOL_DEF] : defs;
 }
 
 async function projectionsSummary() {
@@ -328,6 +331,16 @@ export async function dispatchTool(name: string, args: Record<string, unknown>, 
         return { result: { status: "confirmation_required", message: "Staged for staff confirmation. Tell the user to confirm to send.", summary }, pending, activity: act(`Staged: ${summary}`) };
       }
 
+      case "propose_punch_list": {
+        const staged = await stagePunchList(args as Parameters<typeof stagePunchList>[0], ctx.role);
+        if (!staged.ok) return { result: staged.result, activity: act(String(staged.result.error ?? staged.result.message ?? "Punch list needs more detail"), !staged.result.error) };
+        const pending: PendingAction = { id: uid(), kind: "punch_list", summary: staged.summary, punch: staged.pending };
+        return {
+          result: { status: "confirmation_required", message: "Staged for staff confirmation. Tell the user to review the items and tap Save to add them.", summary: staged.summary },
+          pending, activity: act(`Staged: ${staged.summary}`),
+        };
+      }
+
       default:
         return { result: { error: `Unknown tool "${name}".` }, activity: act(`Unknown tool ${name}`, false) };
     }
@@ -341,6 +354,9 @@ export async function dispatchTool(name: string, args: Record<string, unknown>, 
 export async function executePending(action: PendingAction, ctx: StaffContext): Promise<ToolResult> {
   if (action.kind === "delete" && action.entity && action.recordId) {
     return deleteRecord(action.entity, action.recordId, ctx);
+  }
+  if (action.kind === "punch_list" && action.punch) {
+    return executePunchPending(action.punch, ctx);
   }
   if (action.kind === "send" && action.channel && action.to) {
     return sendMessage({ channel: action.channel, to: action.to, subject: action.subject, body: action.body || "", contactId: action.contactId ?? null }, ctx);

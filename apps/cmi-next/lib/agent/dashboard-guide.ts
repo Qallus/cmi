@@ -123,6 +123,19 @@ export const DASHBOARD_GUIDE: GuideEntry[] = [
     keywords: ["daily log", "daily logs", "site log", "site visit", "field report", "weather", "logs"],
   },
   {
+    id: "punch-lists", name: "Punch Lists", path: "/dashboard/punch-lists", nav: "Sidebar → Jobs → Punch Lists; also a Punch List tab on every Job, Pre-Con project and Pipeline deal",
+    summary: "Checklists of fixes and tasks attached to a Job, Pre-Con project or Pipeline deal — as many lists per record as you need. Check items off with one tap (built for phones), add notes, room, trade, priority, due date and an assignee. Items assigned to someone appear in their Daily Brief. Job lists can be made visible to the client (read-only, in their portal). Start blank or from a construction template (Final Walkthrough, Pre-Drywall, Kitchen, Bathroom, Exterior & Landscape, Closeout) or a saved one.",
+    steps: [
+      "New list: open the Job (Punch List tab), Pre-Con project (Punch List tab) or Pipeline deal → New punch list → pick a template or blank → Create list. Or Jobs → Punch Lists → New punch list → Attach to… → search the record.",
+      "Add items: type in “Add an item…” and press Enter (paste several lines to add several), or tap the mic to dictate a walkthrough — each sentence becomes an item — or list menu (⋯) → Import items (.csv or .txt).",
+      "Check off: tap the box. Tap the item text to edit notes, room, trade, priority, assignee and due date.",
+      "Share with the client (Jobs only): list menu → Edit list → Visible to the client.",
+      "Save as template: list menu → Save as template.",
+      "Ask Bolt: “add a punch list to the Lillie job: touch up hallway paint, missing outlet cover in the primary bath” — Bolt shows the items and you tap Save.",
+    ],
+    keywords: ["punch list", "punch lists", "punchlist", "punch", "walkthrough", "walk-through", "checklist", "check list", "closeout", "pre-drywall", "to do", "fix list", "deficiency"],
+  },
+  {
     id: "site-photos", name: "Photos, video and voice notes from a phone", path: "/dashboard/jobs", nav: "Phone: bottom menu → Camera or Record",
     summary: "Capture on site and file it in one step. Save to a Job (files + timeline, optional client sharing, and 'Also add to today's daily log', on by default), a Pre-Con project, or a Daily Log. Voice notes are transcribed automatically when you stop recording.",
     steps: [

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { PendingAction, ToolActivity } from "@/lib/agent/types";
+import { PunchConfirmCard } from "@/components/punch/punch-confirm-card";
 
 type Msg = { id: string; role: "user" | "assistant"; content: string; activities?: ToolActivity[]; pending?: PendingAction[] };
 
@@ -111,7 +112,10 @@ export function BoltModal({ context, jobId, onClose }: { context?: string; jobId
                       </div>
                     )}
                     {m.content && <div className="whitespace-pre-wrap text-sm leading-relaxed">{m.content}</div>}
-                    {m.pending && m.pending.length > 0 && (
+                    {m.pending?.filter((a) => a.kind === "punch_list").map((a) => (
+                      <div key={a.id} className="mt-2"><PunchConfirmCard action={a} /></div>
+                    ))}
+                    {m.pending && m.pending.some((a) => a.kind !== "punch_list") && (
                       <div className="mt-2 rounded-md border border-accent/40 bg-accent/5 px-2.5 py-2 text-[11px] text-muted-foreground">
                         Bolt staged an action that needs confirmation. Open the <Link href="/dashboard/agent" className="font-medium text-accent">full Agent page</Link> to review and confirm it.
                       </div>

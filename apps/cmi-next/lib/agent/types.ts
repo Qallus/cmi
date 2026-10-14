@@ -42,7 +42,7 @@ export type ToolResult = Record<string, unknown>;
 // A staged action that must be confirmed by the staff member before it runs.
 export type PendingAction = {
   id: string;
-  kind: "delete" | "send";
+  kind: "delete" | "send" | "punch_list";
   summary: string;
   // For delete:
   entity?: string;
@@ -53,6 +53,8 @@ export type PendingAction = {
   subject?: string;
   body?: string;
   contactId?: string | null;
+  // For punch_list (see lib/punch/bolt.ts):
+  punch?: import("@/lib/punch/bolt").PunchPending;
 };
 
 export type ChatMessage = {

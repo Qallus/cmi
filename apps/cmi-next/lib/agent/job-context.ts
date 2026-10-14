@@ -40,7 +40,7 @@ export async function getJobOverview(identifier: string): Promise<ToolResult> {
   const num = (r: { count: number | null }) => r.count ?? 0;
   const [
     schedule, changeOrders, invoices, dailyLogs, files, updates, actionItems,
-    selections, notes, contacts, vendors, internalUsers,
+    selections, notes, contacts, vendors, internalUsers, punchLists,
   ] = await Promise.all([
     sb.from("project_schedule_items").select("id,title,type,phase,status,progress,start_date,end_date,client_start_date,client_end_date,client_visible").eq("board_id", jobId).order("start_date", { ascending: true }).limit(50),
     sb.from("change_orders").select("id,co_number,title,status,amount,co_date").eq("job_id", jobId).order("created_at", { ascending: false }).limit(20),
@@ -54,6 +54,7 @@ export async function getJobOverview(identifier: string): Promise<ToolResult> {
     sb.from("job_contacts").select("contact_id,role,is_primary,contact:contacts(first_name,last_name,email,phone,company)").eq("job_id", jobId),
     sb.from("job_vendors").select("role,vendor:contacts(first_name,last_name,company,email,phone)").eq("job_id", jobId),
     sb.from("job_internal_users").select("role,user:staff_users(display_name,email,role_slug)").eq("job_id", jobId),
+    sb.from("punch_lists").select("id,title,client_visible,items:punch_items(title,location,completed_at,due_date,priority)").eq("job_id", jobId).is("archived_at", null),
   ]);
 
   const scheduleRows = (schedule.data ?? []) as Row[];
@@ -106,5 +107,13 @@ export async function getJobOverview(identifier: string): Promise<ToolResult> {
     contacts: contactRows,
     vendors: vendors.data ?? [],
     internal_users: internalUsers.data ?? [],
+    punch_lists: ((punchLists.data ?? []) as Row[]).map((l) => {
+      const items = (l.items ?? []) as Row[];
+      return {
+        title: l.title, client_visible: l.client_visible,
+        done: items.filter((i) => i.completed_at).length, total: items.length,
+        open_items: items.filter((i) => !i.completed_at).map((i) => ({ title: i.title, location: i.location, due_date: i.due_date, priority: i.priority })),
+      };
+    }),
   };
 }

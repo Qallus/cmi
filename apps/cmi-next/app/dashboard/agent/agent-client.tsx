@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { AgentTrainingPanel } from "@/components/dashboard/agent-training-panel";
 import { PaperclipPanel } from "@/components/dashboard/paperclip-panel";
 import type { PendingAction, ToolActivity } from "@/lib/agent/types";
+import { PunchConfirmCard } from "@/components/punch/punch-confirm-card";
 
 type Message = {
   id: string;
@@ -225,6 +226,7 @@ export function AgentClient({ configured }: { configured: boolean }) {
                     {msg.pending && msg.pending.length > 0 && (
                       <div className="mt-3 space-y-2">
                         {msg.pending.map((action) => {
+                          if (action.kind === "punch_list") return <PunchConfirmCard key={action.id} action={action} />;
                           const st = actionStatus[action.id] ?? { state: "idle" as const };
                           return (
                             <div key={action.id} className={cn("rounded-lg border p-3", action.kind === "delete" ? "border-destructive/40 bg-destructive/5" : "border-accent/40 bg-accent/5")}>
