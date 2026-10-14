@@ -1,7 +1,7 @@
 // Punch list data access (service role; role checks live in the API routes).
 // Server only.
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { sanitizeHtml } from "@/lib/notes/html";
+import { sanitizeHtmlServer } from "@/lib/html/sanitize-server";
 import { SYSTEM_TEMPLATES } from "./templates";
 import {
   PARENT_COLUMN, PUNCH_PRIORITIES, parentOf,
@@ -15,7 +15,7 @@ export class PunchError extends Error {
 
 type Actor = { id?: string | null; name?: string | null };
 const now = () => new Date().toISOString();
-const html = (v: unknown) => (typeof v === "string" && v.trim() ? sanitizeHtml(v) : null);
+const html = (v: unknown) => (typeof v === "string" && v.trim() ? sanitizeHtmlServer(v) || null : null);
 const text = (v: unknown, max = 500) => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null);
 const priority = (v: unknown): PunchPriority => (PUNCH_PRIORITIES.includes(v as PunchPriority) ? (v as PunchPriority) : "normal");
 const date = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : null);

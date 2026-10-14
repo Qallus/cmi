@@ -6,6 +6,7 @@ import { ClipboardCheck,
   ArrowLeft, BriefcaseBusiness, ChevronLeft, ChevronRight, Clock, Loader2, Mail, MapPin, Phone,
 } from "lucide-react";
 import { PunchListPanel } from "@/components/punch/punch-list-panel";
+import { ExecSummaryButton } from "@/components/exec-summary/exec-summary-button";
 import { cn } from "@/lib/utils";
 import { Input, Select, Textarea } from "@/components/ui/input";
 import { STAGE_META } from "@/lib/pipeline/stages";
@@ -234,7 +235,10 @@ export function OpportunityDetailClient({
               <h1 className="font-display text-2xl font-semibold">{opp.opportunity_name}</h1>
             </div>
           </div>
-          <StageBadge stage={opp.stage} />
+          <div className="flex flex-wrap items-center gap-2">
+            <ExecSummaryButton target="precon" id={opp.id} name={opp.opportunity_name} />
+            <StageBadge stage={opp.stage} />
+          </div>
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 rounded-lg border border-border p-4 md:grid-cols-4">
