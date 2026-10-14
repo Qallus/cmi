@@ -228,6 +228,12 @@ export const DASHBOARD_GUIDE: GuideEntry[] = [
     keywords: ["users", "staff", "invite", "roles", "permissions", "user management", "add employee"],
   },
   {
+    id: "team", name: "Team (website profiles)", path: "/dashboard/team", nav: "Sidebar → Site Content → Team",
+    roles: "Super Admin, Admin",
+    summary: "The public team pages on constructedmatter.com/team: name, title, bio, photos, specialties and hours. Staff accounts (email, phone, dashboard role) are in User Management.",
+    keywords: ["team", "team page", "staff profile", "bio", "who works here", "employees"],
+  },
+  {
     id: "my-profile", name: "My Profile", path: "/dashboard/my-profile", nav: "Sidebar → My Profile",
     summary: "Your details and notification preferences (email and push).", keywords: ["profile", "my profile", "notification settings", "preferences"],
   },

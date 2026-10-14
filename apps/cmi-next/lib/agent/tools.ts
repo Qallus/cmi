@@ -7,6 +7,7 @@ import {
   countRecords, createRecord, deleteRecord, getRecord, listRecords, sendMessage, updateRecord,
 } from "./registry";
 import { DASHBOARD_GUIDE, searchGuide } from "./dashboard-guide";
+import { findPeople, loadTeamDirectory } from "./team-directory";
 import { loadHiddenNav } from "@/lib/nav-settings";
 import { publicAppUrl } from "@/lib/twilio";
 import type { PendingAction, StaffContext, ToolActivity, ToolResult } from "./types";
@@ -33,6 +34,17 @@ export const TOOL_DEFS: any[] = [
           group_by: { type: "string", description: "Field to break the count down by, e.g. \"type\" or \"status\"" },
         },
         required: ["entity"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "team_directory",
+      description: "Who's who at CMI: owners and staff with their job title, email, phone, dashboard role, bio, specialties, hours, LinkedIn and public profile page. Use for ANY question about a person at CMI or the team ('who is…', 'Joe's phone', 'who are the owners', 'who's our superintendent'). Pass a name (nicknames and misspellings are fine) or leave it empty for everyone.",
+      parameters: {
+        type: "object",
+        properties: { name: { type: "string", description: "A name, nickname or job title, e.g. 'Joe', 'Yovanna', 'superintendent'. Empty = the whole team." } },
       },
     },
   },
@@ -248,6 +260,16 @@ export async function dispatchTool(name: string, args: Record<string, unknown>, 
       case "count_records": {
         const r = await countRecords(String(args.entity), { search: args.search as string, filters: args.filters as Record<string, unknown>, group_by: args.group_by as string });
         return { result: r, activity: act(r.error ? `Count failed: ${r.error}` : `Counted ${String(args.entity)}: ${String((r as { total?: number }).total ?? 0)}`, !r.error) };
+      }
+
+      case "team_directory": {
+        const everyone = await loadTeamDirectory();
+        const query = String(args.name ?? "").trim();
+        const people = query ? findPeople(everyone, query) : everyone;
+        return {
+          result: people.length ? { people } : { people: [], note: `No one at CMI matches "${query}". The team is: ${everyone.map((p) => p.name).join(", ")}.` },
+          activity: act(query ? `Looked up ${query} in the team directory` : "Loaded the team directory"),
+        };
       }
 
       case "dashboard_help": {
