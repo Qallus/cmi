@@ -17,6 +17,8 @@ import type { JobReport } from "@/lib/jobs/reporting";
 import { JobStatusBadge, JobColorDot, money, formatDate } from "./job-ui";
 import { RecordsImportModal } from "@/components/dashboard/records-import-modal";
 import { exportJobsCsv } from "@/lib/records-io/export";
+import { QuickActionBar } from "@/components/dashboard/quick-action-bar";
+import { DELETE_ROLES, WRITE_ROLES } from "@/lib/records-io/fields";
 
 type SortKey = "job_name" | "job_number" | "city" | "status" | "projected_start_date" | "projected_completion_date" | "updated_at";
 type ViewMode = "list" | "table" | "card" | "kanban" | "calendar";
@@ -29,14 +31,21 @@ const VIEWS: { key: ViewMode; label: string; icon: typeof ListIcon }[] = [
   { key: "calendar", label: "Calendar", icon: CalendarIcon },
 ];
 
+const STATUS_OPTIONS = ALL_JOB_STATUSES.map((s) => ({ value: s, label: JOB_STATUS_META[s].label }));
+
+type Sel = { selected: Set<string>; setSelected: React.Dispatch<React.SetStateAction<Set<string>>> };
+
 export function JobsListClient({
-  initialRows, types, groups, report,
+  initialRows, types, groups, report, role = null,
 }: {
   initialRows: JobListRow[];
   types: JobType[];
   groups: JobGroup[];
   report: JobReport;
+  role?: string | null;
 }) {
+  const canWrite = !!role && WRITE_ROLES.jobs.includes(role);
+  const canDelete = !!role && DELETE_ROLES.jobs.includes(role);
   const router = useRouter();
   const [rows, setRows] = React.useState<JobListRow[]>(initialRows);
   const [view, setView] = React.useState<ViewMode>("table");
@@ -50,6 +59,7 @@ export function JobsListClient({
   const [newMenu, setNewMenu] = React.useState(false);
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [importOpen, setImportOpen] = React.useState(false);
+  const [showArchived, setShowArchived] = React.useState(false);
 
   const pms = React.useMemo(() => Array.from(new Set(rows.flatMap((r) => r.project_managers))).sort(), [rows]);
 
@@ -57,6 +67,9 @@ export function JobsListClient({
   const filtered = React.useMemo(() => {
     const q = search.toLowerCase();
     const out = rows.filter((r) => {
+      // "Show archived" switches the list to archived jobs only, so Restore
+      // always acts on what is on screen.
+      if (showArchived ? !r.archived_at : r.archived_at) return false;
       if (view !== "kanban" && statusFilter !== "all" && r.status !== statusFilter) return false;
       if (typeFilter !== "all" && r.job_type_id !== typeFilter) return false;
       if (groupFilter !== "all" && r.job_group_id !== groupFilter) return false;
@@ -70,19 +83,31 @@ export function JobsListClient({
     });
     const dir = sort.dir === "asc" ? 1 : -1;
     return out.sort((a, b) => String(a[sort.key] ?? "").localeCompare(String(b[sort.key] ?? "")) * dir);
-  }, [rows, view, search, statusFilter, typeFilter, groupFilter, pmFilter, activeOnly, sort]);
+  }, [rows, view, search, statusFilter, typeFilter, groupFilter, pmFilter, activeOnly, sort, showArchived]);
 
   function toggleSort(key: SortKey) {
     setSort((s) => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
   }
   const open = (id: string) => router.push(`/dashboard/jobs/${id}/summary`);
 
-  // Export the checked rows, or everything currently shown when none are checked.
+  // Only what is on screen counts as selected: filtering a checked job away
+  // must not leave it silently in the next bulk action.
   const selectedRows = filtered.filter((r) => selected.has(r.id));
+  const selectedIds = selectedRows.map((r) => r.id);
+  const allChecked = filtered.length > 0 && selectedRows.length === filtered.length;
+  function toggleAll(on: boolean) { setSelected(on ? new Set(filtered.map((r) => r.id)) : new Set()); }
+  const sel: Sel = { selected, setSelected };
+
+  // Export the checked rows, or everything currently shown when none are checked.
   function exportCsv() { exportJobsCsv(selectedRows.length ? selectedRows : filtered); }
-  async function reload() {
-    try { const res = await fetch("/api/jobs"); if (res.ok) setRows(await res.json()); } catch { /* keep list */ }
+  async function reload(archived = showArchived) {
+    try { const res = await fetch(archived ? "/api/jobs?archived=1" : "/api/jobs"); if (res.ok) setRows(await res.json()); } catch { /* keep list */ }
     router.refresh();
+  }
+  function toggleArchived(on: boolean) {
+    setShowArchived(on);
+    setSelected(new Set());
+    void reload(on);
   }
 
   // Kanban drag → change status (optimistic, rollback on failure).
@@ -182,24 +207,65 @@ export function JobsListClient({
           <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <input type="checkbox" checked={activeOnly} onChange={(e) => setActiveOnly(e.target.checked)} /> Active only
           </label>
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <input type="checkbox" checked={showArchived} onChange={(e) => toggleArchived(e.target.checked)} /> Show archived
+          </label>
+          {view !== "table" && (
+            <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <input type="checkbox" checked={allChecked} onChange={(e) => toggleAll(e.target.checked)} /> Select all
+            </label>
+          )}
         </div>
       </div>
 
       {/* Body */}
       <div className="flex-1 overflow-auto">
-        {view === "table" && <TableView rows={filtered} sort={sort} onSort={toggleSort} onOpen={open} selected={selected} setSelected={setSelected} />}
-        {view === "list" && <JobListView rows={filtered} onOpen={open} />}
-        {view === "card" && <CardView rows={filtered} onOpen={open} />}
-        {view === "kanban" && <KanbanView rows={filtered} onOpen={open} onStatusChange={updateStatus} />}
-        {view === "calendar" && <CalendarView rows={filtered} onOpen={open} />}
+        {view === "table" && <TableView rows={filtered} sort={sort} onSort={toggleSort} onOpen={open} {...sel} />}
+        {view === "list" && <JobListView rows={filtered} onOpen={open} {...sel} />}
+        {view === "card" && <CardView rows={filtered} onOpen={open} {...sel} />}
+        {view === "kanban" && <KanbanView rows={filtered} onOpen={open} onStatusChange={updateStatus} {...sel} />}
+        {view === "calendar" && <CalendarView rows={filtered} onOpen={open} {...sel} />}
       </div>
+      <QuickActionBar
+        target="jobs"
+        ids={selectedIds}
+        stages={STATUS_OPTIONS}
+        canWrite={canWrite}
+        canDelete={canDelete}
+        showingArchived={showArchived}
+        onEdit={(id) => router.push(`/dashboard/jobs/${id}/info`)}
+        onClear={() => setSelected(new Set())}
+        onDone={() => { setSelected(new Set()); void reload(); }}
+      />
       {importOpen && <RecordsImportModal defaultTarget="jobs" onClose={() => setImportOpen(false)} onImported={() => void reload()} />}
     </div>
   );
 }
 
 // ─── Table ───────────────────────────────────────────────────
-function TableView({ rows, sort, onSort, onOpen, selected, setSelected }: { rows: JobListRow[]; sort: { key: SortKey; dir: string }; onSort: (k: SortKey) => void; onOpen: (id: string) => void; selected: Set<string>; setSelected: React.Dispatch<React.SetStateAction<Set<string>>> }) {
+// One row checkbox, shared by every view. Clicking it never opens the job.
+function Check({ id, selected, setSelected }: { id: string } & Sel) {
+  return (
+    <input
+      type="checkbox" aria-label="Select job" checked={selected.has(id)}
+      onClick={(e) => e.stopPropagation()}
+      onChange={(e) => setSelected((prev) => { const n = new Set(prev); if (e.target.checked) n.add(id); else n.delete(id); return n; })}
+    />
+  );
+}
+
+function NextAction({ text, due }: { text: string | null; due: string | null }) {
+  if (!text) return <span className="text-muted-foreground">—</span>;
+  const overdue = !!due && due < new Date().toISOString().slice(0, 10);
+  return (
+    <div className="max-w-[220px]">
+      <div className="truncate" title={text}>{text}</div>
+      {due && <div className={cn("text-xs", overdue ? "text-destructive" : "text-muted-foreground")}>Due {formatDate(due)}</div>}
+    </div>
+  );
+}
+
+function TableView({ rows, sort, onSort, onOpen, selected, setSelected }: { rows: JobListRow[]; sort: { key: SortKey; dir: string }; onSort: (k: SortKey) => void; onOpen: (id: string) => void } & Sel) {
   return (
     <table className="w-full min-w-[1100px] border-collapse text-sm">
       <thead className="sticky top-0 z-10 bg-card">
@@ -217,14 +283,15 @@ function TableView({ rows, sort, onSort, onOpen, selected, setSelected }: { rows
           <SortableTh label="Status" k="status" sort={sort} onSort={onSort} />
           <SortableTh label="Start" k="projected_start_date" sort={sort} onSort={onSort} />
           <SortableTh label="Completion" k="projected_completion_date" sort={sort} onSort={onSort} />
+          <Th>Next Action</Th>
         </tr>
       </thead>
       <tbody className="divide-y divide-border">
-        {rows.length === 0 && <tr><td colSpan={14} className="px-4 py-12 text-center text-sm text-muted-foreground">No jobs found. Create one with “New Job”.</td></tr>}
+        {rows.length === 0 && <tr><td colSpan={15} className="px-4 py-12 text-center text-sm text-muted-foreground">No jobs found. Create one with “New Job”.</td></tr>}
         {rows.map((j) => (
           <tr key={j.id} className="cursor-pointer transition hover:bg-muted/30" onClick={() => onOpen(j.id)}>
             <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
-              <input type="checkbox" checked={selected.has(j.id)} onChange={(e) => setSelected((prev) => { const n = new Set(prev); if (e.target.checked) n.add(j.id); else n.delete(j.id); return n; })} />
+              <Check id={j.id} selected={selected} setSelected={setSelected} />
             </td>
             <td className="px-4 py-3"><div className="flex items-center gap-2"><JobColorDot color={j.job_color} /><span className="font-medium">{j.job_name}</span></div></td>
             <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{j.job_number ?? "—"}</td>
@@ -239,6 +306,7 @@ function TableView({ rows, sort, onSort, onOpen, selected, setSelected }: { rows
             <td className="px-4 py-3"><JobStatusBadge status={j.status as JobStatus} /></td>
             <td className="px-4 py-3 text-muted-foreground">{formatDate(j.projected_start_date)}</td>
             <td className="px-4 py-3 text-muted-foreground">{formatDate(j.projected_completion_date)}</td>
+            <td className="px-4 py-3"><NextAction text={j.next_action} due={j.next_action_due} /></td>
           </tr>
         ))}
       </tbody>
@@ -247,12 +315,14 @@ function TableView({ rows, sort, onSort, onOpen, selected, setSelected }: { rows
 }
 
 // ─── List (compact) ──────────────────────────────────────────
-function JobListView({ rows, onOpen }: { rows: JobListRow[]; onOpen: (id: string) => void }) {
+function JobListView({ rows, onOpen, ...sel }: { rows: JobListRow[]; onOpen: (id: string) => void } & Sel) {
   if (rows.length === 0) return <Empty />;
   return (
     <div className="divide-y divide-border">
       {rows.map((j) => (
-        <button key={j.id} type="button" onClick={() => onOpen(j.id)} className="flex w-full items-center gap-4 px-4 py-3 text-left transition hover:bg-muted/30 md:px-6">
+        <div key={j.id} role="button" tabIndex={0} onClick={() => onOpen(j.id)} onKeyDown={(e) => { if (e.key === "Enter") onOpen(j.id); }}
+          className={cn("flex w-full cursor-pointer items-center gap-4 px-4 py-3 text-left transition hover:bg-muted/30 md:px-6", sel.selected.has(j.id) && "bg-accent/5")}>
+          <Check id={j.id} {...sel} />
           <JobColorDot color={j.job_color} />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2"><span className="truncate font-medium">{j.job_name}</span><JobStatusBadge status={j.status as JobStatus} /></div>
@@ -260,21 +330,22 @@ function JobListView({ rows, onOpen }: { rows: JobListRow[]; onOpen: (id: string
           </div>
           <div className="hidden shrink-0 text-xs text-muted-foreground sm:block">{j.project_managers.join(", ")}</div>
           <div className="hidden shrink-0 text-xs text-muted-foreground md:block">{formatDate(j.projected_start_date)}</div>
-        </button>
+        </div>
       ))}
     </div>
   );
 }
 
 // ─── Card grid ───────────────────────────────────────────────
-function CardView({ rows, onOpen }: { rows: JobListRow[]; onOpen: (id: string) => void }) {
+function CardView({ rows, onOpen, ...sel }: { rows: JobListRow[]; onOpen: (id: string) => void } & Sel) {
   if (rows.length === 0) return <Empty />;
   return (
     <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {rows.map((j) => (
-        <button key={j.id} type="button" onClick={() => onOpen(j.id)} className="rounded-xl border border-border bg-card p-4 text-left transition hover:border-accent/50">
+        <div key={j.id} role="button" tabIndex={0} onClick={() => onOpen(j.id)} onKeyDown={(e) => { if (e.key === "Enter") onOpen(j.id); }}
+          className={cn("cursor-pointer rounded-xl border bg-card p-4 text-left transition hover:border-accent/50", sel.selected.has(j.id) ? "border-accent" : "border-border")}>
           <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2"><JobColorDot color={j.job_color} /><span className="font-mono text-[11px] text-muted-foreground">{j.job_number ?? ""}</span></div>
+            <div className="flex items-center gap-2"><Check id={j.id} {...sel} /><JobColorDot color={j.job_color} /><span className="font-mono text-[11px] text-muted-foreground">{j.job_number ?? ""}</span></div>
             <JobStatusBadge status={j.status as JobStatus} />
           </div>
           <div className="mt-1.5 font-medium leading-tight">{j.job_name}</div>
@@ -284,14 +355,14 @@ function CardView({ rows, onOpen }: { rows: JobListRow[]; onOpen: (id: string) =
             <span className="font-medium text-foreground">{money(j.contract_price)}</span>
           </div>
           <div className="mt-1 text-[11px] text-muted-foreground">{formatDate(j.projected_start_date)} → {formatDate(j.projected_completion_date)}</div>
-        </button>
+        </div>
       ))}
     </div>
   );
 }
 
 // ─── Kanban (drag to change status) ──────────────────────────
-function KanbanView({ rows, onOpen, onStatusChange }: { rows: JobListRow[]; onOpen: (id: string) => void; onStatusChange: (id: string, status: JobStatus) => void }) {
+function KanbanView({ rows, onOpen, onStatusChange, ...sel }: { rows: JobListRow[]; onOpen: (id: string) => void; onStatusChange: (id: string, status: JobStatus) => void } & Sel) {
   const [dragId, setDragId] = React.useState<string | null>(null);
   const [over, setOver] = React.useState<JobStatus | null>(null);
   function drop(status: JobStatus) {
@@ -312,8 +383,8 @@ function KanbanView({ rows, onOpen, onStatusChange }: { rows: JobListRow[]; onOp
             <div className="flex-1 space-y-2 overflow-y-auto p-2">
               {items.map((j) => (
                 <div key={j.id} draggable onDragStart={() => setDragId(j.id)} onDragEnd={() => { setDragId(null); setOver(null); }} onClick={() => onOpen(j.id)}
-                  className={cn("cursor-grab rounded-md border border-border bg-background p-2.5 transition hover:border-accent/50 active:cursor-grabbing", dragId === j.id && "opacity-50")}>
-                  <div className="flex items-center gap-2"><JobColorDot color={j.job_color} /><span className="text-sm font-medium leading-tight">{j.job_name}</span></div>
+                  className={cn("cursor-grab rounded-md border bg-background p-2.5 transition hover:border-accent/50 active:cursor-grabbing", sel.selected.has(j.id) ? "border-accent" : "border-border", dragId === j.id && "opacity-50")}>
+                  <div className="flex items-center gap-2"><Check id={j.id} {...sel} /><JobColorDot color={j.job_color} /><span className="text-sm font-medium leading-tight">{j.job_name}</span></div>
                   <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground"><span className="truncate">{j.type_name ?? "—"}</span><span className="shrink-0">{money(j.contract_price)}</span></div>
                 </div>
               ))}
@@ -327,7 +398,7 @@ function KanbanView({ rows, onOpen, onStatusChange }: { rows: JobListRow[]; onOp
 }
 
 // ─── Calendar (by projected start date) ──────────────────────
-function CalendarView({ rows, onOpen }: { rows: JobListRow[]; onOpen: (id: string) => void }) {
+function CalendarView({ rows, onOpen, ...sel }: { rows: JobListRow[]; onOpen: (id: string) => void } & Sel) {
   const [cursor, setCursor] = React.useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); });
   const byDay = React.useMemo(() => {
     const m = new Map<string, JobListRow[]>();
@@ -360,9 +431,10 @@ function CalendarView({ rows, onOpen }: { rows: JobListRow[]; onOpen: (id: strin
               <div className={cn("mb-1 text-[11px]", key === today ? "font-bold text-accent" : "text-muted-foreground")}>{day.getDate()}</div>
               <div className="space-y-1">
                 {items.slice(0, 3).map((j) => (
-                  <button key={j.id} type="button" onClick={() => onOpen(j.id)} className="flex w-full items-center gap-1 truncate rounded px-1.5 py-0.5 text-left text-[11px] hover:bg-muted" style={{ background: j.job_color ? `${j.job_color}22` : undefined }}>
-                    <span className="truncate">{j.job_name}</span>
-                  </button>
+                  <div key={j.id} className={cn("flex w-full items-center gap-1 rounded px-1 py-0.5 text-[11px] hover:bg-muted", sel.selected.has(j.id) && "ring-1 ring-accent")} style={{ background: j.job_color ? `${j.job_color}22` : undefined }}>
+                    <Check id={j.id} {...sel} />
+                    <button type="button" onClick={() => onOpen(j.id)} className="min-w-0 flex-1 truncate text-left">{j.job_name}</button>
+                  </div>
                 ))}
                 {items.length > 3 && <div className="px-1 text-[10px] text-muted-foreground">+{items.length - 3} more</div>}
               </div>

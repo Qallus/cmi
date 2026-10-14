@@ -23,6 +23,18 @@ export type FieldSpec = {
 
 export const TARGET_LABEL: Record<RecordTarget, string> = { precon: "Pre-Con", jobs: "Job" };
 
+// Who may change records from the list (bulk actions), and who may delete.
+// Matches the single-record routes: admins may delete opportunities; deleting
+// a job takes its logs, files and invoices with it, so Super Admin only.
+export const WRITE_ROLES: Record<RecordTarget, string[]> = {
+  precon: ["super_admin", "admin", "project_manager", "estimator"],
+  jobs: ["super_admin", "admin", "project_manager"],
+};
+export const DELETE_ROLES: Record<RecordTarget, string[]> = {
+  precon: ["super_admin", "admin"],
+  jobs: ["super_admin"],
+};
+
 // Client fields are shared: on import they find-or-create a contact and link it.
 const CLIENT_FIELDS: FieldSpec[] = [
   { key: "client_name", label: "Client Name", kind: "text", aliases: ["client", "customer", "homeowner", "owner name"], hint: "Primary client's full name" },

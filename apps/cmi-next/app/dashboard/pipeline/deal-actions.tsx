@@ -186,9 +186,12 @@ const CHANNEL_LABEL: Record<ShareChannel, string> = { email: "Email", sms: "SMS"
  * than grow a second recipient picker that would drift from this one.
  */
 export function ShareDialog({
-  id, ids, name, channel, onClose, onDone,
+  id, ids, name, channel, onClose, onDone, shareUrl = (target) => `/api/deals/${target}/share`, noun = { one: "deal", many: "deals" },
+  blurb = "Sends a summary and a link to the deal. Deals hold client and budget details, so only staff who can open the Pipeline can receive them.",
 }: {
   id?: string; ids?: string[]; name: string; channel: ShareChannel; onClose: () => void; onDone: (msg: string) => void;
+  /** Pre-Con and Jobs reuse this dialog with their own share route. */
+  shareUrl?: (id: string) => string; noun?: { one: string; many: string }; blurb?: string;
 }) {
   const targets = ids?.length ? ids : id ? [id] : [];
   const [data, setData] = React.useState<{ me: string; recipients: ShareRecipient[] } | null>(null);
@@ -221,7 +224,7 @@ export function ShareDialog({
     let failures = 0;
 
     for (const target of targets) {
-      const res = await fetch(`/api/deals/${target}/share`, {
+      const res = await fetch(shareUrl(target), {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ channel, recipient_ids: [...picked], note }),
       });
@@ -237,11 +240,11 @@ export function ShareDialog({
     }
 
     const who = sentTo.size ? [...sentTo].join(", ") : "no one";
-    const many = targets.length > 1 ? ` for ${targets.length} deals` : "";
+    const many = targets.length > 1 ? ` for ${targets.length} ${noun.many}` : "";
     const skipped = skippedAll.size
       ? `; skipped ${[...skippedAll].map(([n, r]) => `${n} (${r})`).join(", ")}`
       : "";
-    const failed = failures ? `; ${failures} deal${failures === 1 ? "" : "s"} failed` : "";
+    const failed = failures ? `; ${failures} ${failures === 1 ? noun.one : noun.many} failed` : "";
     onDone(`${CHANNEL_LABEL[channel]} sent to ${who}${many}${skipped}${failed}.`);
   }
 
@@ -256,7 +259,7 @@ export function ShareDialog({
 
         <div className="flex-1 overflow-y-auto p-5">
           <p className="mb-3 text-xs text-muted-foreground">
-            Sends a summary and a link to the deal. Deals hold client and budget details, so only staff who can open the Pipeline can receive them.
+            {blurb}
           </p>
           {error && <div role="alert" className="mb-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</div>}
           {!data ? (

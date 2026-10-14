@@ -34,11 +34,13 @@ export function SalesClient({
   initialQuotes,
   initialOpportunities,
   initialReport,
+  role,
 }: {
   initialTab: SalesTab;
   initialQuotes: Quote[];
   initialOpportunities: Opportunity[];
   initialReport: PipelineReport;
+  role: string | null;
 }) {
   const [tab, setTab] = React.useState<SalesTab>(initialTab);
   const visibleTabs = TABS.filter((t) => !(HIDE_LEADS_TAB && t.key === "leads"));
@@ -81,7 +83,7 @@ export function SalesClient({
       {/* Active tab content. Each workspace fills the remaining height. */}
       <div className="min-h-0 flex-1">
         {tab === "leads" && <QuotesClient initialQuotes={initialQuotes} />}
-        {tab === "opportunities" && <PipelineClient initialOpportunities={initialOpportunities} initialReport={initialReport} />}
+        {tab === "opportunities" && <PipelineClient initialOpportunities={initialOpportunities} initialReport={initialReport} role={role} />}
         {tab === "reports" && <SalesReports report={initialReport} quotes={initialQuotes} />}
       </div>
     </div>

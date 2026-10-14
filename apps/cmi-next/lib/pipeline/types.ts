@@ -102,6 +102,11 @@ export type Opportunity = {
   lost_to_builder: string | null;
   lost_date: string | null;
 
+  // Quick actions (set from the list's checkbox bar)
+  next_action: string | null;
+  next_action_due: string | null;
+  archived_at: string | null;
+
   created_at: string;
   updated_at: string;
 };

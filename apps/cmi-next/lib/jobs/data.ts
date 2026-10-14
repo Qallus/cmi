@@ -313,6 +313,19 @@ export async function archiveJob(id: string, actor?: Actor): Promise<void> {
   await logJobActivity(id, "archived", "Job archived", actor);
 }
 
+export async function restoreJob(id: string, actor?: Actor): Promise<void> {
+  const { error } = await getSupabaseAdmin().from("jobs").update({ archived_at: null }).eq("id", id);
+  if (error) throw new JobError(error.message);
+  await logJobActivity(id, "restored", "Job restored from archive", actor);
+}
+
+// Permanent. Child records (contacts, logs, files, invoices…) cascade;
+// projections, projects and warranty requests keep their rows with job_id cleared.
+export async function deleteJob(id: string): Promise<void> {
+  const { error } = await getSupabaseAdmin().from("jobs").delete().eq("id", id);
+  if (error) throw new JobError(error.message);
+}
+
 // ─── Sub-entities: clients / internal users / vendors ──────────
 export async function addJobContact(jobId: string, input: Partial<JobContact>): Promise<JobContact> {
   const { data, error } = await getSupabaseAdmin().from("job_contacts")

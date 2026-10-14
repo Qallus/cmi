@@ -4,6 +4,7 @@ import { loadOpportunities, loadStageHistory } from "@/lib/pipeline/data";
 import { computeReport } from "@/lib/pipeline/reporting";
 import type { Opportunity, StageHistoryRow } from "@/lib/pipeline/types";
 import { SalesClient } from "./sales-client";
+import { getSessionStaff } from "@/lib/auth/server-session";
 
 export const metadata = { title: "Sales — CMI Dashboard" };
 
@@ -29,12 +30,14 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
     // Fall back to empty datasets if anything is unreachable.
   }
   const report = computeReport(opportunities, history, quotes.length);
+  const staff = await getSessionStaff();
   return (
     <SalesClient
       initialTab={initialTab}
       initialQuotes={quotes}
       initialOpportunities={opportunities}
       initialReport={report}
+      role={staff?.role_slug ?? null}
     />
   );
 }

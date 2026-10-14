@@ -18,6 +18,8 @@ import {
 import type { PipelineReport } from "@/lib/pipeline/reporting";
 import { ProjectionLinkButton } from "@/components/projections/projection-link-button";
 import { RecordsImportModal } from "@/components/dashboard/records-import-modal";
+import { QuickActionBar } from "@/components/dashboard/quick-action-bar";
+import { DELETE_ROLES, WRITE_ROLES } from "@/lib/records-io/fields";
 import { exportPreconCsv } from "@/lib/records-io/export";
 
 // Reason/status option lists that are also selectable at the Active Project /
@@ -100,13 +102,19 @@ const EMPTY_DRAFT: OpportunityDraft = {
   notes: "",
 };
 
+const STAGE_OPTIONS = ALL_STAGES.map((s) => ({ value: s, label: STAGE_META[s].label }));
+
 export function PipelineClient({
   initialOpportunities,
   initialReport,
+  role = null,
 }: {
   initialOpportunities: Opportunity[];
   initialReport: PipelineReport;
+  role?: string | null;
 }) {
+  const canWrite = !!role && WRITE_ROLES.precon.includes(role);
+  const canDelete = !!role && DELETE_ROLES.precon.includes(role);
   const [opps, setOpps] = React.useState<Opportunity[]>(initialOpportunities);
   const [report, setReport] = React.useState<PipelineReport>(initialReport);
   const [search, setSearch] = React.useState("");
@@ -122,18 +130,25 @@ export function PipelineClient({
   const [deleteConfirm, setDeleteConfirm] = React.useState<string | null>(null);
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [importOpen, setImportOpen] = React.useState(false);
+  const [showArchived, setShowArchived] = React.useState(false);
 
   // Refresh the list + report from the server after a mutation.
-  const refresh = React.useCallback(async () => {
+  const refresh = React.useCallback(async (archived = showArchived) => {
     try {
       const [oppsRes, repRes] = await Promise.all([
-        fetch("/api/pipeline"),
+        fetch(archived ? "/api/pipeline?archived=1" : "/api/pipeline"),
         fetch("/api/pipeline/reporting"),
       ]);
       if (oppsRes.ok) setOpps(await oppsRes.json());
       if (repRes.ok) setReport(await repRes.json());
     } catch { /* keep local state */ }
-  }, []);
+  }, [showArchived]);
+
+  function toggleArchived(on: boolean) {
+    setShowArchived(on);
+    setSelected(new Set());
+    void refresh(on);
+  }
 
   const owners = React.useMemo(
     () => Array.from(new Set(opps.map((o) => o.assigned_owner).filter(Boolean))) as string[],
@@ -149,6 +164,9 @@ export function PipelineClient({
   const filtered = React.useMemo(() => {
     const q = search.toLowerCase();
     return opps.filter((o) => {
+      // "Show archived" switches the list to archived records only, so Restore
+      // always acts on what is on screen.
+      if (showArchived ? !o.archived_at : o.archived_at) return false;
       if (stageFilter !== "all" && o.stage !== stageFilter) return false;
       if (ownerFilter !== "all" && o.assigned_owner !== ownerFilter) return false;
       if (typeFilter !== "all" && o.project_type !== typeFilter) return false;
@@ -158,10 +176,15 @@ export function PipelineClient({
       }
       return true;
     });
-  }, [opps, search, stageFilter, ownerFilter, typeFilter]);
+  }, [opps, search, stageFilter, ownerFilter, typeFilter, showArchived]);
 
-  // Export the checked rows, or everything currently shown when none are checked.
+  // Only what is on screen counts as selected: filtering a checked row away
+  // must not leave it silently in the next bulk action.
   const selectedRows = filtered.filter((o) => selected.has(o.id));
+  const selectedIds = selectedRows.map((o) => o.id);
+  const allChecked = filtered.length > 0 && selectedRows.length === filtered.length;
+  function toggleAll(on: boolean) { setSelected(on ? new Set(filtered.map((o) => o.id)) : new Set()); }
+  // Export the checked rows, or everything currently shown when none are checked.
   function exportCsv() { exportPreconCsv(selectedRows.length ? selectedRows : filtered); }
 
   function openAdd() { setDraft({ ...EMPTY_DRAFT }); setError(null); setModal({ mode: "add" }); }
@@ -301,6 +324,14 @@ export function PipelineClient({
             <option value="all">All types</option>
             {PROJECT_TYPES.map((t) => <option key={t} value={t}>{humanize(t)}</option>)}
           </Select></div>
+          {view !== "table" && (
+            <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <input type="checkbox" checked={allChecked} onChange={(e) => toggleAll(e.target.checked)} /> Select all
+            </label>
+          )}
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <input type="checkbox" checked={showArchived} onChange={(e) => toggleArchived(e.target.checked)} /> Show archived
+          </label>
         </div>
       </div>
 
@@ -308,7 +339,7 @@ export function PipelineClient({
       <div className="flex-1 overflow-auto">
         {view === "table"
           ? <TableView rows={filtered} onOpen={openView} onEdit={openEdit} selected={selected} setSelected={setSelected} />
-          : <KanbanView rows={filtered} onOpen={openView} />}
+          : <KanbanView rows={filtered} onOpen={openView} selected={selected} setSelected={setSelected} />}
       </div>
 
       {/* View modal */}
@@ -389,6 +420,18 @@ export function PipelineClient({
         </Modal>
       )}
 
+      <QuickActionBar
+        target="precon"
+        ids={selectedIds}
+        stages={STAGE_OPTIONS}
+        canWrite={canWrite}
+        canDelete={canDelete}
+        showingArchived={showArchived}
+        onEdit={(id) => { const o = opps.find((x) => x.id === id); if (o) openEdit(o); }}
+        onClear={() => setSelected(new Set())}
+        onDone={() => { setSelected(new Set()); void refresh(); }}
+      />
+
       {importOpen && <RecordsImportModal defaultTarget="precon" onClose={() => setImportOpen(false)} onImported={() => { void refresh(); router.refresh(); }} />}
 
       {/* Delete confirm */}
@@ -464,14 +507,14 @@ function TableView({ rows, onOpen, onEdit, selected, setSelected }: {
               checked={rows.length > 0 && rows.every((o) => selected.has(o.id))}
               onChange={(e) => setSelected(e.target.checked ? new Set(rows.map((o) => o.id)) : new Set())} />
           </th>
-          {["Job #", "Opportunity", "Stage", "Type", "Owner", "Est. Value", "Updated", ""].map((h, i) => (
-            <th key={i} className={cn("px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground", i > 3 && i < 7 && "hidden md:table-cell")}>{h}</th>
+          {["Job #", "Opportunity", "Stage", "Type", "Owner", "Est. Value", "Next Action", "Updated", ""].map((h, i) => (
+            <th key={i} className={cn("px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground", i >= 3 && i <= 6 && "hidden md:table-cell")}>{h}</th>
           ))}
         </tr>
       </thead>
       <tbody className="divide-y divide-border">
         {rows.length === 0 && (
-          <tr><td colSpan={9} className="px-4 py-12 text-center text-sm text-muted-foreground">No opportunities found.</td></tr>
+          <tr><td colSpan={10} className="px-4 py-12 text-center text-sm text-muted-foreground">No opportunities found.</td></tr>
         )}
         {rows.map((o) => (
           <tr key={o.id} className="cursor-pointer transition hover:bg-muted/30" onClick={() => onOpen(o)}>
@@ -487,6 +530,7 @@ function TableView({ rows, onOpen, onEdit, selected, setSelected }: {
             <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">{humanize(o.project_type)}</td>
             <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">{o.assigned_owner ?? "—"}</td>
             <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">{money(o.estimated_project_value)}</td>
+            <td className="hidden px-4 py-3 md:table-cell"><NextActionCell text={o.next_action} due={o.next_action_due} /></td>
             <td className="px-4 py-3 text-muted-foreground">{formatDate(o.updated_at)}</td>
             <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
               <button type="button" className="rounded p-1 text-muted-foreground hover:text-foreground" onClick={() => onEdit(o)}>Edit</button>
@@ -500,7 +544,23 @@ function TableView({ rows, onOpen, onEdit, selected, setSelected }: {
 
 // ─── Kanban view ───────────────────────────────────────────────
 
-function KanbanView({ rows, onOpen }: { rows: Opportunity[]; onOpen: (o: Opportunity) => void }) {
+function NextActionCell({ text, due }: { text: string | null; due: string | null }) {
+  if (!text) return <span className="text-muted-foreground">—</span>;
+  const overdue = !!due && due < new Date().toISOString().slice(0, 10);
+  return (
+    <div className="max-w-[220px]">
+      <div className="truncate" title={text}>{text}</div>
+      {due && <div className={cn("text-xs", overdue ? "text-destructive" : "text-muted-foreground")}>Due {formatDate(due)}</div>}
+    </div>
+  );
+}
+
+function KanbanView({ rows, onOpen, selected, setSelected }: {
+  rows: Opportunity[];
+  onOpen: (o: Opportunity) => void;
+  selected: Set<string>;
+  setSelected: React.Dispatch<React.SetStateAction<Set<string>>>;
+}) {
   return (
     <div className="flex h-full gap-3 overflow-x-auto p-4">
       {ALL_STAGES.map((stage) => {
@@ -513,14 +573,19 @@ function KanbanView({ rows, onOpen }: { rows: Opportunity[]; onOpen: (o: Opportu
             </div>
             <div className="flex-1 space-y-2 overflow-y-auto p-2">
               {items.map((o) => (
-                <button key={o.id} type="button" onClick={() => onOpen(o)} className="w-full rounded-md border border-border bg-background p-2.5 text-left transition hover:border-accent/50">
-                  <div className="font-mono text-[10px] text-muted-foreground">{o.job_number ?? "—"}</div>
+                <div key={o.id} role="button" tabIndex={0} onClick={() => onOpen(o)} onKeyDown={(e) => { if (e.key === "Enter") onOpen(o); }}
+                  className={cn("w-full cursor-pointer rounded-md border bg-background p-2.5 text-left transition hover:border-accent/50", selected.has(o.id) ? "border-accent" : "border-border")}>
+                  <div className="flex items-center gap-2">
+                    <input type="checkbox" checked={selected.has(o.id)} onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => setSelected((prev) => { const n = new Set(prev); if (e.target.checked) n.add(o.id); else n.delete(o.id); return n; })} />
+                    <span className="font-mono text-[10px] text-muted-foreground">{o.job_number ?? "—"}</span>
+                  </div>
                   <div className="mt-0.5 text-sm font-medium leading-tight">{o.opportunity_name}</div>
                   <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
                     <span>{money(o.estimated_project_value)}</span>
                     <span>{o.assigned_owner ?? ""}</span>
                   </div>
-                </button>
+                </div>
               ))}
               {items.length === 0 && <div className="px-2 py-6 text-center text-xs text-muted-foreground">Empty</div>}
             </div>

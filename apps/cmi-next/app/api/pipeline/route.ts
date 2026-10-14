@@ -9,7 +9,8 @@ const WRITE_ROLES = ["super_admin", "admin", "project_manager", "estimator"];
 export async function GET(request: Request) {
   try {
     await requireAdmin(request);
-    return NextResponse.json(await loadOpportunities());
+    const includeArchived = new URL(request.url).searchParams.get("archived") === "1";
+    return NextResponse.json(await loadOpportunities({ includeArchived }));
   } catch (err) {
     const e = err as AuthError;
     return NextResponse.json({ error: e.message }, { status: e.status ?? 500 });

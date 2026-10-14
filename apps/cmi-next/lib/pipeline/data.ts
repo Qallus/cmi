@@ -13,15 +13,17 @@ function sanitizeDraft(draft: Partial<Opportunity>): Partial<Opportunity> {
   delete clone.job_number;
   delete clone.created_at;
   delete clone.updated_at;
+  delete clone.archived_at; // archive/restore have their own helpers
   return clone as Partial<Opportunity>;
 }
 
-export async function loadOpportunities(): Promise<Opportunity[]> {
+// Archived opportunities are left out unless asked for (only the list's
+// "Show archived" toggle does), so they drop out of reporting too.
+export async function loadOpportunities(opts?: { includeArchived?: boolean }): Promise<Opportunity[]> {
   const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase
-    .from("pipeline_opportunities")
-    .select("*")
-    .order("created_at", { ascending: false });
+  let q = supabase.from("pipeline_opportunities").select("*").order("created_at", { ascending: false });
+  if (!opts?.includeArchived) q = q.is("archived_at", null);
+  const { data, error } = await q;
   if (error) throw new Error(error.message);
   return (data ?? []) as Opportunity[];
 }
@@ -86,6 +88,14 @@ export async function updateOpportunity(
 export async function deleteOpportunity(id: string): Promise<void> {
   const supabase = getSupabaseAdmin();
   const { error } = await supabase.from("pipeline_opportunities").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+export async function setOpportunityArchived(id: string, archived: boolean): Promise<void> {
+  const { error } = await getSupabaseAdmin()
+    .from("pipeline_opportunities")
+    .update({ archived_at: archived ? new Date().toISOString() : null, updated_at: new Date().toISOString() })
+    .eq("id", id);
   if (error) throw new Error(error.message);
 }
 

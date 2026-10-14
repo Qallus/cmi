@@ -163,7 +163,8 @@ export function BulkBar({
   );
 }
 
-function Action({
+// Shared with the Pre-Con / Jobs quick-action bar.
+export function Action({
   icon: Icon, label, onClick, active, danger, disabled,
 }: {
   icon: typeof Mail; label: string; onClick: () => void;
@@ -184,7 +185,7 @@ function Action({
   );
 }
 
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
+export function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex items-center gap-2 border-b border-border px-2 pb-2">
       <span className="shrink-0 text-xs font-medium text-muted-foreground">{label}</span>
@@ -193,7 +194,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
-function NextActionPanel({ busy, onApply }: { busy: boolean; onApply: (text: string, due: string | null) => void }) {
+export function NextActionPanel({ busy, onApply }: { busy: boolean; onApply: (text: string, due: string | null) => void }) {
   const [text, setText] = React.useState("");
   const [due, setDue] = React.useState("");
   return (

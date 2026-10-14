@@ -72,6 +72,8 @@ export type Job = {
   lot_info: string | null;
   internal_notes: string | null;
   vendor_notes: string | null;
+  next_action: string | null;
+  next_action_due: string | null;
   is_template: boolean;
   source_template_id: string | null;
   accounting_customer_id: string | null;
