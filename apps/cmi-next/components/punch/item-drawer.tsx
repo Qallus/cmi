@@ -21,7 +21,8 @@ export function ItemDrawer({ item, meta, onClose, onSaved, onDeleted }: {
   const [draft, setDraft] = React.useState<PunchItem | null>(item);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
-  React.useEffect(() => { setDraft(item); setError(null); }, [item]);
+  const [seen, setSeen] = React.useState(item);
+  if (seen !== item) { setSeen(item); setDraft(item); setError(null); }
 
   if (!draft) return <Drawer open={false} onClose={onClose}><span /></Drawer>;
   const set = (patch: Partial<PunchItem>) => setDraft((d) => (d ? { ...d, ...patch } : d));

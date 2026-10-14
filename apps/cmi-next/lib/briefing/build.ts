@@ -6,6 +6,7 @@
 // 6 AM email render. Every source is best-effort: one failing query makes the
 // briefing thinner, never empty.
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { loadAssignedOpenItems } from "@/lib/punch/data";
 import { loadStaffNotifications } from "@/lib/notifications/staff";
 import { assigneeStaffIds } from "@/lib/schedules/notify";
 import type { Assignee } from "@/lib/schedules/types";
@@ -199,6 +200,20 @@ async function loadTasks(staffId: string, today: string, weekEnd: string): Promi
         href: i.job_id ? `/dashboard/jobs/${i.job_id}/schedule` : "/dashboard/schedules",
         due: i.end_date,
         sortKey: i.end_date ?? "9999",
+      });
+    }
+    return null;
+  });
+
+  // Punch list items assigned to this person (Jobs, Pre-Con and Pipeline).
+  await safe(null, async () => {
+    for (const i of await loadAssignedOpenItems(staffId)) {
+      all.push({
+        title: i.location ? `${i.location}: ${i.title}` : i.title,
+        detail: [`Punch list · ${i.list_title}`, i.parent?.label].filter(Boolean).join(" · "),
+        href: i.parent?.href ?? "/dashboard/punch-lists",
+        due: i.due_date,
+        sortKey: i.due_date ?? "9999",
       });
     }
     return null;

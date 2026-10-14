@@ -5,11 +5,12 @@ import { getClientSession, assertJobAccess, ClientAuthError } from "@/lib/client
 import { getClientJob } from "@/lib/client-portal/data";
 import { ClientStatusBadge, ProgressBar } from "../../portal-ui";
 import { ClientJobNav } from "./client-job-nav";
+import { hasClientPunchLists } from "@/lib/punch/data";
 
 export const dynamic = "force-dynamic";
 
 // Which tabs a client sees depends on their per-job permissions + job status.
-function tabsFor(job: { status: string; permissions: Record<string, boolean> }) {
+function tabsFor(job: { status: string; permissions: Record<string, boolean> }, hasPunch: boolean) {
   const p = job.permissions;
   const tabs = [
     { slug: "overview", label: "Overview" },
@@ -21,6 +22,8 @@ function tabsFor(job: { status: string; permissions: Record<string, boolean> }) 
   ];
   if (p.locked_selections) tabs.push({ slug: "selections", label: "Selections" });
   tabs.push({ slug: "action-items", label: "Action Items" });
+  // Only when staff have shared at least one punch list on this job.
+  if (hasPunch) tabs.push({ slug: "punch-list", label: "Punch List" });
   if (p.price_summary || p.invoices) tabs.push({ slug: "financials", label: "Financials" });
   tabs.push({ slug: "change-orders", label: "Change Orders" });
   if (p.messages !== false) tabs.push({ slug: "messages", label: "Messages" });
@@ -40,6 +43,7 @@ export default async function ClientJobLayout({ children, params }: { children: 
   }
   const job = await getClientJob(session.contact.id, jobId);
   if (!job) redirect("/client/jobs");
+  const hasPunch = await hasClientPunchLists(jobId).catch(() => false);
 
   return (
     <div>
@@ -59,7 +63,7 @@ export default async function ClientJobLayout({ children, params }: { children: 
         <div className="w-full max-w-xs"><ProgressBar percent={job.progress_percentage} /></div>
       </div>
 
-      <div className="mt-4"><ClientJobNav jobId={jobId} tabs={tabsFor(job)} /></div>
+      <div className="mt-4"><ClientJobNav jobId={jobId} tabs={tabsFor(job, hasPunch)} /></div>
       <div className="py-6">{children}</div>
     </div>
   );

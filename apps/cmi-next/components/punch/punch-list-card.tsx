@@ -32,7 +32,9 @@ export function PunchListCard({ list: initial, meta, showParent, onChanged, onRe
   onMetaChanged?: () => void;
 }) {
   const [list, setList] = React.useState(initial);
-  React.useEffect(() => setList(initial), [initial]);
+  // Take a new list from the parent (e.g. after a reload) without an effect.
+  const [seen, setSeen] = React.useState(initial);
+  if (seen !== initial) { setSeen(initial); setList(initial); }
   const [hideDone, setHideDone] = React.useState(false);
   const [collapsed, setCollapsed] = React.useState(false);
   const [quick, setQuick] = React.useState("");

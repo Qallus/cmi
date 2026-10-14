@@ -10,6 +10,7 @@ const ROOMS = /^(kitchen|primary bath(room)?|master bath(room)?|bath(room)?|powd
 function clean(s: string): string {
   return s
     .replace(/^\s*(?:[-*•▪◦]|\d+[.)]|\[\s?[xX ]?\s?\])\s*/, "") // bullets, numbers, [ ] boxes
+    .replace(/^(?:next|also|and then|then|and|plus)[,:]?\s+/i, "") // dictation filler
     .replace(/\s+/g, " ")
     .replace(/[.;,]+$/, "")
     .trim();

@@ -261,6 +261,31 @@ export async function deleteItem(id: string): Promise<void> {
   if (error) throw new PunchError(error.message, 500);
 }
 
+/** Whether a Job has any punch list its client may see (drives the portal tab). */
+export async function hasClientPunchLists(jobId: string): Promise<boolean> {
+  const { count } = await getSupabaseAdmin().from("punch_lists").select("id", { count: "exact", head: true })
+    .eq("job_id", jobId).eq("client_visible", true).is("archived_at", null);
+  return (count ?? 0) > 0;
+}
+
+/** Open punch items assigned to one staff member, with their list and record (for the Daily Brief). */
+export async function loadAssignedOpenItems(staffId: string): Promise<{
+  id: string; title: string; location: string | null; due_date: string | null; list_title: string; parent: PunchParent | null;
+}[]> {
+  const sb = getSupabaseAdmin();
+  const { data } = await sb.from("punch_items")
+    .select("id,title,location,due_date,list:punch_lists!inner(id,title,deal_id,opportunity_id,job_id,archived_at)")
+    .eq("assigned_to", staffId).is("completed_at", null).is("list.archived_at", null)
+    .limit(200);
+  type Row = { id: string; title: string; location: string | null; due_date: string | null; list: { id: string; title: string; deal_id: string | null; opportunity_id: string | null; job_id: string | null } };
+  const rows = (data ?? []) as unknown as Row[];
+  const parents = await loadParents(rows.map((r) => parentOf(r.list)).filter(Boolean) as { type: PunchParentType; id: string }[]);
+  return rows.map((r) => {
+    const p = parentOf(r.list);
+    return { id: r.id, title: r.title, location: r.location, due_date: r.due_date, list_title: r.list.title, parent: p ? parents.get(`${p.type}:${p.id}`) ?? null : null };
+  });
+}
+
 // ─── Templates ────────────────────────────────────────────────
 export async function listTemplates(): Promise<PunchTemplate[]> {
   const { data } = await getSupabaseAdmin().from("punch_templates").select("*").order("name");

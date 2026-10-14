@@ -151,7 +151,7 @@ export function SaveTemplateDialog({ list, onClose, onSaved }: { list: PunchList
       </>}>
       <div className="space-y-3">
         {error && <div className="rounded bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
-        <p className="text-sm text-muted-foreground">Saves the {list.items.length} items (text, room and trade — not who they're assigned to or whether they're done) so anyone can start a list from them.</p>
+        <p className="text-sm text-muted-foreground">Saves the {list.items.length} items (text, room and trade — not who they&apos;re assigned to or whether they&apos;re done) so anyone can start a list from them.</p>
         <Field label="Template name"><input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} /></Field>
         <Field label="Category (optional)"><input className={inputCls} value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Room, Closeout, Rough-In…" /></Field>
       </div>
