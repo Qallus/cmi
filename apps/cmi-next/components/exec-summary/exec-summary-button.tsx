@@ -46,7 +46,7 @@ export function ExecSummaryButton({ target, id, name, className }: { target: Tar
   );
 }
 
-function ExecSummaryDialog({ target, id, name, onClose }: { target: Target; id: string; name: string; onClose: () => void }) {
+export function ExecSummaryDialog({ target, id, name, onClose }: { target: Target; id: string; name: string; onClose: () => void }) {
   const [audience, setAudience] = React.useState<Audience>("team");
   const [guidance, setGuidance] = React.useState("");
   const [draft, setDraft] = React.useState<Draft | null>(null);

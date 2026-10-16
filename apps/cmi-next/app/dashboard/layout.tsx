@@ -10,6 +10,7 @@ import { NotificationBell } from "@/components/dashboard/notification-bell";
 import { ReviewFab } from "@/components/dashboard/review-fab";
 import { MobileBottomNav } from "@/components/dashboard/mobile-bottom-nav";
 import { GlobalSearch } from "@/components/dashboard/global-search";
+import { JobCommsBar } from "@/components/communications/job-comms-bar";
 import { InstallAppButton } from "@/components/pwa/install-app-button";
 import { PushPrompt } from "@/components/pwa/push-prompt";
 import { SidebarContext } from "@/components/dashboard/sidebar-context";
@@ -121,6 +122,8 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             <span className="hidden text-sm font-semibold lg:block">CMI Dashboard</span>
           </div>
           <div className="flex items-center gap-2">
+            {/* Job pages only: Calls / SMS / Email / Notes / Prints for this job. */}
+            {onJobPage && <JobCommsBar />}
             <GlobalSearch />
             <InstallAppButton variant="outline" size="sm" label="Get the App" className="hidden sm:inline-flex" />
             <ThemeToggle />

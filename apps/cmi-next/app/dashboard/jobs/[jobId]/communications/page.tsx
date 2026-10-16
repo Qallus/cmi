@@ -2,8 +2,9 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowDownLeft, ArrowUpRight, Mail, MessageSquare, Phone } from "lucide-react";
 import { getJob } from "@/lib/jobs/data";
-import { loadJobCommunications, type JobComm } from "@/lib/job-communications/data";
+import { loadJobCommunications, jobRecipients, type JobComm } from "@/lib/job-communications/data";
 import { JobDetailNav } from "../job-detail-nav";
+import { ReplyButton } from "./reply-button";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Communications — CMI Dashboard" };
@@ -20,7 +21,8 @@ function fmt(iso: string | null) {
   return new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
 }
 function snippet(text: string | null, max = 140) {
-  const t = (text ?? "").replace(/\s+/g, " ").trim();
+  // Emails are stored as HTML; show their text.
+  const t = (text ?? "").replace(/<(style|head|script)[\s\S]*?<\/\1>/gi, " ").replace(/<[^>]+>/g, " ").replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&").replace(/&[a-z]+;/gi, " ").replace(/\s+/g, " ").trim();
   return t.length > max ? `${t.slice(0, max)}…` : t;
 }
 
@@ -31,6 +33,7 @@ export default async function JobCommunicationsPage({ params }: { params: Promis
 
   let comms: JobComm[] = [];
   try { comms = await loadJobCommunications(job.id); } catch { comms = []; }
+  const recipients = jobRecipients(job);
 
   return (
     <div className="flex h-[calc(100vh-56px)] flex-col">
@@ -39,7 +42,7 @@ export default async function JobCommunicationsPage({ params }: { params: Promis
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <Link href={`/dashboard/jobs/${job.id}/summary`} className="text-xs text-muted-foreground hover:text-foreground">← {job.job_name}</Link>
           <h1 className="font-display text-2xl font-semibold tracking-tight">Communications</h1>
-          <span className="text-xs text-muted-foreground">Emails, texts, and calls with this job&apos;s contacts</span>
+          <span className="text-xs text-muted-foreground">Emails, texts, and calls with this job&apos;s clients and subs. Use the Calls, SMS and Email buttons in the top bar to reach them.</span>
           <Link href="/dashboard/communications" className="ml-auto text-xs font-medium text-accent hover:underline">Open Communications →</Link>
         </div>
 
@@ -66,6 +69,11 @@ export default async function JobCommunicationsPage({ params }: { params: Promis
                     </div>
                     <div className="mt-0.5 truncate text-xs text-muted-foreground">{inbound ? m.from_address : m.to_address}</div>
                     {m.body && <div className="mt-1 line-clamp-2 text-sm text-foreground/90">{snippet(m.body)}</div>}
+                    {(m.channel === "email" || m.channel === "sms") && (inbound ? m.from_address : m.to_address) && (
+                      <div className="mt-1">
+                        <ReplyButton jobId={job.id} channel={m.channel} to={(inbound ? m.from_address : m.to_address) as string} subject={m.subject} recipients={recipients} />
+                      </div>
+                    )}
                   </div>
                 </div>
               );

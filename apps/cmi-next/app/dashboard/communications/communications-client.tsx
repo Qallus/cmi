@@ -14,8 +14,7 @@ import type { Message, MessageChannel } from "@/lib/communications/types";
 import type { ContactSubmission, ContactSubmissionStatus } from "@/lib/contact-submissions/types";
 import { TemplateManager } from "@/components/email-builder/template-manager";
 import { PrintManager } from "@/components/print-builder/print-manager";
-import { DynamicFieldsBar } from "@/components/ui/dynamic-fields-bar";
-import { EmailPreview } from "@/components/email-builder/email-preview";
+import { ComposeDialog, type ComposeInit } from "@/components/communications/compose-dialog";
 import { CallsWorkspace } from "./calls-workspace";
 import { SUBMISSION_ORDER_KEY } from "./submissions/[id]/submission-detail-client";
 
@@ -107,15 +106,6 @@ function submissionStatusBadge(status: ContactSubmissionStatus) {
   if (status === "archived") return <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground/60">Archived</span>;
 }
 
-interface ComposePayload {
-  channel: "email" | "sms";
-  to: string;
-  subject: string;
-  body: string;
-}
-
-const EMPTY_COMPOSE: ComposePayload = { channel: "email", to: "", subject: "", body: "" };
-
 // "Now" anchored to the server clock (passed from the server-rendered page),
 // so relative times stay correct even if the viewer's computer clock is off.
 // Only the elapsed time since mount is taken from the local clock.
@@ -144,56 +134,22 @@ export function CommunicationsClient({
   const [submissions, setSubmissions] = React.useState<ContactSubmission[]>(initialSubmissions);
   const [tab, setTab] = React.useState<Tab>("all");
   // Deep-open a panel from the mobile quick-nav, e.g. ?panel=dialer / ?panel=email.
+  const [newPrint, setNewPrint] = React.useState(false);
   React.useEffect(() => {
-    const panel = new URLSearchParams(window.location.search).get("panel");
-    const map: Record<string, Tab> = { dialer: "call", call: "call", email: "email", sms: "sms", contact_form: "contact_form" };
+    const params = new URLSearchParams(window.location.search);
+    const panel = params.get("panel") ?? params.get("tab");
+    const map: Record<string, Tab> = { dialer: "call", call: "call", email: "email", sms: "sms", contact_form: "contact_form", templates: "templates", prints: "prints" };
     // eslint-disable-next-line -- one-time deep-link read on mount
     if (panel && map[panel]) setTab(map[panel]);
+    if (map[panel ?? ""] === "prints" && params.get("new") === "1") setNewPrint(true);
   }, []);
-  const [composing, setComposing] = React.useState(false);
-  const [draft, setDraft] = React.useState<ComposePayload>(EMPTY_COMPOSE);
-  const [sending, setSending] = React.useState(false);
-  const [sendError, setSendError] = React.useState<string | null>(null);
+  const [composeInit, setComposeInit] = React.useState<ComposeInit | null>(null);
   const [selected, setSelected] = React.useState<Message | null>(null);
   const [submissionFilter, setSubmissionFilter] = React.useState<ContactSubmissionStatus | "all">("all");
   // Contact Form multi-select + action feedback.
   const [subSelected, setSubSelected] = React.useState<Set<string>>(new Set());
   const [subBusy, setSubBusy] = React.useState(false);
   const [subToast, setSubToast] = React.useState<string | null>(null);
-
-  // Compose: multi-recipient + template state
-  const [recipientTags, setRecipientTags] = React.useState<string[]>([]);
-  const [recipientInput, setRecipientInput] = React.useState("");
-  const [composeTemplates, setComposeTemplates] = React.useState<{ id: string; name: string; subject: string }[]>([]);
-  const [selectedTemplate, setSelectedTemplate] = React.useState<{ id: string; name: string; subject: string; html: string } | null>(null);
-  const [loadingTemplate, setLoadingTemplate] = React.useState(false);
-  const [showTemplateMenu, setShowTemplateMenu] = React.useState(false);
-  const [showTemplatePreview, setShowTemplatePreview] = React.useState(false);
-  const templateMenuRef = React.useRef<HTMLDivElement>(null);
-  const bodyTextareaRef = React.useRef<HTMLTextAreaElement>(null);
-
-  function insertIntoBody(token: string) {
-    const el = bodyTextareaRef.current;
-    if (!el) return;
-    const start = el.selectionStart ?? 0;
-    const end   = el.selectionEnd   ?? 0;
-    const next  = el.value.slice(0, start) + token + el.value.slice(end);
-    setDraft(d => ({ ...d, body: next }));
-    requestAnimationFrame(() => {
-      el.selectionStart = el.selectionEnd = start + token.length;
-      el.focus();
-    });
-  }
-
-  React.useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (templateMenuRef.current && !templateMenuRef.current.contains(e.target as Node)) {
-        setShowTemplateMenu(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, []);
 
   const filtered = tab === "all" ? messages : messages.filter((m) => m.channel === tab);
 
@@ -214,62 +170,7 @@ export function CommunicationsClient({
   };
 
   function openCompose(channel: "email" | "sms" = "email") {
-    setDraft({ ...EMPTY_COMPOSE, channel });
-    setSendError(null);
-    setRecipientTags([]);
-    setRecipientInput("");
-    setSelectedTemplate(null);
-    setShowTemplateMenu(false);
-    setShowTemplatePreview(false);
-    setComposing(true);
-    if (channel === "email") {
-      fetch("/api/admin/email-templates")
-        .then(r => r.json())
-        .then((data: { templates?: { id: string; name: string; subject: string; html: string; status: string }[] }) => {
-          setComposeTemplates((data.templates ?? []).filter(t => t.status === "active"));
-        })
-        .catch(() => {});
-    }
-  }
-
-  function addRecipientTag(raw = recipientInput) {
-    const emails = raw.split(/[\s,;]+/).map(e => e.trim().toLowerCase()).filter(e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
-    if (!emails.length) { setRecipientInput(""); return; }
-    setRecipientTags(prev => Array.from(new Set([...prev, ...emails])));
-    setRecipientInput("");
-  }
-
-  async function send() {
-    const body = selectedTemplate ? selectedTemplate.html : draft.body;
-    // Collect all recipients: tags + single `to` field
-    const pendingInput = recipientInput.trim();
-    const allEmails = Array.from(new Set([
-      ...recipientTags,
-      ...(pendingInput && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(pendingInput) ? [pendingInput] : []),
-      ...(draft.to.trim() && !recipientTags.length && !pendingInput ? [draft.to.trim()] : []),
-    ]));
-    if (allEmails.length === 0 && !draft.to.trim()) { setSendError("Recipient is required."); return; }
-    const recipients = allEmails.length > 0 ? allEmails : [draft.to.trim()];
-    if (draft.channel === "email" && !draft.subject) { setSendError("Subject is required for email."); return; }
-    if (!body) { setSendError("Message body is required."); return; }
-    setSending(true); setSendError(null);
-    try {
-      const results = await Promise.all(
-        recipients.map(to =>
-          fetch("/api/communications/send", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ...draft, to, body }),
-          }).then(r => r.json() as Promise<Message & { error?: string }>)
-        )
-      );
-      const sent = results.filter(r => r.id && !r.error);
-      if (sent.length === 0) throw new Error((results[0] as { error?: string }).error ?? "Send failed.");
-      setMessages((prev) => [...sent, ...prev]);
-      setComposing(false);
-    } catch (err) {
-      setSendError(err instanceof Error ? err.message : "Send failed.");
-    } finally { setSending(false); }
+    setComposeInit({ channel });
   }
 
   async function updateSubmissionStatus(id: string, status: ContactSubmissionStatus) {
@@ -288,8 +189,7 @@ export function CommunicationsClient({
   }
 
   function composeSmsTo(phone: string) {
-    openCompose("sms");
-    setDraft((d) => ({ ...d, channel: "sms", to: phone }));
+    setComposeInit({ channel: "sms", to: phone });
   }
 
   // A submission opens its own page, not a modal: long enquiries were being
@@ -430,7 +330,7 @@ export function CommunicationsClient({
         </div>
       ) : tab === "prints" ? (
         <div className="flex-1 overflow-hidden">
-          <PrintManager />
+          <PrintManager startNew={newPrint} />
         </div>
       ) : tab === "call" ? (
         <CallsWorkspace onSmsTo={composeSmsTo} />
@@ -658,15 +558,11 @@ export function CommunicationsClient({
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => {
-                        openCompose(selected.channel as "email" | "sms");
-                        setDraft((d) => ({
-                          ...d,
-                          channel: selected.channel as "email" | "sms",
-                          to: (selected.direction === "inbound" ? selected.from_address : selected.to_address) ?? "",
-                          subject: selected.subject ? `Re: ${selected.subject}` : "",
-                        }));
-                      }}
+                      onClick={() => setComposeInit({
+                        channel: selected.channel as "email" | "sms",
+                        to: (selected.direction === "inbound" ? selected.from_address : selected.to_address) ?? "",
+                        subject: selected.subject ? `Re: ${selected.subject}` : "",
+                      })}
                     >
                       <Send className="h-3.5 w-3.5" /> Reply
                     </Button>
@@ -678,207 +574,8 @@ export function CommunicationsClient({
         </div>
       )}
 
-      {/* Compose modal */}
-      {composing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={() => setComposing(false)} />
-          <div className="relative z-10 w-full max-w-xl rounded-xl border border-border bg-card shadow-xl">
-            {/* Header */}
-            <div className="flex items-center justify-between border-b border-border px-5 py-4">
-              <h2 className="font-semibold">{draft.channel === "email" ? "Compose Email" : "Send SMS"}</h2>
-              <div className="flex items-center gap-3">
-                <div className="flex rounded-md border border-border bg-background p-0.5 text-xs">
-                  <button type="button"
-                    onClick={() => { setDraft((d) => ({ ...d, channel: "email" })); if (!composeTemplates.length) { fetch("/api/admin/email-templates").then(r => r.json()).then((data: { templates?: { id: string; name: string; subject: string; html: string; status: string }[] }) => setComposeTemplates((data.templates ?? []).filter(t => t.status === "active"))).catch(() => {}); } }}
-                    className={cn("flex items-center gap-1.5 rounded px-2.5 py-1 transition", draft.channel === "email" ? "bg-accent/15 text-accent" : "text-muted-foreground")}>
-                    <Mail className="h-3 w-3" /> Email
-                  </button>
-                  <button type="button" onClick={() => setDraft((d) => ({ ...d, channel: "sms" }))}
-                    className={cn("flex items-center gap-1.5 rounded px-2.5 py-1 transition", draft.channel === "sms" ? "bg-accent/15 text-accent" : "text-muted-foreground")}>
-                    <MessageSquare className="h-3 w-3" /> SMS
-                  </button>
-                </div>
-                <button type="button" className="rounded p-1 text-muted-foreground hover:text-foreground" onClick={() => setComposing(false)}>
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-
-            <div className="space-y-3 p-5">
-              {sendError && <div className="rounded bg-destructive/10 px-3 py-2 text-sm text-destructive">{sendError}</div>}
-
-              {/* To -- multi-recipient tag input */}
-              <CF label={`To${recipientTags.length > 1 ? ` (${recipientTags.length} recipients)` : ""}`}>
-                <div className="min-h-[36px] w-full rounded-md border border-border bg-background px-2.5 py-1.5 focus-within:border-accent">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {recipientTags.map(tag => (
-                      <span key={tag} className="flex items-center gap-1 rounded-full bg-accent/15 px-2 py-0.5 text-xs text-accent">
-                        {tag}
-                        <button type="button" onClick={() => setRecipientTags(prev => prev.filter(t => t !== tag))}>
-                          <X className="h-2.5 w-2.5" />
-                        </button>
-                      </span>
-                    ))}
-                    <input
-                      className="min-w-[140px] flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-                      placeholder={recipientTags.length > 0 ? "Add more..." : draft.channel === "email" ? "name@example.com" : "+1 (602) 555-0100"}
-                      value={recipientTags.length > 0 ? recipientInput : draft.to}
-                      onChange={(e) => recipientTags.length > 0 ? setRecipientInput(e.target.value) : setDraft(d => ({ ...d, to: e.target.value }))}
-                      onKeyDown={(e) => {
-                        if ((e.key === "Enter" || e.key === "," || e.key === " ") && draft.channel === "email") {
-                          e.preventDefault();
-                          const val = recipientTags.length > 0 ? recipientInput : draft.to;
-                          if (val.trim()) { addRecipientTag(val); if (recipientTags.length === 0) setDraft(d => ({ ...d, to: "" })); }
-                        }
-                      }}
-                      onBlur={() => {
-                        const val = recipientTags.length > 0 ? recipientInput : draft.to;
-                        if (val.trim() && draft.channel === "email" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val.trim())) {
-                          addRecipientTag(val);
-                          if (recipientTags.length === 0) setDraft(d => ({ ...d, to: "" }));
-                        }
-                      }}
-                    />
-                  </div>
-                </div>
-                {draft.channel === "email" && (
-                  <div className="mt-1.5 flex items-center gap-1.5">
-                    <span className="text-[11px] text-muted-foreground">Add group:</span>
-                    {([
-                      { label: "All Contacts", value: "contacts" },
-                      { label: "All Staff", value: "staff" },
-                    ] as const).map(({ label, value }) => (
-                      <button key={value} type="button"
-                        onClick={() => {
-                          const tag = `group:${value}`;
-                          setRecipientTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
-                        }}
-                        className={cn("flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] transition",
-                          recipientTags.includes(`group:${value}`) ? "border-accent bg-accent/10 text-accent" : "border-border text-muted-foreground hover:border-accent/40"
-                        )}>
-                        <Users className="h-2.5 w-2.5" /> {label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </CF>
-
-              {/* Subject + Template picker */}
-              {draft.channel === "email" && (
-                <CF label="Subject">
-                  <div className="flex gap-2">
-                    <input
-                      className={cn(iCls, "flex-1")}
-                      placeholder="Email subject..."
-                      value={draft.subject}
-                      onChange={(e) => setDraft((d) => ({ ...d, subject: e.target.value }))}
-                    />
-                    {composeTemplates.length > 0 && (
-                      <div className="relative shrink-0" ref={templateMenuRef}>
-                        <button
-                          type="button"
-                          onClick={() => setShowTemplateMenu(v => !v)}
-                          className={cn("flex items-center gap-1.5 rounded-md border px-3 text-xs font-medium transition h-9",
-                            selectedTemplate ? "border-accent bg-accent/10 text-accent" : "border-border text-muted-foreground hover:border-accent/40 hover:text-foreground"
-                          )}
-                        >
-                          <LayoutTemplate className="h-3 w-3" />
-                          {selectedTemplate ? selectedTemplate.name : "Template"}
-                          <ChevronDown className={cn("h-3 w-3 transition-transform", showTemplateMenu && "rotate-180")} />
-                        </button>
-                        {showTemplateMenu && (
-                          <div className="absolute right-0 top-full z-50 mt-1.5 w-56 overflow-hidden rounded-xl border border-border bg-card shadow-xl">
-                            {selectedTemplate && (
-                              <button type="button" onClick={() => { setSelectedTemplate(null); setShowTemplateMenu(false); setDraft(d => ({ ...d, subject: "", body: "" })); }}
-                                className="flex w-full items-center gap-2 border-b border-border px-3 py-2 text-xs text-muted-foreground hover:bg-muted">
-                                <X className="h-3 w-3" /> Clear template
-                              </button>
-                            )}
-                            <div className="max-h-48 overflow-y-auto py-1">
-                              {composeTemplates.map(t => (
-                                <button key={t.id} type="button"
-                                  onClick={() => {
-                                    setShowTemplateMenu(false);
-                                    setLoadingTemplate(true);
-                                    fetch(`/api/admin/email-templates/${t.id}`)
-                                      .then(r => r.json() as Promise<{ template: { id: string; name: string; subject: string; html: string } }>)
-                                      .then(data => {
-                                        setSelectedTemplate({ id: data.template.id, name: data.template.name, subject: data.template.subject, html: data.template.html ?? "" });
-                                        setDraft(d => ({ ...d, subject: data.template.subject || d.subject }));
-                                        setShowTemplatePreview(true);
-                                      })
-                                      .catch(() => setSendError("Failed to load template."))
-                                      .finally(() => setLoadingTemplate(false));
-                                  }}
-                                  className={cn("flex w-full flex-col gap-0.5 px-3 py-2.5 text-left text-xs transition hover:bg-muted",
-                                    selectedTemplate?.id === t.id && "bg-accent/5 text-accent"
-                                  )}>
-                                  <span className="font-semibold">{t.name}</span>
-                                  {t.subject && <span className="text-muted-foreground truncate">{t.subject}</span>}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </CF>
-              )}
-
-              {/* Message / template preview */}
-              <CF label={loadingTemplate ? "Loading template..." : selectedTemplate ? "Template Preview" : "Message"}>
-                {loadingTemplate ? (
-                  <div className="flex h-16 items-center justify-center rounded-md border border-border text-xs text-muted-foreground">
-                    Loading template...
-                  </div>
-                ) : selectedTemplate ? (
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] text-muted-foreground">Using: <strong className="text-foreground">{selectedTemplate.name}</strong></span>
-                      <button type="button" onClick={() => setShowTemplatePreview(v => !v)}
-                        className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground">
-                        <Eye className="h-3 w-3" /> {showTemplatePreview ? "Hide" : "Show"} preview
-                      </button>
-                    </div>
-                    {showTemplatePreview && (
-                      <EmailPreview html={selectedTemplate.html} inlineHeight={260} />
-                    )}
-                  </div>
-                ) : (
-                  <>
-                    <DynamicFieldsBar onInsert={insertIntoBody} />
-                    <textarea
-                      ref={bodyTextareaRef}
-                      className={cn(iCls, "min-h-[120px] resize-y")}
-                      placeholder={draft.channel === "email" ? "Write your email..." : "Write your SMS (160 chars per segment)..."}
-                      value={draft.body}
-                      onChange={(e) => setDraft((d) => ({ ...d, body: e.target.value }))}
-                    />
-                    {draft.channel === "sms" && draft.body && (
-                      <div className="mt-1 text-right text-[11px] text-muted-foreground">
-                        {draft.body.length}{" chars | "}{Math.ceil(draft.body.length / 160)} segment{Math.ceil(draft.body.length / 160) !== 1 ? "s" : ""}
-                      </div>
-                    )}
-                  </>
-                )}
-              </CF>
-
-              <div className="flex items-center justify-between pt-1">
-                <span className="text-[11px] text-muted-foreground">
-                  {recipientTags.length > 1 ? `Sending to ${recipientTags.length} recipients` : ""}
-                </span>
-                <div className="flex gap-2">
-                  <Button size="sm" variant="outline" onClick={() => setComposing(false)} disabled={sending}>Cancel</Button>
-                  <Button size="sm" variant="accent" onClick={() => void send()} disabled={sending}>
-                    <Send className="h-3.5 w-3.5" />
-                    {sending ? "Sending..." : recipientTags.length > 1 ? `Send to ${recipientTags.length}` : "Send"}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+      {composeInit && (
+        <ComposeDialog init={composeInit} onClose={() => setComposeInit(null)} onSent={(sent) => setMessages((prev) => [...sent, ...prev])} />
       )}
 
     </div>
@@ -911,19 +608,3 @@ function InfoRow({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
-
-// Route a submission onward: tag the linked contact (Lead / Client / Vendor / …)
-// and jump into the workspace where the next record lives (Pre-Con, Jobs,
-// Projects). The contact profile is the hub — every downstream record links back
-// to it — so we deep-link there with the contact pre-selected.
-function CF({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex flex-col gap-1">
-      <label className="text-xs font-medium text-muted-foreground">{label}</label>
-      {children}
-    </div>
-  );
-}
-
-const iCls = "h-9 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-accent";
-

@@ -21,11 +21,12 @@ function timeAgo(iso: string) {
   return `${Math.floor(h / 24)}d ago`;
 }
 
-export function PrintManager() {
+// `startNew` opens the builder on a blank print (deep link from a Job's Prints menu).
+export function PrintManager({ startNew = false }: { startNew?: boolean } = {}) {
   const [prints, setPrints] = React.useState<PrintListItem[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [view, setView] = React.useState<View>("cards");
-  const [editing, setEditing] = React.useState<PrintDoc | null | "new">(null);
+  const [editing, setEditing] = React.useState<PrintDoc | null | "new">(startNew ? "new" : null);
   const [viewing, setViewing] = React.useState<PrintDoc | null>(null);
   const [deleting, setDeleting] = React.useState<string | null>(null);
 

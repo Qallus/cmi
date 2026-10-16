@@ -13,6 +13,8 @@ export interface Message {
   body: string | null;
   status: MessageStatus;
   project_id: string | null;
+  /** Set when sent from inside a Job (messages.job_id). */
+  job_id?: string | null;
   quote_id: string | null;
   provider: string | null;
   provider_id: string | null;
@@ -31,6 +33,7 @@ export interface SendEmailPayload {
   body: string;
   contact_id?: string;
   project_id?: string;
+  job_id?: string;
   quote_id?: string;
 }
 
@@ -39,10 +42,12 @@ export interface SendSmsPayload {
   body: string;
   contact_id?: string;
   project_id?: string;
+  job_id?: string;
 }
 
 export interface SendCallPayload {
   to: string;
   contact_id?: string;
   project_id?: string;
+  job_id?: string;
 }
