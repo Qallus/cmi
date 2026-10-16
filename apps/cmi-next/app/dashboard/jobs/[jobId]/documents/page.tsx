@@ -33,10 +33,12 @@ export default async function JobDocumentsPage({ params }: { params: Promise<{ j
     <div className="flex h-[calc(100vh-56px)] flex-col">
       <JobDetailNav jobId={job.id} active="documents" />
       <div className="flex-1 overflow-auto p-4 md:p-6">
-        <div className="mb-4 flex flex-wrap items-center gap-2">
-          <Link href={`/dashboard/jobs/${job.id}/summary`} className="text-xs text-muted-foreground hover:text-foreground">← {job.job_name}</Link>
-          <h1 className="font-display text-2xl font-semibold tracking-tight">Documents</h1>
-          <span className="text-xs text-muted-foreground">SOWs, quotes, and contracts for this job</span>
+        <div className="mb-4">
+          <Link href={`/dashboard/jobs/${job.id}/summary`} className="text-xs text-muted-foreground hover:text-foreground mb-1 inline-block">← {job.job_name}</Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="font-display text-2xl font-semibold tracking-tight">Documents</h1>
+            <span className="text-xs text-muted-foreground">SOWs, quotes, and contracts for this job</span>
+          </div>
         </div>
 
         {/* Related document areas */}

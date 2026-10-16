@@ -15,9 +15,11 @@ export function JobModuleShell({
     <div className="flex h-[calc(100vh-56px)] flex-col">
       <JobDetailNav jobId={jobId} active={active} action={action} />
       <div className="flex-1 overflow-auto p-4 md:p-6">
-        <div className="mb-4 flex flex-wrap items-center gap-2">
-          <Link href={`/dashboard/jobs/${jobId}/summary`} className="text-xs text-muted-foreground hover:text-foreground">← {jobName}</Link>
-          <h1 className="font-display text-2xl font-semibold tracking-tight">{title}</h1>
+        <div className="mb-4">
+          <Link href={`/dashboard/jobs/${jobId}/summary`} className="text-xs text-muted-foreground hover:text-foreground mb-1 inline-block">← {jobName}</Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="font-display text-2xl font-semibold tracking-tight">{title}</h1>
+          </div>
         </div>
         {children}
       </div>

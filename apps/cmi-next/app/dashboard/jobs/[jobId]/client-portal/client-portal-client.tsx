@@ -72,7 +72,7 @@ export function ClientPortalClient({ job, initialUpdates, clients }: { job: JobW
 
   return (
     <JobModuleShell jobId={job.id} jobName={job.job_name} active="client-portal" title="Client Portal">
-      <div className="mx-auto max-w-3xl space-y-6">
+      <div className="space-y-6">
         {/* Enable + settings */}
         <Section title="Portal Settings">
           <label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} /> Client portal enabled for this job</label>

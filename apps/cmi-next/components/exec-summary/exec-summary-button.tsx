@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { RichTextEditor } from "@/components/notes/rich-text-editor";
 import { Modal } from "@/components/punch/shared";
+import { SidePanel } from "@/components/ui/side-panel";
 import { cn } from "@/lib/utils";
 import { htmlToText, sanitizeHtml } from "@/lib/notes/html";
 import { summaryDocumentHtml } from "@/lib/exec-summary/render";
@@ -46,7 +47,9 @@ export function ExecSummaryButton({ target, id, name, className }: { target: Tar
   );
 }
 
-export function ExecSummaryDialog({ target, id, name, onClose }: { target: Target; id: string; name: string; onClose: () => void }) {
+// `asPanel` opens it as a right-hand slide-out (the job top bar) instead of a modal.
+export function ExecSummaryDialog({ target, id, name, onClose, asPanel = false }: { target: Target; id: string; name: string; onClose: () => void; asPanel?: boolean }) {
+  const Shell = asPanel ? SidePanel : Modal;
   const [audience, setAudience] = React.useState<Audience>("team");
   const [guidance, setGuidance] = React.useState("");
   const [draft, setDraft] = React.useState<Draft | null>(null);
@@ -176,7 +179,7 @@ export function ExecSummaryDialog({ target, id, name, onClose }: { target: Targe
   const recipients = staffIds.size + (audience === "client" ? contactIds.size + extra.split(/[,\s;]+/).filter(Boolean).length : 0);
 
   return (
-    <Modal title={`Executive Summary · ${name}`} onClose={onClose} wide>
+    <Shell title={`Executive Summary · ${name}`} onClose={onClose} wide>
       <div className="space-y-4">
         {/* Audience + generate */}
         <div className="grid grid-cols-2 gap-2">
@@ -371,7 +374,7 @@ export function ExecSummaryDialog({ target, id, name, onClose }: { target: Targe
           </div>
         )}
       </div>
-    </Modal>
+    </Shell>
   );
 }
 

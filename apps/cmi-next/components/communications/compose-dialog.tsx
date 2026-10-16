@@ -11,7 +11,8 @@ import { cn } from "@/lib/utils";
 import type { Message } from "@/lib/communications/types";
 import { DynamicFieldsBar } from "@/components/ui/dynamic-fields-bar";
 import { EmailPreview } from "@/components/email-builder/email-preview";
-import { SearchableSelect } from "@/components/ui/searchable-select";
+import { SidePanel } from "@/components/ui/side-panel";
+import { RecipientPicker } from "./recipient-picker";
 
 export type ComposeChannel = "email" | "sms";
 
@@ -33,9 +34,13 @@ type TemplateRow = { id: string; name: string; subject: string; html?: string; s
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const digits = (s: string) => s.replace(/\D/g, "").slice(-10);
 
-export function ComposeDialog({ init, recipients, jobId, onClose, onSent }: {
+export function ComposeDialog({ init, recipients, jobId, onClose, onSent, onRecipientSaved, variant = "modal" }: {
   init: ComposeInit;
   recipients?: ComposeRecipient[];
+  /** A phone / email typed in the picker was saved to that contact. */
+  onRecipientSaved?: (who: ComposeRecipient, address: string) => void;
+  /** "panel" slides out from the right (used inside Jobs). */
+  variant?: "modal" | "panel";
   /** Tags every message sent from here with the job. */
   jobId?: string | null;
   onClose: () => void;
@@ -51,7 +56,6 @@ export function ComposeDialog({ init, recipients, jobId, onClose, onSent }: {
   const [loadingTemplate, setLoadingTemplate] = React.useState(false);
   const [showTemplateMenu, setShowTemplateMenu] = React.useState(false);
   const [showTemplatePreview, setShowTemplatePreview] = React.useState(false);
-  const [pick, setPick] = React.useState("");
   const templateMenuRef = React.useRef<HTMLDivElement>(null);
   const bodyTextareaRef = React.useRef<HTMLTextAreaElement>(null);
 
@@ -84,33 +88,34 @@ export function ComposeDialog({ init, recipients, jobId, onClose, onSent }: {
     function handleClick(e: MouseEvent) {
       if (templateMenuRef.current && !templateMenuRef.current.contains(e.target as Node)) setShowTemplateMenu(false);
     }
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && variant === "modal") onClose(); };
     document.addEventListener("mousedown", handleClick);
     window.addEventListener("keydown", onKey);
     return () => { document.removeEventListener("mousedown", handleClick); window.removeEventListener("keydown", onKey); };
-  }, [onClose]);
+  }, [onClose, variant]);
+
+  // Addresses chosen in the picker this session (including ones just typed in
+  // for a contact), so each send is logged against the right contact.
+  const [picked, setPicked] = React.useState<Record<string, string | null>>({});
 
   // Which contact an address belongs to, so each send is logged against them.
   const contactFor = React.useCallback((address: string): string | null => {
-    if (!recipients?.length) return null;
     const a = address.trim().toLowerCase();
+    if (a in picked) return picked[a];
+    if (!recipients?.length) return null;
     const hit = recipients.find((r) => (r.email && r.email.toLowerCase() === a) || (r.phone && digits(r.phone) && digits(r.phone) === digits(a)));
     return hit?.contactId ?? null;
-  }, [recipients]);
+  }, [recipients, picked]);
 
-  const usable = (recipients ?? []).filter((r) => (draft.channel === "email" ? !!r.email : !!r.phone));
-  function pickRecipient(key: string) {
-    const r = usable.find((x) => x.key === key);
-    if (!r) return;
-    if (draft.channel === "email" && r.email) {
-      const email = r.email.toLowerCase();
+  function addRecipient(address: string, who: ComposeRecipient | null) {
+    setPicked((m) => ({ ...m, [address.trim().toLowerCase()]: who?.contactId ?? null }));
+    if (draft.channel === "email") {
       // Promote a typed address to a tag so the picked one is added alongside it.
-      setRecipientTags((prev) => Array.from(new Set([...prev, ...(draft.to.trim() && EMAIL_RE.test(draft.to.trim()) ? [draft.to.trim().toLowerCase()] : []), email])));
+      setRecipientTags((prev) => Array.from(new Set([...prev, ...(draft.to.trim() && EMAIL_RE.test(draft.to.trim()) ? [draft.to.trim().toLowerCase()] : []), address.toLowerCase()])));
       setDraft((d) => ({ ...d, to: "" }));
-    } else if (r.phone) {
-      setDraft((d) => ({ ...d, to: r.phone as string }));
+    } else {
+      setDraft((d) => ({ ...d, to: address }));
     }
-    setPick("");
   }
 
   function insertIntoBody(token: string) {
@@ -166,13 +171,8 @@ export function ComposeDialog({ init, recipients, jobId, onClose, onSent }: {
     } finally { setSending(false); }
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-xl border border-border bg-card shadow-xl">
-        <div className="flex items-center justify-between border-b border-border px-5 py-4">
-          <h2 className="font-semibold">{draft.channel === "email" ? "Compose Email" : "Send SMS"}</h2>
-          <div className="flex items-center gap-3">
+  const title = draft.channel === "email" ? "Compose Email" : "Send SMS";
+  const channelToggle = (
             <div className="flex rounded-md border border-border bg-background p-0.5 text-xs">
               <button type="button"
                 onClick={() => { setDraft((d) => ({ ...d, channel: "email" })); if (!composeTemplates.length) loadTemplates(); }}
@@ -184,28 +184,20 @@ export function ComposeDialog({ init, recipients, jobId, onClose, onSent }: {
                 <MessageSquare className="h-3 w-3" /> SMS
               </button>
             </div>
-            <button type="button" className="rounded p-1 text-muted-foreground hover:text-foreground" onClick={onClose}>
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-
-        <div className="space-y-3 p-5">
+  );
+  const body = (
+        <div className="space-y-3">
           {sendError && <div className="rounded bg-destructive/10 px-3 py-2 text-sm text-destructive">{sendError}</div>}
 
           {recipients && (
-            <CF label="This job's contacts">
-              {usable.length === 0 ? (
-                <div className="text-xs text-muted-foreground">No one on this job has {draft.channel === "email" ? "an email address" : "a phone number"} yet. Type one below.</div>
-              ) : (
-                <SearchableSelect
-                  options={usable.map((r) => ({ value: r.key, label: `${r.name} · ${r.role}`, sublabel: (draft.channel === "email" ? r.email : r.phone) ?? "" }))}
-                  value={pick}
-                  onChange={pickRecipient}
-                  placeholder={draft.channel === "email" ? "Add a client, sub or team member…" : "Choose who to text…"}
-                />
-              )}
-            </CF>
+            <RecipientPicker
+              key={draft.channel}
+              recipients={recipients}
+              kind={draft.channel === "email" ? "email" : "phone"}
+              label="This job's contacts"
+              onUse={addRecipient}
+              onSaved={onRecipientSaved}
+            />
           )}
 
           {/* To: multi-recipient tag input */}
@@ -349,6 +341,31 @@ export function ComposeDialog({ init, recipients, jobId, onClose, onSent }: {
             </div>
           </div>
         </div>
+  );
+
+  if (variant === "panel") {
+    return (
+      <SidePanel title={title} subtitle={recipients ? "Pick from this job's people or enter an address" : undefined} onClose={onClose} wide>
+        <div className="mb-4">{channelToggle}</div>
+        {body}
+      </SidePanel>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative z-10 max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-xl border border-border bg-card shadow-xl">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <h2 className="font-semibold">{title}</h2>
+          <div className="flex items-center gap-3">
+            {channelToggle}
+            <button type="button" className="rounded p-1 text-muted-foreground hover:text-foreground" onClick={onClose}>
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+        <div className="p-5">{body}</div>
       </div>
     </div>
   );

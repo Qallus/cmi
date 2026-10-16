@@ -39,11 +39,13 @@ export default async function JobCommunicationsPage({ params }: { params: Promis
     <div className="flex h-[calc(100vh-56px)] flex-col">
       <JobDetailNav jobId={job.id} active="communications" />
       <div className="flex-1 overflow-auto p-4 md:p-6">
-        <div className="mb-4 flex flex-wrap items-center gap-2">
-          <Link href={`/dashboard/jobs/${job.id}/summary`} className="text-xs text-muted-foreground hover:text-foreground">← {job.job_name}</Link>
-          <h1 className="font-display text-2xl font-semibold tracking-tight">Communications</h1>
-          <span className="text-xs text-muted-foreground">Emails, texts, and calls with this job&apos;s clients and subs. Use the Calls, SMS and Email buttons in the top bar to reach them.</span>
-          <Link href="/dashboard/communications" className="ml-auto text-xs font-medium text-accent hover:underline">Open Communications →</Link>
+        <div className="mb-4">
+          <Link href={`/dashboard/jobs/${job.id}/summary`} className="text-xs text-muted-foreground hover:text-foreground mb-1 inline-block">← {job.job_name}</Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="font-display text-2xl font-semibold tracking-tight">Communications</h1>
+            <span className="text-xs text-muted-foreground">Emails, texts, and calls with this job&apos;s clients and subs. Use the Calls, SMS and Email buttons in the top bar to reach them.</span>
+            <Link href="/dashboard/communications" className="ml-auto text-xs font-medium text-accent hover:underline">Open Communications →</Link>
+          </div>
         </div>
 
         {comms.length === 0 ? (
@@ -51,7 +53,7 @@ export default async function JobCommunicationsPage({ params }: { params: Promis
             No emails, texts, or calls with this job&apos;s contacts yet.
           </div>
         ) : (
-          <div className="mx-auto max-w-3xl overflow-hidden rounded-lg border border-border">
+          <div className="overflow-hidden rounded-lg border border-border">
             {comms.map((m, i) => {
               const Icon = channelIcon(m.channel);
               const inbound = (m.direction ?? "").toLowerCase() === "inbound";

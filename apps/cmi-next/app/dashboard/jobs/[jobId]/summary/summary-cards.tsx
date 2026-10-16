@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SearchableSelect, type ComboOption } from "@/components/ui/searchable-select";
 import { PhoneInput } from "@/components/ui/formatted-input";
+import { DateField } from "@/components/ui/date-field";
 import { AddDailyLogDialog } from "@/components/dashboard/add-daily-log";
 import { confirmAction } from "@/components/ui/confirm-action";
 import { cn } from "@/lib/utils";
@@ -269,7 +270,7 @@ function AddTaskModal({ jobId, feed, defaultDue, onClose }: { jobId: string; fee
           <>
             <Field label="Task"><input className={inputCls} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="What needs to happen?" autoFocus /></Field>
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Due"><input type="date" className={inputCls} value={form.due} onChange={(e) => setForm({ ...form, due: e.target.value })} /></Field>
+              <Field label="Due"><DateField value={form.due} onChange={(v) => setForm({ ...form, due: v })} allowClear={false} /></Field>
               <Field label="Priority">
                 <select className={inputCls} value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })}>
                   {["low", "normal", "high", "urgent"].map((p) => <option key={p} value={p}>{p[0].toUpperCase() + p.slice(1)}</option>)}
@@ -333,7 +334,7 @@ function AgendaModal({ jobId, feed, onClose }: { jobId: string; feed: JobSummary
         {rows.map((r, i) => (
           <div key={i} className="grid gap-2 rounded-md border border-border p-2 sm:grid-cols-[1fr_9.5rem_11rem_1.5rem] sm:border-0 sm:p-0">
             <input className={inputCls} value={r.title} onChange={(e) => set(i, { title: e.target.value })} placeholder="e.g. Drywall inspection" autoFocus={i === 0} />
-            <input type="date" className={inputCls} value={r.date} min={feed.today} onChange={(e) => set(i, { date: e.target.value })} />
+            <DateField value={r.date} min={feed.today} onChange={(v) => set(i, { date: v })} allowClear={false} />
             {staff === null ? <div className="self-center text-xs text-muted-foreground">Loading…</div> : <SearchableSelect options={staffOptions} value={r.assignee} onChange={(v) => set(i, { assignee: v })} />}
             <button type="button" onClick={() => setRows((rs) => (rs.length > 1 ? rs.filter((_, j) => j !== i) : rs))} className="self-center text-muted-foreground hover:text-destructive" title="Remove row"><X className="h-4 w-4" /></button>
           </div>
@@ -475,7 +476,7 @@ function ActionItemsModal({ jobId, feed, clients, onClose }: { jobId: string; fe
         {rows.map((r, i) => (
           <div key={i} className="grid gap-2 rounded-md border border-border p-2 sm:grid-cols-[1fr_9.5rem_7rem_1.5rem] sm:border-0 sm:p-0">
             <input className={inputCls} value={r.title} onChange={(e) => set(i, { title: e.target.value })} placeholder="e.g. Choose cabinet hardware" autoFocus={i === 0} />
-            <input type="date" className={inputCls} value={r.due_date} onChange={(e) => set(i, { due_date: e.target.value })} title="Due date (optional)" />
+            <DateField value={r.due_date} onChange={(v) => set(i, { due_date: v })} placeholder="Due date" title="Due date (optional)" />
             <select className={inputCls} value={r.priority} onChange={(e) => set(i, { priority: e.target.value as ActionItemPriority })}>
               {(["low", "normal", "high", "urgent"] as ActionItemPriority[]).map((p) => <option key={p} value={p}>{p[0].toUpperCase() + p.slice(1)}</option>)}
             </select>

@@ -7,13 +7,14 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ExternalLink, Mail, MessageSquare, MessagesSquare, NotebookPen, Phone, Pin, Plus, Printer, RefreshCw, Sparkles, Trash2, X } from "lucide-react";
+import { ExternalLink, Mail, MessageSquare, MessagesSquare, NotebookPen, Phone, Pin, Plus, Printer, RefreshCw, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { SearchableSelect } from "@/components/ui/searchable-select";
+import { SidePanel } from "@/components/ui/side-panel";
 import { cn } from "@/lib/utils";
 import { CallsWorkspace } from "@/app/dashboard/communications/calls-workspace";
 import { ExecSummaryDialog } from "@/components/exec-summary/exec-summary-button";
 import { ComposeDialog, type ComposeChannel } from "./compose-dialog";
+import { RecipientPicker } from "./recipient-picker";
 import type { JobCommCounts, JobRecipient } from "@/lib/job-communications/data";
 import type { JobNote } from "@/lib/job-notes/data";
 
@@ -36,6 +37,14 @@ function JobCommsBarInner({ jobId, pathname }: { jobId: string; pathname: string
   const [tool, setTool] = React.useState<Tool | null>(null);
   const [printsOpen, setPrintsOpen] = React.useState(false);
   const [mobileOpen, setMobileOpen] = React.useState(false);
+
+  const barRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    if (!printsOpen && !mobileOpen) return;
+    const h = (e: MouseEvent) => { if (!barRef.current?.contains(e.target as Node)) { setPrintsOpen(false); setMobileOpen(false); } };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [printsOpen, mobileOpen]);
 
   const load = React.useCallback(() => {
     fetch(`/api/jobs/${jobId}/comms`).then((r) => (r.ok ? r.json() : null)).then((d: CommsData | null) => d && setData(d)).catch(() => {});
@@ -65,7 +74,7 @@ function JobCommsBarInner({ jobId, pathname }: { jobId: string; pathname: string
   }
 
   return (
-    <>
+    <div ref={barRef} className="contents">
       {/* md and up: the toolbar itself (labels from xl) */}
       <nav aria-label="Job communications" className="hidden items-center gap-0.5 md:flex">
         {items.map((it) => {
@@ -101,7 +110,6 @@ function JobCommsBarInner({ jobId, pathname }: { jobId: string; pathname: string
         </button>
         {mobileOpen && (
           <>
-            <div className="fixed inset-0 z-40" onClick={() => setMobileOpen(false)} />
             <div className="absolute right-0 top-full z-50 mt-2 w-52 overflow-hidden rounded-xl border border-border bg-card py-1 shadow-xl">
               {items.map((it) => (
                 <button key={it.key} type="button" onClick={() => (it.key === "prints" ? (setMobileOpen(false), setTool("summary")) : choose(it.key))}
@@ -122,19 +130,20 @@ function JobCommsBarInner({ jobId, pathname }: { jobId: string; pathname: string
           jobId={jobId}
           onClose={() => setTool(null)}
           onSent={refreshAll}
+          onRecipientSaved={load}
+          variant="panel"
         />
       )}
-      {tool === "call" && <CallModal jobId={jobId} jobName={jobName} recipients={recipients} onClose={() => { setTool(null); refreshAll(); }} />}
-      {tool === "notes" && <NotesModal jobId={jobId} jobName={jobName} onClose={() => { setTool(null); refreshAll(); }} />}
-      {tool === "summary" && <ExecSummaryDialog target="job" id={jobId} name={jobName} onClose={() => setTool(null)} />}
-    </>
+      {tool === "call" && <CallPanel jobId={jobId} jobName={jobName} recipients={recipients} onSaved={load} onClose={() => { setTool(null); refreshAll(); }} />}
+      {tool === "notes" && <NotesPanel jobId={jobId} jobName={jobName} onClose={() => { setTool(null); refreshAll(); }} />}
+      {tool === "summary" && <ExecSummaryDialog target="job" id={jobId} name={jobName} onClose={() => setTool(null)} asPanel />}
+    </div>
   );
 }
 
 function PrintsMenu({ onClose, onSummary }: { onClose: () => void; onSummary: () => void }) {
   return (
     <>
-      <div className="fixed inset-0 z-40" onClick={onClose} />
       <div className="absolute right-0 top-full z-50 mt-2 w-64 overflow-hidden rounded-xl border border-border bg-card py-1 text-sm shadow-xl">
         <button type="button" onClick={onSummary} className="flex w-full items-start gap-2 px-3 py-2 text-left hover:bg-muted">
           <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
@@ -151,32 +160,12 @@ function PrintsMenu({ onClose, onSummary }: { onClose: () => void; onSummary: ()
   );
 }
 
-function Modal({ title, onClose, wide, children }: { title: string; onClose: () => void; wide?: boolean; children: React.ReactNode }) {
-  React.useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
-  }, [onClose]);
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={onClose} />
-      <div className={cn("relative z-10 max-h-[92vh] w-full overflow-y-auto rounded-xl border border-border bg-card shadow-xl", wide ? "max-w-2xl" : "max-w-lg")}>
-        <div className="flex items-center justify-between border-b border-border px-5 py-4">
-          <h2 className="font-semibold">{title}</h2>
-          <button type="button" className="rounded p-1 text-muted-foreground hover:text-foreground" onClick={onClose}><X className="h-4 w-4" /></button>
-        </div>
-        <div className="p-5">{children}</div>
-      </div>
-    </div>
-  );
-}
-
-// Browser dialer with the job's people to pick from. Choosing someone reloads
-// the dialer with their number; a short note can be saved to the job after.
-function CallModal({ jobId, jobName, recipients, onClose }: { jobId: string; jobName: string; recipients: JobRecipient[]; onClose: () => void }) {
-  const callable = recipients.filter((r) => r.phone);
-  const [pick, setPick] = React.useState(callable[0]?.key ?? "");
-  const who = callable.find((r) => r.key === pick) ?? null;
+// Browser dialer with the job's people to pick from, or any number typed in.
+// Choosing someone reloads the dialer with their number; a short note can be
+// saved to the job after the call.
+function CallPanel({ jobId, jobName, recipients, onSaved, onClose }: { jobId: string; jobName: string; recipients: JobRecipient[]; onSaved: () => void; onClose: () => void }) {
+  const [number, setNumber] = React.useState(recipients.find((r) => r.phone)?.phone ?? "");
+  const [who, setWho] = React.useState<JobRecipient | null>(recipients.find((r) => r.phone) ?? null);
   const [note, setNote] = React.useState("");
   const [saved, setSaved] = React.useState(false);
 
@@ -184,41 +173,36 @@ function CallModal({ jobId, jobName, recipients, onClose }: { jobId: string; job
     if (!note.trim()) return;
     const res = await fetch(`/api/jobs/${jobId}/notes`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ body: `Call${who ? ` with ${who.name}` : ""}: ${note.trim()}` }),
+      body: JSON.stringify({ body: `Call${who ? ` with ${who.name}` : number ? ` to ${number}` : ""}: ${note.trim()}` }),
     });
     if (res.ok) { setSaved(true); setNote(""); }
   }
 
   return (
-    <Modal title={`Call · ${jobName}`} onClose={onClose} wide>
+    <SidePanel title={`Call · ${jobName}`} subtitle={who ? `${who.name} · ${number}` : number || "Pick someone or enter a number"} onClose={onClose}>
       <div className="space-y-4">
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-muted-foreground">Who to call</label>
-          {callable.length === 0 ? (
-            <div className="text-xs text-muted-foreground">No one on this job has a phone number yet. Dial one below.</div>
-          ) : (
-            <SearchableSelect
-              options={[...callable.map((r) => ({ value: r.key, label: `${r.name} · ${r.role}`, sublabel: r.phone ?? "" })), { value: "", label: "Other number", sublabel: "Type it in the dialer" }]}
-              value={pick}
-              onChange={setPick}
-            />
-          )}
-        </div>
-        <CallsWorkspace key={pick || "other"} hideLog initialNumber={who?.phone ?? ""} />
+        <RecipientPicker
+          recipients={recipients}
+          kind="phone"
+          label="Who to call"
+          onUse={(address, r) => { setNumber(address); setWho(r); }}
+          onSaved={onSaved}
+        />
+        <CallsWorkspace key={number || "blank"} hideLog initialNumber={number} />
         <div className="space-y-2 border-t border-border pt-3">
           <label className="text-xs font-medium text-muted-foreground">Call note (saved to this job&apos;s Notes)</label>
-          <textarea className="min-h-[60px] w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent" value={note} onChange={(e) => { setNote(e.target.value); setSaved(false); }} placeholder="What was discussed?" />
+          <textarea className="min-h-[70px] w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent" value={note} onChange={(e) => { setNote(e.target.value); setSaved(false); }} placeholder="What was discussed?" />
           <div className="flex items-center justify-end gap-2">
             {saved && <span className="text-xs text-success">Saved</span>}
             <Button size="sm" variant="outline" onClick={() => void saveNote()} disabled={!note.trim()}>Save note</Button>
           </div>
         </div>
       </div>
-    </Modal>
+    </SidePanel>
   );
 }
 
-function NotesModal({ jobId, jobName, onClose }: { jobId: string; jobName: string; onClose: () => void }) {
+function NotesPanel({ jobId, jobName, onClose }: { jobId: string; jobName: string; onClose: () => void }) {
   const [notes, setNotes] = React.useState<JobNote[] | null>(null);
   const [text, setText] = React.useState("");
   const [busy, setBusy] = React.useState(false);
@@ -249,7 +233,7 @@ function NotesModal({ jobId, jobName, onClose }: { jobId: string; jobName: strin
 
   const sorted = [...(notes ?? [])].sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.created_at.localeCompare(a.created_at));
   return (
-    <Modal title={`Notes · ${jobName}`} onClose={onClose}>
+    <SidePanel title={`Notes · ${jobName}`} onClose={onClose}>
       <div className="space-y-3">
         {error && <div className="rounded bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
         <textarea autoFocus className="min-h-[80px] w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent" value={text} onChange={(e) => setText(e.target.value)} placeholder="Jot a note for this job…"
@@ -258,7 +242,7 @@ function NotesModal({ jobId, jobName, onClose }: { jobId: string; jobName: strin
           <Link href={`/dashboard/jobs/${jobId}/notes`} onClick={onClose} className="text-xs text-accent hover:underline">All notes</Link>
           <Button size="sm" variant="accent" onClick={() => void add()} disabled={busy || !text.trim()}>{busy ? "Saving…" : "Save note"}</Button>
         </div>
-        <div className="max-h-[45vh] space-y-2 overflow-y-auto">
+        <div className="space-y-2">
           {notes === null ? <div className="py-4 text-center text-sm text-muted-foreground">Loading…</div>
             : sorted.length === 0 ? <div className="py-4 text-center text-sm text-muted-foreground">No notes yet.</div>
             : sorted.map((n) => (
@@ -273,6 +257,6 @@ function NotesModal({ jobId, jobName, onClose }: { jobId: string; jobName: strin
             ))}
         </div>
       </div>
-    </Modal>
+    </SidePanel>
   );
 }

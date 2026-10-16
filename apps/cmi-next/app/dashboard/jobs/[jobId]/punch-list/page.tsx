@@ -16,7 +16,7 @@ export default async function JobPunchListPage({ params }: { params: Promise<{ j
     <div className="flex h-[calc(100vh-56px)] flex-col">
       <JobDetailNav jobId={job.id} active="punch-list" />
       <div className="flex-1 overflow-auto p-4 md:p-6">
-        <div className="mx-auto max-w-4xl">
+        <div>
           <Link href={`/dashboard/jobs/${job.id}/summary`} className="text-xs text-muted-foreground hover:text-foreground">← {job.job_name}</Link>
           <div className="mt-2">
             <PunchListPanel parentType="job" parentId={job.id} parentLabel={job.job_name} />

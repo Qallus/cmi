@@ -44,7 +44,7 @@ export function JobNotesClient({ jobId, initial }: { jobId: string; initial: Job
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4">
+    <div className="space-y-4">
       {/* Composer */}
       <div className="rounded-lg border border-border bg-card p-3">
         <textarea
