@@ -5,6 +5,7 @@
 // the client contacts on that Job / Pre-Con record (plus any extra addresses
 // the sender types, since its content is client-safe), and only roles that
 // talk to clients may send it.
+import { randomUUID } from "crypto";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { loadAssignableStaff } from "@/lib/staff/assignable";
 import { sendEmail, sendSms } from "@/lib/messaging/send";
@@ -35,8 +36,12 @@ export function toE164(raw: string | null | undefined): string | null {
   return null;
 }
 
-/** Public link to a sent client summary (the id is a random UUID). */
-export const summaryLink = (summaryId: string) => `${publicAppUrl()}/summary/${summaryId}`;
+/**
+ * Public link to a sent client summary (the id is a random UUID). `reader` is
+ * that recipient's own key, so the page greets them by first name.
+ */
+export const summaryLink = (summaryId: string, reader?: string | null) =>
+  `${publicAppUrl()}/summary/${summaryId}${reader ? `?r=${encodeURIComponent(reader)}` : ""}`;
 
 export async function loadRecipients(target: SummaryTarget, id: string): Promise<{ staff: Recipient[]; contacts: Recipient[] }> {
   const sb = getSupabaseAdmin();
@@ -182,29 +187,30 @@ export async function sendSummary(input: SendInput, actor: { id: string; name: s
   const subject = `${input.audience === "team" ? "[Internal] " : ""}${project.name} — Executive Summary`;
 
   const portalUrl = input.target === "job" ? `${app}/client/jobs/${input.id}/overview` : null;
-  const smsFor = (firstName: string | null) => [
+  const smsFor = (firstName: string | null, reader: string) => [
     input.note?.trim() || null,
     `Hi ${(firstName ?? "").trim() || "there"}, here's the latest update on ${project.name} from Constructed Matter: ${headline}`,
-    `View or save the summary as a PDF: ${summaryLink(summaryId)}`,
+    `View or save the summary as a PDF: ${summaryLink(summaryId, reader)}`,
     portalUrl ? `Your project portal: ${portalUrl}` : null,
     "Reply STOP to opt out.",
   ].filter(Boolean).join("\n\n");
 
   const sent: string[] = [];
-  const delivered: typeof unique = [];
+  const delivered: (typeof unique[number] & { reader: string })[] = [];
   const skipped: { name: string; reason: string }[] = [];
   for (const r of unique) {
     if (r.kind !== "staff" && (await isSuppressed(channel, r.address).catch(() => false))) {
       skipped.push({ name: r.name, reason: channel === "email" ? "unsubscribed from email" : "opted out of texts" });
       continue;
     }
-    const content = channel === "email" ? htmlFor(r.firstName) : smsFor(r.firstName);
+    const reader = randomUUID().replace(/-/g, "").slice(0, 12);
+    const content = channel === "email" ? htmlFor(r.firstName) : smsFor(r.firstName, reader);
     const ok = channel === "email"
       ? await sendEmail(r.address, subject, content).catch(() => false)
       : await sendSms(r.address, content).catch(() => false);
     if (!ok) { skipped.push({ name: r.name, reason: channel === "email" ? "email failed" : "text failed" }); continue; }
     sent.push(r.name);
-    delivered.push(r);
+    delivered.push({ ...r, reader });
     // Record it with the job's other messages (Communications page / counts).
     if (r.kind !== "staff") {
       await logMessage({
@@ -230,7 +236,7 @@ export async function sendSummary(input: SendInput, actor: { id: string; name: s
   }
 
   await getSupabaseAdmin().from("executive_summaries").update({
-    sent_to: delivered.map((u) => ({ name: u.name, [channel === "email" ? "email" : "phone"]: u.address, kind: u.kind })),
+    sent_to: delivered.map((u) => ({ name: u.name, firstName: u.firstName, reader: u.reader, [channel === "email" ? "email" : "phone"]: u.address, kind: u.kind })),
     posted_to_portal: posted,
   }).eq("id", summaryId);
 

@@ -13,12 +13,12 @@ export const dynamic = "force-dynamic";
 
 const notFound = () => new Response("This summary isn't available.", { status: 404, headers: { "Content-Type": "text/plain; charset=utf-8" } });
 
-export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return notFound();
 
   const { data: row } = await getSupabaseAdmin().from("executive_summaries")
-    .select("id, job_id, opportunity_id, audience, status, headline, body_html, facts, content, created_by_name, sent_at, created_at")
+    .select("id, job_id, opportunity_id, audience, status, headline, body_html, facts, content, sent_to, created_by_name, sent_at, created_at")
     .eq("id", id).maybeSingle();
   if (!row || row.audience !== "client" || row.status !== "sent") return notFound();
 
@@ -30,10 +30,19 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const app = publicAppUrl();
   const portal = row.job_id ? `${app}/client/jobs/${row.job_id}/overview` : null;
   const when = new Date((row.sent_at ?? row.created_at) as string);
+  // Each texted link carries that reader's key (?r=…) so the greeting is theirs.
+  const reader = new URL(req.url).searchParams.get("r");
+  const sentTo = (row.sent_to ?? []) as { reader?: string; firstName?: string | null; name?: string; kind?: string }[];
+  const clients = sentTo.filter((s) => s.kind === "client");
+  const first = (s: { firstName?: string | null; name?: string } | undefined) => s?.firstName || s?.name?.trim().split(/\s+/)[0] || null;
+  // Older links have no key; when the summary went to a single client, greet them.
+  const firstName = reader
+    ? first(sentTo.find((s) => s.reader && s.reader === reader))
+    : clients.length === 1 ? first(clients[0]) : null;
 
   const html = summaryDocumentHtml({
     audience: "client", kind: project.kind, projectName: project.name, projectNumber: project.number,
-    headline: row.headline as string, opening: content.opening ?? "", firstName: null,
+    headline: row.headline as string, opening: content.opening ?? "", firstName,
     facts: (row.facts ?? []) as { label: string; value: string }[],
     completed: content.completed ?? [], comingSoon: content.coming_soon ?? [], photos: content.photos ?? [],
     bodyHtml: row.body_html as string, preparedBy: (row.created_by_name as string | null) ?? null,
