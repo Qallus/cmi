@@ -6,7 +6,9 @@
 import * as React from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { Sparkles } from "lucide-react";
 import { useSidebar } from "@/components/dashboard/sidebar-context";
+import { ExecSummaryDialog } from "@/components/exec-summary/exec-summary-button";
 
 const TABS: { slug: string; label: string; href: (id: string) => string }[] = [
   { slug: "summary", label: "Summary", href: (id) => `/dashboard/jobs/${id}/summary` },
@@ -29,12 +31,27 @@ const TABS: { slug: string; label: string; href: (id: string) => string }[] = [
   { slug: "activity", label: "Activity", href: (id) => `/dashboard/jobs/${id}/activity` },
 ];
 
-// Job header: back-to-all-jobs, the scrollable tab menu, and an optional
-// action such as "Edit Job Info". One row on desktop. On phones and tablets
-// the back link and action share the top row and the tabs get a full-width
-// row of their own; squeezed between them, only a tab or two was visible.
-export function JobDetailNav({ jobId, active, action }: { jobId: string; active: string; action?: React.ReactNode }) {
+// Job header: back-to-all-jobs and the job's menu, ending with Executive
+// Summary (opens as a slide-out). Page actions such as "Add Invoice" live in
+// each page's title row, not here, so they never cover the menu.
+export function JobDetailNav({ jobId, active }: { jobId: string; active: string }) {
   const { collapsed } = useSidebar();
+  const [summaryFor, setSummaryFor] = React.useState<string | null>(null);
+  const [opening, setOpening] = React.useState(false);
+
+  // The summary needs the job's name (it is printed on the document).
+  async function openSummary() {
+    if (opening) return;
+    setOpening(true);
+    try {
+      const res = await fetch(`/api/jobs/${jobId}`);
+      const job = res.ok ? ((await res.json()) as { job_name?: string | null }) : null;
+      setSummaryFor(job?.job_name || "This job");
+    } finally { setOpening(false); }
+  }
+  const summaryDialog = summaryFor !== null && (
+    <ExecSummaryDialog target="job" id={jobId} name={summaryFor} asPanel onClose={() => setSummaryFor(null)} />
+  );
 
   // Bring the current tab into view: on a phone it's often off to the right.
   const activeRef = React.useRef<HTMLAnchorElement>(null);
@@ -53,7 +70,6 @@ export function JobDetailNav({ jobId, active, action }: { jobId: string; active:
     <div className="border-b border-border bg-card lg:flex lg:items-center lg:gap-3 lg:px-6">
       <div className="flex items-center justify-between gap-3 px-4 pt-2.5 md:px-6 lg:contents">
         {back}
-        {action ? <div className="shrink-0 lg:order-last">{action}</div> : null}
       </div>
       <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto px-2 md:px-4 lg:px-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {TABS.map((t) => (
@@ -69,11 +85,18 @@ export function JobDetailNav({ jobId, active, action }: { jobId: string; active:
             {t.label}
           </Link>
         ))}
+        <button
+          type="button"
+          onClick={() => void openSummary()}
+          className="inline-flex shrink-0 items-center gap-1.5 border-b-2 border-transparent px-3 py-2.5 text-sm font-medium text-muted-foreground transition hover:text-foreground"
+        >
+          <Sparkles className="h-3.5 w-3.5 text-accent" /> Executive Summary
+        </button>
       </div>
     </div>
   );
 
-  if (!collapsed) return horizontal;
+  if (!collapsed) return <>{horizontal}{summaryDialog}</>;
 
   // Collapsed (job pages): a fixed vertical rail on desktop — out of document
   // flow so every page's content renders normally (the layout pads content left
@@ -97,10 +120,17 @@ export function JobDetailNav({ jobId, active, action }: { jobId: string; active:
               {t.label}
             </Link>
           ))}
+          <button
+            type="button"
+            onClick={() => void openSummary()}
+            className="mt-1 flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground"
+          >
+            <Sparkles className="h-3.5 w-3.5 text-accent" /> Executive Summary
+          </button>
         </div>
-        {action ? <div className="border-t border-border p-2">{action}</div> : null}
       </nav>
       <div className="lg:hidden">{horizontal}</div>
+      {summaryDialog}
     </>
   );
 }

@@ -9,7 +9,6 @@ import { cn } from "@/lib/utils";
 import type { JobWithRelations, JobStatus, JobInternalUser, JobStats } from "@/lib/jobs/types";
 import { JobStatusBadge, money, formatDate } from "../../job-ui";
 import { JobDetailNav } from "../job-detail-nav";
-import { ExecSummaryButton } from "@/components/exec-summary/exec-summary-button";
 import { jobTeamRole, type JobTeamRole } from "@/lib/jobs/team-roles";
 import type { JobForecast } from "@/lib/projections/data";
 import { ForecastCard } from "./forecast-card";
@@ -49,18 +48,10 @@ export function JobSummaryClient({ job, stats, forecast = null, feed = null }: {
 
   return (
     <div className="flex h-[calc(100vh-56px)] flex-col">
-      {/* Job header: back · tabs · Edit (horizontal, or a fixed vertical rail
-          when the sidebar is collapsed on job pages) */}
-      <JobDetailNav
-        jobId={job.id}
-        active="summary"
-        action={
-          <div className="flex items-center gap-2">
-            <ExecSummaryButton target="job" id={job.id} name={job.job_name} />
-            <Link href={`/dashboard/jobs/${job.id}/info`}><Button size="sm" variant="outline"><Pencil className="h-3.5 w-3.5" /> Edit Job Info</Button></Link>
-          </div>
-        }
-      />
+      {/* Job menu (horizontal, or a fixed vertical rail when the sidebar is
+          collapsed). Executive Summary lives in the menu; Edit Job is on the
+          job card below. */}
+      <JobDetailNav jobId={job.id} active="summary" />
 
       <div className="flex-1 overflow-auto p-4 md:p-6">
         {/* Stat tiles aligned with the job — each links into its area */}
