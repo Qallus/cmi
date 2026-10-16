@@ -1,4 +1,4 @@
-// Send a reviewed executive summary by email (and, for a client summary on a
+// Send a reviewed executive summary by email or text (and, for a client summary on a
 // Job, optionally post it to the client portal). Saves it to the history.
 import { NextResponse } from "next/server";
 import { sendSummary } from "@/lib/exec-summary/deliver";
@@ -27,7 +27,9 @@ export async function POST(request: Request) {
       note: typeof body?.note === "string" ? body.note.slice(0, 1000) : null,
       staff_ids: strings(body?.staff_ids),
       contact_ids: strings(body?.contact_ids),
+      channel: body?.channel === "sms" ? "sms" : "email",
       extra_emails: strings(body?.extra_emails).slice(0, 10),
+      extra_phones: strings(body?.extra_phones).slice(0, 10),
       post_to_portal: !!body?.post_to_portal,
     }, actor);
     return NextResponse.json(result);

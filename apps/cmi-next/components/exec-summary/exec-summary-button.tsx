@@ -6,7 +6,7 @@
 // document, then email it, post it to the client portal (Jobs), or save a PDF.
 import * as React from "react";
 import {
-  Check, Copy, Download, Eye, FileText, Loader2, Mail, Pencil, Plus, RefreshCw, Send, Sparkles, Trash2, Users, UserRound,
+  ArrowLeft, Check, Copy, Download, Eye, FileText, Loader2, Mail, MessageSquare, Pencil, Plus, RefreshCw, Send, Sparkles, Trash2, Users, UserRound,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RichTextEditor } from "@/components/notes/rich-text-editor";
@@ -26,7 +26,7 @@ type Draft = {
   photos: Photo[]; firstNames: string[]; body_html: string;
   project: { name: string; number: string | null; kind: "Job" | "Pre-Con" };
 };
-type Person = { id: string; name: string; email: string | null; onRecord?: boolean };
+type Person = { id: string; name: string; email: string | null; phone?: string | null; onRecord?: boolean };
 type HistoryRow = { id: string; audience: Audience; headline: string; body_html: string; facts: Fact[]; content?: { opening?: string; completed?: string[]; coming_soon?: Coming[]; photos?: { url: string; caption: string | null }[] }; sent_to: { name: string }[]; posted_to_portal: boolean; created_by_name: string | null; sent_at: string | null; created_at: string };
 
 async function json<T>(res: Response): Promise<T> {
@@ -59,7 +59,10 @@ export function ExecSummaryDialog({ target, id, name, onClose, asPanel = false }
   const [error, setError] = React.useState<string | null>(null);
   const [history, setHistory] = React.useState<HistoryRow[] | null>(null);
   const [people, setPeople] = React.useState<{ staff: Person[]; contacts: Person[]; canSendToClient: boolean } | null>(null);
-  const [sending, setSending] = React.useState(false);
+  // Which send form is open: the full document by email, or a link to it by text.
+  const [sendVia, setSendVia] = React.useState<null | "email" | "sms">(null);
+  const [extraPhones, setExtraPhones] = React.useState("");
+  const [link, setLink] = React.useState<string | null>(null);
   const [staffIds, setStaffIds] = React.useState<Set<string>>(new Set());
   const [contactIds, setContactIds] = React.useState<Set<string>>(new Set());
   const [extra, setExtra] = React.useState("");
@@ -87,7 +90,7 @@ export function ExecSummaryDialog({ target, id, name, onClose, asPanel = false }
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ target, id, audience, guidance }),
       }));
-      setDraft(d); setVersion((v) => v + 1); setTab("preview"); setSending(false);
+      setDraft(d); setVersion((v) => v + 1); setTab("preview"); setSendVia(null);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -119,7 +122,13 @@ export function ExecSummaryDialog({ target, id, name, onClose, asPanel = false }
     dateLabel: new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric" }).format(new Date()),
     appUrl: typeof window !== "undefined" ? window.location.origin : "",
   }), [audience]);
-  const doc = React.useMemo(() => draft && summaryDocumentHtml({ ...docProps(draft), note: sending ? note : null }), [draft, docProps, note, sending]);
+  const doc = React.useMemo(() => draft && summaryDocumentHtml({ ...docProps(draft), note: sendVia === "email" ? note : null }), [draft, docProps, note, sendVia]);
+
+  // Open a send form. Clients are pre-ticked when they can be reached that way.
+  function openSend(via: "email" | "sms") {
+    setSendVia(via); setResult(null); setLink(null); setError(null);
+    if (people) setContactIds(new Set(people.contacts.filter((c) => (via === "email" ? c.email : c.phone)).map((c) => c.id)));
+  }
 
   function downloadPdf() {
     if (!draft) return;
@@ -145,7 +154,7 @@ export function ExecSummaryDialog({ target, id, name, onClose, asPanel = false }
     if (!draft) return;
     setBusy("send"); setError(null);
     try {
-      const r = await json<{ sent: string[]; skipped: { name: string; reason: string }[]; posted: boolean }>(await fetch("/api/exec-summary/send", {
+      const r = await json<{ sent: string[]; skipped: { name: string; reason: string }[]; posted: boolean; channel: "email" | "sms"; link: string | null }>(await fetch("/api/exec-summary/send", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           target, id, audience, headline: draft.headline, opening: draft.opening,
@@ -154,18 +163,21 @@ export function ExecSummaryDialog({ target, id, name, onClose, asPanel = false }
           coming_soon: draft.coming_soon.filter((c) => c.item.trim()),
           photos: draft.photos.filter((p) => p.include).map((p) => ({ url: p.url, caption: p.caption })),
           body_html: sanitizeHtml(draft.body_html), note,
-          staff_ids: [...staffIds], contact_ids: audience === "client" ? [...contactIds] : [],
-          extra_emails: audience === "client" ? extra.split(/[,\s;]+/).filter(Boolean) : [],
+          channel: sendVia ?? "email",
+          staff_ids: sendVia === "email" ? [...staffIds] : [], contact_ids: audience === "client" ? [...contactIds] : [],
+          extra_emails: audience === "client" && sendVia === "email" ? extra.split(/[,\s;]+/).filter(Boolean) : [],
+          extra_phones: audience === "client" && sendVia === "sms" ? extraPhones.split(/[,;]+/).map((x) => x.trim()).filter(Boolean) : [],
           post_to_portal: audience === "client" && target === "job" && postToPortal,
         }),
       }));
       const parts = [
-        r.sent.length ? `Emailed ${r.sent.join(", ")}` : null,
+        r.sent.length ? `${r.channel === "sms" ? "Texted" : "Emailed"} ${r.sent.join(", ")}` : null,
         r.posted ? "posted to the client portal" : null,
         r.skipped.length ? `skipped ${r.skipped.map((s) => `${s.name} (${s.reason})`).join(", ")}` : null,
       ].filter(Boolean);
       setResult(parts.join("; ") + ".");
-      setSending(false);
+      setLink(r.link);
+      setSendVia(null);
       fetch(`/api/exec-summary?${q}`).then((x) => json<HistoryRow[]>(x)).then(setHistory).catch(() => {});
     } catch (e) {
       setError((e as Error).message);
@@ -176,7 +188,9 @@ export function ExecSummaryDialog({ target, id, name, onClose, asPanel = false }
 
   const toggle = (set: React.Dispatch<React.SetStateAction<Set<string>>>, key: string) =>
     set((s) => { const n = new Set(s); if (n.has(key)) n.delete(key); else n.add(key); return n; });
-  const recipients = staffIds.size + (audience === "client" ? contactIds.size + extra.split(/[,\s;]+/).filter(Boolean).length : 0);
+  const recipients = sendVia === "sms"
+    ? contactIds.size + extraPhones.split(/[,;]+/).map((x) => x.trim()).filter(Boolean).length
+    : staffIds.size + (audience === "client" ? contactIds.size + extra.split(/[,\s;]+/).filter(Boolean).length : 0);
 
   return (
     <Shell title={`Executive Summary · ${name}`} onClose={onClose} wide>
@@ -202,7 +216,12 @@ export function ExecSummaryDialog({ target, id, name, onClose, asPanel = false }
           {audience === "client" && <span className="text-[11px] text-muted-foreground">Client summaries leave out internal notes, costs, margins and vendor details.</span>}
         </div>
         {error && <div className="rounded bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
-        {result && <div className="flex items-start gap-1.5 rounded bg-success/10 px-3 py-2 text-sm text-success"><Check className="mt-0.5 h-4 w-4 shrink-0" />{result}</div>}
+        {result && (
+          <div className="rounded bg-success/10 px-3 py-2 text-sm text-success">
+            <div className="flex items-start gap-1.5"><Check className="mt-0.5 h-4 w-4 shrink-0" />{result}</div>
+            {link && <div className="mt-1 pl-5 text-xs">Client link: <a href={link} target="_blank" rel="noreferrer" className="underline">{link}</a></div>}
+          </div>
+        )}
 
         {/* Review */}
         {draft && (
@@ -219,15 +238,18 @@ export function ExecSummaryDialog({ target, id, name, onClose, asPanel = false }
               <div className="flex flex-wrap gap-1.5">
                 <Button size="sm" variant="ghost" onClick={() => void copyText()}>{copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />} Copy</Button>
                 <Button size="sm" variant="ghost" onClick={downloadPdf}><Download className="h-3.5 w-3.5" /> PDF</Button>
-                <Button size="sm" variant="accent" onClick={() => { setSending(true); setResult(null); }} disabled={sending}><Send className="h-3.5 w-3.5" /> Send…</Button>
+                {audience === "client" && (
+                  <Button size="sm" variant="outline" onClick={() => openSend("sms")} disabled={sendVia === "sms"}><MessageSquare className="h-3.5 w-3.5" /> Send SMS</Button>
+                )}
+                <Button size="sm" variant="accent" onClick={() => openSend("email")} disabled={sendVia === "email"}><Mail className="h-3.5 w-3.5" /> Send Email</Button>
               </div>
             </div>
 
-            {tab === "preview" && doc && (
+            {!sendVia && tab === "preview" && doc && (
               <iframe title="Executive summary preview" srcDoc={doc} sandbox="" className="h-[60vh] w-full rounded-b-lg bg-[#F4F4F4]" />
             )}
 
-            {tab === "edit" && (
+            {!sendVia && tab === "edit" && (
               <div className="space-y-3 px-3 pb-3">
                 <label className="block space-y-1">
                   <span className="text-xs font-medium text-muted-foreground">Headline</span>
@@ -296,38 +318,64 @@ export function ExecSummaryDialog({ target, id, name, onClose, asPanel = false }
               </div>
             )}
 
-            {/* Send panel */}
-            {sending && (
-              <div className="space-y-3 border-t border-border px-3 py-3">
-                <div className="flex items-center gap-1.5 text-sm font-medium"><Mail className="h-4 w-4" /> Send the {audience === "team" ? "internal team" : "client"} summary</div>
+            {/* Send form (replaces the preview while open) */}
+            {sendVia && (
+              <div className="space-y-4 px-4 pb-4 pt-1">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <div className="flex items-center gap-1.5 font-medium">
+                      {sendVia === "email" ? <Mail className="h-4 w-4 text-accent" /> : <MessageSquare className="h-4 w-4 text-accent" />}
+                      {sendVia === "email" ? "Send by email" : "Send by text message"}
+                    </div>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {sendVia === "email"
+                        ? `Each person gets the full ${audience === "team" ? "internal " : ""}summary as a branded email, greeted by first name.`
+                        : "Each client gets a short text with a link to view or save this summary as a PDF, plus a link to their project portal."}
+                    </p>
+                  </div>
+                  <button type="button" onClick={() => setSendVia(null)} className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+                    <ArrowLeft className="h-3.5 w-3.5" /> Back to preview
+                  </button>
+                </div>
+
                 {!people && <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading people…</div>}
                 {people && audience === "client" && !people.canSendToClient && (
                   <div className="rounded bg-warning/10 px-3 py-2 text-xs text-warning">Only Admins, Project Managers and Estimators can send summaries to clients. You can still download the PDF.</div>
                 )}
+
                 {people && audience === "client" && (
-                  <div className="space-y-1">
+                  <div className="space-y-1.5">
                     <div className="text-xs font-medium text-muted-foreground">Client</div>
-                    {people.contacts.length === 0 && <div className="text-xs text-muted-foreground">No client contact on this record — add one, or type an address below.</div>}
-                    {people.contacts.map((c) => (
-                      <label key={c.id} className={cn("flex items-center gap-2 text-sm", !c.email && "opacity-50")}>
-                        <input type="checkbox" className="h-4 w-4" disabled={!c.email} checked={contactIds.has(c.id)} onChange={() => toggle(setContactIds, c.id)} />
-                        {c.name} <span className="text-xs text-muted-foreground">{c.email ?? "no email"}</span>
-                      </label>
-                    ))}
-                    <input value={extra} onChange={(e) => setExtra(e.target.value)} placeholder="Other emails (comma-separated), e.g. a spouse or the designer"
-                      className="mt-1 h-9 w-full rounded-md border border-border bg-background px-2 text-sm outline-none focus:border-accent" />
+                    {people.contacts.length === 0 && <div className="text-xs text-muted-foreground">No client contact on this record. Add one, or type {sendVia === "email" ? "an address" : "a number"} below.</div>}
+                    {people.contacts.map((c) => {
+                      const reach = sendVia === "email" ? c.email : c.phone;
+                      return (
+                        <label key={c.id} className={cn("flex items-center gap-2 text-sm", !reach && "opacity-50")}>
+                          <input type="checkbox" className="h-4 w-4" disabled={!reach} checked={contactIds.has(c.id)} onChange={() => toggle(setContactIds, c.id)} />
+                          {c.name} <span className="text-xs text-muted-foreground">{reach ?? (sendVia === "email" ? "no email" : "no mobile number")}</span>
+                        </label>
+                      );
+                    })}
+                    {sendVia === "email" ? (
+                      <input value={extra} onChange={(e) => setExtra(e.target.value)} placeholder="Other emails (comma-separated), e.g. a spouse or the designer"
+                        className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-accent" />
+                    ) : (
+                      <input value={extraPhones} onChange={(e) => setExtraPhones(e.target.value)} placeholder="Other mobile numbers (comma-separated), e.g. (602) 555-0100"
+                        className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-accent" />
+                    )}
                     {target === "job" && (
-                      <label className="mt-1 flex items-center gap-2 text-sm">
+                      <label className="flex items-center gap-2 pt-1 text-sm">
                         <input type="checkbox" className="h-4 w-4" checked={postToPortal} onChange={(e) => setPostToPortal(e.target.checked)} />
                         Also post it to the client portal as a project update
                       </label>
                     )}
                   </div>
                 )}
-                {people && (
+
+                {people && sendVia === "email" && (
                   <div className="space-y-1">
                     <div className="text-xs font-medium text-muted-foreground">{audience === "client" ? "Copy CMI staff (optional)" : "CMI team"}</div>
-                    <div className="max-h-40 space-y-1 overflow-y-auto rounded-md border border-border p-2">
+                    <div className="max-h-48 space-y-1 overflow-y-auto rounded-md border border-border p-2">
                       {people.staff.map((s) => (
                         <label key={s.id} className={cn("flex items-center gap-2 text-sm", !s.email && "opacity-50")}>
                           <input type="checkbox" className="h-4 w-4" disabled={!s.email} checked={staffIds.has(s.id)} onChange={() => toggle(setStaffIds, s.id)} />
@@ -337,14 +385,32 @@ export function ExecSummaryDialog({ target, id, name, onClose, asPanel = false }
                     </div>
                   </div>
                 )}
-                <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="Personal note at the top (optional)"
-                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent" />
-                <div className="flex justify-end gap-2">
-                  <Button size="sm" variant="outline" onClick={() => setSending(false)} disabled={busy === "send"}>Cancel</Button>
+
+                <div className="space-y-1">
+                  <div className="text-xs font-medium text-muted-foreground">{sendVia === "email" ? "Personal note at the top (optional)" : "Personal note before the link (optional)"}</div>
+                  <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} maxLength={sendVia === "sms" ? 300 : 1000}
+                    className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent" />
+                </div>
+
+                {sendVia === "sms" && draft && (
+                  <div className="space-y-1">
+                    <div className="text-xs font-medium text-muted-foreground">The text will read</div>
+                    <div className="whitespace-pre-wrap rounded-lg bg-muted px-3 py-2 text-xs leading-relaxed text-foreground">
+                      {[note.trim() || null,
+                        `Hi ${people?.contacts.find((c) => contactIds.has(c.id))?.name.split(/\s+/)[0] ?? "there"}, here's the latest update on ${name} from Constructed Matter: ${draft.headline}`,
+                        "View or save the summary as a PDF: [link to this summary]",
+                        target === "job" ? "Your project portal: [link to their portal]" : null,
+                        "Reply STOP to opt out."].filter(Boolean).join("\n\n")}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-2 border-t border-border pt-3">
+                  <Button size="sm" variant="outline" onClick={() => setSendVia(null)} disabled={busy === "send"}>Cancel</Button>
                   <Button size="sm" variant="accent" onClick={() => void send()}
                     disabled={busy === "send" || (audience === "client" && !people?.canSendToClient) || (!recipients && !(postToPortal && audience === "client" && target === "job"))}>
                     {busy === "send" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                    Send{recipients ? ` to ${recipients}` : ""}
+                    {sendVia === "email" ? "Send email" : "Send text"}{recipients ? ` to ${recipients}` : ""}
                   </Button>
                 </div>
               </div>

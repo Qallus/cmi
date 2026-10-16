@@ -7,7 +7,8 @@
 // talk to clients may send it.
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { loadAssignableStaff } from "@/lib/staff/assignable";
-import { sendEmail } from "@/lib/messaging/send";
+import { sendEmail, sendSms } from "@/lib/messaging/send";
+import { logMessage } from "@/lib/communications/data";
 import { isSuppressed } from "@/lib/messaging/consent";
 import { publicAppUrl } from "@/lib/twilio";
 import { createJobUpdate } from "@/lib/job-updates/data";
@@ -20,7 +21,22 @@ import type { ComingSoon, SummaryFact } from "./generate";
 export const SUMMARY_ROLES = ["super_admin", "admin", "project_manager", "estimator", "staff", "designer", "superintendent"];
 export const CLIENT_SEND_ROLES = ["super_admin", "admin", "project_manager", "estimator"];
 
-export type Recipient = { id: string; name: string; firstName: string | null; email: string | null; onRecord?: boolean };
+export type Recipient = { id: string; name: string; firstName: string | null; email: string | null; phone?: string | null; onRecord?: boolean };
+
+export type SummaryChannel = "email" | "sms";
+
+/** E.164 for Twilio: "(480) 352-7598" → "+14803527598". Null if it isn't a usable number. */
+export function toE164(raw: string | null | undefined): string | null {
+  const s = String(raw ?? "").trim();
+  const digits = s.replace(/\D/g, "");
+  if (s.startsWith("+") && digits.length >= 10) return `+${digits}`;
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`;
+  return null;
+}
+
+/** Public link to a sent client summary (the id is a random UUID). */
+export const summaryLink = (summaryId: string) => `${publicAppUrl()}/summary/${summaryId}`;
 
 export async function loadRecipients(target: SummaryTarget, id: string): Promise<{ staff: Recipient[]; contacts: Recipient[] }> {
   const sb = getSupabaseAdmin();
@@ -33,18 +49,18 @@ export async function loadRecipients(target: SummaryTarget, id: string): Promise
   if (target === "job") {
     const [{ data: users }, { data: jcs }] = await Promise.all([
       sb.from("job_internal_users").select("staff_user_id").eq("job_id", id),
-      sb.from("job_contacts").select("role,contact:contacts(id,first_name,last_name,company,email)").eq("job_id", id),
+      sb.from("job_contacts").select("role,contact:contacts(id,first_name,last_name,company,email,phone)").eq("job_id", id),
     ]);
     for (const u of users ?? []) if (u.staff_user_id) onRecord.add(u.staff_user_id as string);
-    for (const row of (jcs ?? []) as unknown as { role: string; contact: { id: string; first_name: string | null; last_name: string | null; company: string | null; email: string | null } | null }[]) {
-      if (row.contact && row.role === "client") contacts.push({ id: row.contact.id, name: name(row.contact), firstName: row.contact.first_name, email: row.contact.email });
+    for (const row of (jcs ?? []) as unknown as { role: string; contact: { id: string; first_name: string | null; last_name: string | null; company: string | null; email: string | null; phone: string | null } | null }[]) {
+      if (row.contact && row.role === "client") contacts.push({ id: row.contact.id, name: name(row.contact), firstName: row.contact.first_name, email: row.contact.email, phone: row.contact.phone });
     }
   } else {
     const { data: o } = await sb.from("pipeline_opportunities").select("contact_id,assigned_owner_id").eq("id", id).maybeSingle();
     if (o?.assigned_owner_id) onRecord.add(o.assigned_owner_id as string);
     if (o?.contact_id) {
-      const { data: c } = await sb.from("contacts").select("id,first_name,last_name,company,email").eq("id", o.contact_id).maybeSingle();
-      if (c) contacts.push({ id: c.id as string, name: name(c), firstName: (c.first_name as string) ?? null, email: (c.email as string) ?? null });
+      const { data: c } = await sb.from("contacts").select("id,first_name,last_name,company,email,phone").eq("id", o.contact_id).maybeSingle();
+      if (c) contacts.push({ id: c.id as string, name: name(c), firstName: (c.first_name as string) ?? null, email: (c.email as string) ?? null, phone: (c.phone as string) ?? null });
     }
   }
   const staff = people.map((p) => ({ id: p.id, name: p.name, firstName: p.name.split(/\s+/)[0] || null, email: p.email, onRecord: onRecord.has(p.id) }))
@@ -64,13 +80,16 @@ export type SendInput = {
   photos: { url: string; caption: string | null }[];
   body_html: string;
   note?: string | null;
+  /** Email sends the full document; SMS sends a link to it (client summaries only). */
+  channel?: SummaryChannel;
   staff_ids?: string[];
   contact_ids?: string[];
   extra_emails?: string[];
+  extra_phones?: string[];
   post_to_portal?: boolean;
 };
 
-async function projectInfo(target: SummaryTarget, id: string): Promise<{ name: string; number: string | null; kind: "Job" | "Pre-Con" } | null> {
+export async function projectInfo(target: SummaryTarget, id: string): Promise<{ name: string; number: string | null; kind: "Job" | "Pre-Con" } | null> {
   const sb = getSupabaseAdmin();
   if (target === "job") {
     const { data } = await sb.from("jobs").select("job_name,job_number").eq("id", id).maybeSingle();
@@ -100,24 +119,52 @@ export async function sendSummary(input: SendInput, actor: { id: string; name: s
   const photos = (input.photos ?? []).filter((p) => typeof p?.url === "string" && storage && p.url.startsWith(`${storage}/storage/v1/object/public/`))
     .slice(0, 8).map((p) => ({ url: p.url, caption: p.caption ? String(p.caption).slice(0, 80) : null }));
 
+  const channel: SummaryChannel = input.channel === "sms" ? "sms" : "email";
+  // A team summary holds internal detail; it is never put behind a shareable link.
+  if (channel === "sms" && input.audience !== "client") {
+    throw Object.assign(new Error("Only client summaries can be sent by text."), { status: 400 });
+  }
   const { staff, contacts } = await loadRecipients(input.target, input.id);
-  const to: { name: string; firstName: string | null; email: string; kind: "staff" | "client" | "other" }[] = [];
-  for (const sid of input.staff_ids ?? []) {
-    const s = staff.find((x) => x.id === sid);
-    if (s?.email) to.push({ name: s.name, firstName: s.firstName, email: s.email, kind: "staff" });
+  // `address` is an email for email sends and an E.164 number for texts.
+  const to: { name: string; firstName: string | null; address: string; contactId: string | null; kind: "staff" | "client" | "other" }[] = [];
+  if (channel === "email") {
+    for (const sid of input.staff_ids ?? []) {
+      const s = staff.find((x) => x.id === sid);
+      if (s?.email) to.push({ name: s.name, firstName: s.firstName, address: s.email, contactId: null, kind: "staff" });
+    }
   }
   if (input.audience === "client") {
     for (const cid of input.contact_ids ?? []) {
       const c = contacts.find((x) => x.id === cid);
-      if (c?.email) to.push({ name: c.name, firstName: c.firstName, email: c.email, kind: "client" });
+      const address = channel === "email" ? c?.email : toE164(c?.phone);
+      if (c && address) to.push({ name: c.name, firstName: c.firstName, address, contactId: c.id, kind: "client" });
     }
-    for (const raw of input.extra_emails ?? []) {
-      const e = raw.trim().toLowerCase();
-      if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) to.push({ name: e, firstName: null, email: e, kind: "other" });
+    if (channel === "email") {
+      for (const raw of input.extra_emails ?? []) {
+        const e = raw.trim().toLowerCase();
+        if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) to.push({ name: e, firstName: null, address: e, contactId: null, kind: "other" });
+      }
+    } else {
+      for (const raw of input.extra_phones ?? []) {
+        const n = toE164(raw);
+        if (n) to.push({ name: raw.trim(), firstName: null, address: n, contactId: null, kind: "other" });
+      }
     }
   }
-  const unique = [...new Map(to.map((t) => [t.email.toLowerCase(), t])).values()];
+  const unique = [...new Map(to.map((t) => [t.address.toLowerCase(), t])).values()];
   if (!unique.length && !input.post_to_portal) throw Object.assign(new Error("Choose at least one recipient."), { status: 400 });
+
+  // Save first so a text can link to this exact summary.
+  const { data: saved, error: saveErr } = await getSupabaseAdmin().from("executive_summaries").insert({
+    job_id: input.target === "job" ? input.id : null,
+    opportunity_id: input.target === "precon" ? input.id : null,
+    audience: input.audience, headline, body_html: body, facts,
+    content: { opening, completed, coming_soon: comingSoon, photos, channel },
+    status: "sent", sent_to: [], posted_to_portal: false,
+    created_by: actor.id, created_by_name: actor.name, sent_at: new Date().toISOString(),
+  }).select("id").single();
+  if (saveErr || !saved) throw new Error(saveErr?.message ?? "Couldn't save the summary.");
+  const summaryId = saved.id as string;
 
   const app = publicAppUrl();
   const href = input.target === "job" ? `/dashboard/jobs/${input.id}/summary` : `/dashboard/sales/${input.id}`;
@@ -134,12 +181,40 @@ export async function sendSummary(input: SendInput, actor: { id: string; name: s
   });
   const subject = `${input.audience === "team" ? "[Internal] " : ""}${project.name} — Executive Summary`;
 
+  const portalUrl = input.target === "job" ? `${app}/client/jobs/${input.id}/overview` : null;
+  const smsFor = (firstName: string | null) => [
+    input.note?.trim() || null,
+    `Hi ${(firstName ?? "").trim() || "there"}, here's the latest update on ${project.name} from Constructed Matter: ${headline}`,
+    `View or save the summary as a PDF: ${summaryLink(summaryId)}`,
+    portalUrl ? `Your project portal: ${portalUrl}` : null,
+    "Reply STOP to opt out.",
+  ].filter(Boolean).join("\n\n");
+
   const sent: string[] = [];
+  const delivered: typeof unique = [];
   const skipped: { name: string; reason: string }[] = [];
   for (const r of unique) {
-    if (r.kind !== "staff" && (await isSuppressed("email", r.email).catch(() => false))) { skipped.push({ name: r.name, reason: "unsubscribed from email" }); continue; }
-    const ok = await sendEmail(r.email, subject, htmlFor(r.firstName)).catch(() => false);
-    if (ok) sent.push(r.name); else skipped.push({ name: r.name, reason: "email failed" });
+    if (r.kind !== "staff" && (await isSuppressed(channel, r.address).catch(() => false))) {
+      skipped.push({ name: r.name, reason: channel === "email" ? "unsubscribed from email" : "opted out of texts" });
+      continue;
+    }
+    const content = channel === "email" ? htmlFor(r.firstName) : smsFor(r.firstName);
+    const ok = channel === "email"
+      ? await sendEmail(r.address, subject, content).catch(() => false)
+      : await sendSms(r.address, content).catch(() => false);
+    if (!ok) { skipped.push({ name: r.name, reason: channel === "email" ? "email failed" : "text failed" }); continue; }
+    sent.push(r.name);
+    delivered.push(r);
+    // Record it with the job's other messages (Communications page / counts).
+    if (r.kind !== "staff") {
+      await logMessage({
+        direction: "outbound", channel, contact_id: r.contactId, to_address: r.address, from_address: null,
+        subject: channel === "email" ? subject : null, body: content, status: "sent", project_id: null,
+        ...(input.target === "job" ? { job_id: input.id } : {}),
+        quote_id: null, provider: channel === "email" ? "resend" : "twilio", provider_id: null, error_message: null,
+        duration_seconds: null, recording_url: null, sent_at: new Date().toISOString(),
+      }).catch(() => {});
+    }
   }
 
   let posted = false;
@@ -154,16 +229,12 @@ export async function sendSummary(input: SendInput, actor: { id: string; name: s
     posted = true;
   }
 
-  await getSupabaseAdmin().from("executive_summaries").insert({
-    job_id: input.target === "job" ? input.id : null,
-    opportunity_id: input.target === "precon" ? input.id : null,
-    audience: input.audience, headline, body_html: body, facts,
-    content: { opening, completed, coming_soon: comingSoon, photos },
-    status: "sent", sent_to: unique.filter((u) => sent.includes(u.name)), posted_to_portal: posted,
-    created_by: actor.id, created_by_name: actor.name, sent_at: new Date().toISOString(),
-  });
+  await getSupabaseAdmin().from("executive_summaries").update({
+    sent_to: delivered.map((u) => ({ name: u.name, [channel === "email" ? "email" : "phone"]: u.address, kind: u.kind })),
+    posted_to_portal: posted,
+  }).eq("id", summaryId);
 
-  return { sent, skipped, posted };
+  return { sent, skipped, posted, channel, link: input.audience === "client" ? summaryLink(summaryId) : null };
 }
 
 export async function loadHistory(target: SummaryTarget, id: string) {
