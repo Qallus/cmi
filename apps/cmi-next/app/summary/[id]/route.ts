@@ -65,12 +65,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     td[width="50%"] img{max-width:100%!important;width:100%!important;height:auto!important;max-height:260px;object-fit:cover}
     h1{font-size:21px!important;line-height:1.3!important}
     p,li,td,div{overflow-wrap:anywhere}
-    .cmi-bar a,.cmi-bar button{flex:1 1 140px;text-align:center}
+    .cmi-bar a,.cmi-bar button{flex:1 1 140px;text-align:center;white-space:nowrap}
   }
 </style>
 <div class="cmi-bar">
   <button class="pdf" type="button" onclick="window.print()">Save as PDF</button>
-  ${portal ? `<a class="portal" href="${portal}">Open your project portal</a>` : ""}
+  ${portal ? `<a class="portal" href="${portal}">Open Project Portal</a>` : ""}
 </div>`;
 
   return new Response(html.replace(/<body([^>]*)>/, `<body$1>${bar}`), {
