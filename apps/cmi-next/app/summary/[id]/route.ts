@@ -60,7 +60,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     table{max-width:100%!important}
     td[style*="32px"]{padding-left:18px!important;padding-right:18px!important}
     td[style*="padding:30px"]{padding-top:22px!important}
-    td[width="50%"]{display:block!important;width:100%!important;box-sizing:border-box}
+    td[width="50%"]{display:block!important;width:100%!important;box-sizing:border-box;margin-bottom:8px}
+    table[style*="border-spacing"]{border-spacing:0!important}
     td[width="8"],td[width="10"]{display:none!important}
     td[width="50%"] img{max-width:100%!important;width:100%!important;height:auto!important;max-height:260px;object-fit:cover}
     h1{font-size:21px!important;line-height:1.3!important}
