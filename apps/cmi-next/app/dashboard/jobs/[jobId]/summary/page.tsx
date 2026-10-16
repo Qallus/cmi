@@ -4,6 +4,7 @@ import { getSessionStaff } from "@/lib/auth/server-session";
 import { isFeatureEnabled } from "@/lib/flags";
 import { canUseProjections, PROJECTIONS_FLAG } from "@/lib/projections/access";
 import { loadJobForecast, type JobForecast } from "@/lib/projections/data";
+import { loadJobSummaryFeed, type JobSummaryFeed } from "@/lib/jobs/summary-feed";
 import { JobSummaryClient } from "./job-summary-client";
 
 export const metadata = { title: "Job Summary — CMI Dashboard" };
@@ -13,13 +14,16 @@ export default async function JobSummaryPage({ params }: { params: Promise<{ job
   const { jobId } = await params;
   const job = await getJob(jobId);
   if (!job) notFound();
-  const stats = await getJobStats(job);
+  const staff = await getSessionStaff();
+  const [stats, feed] = await Promise.all([
+    getJobStats(job),
+    staff ? loadJobSummaryFeed(job, staff) : Promise.resolve<JobSummaryFeed | null>(null),
+  ]);
   // Forecast card: financial data, loaded only for Admin / Super Admin with the
   // Projections flag on. Everyone else gets no card and no data.
   let forecast: JobForecast | null = null;
-  const staff = await getSessionStaff();
   if (staff && canUseProjections(staff.role_slug) && (await isFeatureEnabled(PROJECTIONS_FLAG))) {
     forecast = await loadJobForecast(job.id).catch(() => null);
   }
-  return <JobSummaryClient job={job} stats={stats} forecast={forecast} />;
+  return <JobSummaryClient job={job} stats={stats} forecast={forecast} feed={feed} />;
 }

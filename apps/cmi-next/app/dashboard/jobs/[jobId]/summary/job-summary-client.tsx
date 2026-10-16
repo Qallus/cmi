@@ -13,6 +13,11 @@ import { ExecSummaryButton } from "@/components/exec-summary/exec-summary-button
 import { jobTeamRole, type JobTeamRole } from "@/lib/jobs/team-roles";
 import type { JobForecast } from "@/lib/projections/data";
 import { ForecastCard } from "./forecast-card";
+import type { JobSummaryFeed } from "@/lib/jobs/summary-feed";
+import {
+  Card, Empty, Avatar, Field, inputCls, CardLink, RemoveLink, ContactLinkModal,
+  PastDueCard, DueTodayCard, ActionItemsCard, AgendaCard, ActivityCard, LogsCard,
+} from "./summary-cards";
 
 type StaffOption = { id: string; label: string; email: string; role: string; job_title: string };
 type LeadRole = Exclude<JobTeamRole, "Other">;
@@ -21,8 +26,9 @@ const ROLE_ORDER: Record<JobTeamRole, number> = { "Project Manager": 0, Superint
 const MANUAL_FIELD: Record<LeadRole, "project_manager" | "superintendent"> = { "Project Manager": "project_manager", Superintendent: "superintendent" };
 
 // `forecast` is null unless the viewer can use Projections (server-gated).
-export function JobSummaryClient({ job, stats, forecast = null }: { job: JobWithRelations; stats: JobStats; forecast?: JobForecast | null }) {
+export function JobSummaryClient({ job, stats, forecast = null, feed = null }: { job: JobWithRelations; stats: JobStats; forecast?: JobForecast | null; feed?: JobSummaryFeed | null }) {
   const clients = job.contacts.filter((c) => c.contact);
+  const [linking, setLinking] = React.useState<"client" | "vendor" | null>(null);
   const [team, setTeam] = React.useState<JobInternalUser[]>(job.internal_users.filter((u) => u.user));
   const [manual, setManual] = React.useState<Record<LeadRole, string | null>>({ "Project Manager": job.project_manager, Superintendent: job.superintendent });
   const [addRole, setAddRole] = React.useState<LeadRole | null>(null);
@@ -98,14 +104,22 @@ export function JobSummaryClient({ job, stats, forecast = null }: { job: JobWith
               )}
             </div>
 
-            <Card title="Clients" action={<Link href={`/dashboard/jobs/${job.id}/info`} className="text-xs text-accent hover:underline">Add</Link>}>
-              {clients.length === 0 ? <Empty>No clients yet.</Empty> : clients.map((c) => (
-                <div key={c.id} className="flex items-center gap-2 py-1 text-sm">
-                  <Avatar name={`${c.contact?.first_name ?? ""} ${c.contact?.last_name ?? ""}`} />
-                  <span>{`${c.contact?.first_name ?? ""} ${c.contact?.last_name ?? ""}`.trim()}</span>
-                  {c.is_primary && <Badge tone="accent">Primary</Badge>}
-                </div>
-              ))}
+            <Card title="Clients" action={<CardLink onClick={() => setLinking("client")}>Add</CardLink>}>
+              {clients.length === 0 ? <Empty>No clients yet.</Empty> : clients.map((c) => {
+                const name = `${c.contact?.first_name ?? ""} ${c.contact?.last_name ?? ""}`.trim() || c.contact?.company || "Client";
+                const reach = [c.contact?.phone, c.contact?.email].filter(Boolean).join(" · ");
+                return (
+                  <div key={c.id} className="group flex items-center gap-2 py-1 text-sm">
+                    <Avatar name={name} />
+                    <div className="min-w-0 flex-1">
+                      <span className="block truncate">{name}</span>
+                      {reach && <div className="truncate text-[11px] text-muted-foreground">{reach}</div>}
+                    </div>
+                    {c.is_primary && <Badge tone="accent">Primary</Badge>}
+                    <RemoveLink url={`/api/jobs/${job.id}/contacts/${c.id}`} label={name} />
+                  </div>
+                );
+              })}
             </Card>
 
             <Card
@@ -147,14 +161,28 @@ export function JobSummaryClient({ job, stats, forecast = null }: { job: JobWith
               <p className="mt-2 text-[11px] text-muted-foreground">Change anyone&apos;s role in <Link href={`/dashboard/jobs/${job.id}/info`} className="text-accent hover:underline">Job Info → Internal Users</Link>.</p>
             </Card>
 
-            <Card title="Subs / Vendors" action={<Link href={`/dashboard/jobs/${job.id}/info`} className="text-xs text-accent hover:underline">Manage</Link>}>
+            <Card
+              title="Subs / Vendors"
+              action={
+                <span className="flex items-center gap-2 text-xs">
+                  <CardLink onClick={() => setLinking("vendor")}>Add</CardLink>
+                  <span className="text-muted-foreground">·</span>
+                  <Link href={`/dashboard/jobs/${job.id}/info`} className="text-accent hover:underline">Manage</Link>
+                </span>
+              }
+            >
               {job.vendors.length === 0 ? <Empty>No subs or vendors yet.</Empty> : job.vendors.map((v) => {
                 const label = v.vendor?.company || `${v.vendor?.first_name ?? ""} ${v.vendor?.last_name ?? ""}`.trim() || "Vendor";
+                const reach = [v.vendor?.phone, v.vendor?.email].filter(Boolean).join(" · ");
                 return (
-                  <div key={v.id} className="flex items-center gap-2 py-1 text-sm">
+                  <div key={v.id} className="group flex items-center gap-2 py-1 text-sm">
                     <Avatar name={label} />
-                    <span className="min-w-0 flex-1 truncate">{label}</span>
+                    <div className="min-w-0 flex-1">
+                      <span className="block truncate">{label}</span>
+                      {reach && <div className="truncate text-[11px] text-muted-foreground">{reach}</div>}
+                    </div>
                     {v.role && <span className="shrink-0 text-xs text-muted-foreground">{v.role}</span>}
+                    <RemoveLink url={`/api/jobs/${job.id}/vendors/${v.id}`} label={label} />
                   </div>
                 );
               })}
@@ -164,19 +192,38 @@ export function JobSummaryClient({ job, stats, forecast = null }: { job: JobWith
           </div>
 
           {/* Dashboard cards */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:col-span-2">
-            <Card title="Past Due For You"><Empty>Nothing past due.</Empty></Card>
-            <Card title="Due Today"><Empty>Nothing due today.</Empty></Card>
-            <Card title="Action Items"><Empty>No action items.</Empty></Card>
-            <Card title="This Week's Agenda"><Empty>No scheduled items. Build the schedule in the Project Manager.</Empty></Card>
-            <Card title="Recent Activity From Your Team"><Empty>No recent activity yet.</Empty></Card>
-            <Card title="Client Updates / Daily Logs"><Empty>No client updates or daily logs yet.</Empty></Card>
+          {/* Live cards: each pulls from the job's schedules, Projects & Tasks
+              board, punch lists, activity and logs, and adds in place. */}
+          <div className="grid content-start gap-4 sm:grid-cols-2 lg:col-span-2">
+            {feed ? (
+              <>
+                <PastDueCard jobId={job.id} feed={feed} />
+                <DueTodayCard jobId={job.id} feed={feed} />
+                <ActionItemsCard
+                  jobId={job.id}
+                  feed={feed}
+                  clients={clients.map((c) => ({ contactId: c.contact_id as string, name: `${c.contact?.first_name ?? ""} ${c.contact?.last_name ?? ""}`.trim() || c.contact?.company || "Client" }))}
+                />
+                <AgendaCard jobId={job.id} feed={feed} />
+                <ActivityCard feed={feed} />
+                <LogsCard jobId={job.id} feed={feed} />
+              </>
+            ) : (
+              <div className="sm:col-span-2"><Empty>Sign in again to load this job&apos;s tasks and activity.</Empty></div>
+            )}
           </div>
         </div>
-        <p className="mt-4 text-xs text-muted-foreground">
-          Schedule, tasks, files, daily logs, change orders, and invoices are being connected to jobs. Use the tabs above — implemented areas link to their tools; the rest show what&apos;s coming.
-        </p>
       </div>
+
+      {linking && (
+        <ContactLinkModal
+          jobId={job.id}
+          kind={linking}
+          isFirst={clients.length === 0}
+          existingIds={new Set((linking === "client" ? job.contacts.map((c) => c.contact_id) : job.vendors.map((v) => v.vendor_contact_id)).filter(Boolean) as string[])}
+          onClose={() => setLinking(null)}
+        />
+      )}
 
       {addRole && (
         <AddLeadModal
@@ -281,11 +328,6 @@ function AddLeadModal({ role, existingIds, onTeam, onManual, onClose }: { role: 
   );
 }
 
-const inputCls = "h-9 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-accent";
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return <div className="flex flex-col gap-1"><label className="text-xs font-medium text-muted-foreground">{label}</label>{children}</div>;
-}
-
 function JobStatsRow({ stats, jobId }: { stats: JobStats; jobId: string }) {
   const tiles: { label: string; value: number; icon: React.ComponentType<{ className?: string }>; href: string }[] = [
     { label: "Documents", value: stats.documents, icon: FileText, href: `/dashboard/jobs/${jobId}/documents` },
@@ -316,24 +358,6 @@ function JobStatsRow({ stats, jobId }: { stats: JobStats; jobId: string }) {
   );
 }
 
-function Card({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <div className="rounded-lg border border-border bg-card p-4">
-      <div className="mb-2 flex items-center justify-between">
-        <div className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">{title}</div>
-        {action}
-      </div>
-      {children}
-    </div>
-  );
-}
 function KV({ label, children }: { label: string; children: React.ReactNode }) {
   return <div className="flex items-center justify-between gap-3 py-1 text-sm"><span className="text-xs uppercase tracking-wide text-muted-foreground">{label}</span><span className="text-right">{children}</span></div>;
-}
-function Empty({ children }: { children: React.ReactNode }) {
-  return <div className="rounded-md border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">{children}</div>;
-}
-function Avatar({ name }: { name: string }) {
-  const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase()).join("") || "?";
-  return <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-accent/15 text-[10px] font-semibold text-accent">{initials}</span>;
 }

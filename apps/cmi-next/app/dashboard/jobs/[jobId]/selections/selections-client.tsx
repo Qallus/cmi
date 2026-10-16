@@ -102,24 +102,23 @@ export function StaffSelectionsClient({ jobId, jobName, initial }: { jobId: stri
   }
 
   return (
-    <JobModuleShell jobId={jobId} jobName={jobName} active="selections" title="Selections"
-      action={
-        <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={openExisting}><Layers className="h-3.5 w-3.5" /> Add Existing</Button>
-          <Button size="sm" variant="accent" onClick={() => setShowCreateChoice(true)}><Plus className="h-3.5 w-3.5" /> Create New</Button>
-        </div>
-      }>
+    <JobModuleShell jobId={jobId} jobName={jobName} active="selections" title="Selections">
       {viewing && <SelectionCardModal selection={viewing} onClose={() => setViewing(null)} />}
 
-      {/* View toolbar */}
+      {/* View toolbar. Add / Create sit beside the view switcher so they stay
+          in one place whether the job nav is a top bar or the side rail. */}
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">Click a selection to preview its card. Mark one <strong>client-visible</strong> + approval <strong>pending</strong> to request the client&apos;s sign-off.</p>
-        <div className="flex shrink-0 items-center gap-0.5 rounded-md border border-border p-0.5">
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <Button size="sm" variant="outline" onClick={openExisting}><Layers className="h-3.5 w-3.5" /> Add Existing</Button>
+          <Button size="sm" variant="accent" onClick={() => setShowCreateChoice(true)}><Plus className="h-3.5 w-3.5" /> Create New</Button>
+          <div className="flex shrink-0 items-center gap-0.5 rounded-md border border-border p-0.5">
           {([["list", ListIcon, "List"], ["table", TableIcon, "Table"], ["kanban", Columns3, "Kanban"], ["cards", LayoutGrid, "Cards"], ["calendar", CalendarDays, "Calendar"]] as const).map(([v, Icon, label]) => (
             <button key={v} type="button" title={label} onClick={() => setView(v)} className={`rounded p-1.5 transition ${view === v ? "bg-accent/15 text-accent" : "text-muted-foreground hover:text-foreground"}`}>
               <Icon className="h-4 w-4" />
             </button>
           ))}
+        </div>
         </div>
       </div>
 

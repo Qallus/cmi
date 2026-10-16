@@ -146,7 +146,7 @@ export function PipelineDealsClient({
       if (dateFrom && (!d.expected_close_date || d.expected_close_date < dateFrom)) return false;
       if (dateTo && (!d.expected_close_date || d.expected_close_date > dateTo)) return false;
       if (!q) return true;
-      return [d.title, d.job_number, d.next_action, d.source, d.job_type].some((v) => (v ?? "").toLowerCase().includes(q));
+      return [d.title, d.job_number, d.next_action, d.source, d.referral_source, d.job_type].some((v) => (v ?? "").toLowerCase().includes(q));
     });
   }, [deals, query, ownerFilter, stageFilter, jobTypeFilter, dateFrom, dateTo]);
 
@@ -747,7 +747,7 @@ function TableView({ deals, ownerName, onOpen, renderActions, reorder, sortState
               <td className="px-3 py-2 text-right tabular-nums">{edit ? <MoneyCell deal={d} value={d.estimated_value} edit={edit} /> : money(d.estimated_value)}</td>
               <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{d.probability != null ? `${d.probability}%` : "—"}</td>
               <td className="px-3 py-2 text-muted-foreground">{fmtDate(d.expected_close_date)}</td>
-              <td className="px-3 py-2 text-muted-foreground">{d.source || "—"}</td>
+              <td className="px-3 py-2 text-muted-foreground">{d.source ? `${d.source.replace(/_/g, " ")}${d.referral_source ? ` · ${d.referral_source}` : ""}` : "—"}</td>
               <OpenCell id={d.id} onOpen={onOpen} />
               <td className="px-3 py-2 text-right">{renderActions(d)}</td>
             </tr>
@@ -960,7 +960,7 @@ function DealFormModal({
   owners: OwnerOption[]; contacts: SourceRow[]; title: string; onClose: () => void; onSaved: () => Promise<void>;
 }) {
   const [form, setForm] = React.useState({
-    title: "", contact_id: "", owner_id: "", source: "", estimated_value: "",
+    title: "", contact_id: "", owner_id: "", source: "", referral_source: "", estimated_value: "",
     target_start_date: "", next_action: "", next_action_due: "", notes: "",
     street_address: "", city: "", state: "", zip: "",
   });
@@ -1026,6 +1026,8 @@ function DealFormModal({
       zip: form.zip || null,
       owner_id: form.owner_id || null,
       source: form.source || null,
+      // Only sent when filled, so deal creation never depends on this column.
+      ...(form.source === "referral" && form.referral_source.trim() ? { referral_source: form.referral_source.trim() } : {}),
       estimated_value: form.estimated_value === "" ? null : Number(form.estimated_value),
       target_start_date: form.target_start_date || null,
       next_action: form.next_action || null,
@@ -1113,6 +1115,12 @@ function DealFormModal({
               {DEAL_SOURCES.map((s) => <option key={s} value={s}>{s.replace(/_/g, " ")}</option>)}
             </Select>
           </Field>
+          {form.source === "referral" && (
+            <Field label="Referred by">
+              <Input list="deal-referrers" value={form.referral_source} onChange={(e) => set("referral_source", e.target.value)} placeholder="Name of the person or company" />
+              <datalist id="deal-referrers">{contacts.map((c) => <option key={c.id} value={c.label} />)}</datalist>
+            </Field>
+          )}
           <Field label="Estimated value"><MoneyInput value={form.estimated_value} onChange={(v) => set("estimated_value", v)} /></Field>
           <Field label="Target start date"><Input type="date" value={form.target_start_date} onChange={(e) => set("target_start_date", e.target.value)} /></Field>
           <Field label="Next action"><Input value={form.next_action} onChange={(e) => set("next_action", e.target.value)} placeholder="e.g. Call to schedule site visit" /></Field>

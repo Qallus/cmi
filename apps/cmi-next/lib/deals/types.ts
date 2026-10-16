@@ -42,6 +42,8 @@ export type Deal = {
   source_type: DealSourceType | null;
   source_id: string | null;
   source: string | null;
+  /** Who referred the lead (a name, company or contact), when source is "referral". */
+  referral_source: string | null;
 
   estimated_value: number | null;
   target_start_date: string | null;

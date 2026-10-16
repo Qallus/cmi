@@ -17,7 +17,7 @@ import { MoneyInput } from "@/components/ui/money-input";
 import { BoltModal } from "@/components/dashboard/bolt-modal";
 import { CallsWorkspace } from "@/app/dashboard/communications/calls-workspace";
 import { RichTextEditor } from "@/components/notes/rich-text-editor";
-import { DEAL_STAGE_META, DEAL_STAGES, DEAL_STAGE_CHECKLIST, LOST_REASONS } from "@/lib/deals/stages";
+import { DEAL_STAGE_META, DEAL_STAGES, DEAL_STAGE_CHECKLIST, LOST_REASONS, DEAL_SOURCES } from "@/lib/deals/stages";
 import { PIPELINE_ORDER_KEY } from "@/lib/deals/order";
 import { CONTACT_TYPES } from "@/lib/contacts/types";
 import { DealContactsCard } from "./deal-contacts-card";
@@ -420,6 +420,10 @@ export function DealDetailClient({
               <div className="space-y-2.5">
                 <Field label="Estimated amount"><Inline canWrite={canWrite} kind="number" value={deal.estimated_value != null ? String(deal.estimated_value) : ""} display={money(deal.estimated_value)} onSave={(v) => saveDeal({ estimated_value: v === "" ? null : Number(v) })} /></Field>
                 <Field label="Expected close"><Inline canWrite={canWrite} kind="date" value={deal.expected_close_date ?? ""} display={fmtDate(deal.expected_close_date)} onSave={(v) => saveDeal({ expected_close_date: v || null })} /></Field>
+                <Field label="Source"><Inline canWrite={canWrite} kind="select" value={deal.source ?? ""} display={deal.source ? deal.source.replace(/_/g, " ") : undefined} options={[{ value: "", label: "—" }, ...DEAL_SOURCES.map((s) => ({ value: s, label: s.replace(/_/g, " ") }))]} onSave={(v) => saveDeal({ source: v || null })} /></Field>
+                {(deal.source === "referral" || deal.referral_source) && (
+                  <Field label="Referred by"><Inline canWrite={canWrite} value={deal.referral_source ?? ""} placeholder="Who referred them?" onSave={(v) => saveDeal({ referral_source: v.trim() || null })} /></Field>
+                )}
                 <Field label="Job type"><Inline canWrite={canWrite} kind="select" value={deal.job_type ?? ""} options={[{ value: "", label: "—" }, ...JOB_TYPES.map((t) => ({ value: t, label: t }))]} onSave={(v) => saveDeal({ job_type: v || null })} /></Field>
                 <Field label="Location">{deal.full_address || "—"}</Field>
                 <Field label="Probability"><Inline canWrite={canWrite} kind="number" value={deal.probability != null ? String(deal.probability) : ""} display={deal.probability != null ? `${deal.probability}%` : undefined} placeholder="—" onSave={(v) => saveDeal({ probability: v === "" ? null : Number(v) })} /></Field>

@@ -233,6 +233,7 @@ export async function closeWonToPreCon(deal: Deal, actor?: Actor): Promise<Deal>
       estimated_budget_range: null,
       source: deal.source ?? null,
       notes: deal.notes ?? null,
+      referral_source: deal.referral_source ?? null,
       assigned_owner_id: deal.owner_id ?? null,
       stage: "opportunity",
     },
