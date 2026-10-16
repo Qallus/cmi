@@ -50,6 +50,23 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   .cmi-bar .pdf{background:#9e6f2e;color:#fff}
   .cmi-bar .portal{background:#ffffff;color:#111111}
   @media print{.cmi-bar{display:none}body{background:#fff!important}@page{size:letter;margin:0.5in}}
+  /* Phones: the document is built from fixed-width email tables, so reflow it
+     here (the emailed version is unchanged). */
+  html,body{max-width:100%;overflow-x:hidden}
+  img{max-width:100%}
+  @media screen and (max-width:680px){
+    body>table{padding:12px 8px!important}
+    table[width="640"]{width:100%!important;border-radius:8px!important}
+    table{max-width:100%!important}
+    td[style*="32px"]{padding-left:18px!important;padding-right:18px!important}
+    td[style*="padding:30px"]{padding-top:22px!important}
+    td[width="50%"]{display:block!important;width:100%!important;box-sizing:border-box}
+    td[width="8"],td[width="10"]{display:none!important}
+    td[width="50%"] img{max-width:100%!important;width:100%!important;height:auto!important;max-height:260px;object-fit:cover}
+    h1{font-size:21px!important;line-height:1.3!important}
+    p,li,td,div{overflow-wrap:anywhere}
+    .cmi-bar a,.cmi-bar button{flex:1 1 140px;text-align:center}
+  }
 </style>
 <div class="cmi-bar">
   <button class="pdf" type="button" onclick="window.print()">Save as PDF</button>
