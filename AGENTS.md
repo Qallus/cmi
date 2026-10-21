@@ -1,744 +1,181 @@
-# AGENTS.md — Constructed Matter / CMI Web App
+# AGENTS.md — Constructed Matter, Inc. (CMI)
 
-## Project
+Instructions for every AI agent working in this repo: Claude Code, Codex, Hermes,
+Paperclip-managed agents, and Bolt. Read this before you change anything.
 
-You are working on the Constructed Matter, Inc. hybrid website and staff web app.
+---
 
-Primary public site:
+## What this is
+
+CMI is a construction company. This repo holds its public website, staff dashboard
+and client portal, all in **one Next.js app**: `apps/cmi-next`.
+
+- Live site: https://my.constructedmatter.com/ (future domain: constructedmatter.com)
+- Staff dashboard: https://my.constructedmatter.com/dashboard
+- Client portal: https://my.constructedmatter.com/client
+- Repo: https://github.com/Qallus/cmi (default branch `master`)
+
+**WordPress is gone.** There is no WordPress, FluentCRM, FluentBoards, FluentBooking or
+WS Form integration, and no `staff-dashboard.html`. Contacts, deals, jobs, bookings,
+quotes, documents and messaging all live in Supabase and run through this app's own
+API routes. The only leftovers are unused schema columns (`contacts.fluent_crm_id`,
+`quotes.fluent_crm_id`, `*.wp_post_id`). Do not build on them or add integrations for
+those systems. If any older doc says otherwise, trust the code.
+
+---
+
+## Stack
+
+| Layer | What we use | Where it lives in code |
+| --- | --- | --- |
+| App | Next.js 16 (App Router), React 19, TypeScript, Tailwind, Radix UI, lucide | `apps/cmi-next` |
+| Database / auth data | Supabase Postgres, accessed **server-side only** with the service role | `lib/supabase/`, `apps/cmi-next/supabase/migrations/` |
+| Email | Resend (transactional, notifications, briefings, broadcasts) | `lib/email/`, `lib/messaging/send.ts` |
+| SMS / voice | Twilio: SMS, browser softphone (Voice SDK), call recording, webhooks | `lib/twilio.ts`, `app/api/twilio/`, `app/api/webhooks/twilio/` |
+| In-app AI agent | **Bolt**, which runs on the self-hosted **Hermes** gateway (OpenAI-compatible tool calling) | `lib/agent/`, `app/api/agent/` |
+| Agent management | **Paperclip**, a self-hosted control plane for Hermes agents | `lib/paperclip/`, `app/api/paperclip/`, `docs/paperclip-agent-manager/` |
+| Coding agents | Claude Code (reads `CLAUDE.md`) and Codex (reads this file) | — |
+| Transcription | OpenAI Whisper | `app/api/transcribe/`, `lib/meetings/` |
+| Voice agent (public site) | xAI voice agent, using short-lived server-minted tokens | `app/api/voice-agent/` |
+| File storage | Garage (S3-compatible) on the CMI office server, with metadata in Supabase | `lib/files/`, `lib/storage.ts` |
+| Push | Web Push (VAPID) for the PWA | `lib/push/` |
+| PDFs | `@react-pdf/renderer`, `unpdf` | `lib/pdf/` |
+| Hosting | Coolify on a managed VPS (Docker build of `apps/cmi-next`) | `apps/cmi-next/Dockerfile`, `COOLIFY_DEPLOYMENT.md` |
+| CI / deploy | GitHub, where every push to `master` triggers a Coolify deploy | `.github/workflows/deploy.yml` |
+| Scheduled jobs | Coolify Scheduled Tasks that call secret-guarded API routes | `app/api/automations/`, `docs/automations/` |
+
+Other pieces in the repo:
+
+- `extension/`: Chrome MV3 side panel (Vite) that captures vendor products into Selections.
+- `design_system/`: CMI design system reference.
+- `docs/`: feature specs, plans and runbooks. Start with `docs/features/README.md`.
+- `supabase/` (root): older SQL from before the Next migration. New SQL goes in `apps/cmi-next/supabase/migrations/`.
+
+---
+
+## Repo map (`apps/cmi-next`)
 
 ```text
-https://my.constructedmatter.com/
-```
-
-Primary staff dashboard:
-
-```text
-https://my.constructedmatter.com/staff-dashboard.html
-```
-
-GitHub repository:
-
-```text
-https://github.com/Qallus/cmi
-```
-
-This is a hybrid HTML/JS website and dashboard connected to Supabase, Resend, WordPress, FluentCRM Pro, FluentBoards Pro, FluentBooking Pro, WS Form, and the WordPress API.
-
-The site is close to complete. Your job is to inspect the existing codebase, identify loose ends, and help button up the project without rebuilding it from scratch.
-
----
-
-## Main Objective
-
-Perform a full codebase and data-model review, then create a safe implementation plan for completing the CMI website/web app.
-
-Focus especially on:
-
-1. Supabase data tables and relationships.
-2. Projects section in the staff dashboard.
-3. Portfolio section in the staff dashboard.
-4. WordPress portfolio/team/blog sync.
-5. FluentCRM contacts sync.
-6. FluentBoards project/task sync.
-7. FluentBooking appointments sync.
-8. WS Form quote/lead submissions.
-9. Resend transactional emails.
-10. Dashboard settings and API/webhook configuration.
-11. Security, access control, RLS, and environment variables.
-12. Cleanup of broken placeholders, mojibake/encoding issues, loading states, and incomplete dashboard actions.
-
----
-
-## Operating Rules
-
-1. Inspect before editing.
-2. Do not rewrite the app from scratch.
-3. Preserve working code.
-4. Follow the existing repo structure and plain HTML/JS patterns unless the repo clearly uses additional tooling.
-5. Make the smallest safe change that fully solves the approved task.
-6. Do not remove public pages or dashboard sections unless explicitly asked.
-7. Do not expose API keys, Supabase service keys, WordPress app passwords, webhook secrets, or Resend keys in frontend code.
-8. Do not rely on frontend-only security for the staff dashboard.
-9. Use server-side or protected API routes/functions where credentials are required.
-10. Create SQL migrations or clearly labeled SQL update files for Supabase changes.
-11. Run available checks or syntax validation when possible.
-12. Summarize changed files, data-table changes, and blockers after work.
-
----
-
-## Do Not Do
-
-Never:
-
-- Hardcode production secrets.
-- Commit `.env` values.
-- Expose Supabase service role key to browser JavaScript.
-- Expose WordPress app passwords to the frontend.
-- Expose FluentCRM, FluentBoards, FluentBooking, WS Form, or Resend secrets to the frontend.
-- Delete existing dashboard sections without approval.
-- Rename database tables blindly.
-- Break existing public URLs.
-- Break portfolio project pages.
-- Break contact/booking/quote data flows.
-- Keep permissive anonymous CRUD RLS policies in production.
-- Trust staff-dashboard-only UI checks as security.
-- Ship forms with no error state or success confirmation.
-
----
-
-## Current Known App Areas
-
-The staff dashboard includes these sections and flows:
-
-```text
-Overview
-Contacts
-Projects
-Bookings
-Quotes & Leads
-Portfolio
-Blog
-Team
-Documents
-Settings
-```
-
-The current dashboard also includes:
-
-```text
-New Project / Portfolio form
-Fluent Boards project/task area
-FluentCRM contacts area
-FluentBooking appointments area
-Quotes & Leads list
-Team member add/edit forms
-Documents, contracts, and SOW forms
-WordPress API settings
-FluentCRM webhook settings
-```
-
-Use these as current app features to inspect and complete.
-
----
-
-## Important Current Issues to Look For
-
-Inspect for:
-
-- Incomplete loading states such as “Navigate here to load...”.
-- Placeholder or broken text such as `??`, `### �`, and mojibake replacement characters.
-- Projects/Portfolio mismatch or duplicated concepts.
-- Portfolio data not syncing to WordPress CPT.
-- Project/task data not syncing to FluentBoards.
-- Contacts not syncing properly with FluentCRM.
-- Bookings not syncing properly with FluentBooking.
-- Quote/lead records not creating contacts or tasks.
-- Team member data not syncing to WordPress team CPT.
-- Blog post data not syncing to WordPress.
-- Documents/SOW/contracts not saving correctly or lacking export/PDF behavior.
-- Settings storing credentials insecurely.
-- RLS policies allowing anonymous full CRUD.
-- Media uploads relying only on URLs instead of Supabase Storage or WordPress media.
-- Missing audit/integration logs.
-- Missing dashboard authentication or server-side access checks.
-
----
-
-## First Task Behavior
-
-When first asked to review this project:
-
-1. Read this `AGENTS.md`.
-2. Read `CLAUDE.md` if present.
-3. Inspect the repo structure.
-4. Inspect `supabase/schema.sql` and any seed/migration files.
-5. Inspect `staff-dashboard.html`.
-6. Inspect public pages:
-   - `index.html`
-   - `portfolio.html`
-   - `team.html`
-   - `quote.html`
-   - `contact.html`
-   - `resources.html`
-   - `regen.html`
-7. Inspect any JS modules or inline scripts.
-8. Inspect integration code for Supabase, WordPress, FluentCRM, FluentBoards, FluentBooking, WS Form, and Resend.
-9. Inspect environment/config patterns.
-10. Provide a review report.
-11. Do not modify files until a plan is approved.
-
----
-
-## Recommended Review Report Format
-
-Return:
-
-```text
-1. Executive Summary
-2. Current Repo / Tech Stack Findings
-3. Current Supabase Schema Findings
-4. Projects Dashboard Findings
-5. Portfolio Dashboard Findings
-6. WordPress API / CPT Sync Findings
-7. FluentCRM Findings
-8. FluentBoards Findings
-9. FluentBooking Findings
-10. WS Form / Quotes & Leads Findings
-11. Resend / Email Findings
-12. Security / RLS / Auth Findings
-13. UI / UX / Dashboard Cleanup Findings
-14. Missing Tables or Fields
-15. Recommended Phase 1 Fixes
-16. Recommended Phase 2 Fixes
-17. Recommended Phase 3 Fixes
-18. Questions / Blockers
+app/                 Public pages (/, /portfolio, /team, /services, /blog, /book, /lp/*, consent pages…)
+app/dashboard/       Staff dashboard (Jobs, Pipeline, Pre-Con, Schedules, Communications, Cloud, Agent…)
+app/client/          Client portal (per-job: progress, schedule, selections, documents, financials…)
+app/api/             All server routes, grouped by domain
+lib/<domain>/        Data access and business logic per domain (data.ts, types.ts, …)
+lib/auth/            Sessions, roles, requireAdmin / requireSuperAdmin
+lib/agent/           Bolt: entity registry, tools, prompt, dashboard guide
+lib/notifications/   notifyStaff() dispatcher (in-app row → push → email)
+lib/flags.ts         DB-backed feature flags (table: feature_flags)
+components/          Shared UI
+middleware.ts        Route protection for /dashboard and /client
+supabase/migrations/ SQL migrations (YYYY-MM-DD_description.sql)
 ```
 
 ---
 
-## Supabase Tables to Verify
+## Commands
 
-The current schema may already include some of these. Do not duplicate existing tables. Map and extend safely.
+Run from `apps/cmi-next`:
 
-### Core Existing Tables to Verify
-
-```text
-contacts
-projects
-bookings
-quotes
-documents
-portfolio
-team_members
-blog_posts
+```bash
+npm install
+npm run dev         # local dev server
+npm run typecheck   # tsc --noEmit
+npm run lint        # eslint
+npm run test        # node --test lib/**/*.test.mjs
+npm run build       # production build
 ```
 
-### Recommended Additional Tables / Improvements
+Before you call a change done, run `typecheck` and `lint`, plus `test` if you touched
+`lib/`. Report failures honestly.
 
-Consider adding or improving these if missing:
-
-```text
-profiles
-staff_users
-staff_roles
-clients
-companies
-project_categories
-project_services
-project_statuses
-project_media
-project_updates
-project_tasks
-project_notes
-portfolio_categories
-portfolio_services
-portfolio_media
-portfolio_metrics
-quote_services
-booking_event_types
-document_signatures
-integration_logs
-webhook_events
-email_logs
-sms_logs
-settings
-api_connections
-activity_logs
-media_library
-```
+**Local dev talks to the live Supabase database** using the real Resend, Twilio and
+VAPID keys. Treat every write as a production write.
 
 ---
 
-## Recommended Supabase Relationship Model
+## Rules
 
-Use this as the target relationship reference, adapting to the existing schema.
+### Security
 
-```text
-contacts
-  -> quotes
-  -> bookings
-  -> projects
-  -> documents
-```
+- The Supabase service role key, and every Resend, Twilio, Hermes, Paperclip, OpenAI,
+  xAI, S3 and automation secret, is **server-only**. Never import them into client
+  components or put them in `NEXT_PUBLIC_*` variables.
+- Every dashboard API route checks access on the server with `requireAdmin` or
+  `requireSuperAdmin` (`lib/auth/require-admin.ts`), plus role checks from
+  `lib/auth/roles.ts`. UI-only checks are not security.
+- Staff roles: `super_admin`, `admin`, `project_manager`, `staff`, `designer`,
+  `estimator`, `superintendent`. Non-staff roles: `subcontractor`, `vendor`, `client`,
+  `viewer`. Non-staff users must never reach staff data.
+- Client portal routes scope every query to the client's own jobs (`lib/client-portal/`).
+- Webhooks verify their signature (Twilio `x-twilio-signature`). Cron routes require
+  `Authorization: Bearer $AUTOMATION_SECRET`.
+- Never commit `.env*` values, and never paste real secrets into docs.
+- **Coolify:** `NEXT_PUBLIC_APP_URL` and `NEXT_PUBLIC_VAPID_PUBLIC_KEY` are the only
+  build variables. Everything else is runtime-only, because build args get baked into
+  the image. See `COOLIFY_DEPLOYMENT.md`.
 
-```text
-companies
-  -> contacts
-  -> projects
-```
+### Messaging
 
-```text
-projects
-  -> project_media
-  -> project_updates
-  -> project_tasks
-  -> project_notes
-  -> documents
-  -> portfolio
-```
+- Before every outbound email or SMS, check consent and suppression (`lib/messaging/consent.ts`, `isSuppressed`). This is A2P 10DLC and CAN-SPAM compliance, not optional.
+- Send staff notifications through `notifyStaff()` in `lib/notifications/dispatch.ts`. Do not call Resend or push directly for a new notification.
+- Outside `NODE_ENV=production`, outbound email, SMS and push are held. Set `NOTIFY_FORCE_SEND=true` only when you mean to send a real message.
+- Logos and images in emails must be PNG, because Gmail and Outlook strip SVG.
+- Never send stale or test-era queued messages. Automations stay gated by `AUTOMATION_ENABLED`.
 
-```text
-portfolio
-  -> portfolio_media
-  -> portfolio_categories
-  -> portfolio_services
-```
+### Data and schema
 
-```text
-team_members
-  -> project_tasks
-  -> projects
-```
+- Inspect the existing tables before you add one, and do not create duplicates.
+  Do not rename or drop tables or columns blindly.
+- Put schema changes in a new file in `apps/cmi-next/supabase/migrations/`. Make it
+  idempotent (`if not exists`) and safe to re-run.
+- Gate new or unfinished features behind a `feature_flags` row (`lib/flags.ts`), with
+  the flag off until it is approved.
+- Keep the data layer in `lib/<domain>/data.ts` and the routes thin.
 
-```text
-blog_posts
-  -> media_library
-```
+### Bolt (in-app agent)
 
-```text
-bookings
-  -> contacts
-  -> booking_event_types
-```
+- Bolt's tools all go through `dispatchTool()` in `lib/agent/tools.ts`, which handles
+  role gating, field allowlists and confirmation staging. Extend that path. Do not
+  build a parallel tool layer.
+- Deletes and sends are staged as pending actions that a person must confirm. Keep it that way.
+- **When you add, rename or move a dashboard page, nav item or feature, update
+  `lib/agent/dashboard-guide.ts` in the same change.** Otherwise Bolt gives users
+  wrong directions.
+- New entities Bolt should manage get registered in `lib/agent/entities.ts`.
 
-```text
-quotes
-  -> contacts
-  -> quote_services
-  -> projects
-```
+### Paperclip / Hermes
 
-```text
-integration_logs
-  -> contacts / projects / bookings / quotes / portfolio / team_members / blog_posts / documents
-```
+- The app must stay fully usable when Paperclip or Hermes is down. Integration calls
+  return result values rather than throwing (see `lib/paperclip/client.ts`).
+- Read `docs/paperclip-agent-manager/01-discovery-and-architecture.md` before you do
+  any agent integration work.
 
-```text
-webhook_events
-  -> integration_logs
-```
+### Code style
+
+- Match the surrounding code: its naming, comment density and patterns. Make small,
+  targeted changes, and do not rewrite working code unasked.
+- Every form or action needs loading, success and error states.
+- Keep public URLs stable, including `/portfolio/*`, `/team/*`, `/c/[slug]`, consent pages and `/lp/*`.
 
 ---
 
-## Table-Specific Review Requirements
+## Git and deploy
 
-### `contacts`
-
-Verify it supports:
-
-- FluentCRM ID
-- First name
-- Last name
-- Email
-- Phone
-- Company
-- Type: Client, Lead, Vendor, Sub Contractor
-- Status
-- Address fields
-- Tags
-- Lists if FluentCRM lists are used
-- Source
-- Last activity
-- Notes
-
-Recommended improvements:
-
-- Add `company_id` if companies are separate.
-- Add `fluentcrm_status`.
-- Add `fluentcrm_lists`.
-- Add `fluentcrm_tags`.
-- Add `last_synced_at`.
-- Add `sync_status`.
-
-### `projects`
-
-Verify it supports:
-
-- FluentBoards board/task IDs
-- Project title
-- Description
-- Client/contact relationship
-- Status
-- Stage
-- Priority
-- Category
-- Location
-- Square footage
-- Budget
-- Start/due/completed dates
-- Board name
-- Assignees
-- Tags
-- Image
-- Portfolio relationship
-
-Recommended improvements:
-
-- Separate “internal project/task” from “public portfolio project.”
-- Add `portfolio_id` or `is_portfolio_project`.
-- Add project type, services, gallery/media, timeline, project manager, client-visible flag, internal notes.
-- Add `last_synced_at` and `sync_status`.
-
-### `portfolio`
-
-Verify it supports:
-
-- WordPress post ID
-- Title
-- Slug
-- Category
-- Year
-- Location
-- Description
-- Featured image
-- Gallery images
-- Status
-- Sort order
-
-Recommended improvements:
-
-- Add `project_id` to link dashboard project to public portfolio item.
-- Add `services_used`.
-- Add `timeline`.
-- Add `square_feet`.
-- Add `video_url`.
-- Add `seo_title`.
-- Add `seo_description`.
-- Add `published_at`.
-- Add `last_synced_at`.
-- Add `sync_status`.
-
-### `bookings`
-
-Verify it supports:
-
-- FluentBooking ID
-- Contact relationship
-- Booking type
-- Title
-- Start/end datetime
-- Status
-- Location
-- Meeting URL
-- Notes
-- Host name/email
-
-Recommended improvements:
-
-- Add timezone.
-- Add event type ID.
-- Add cancellation reason.
-- Add reschedule link.
-- Add `last_synced_at`.
-- Add `sync_status`.
-
-### `quotes`
-
-Verify it supports:
-
-- FluentCRM ID
-- Contact relationship
-- Name/email/phone
-- Project type
-- Location
-- Square feet
-- Budget range
-- Timeline
-- Services
-- Description
-- Status
-- Estimated value
-- Source
-
-Recommended improvements:
-
-- Add WS Form submission ID.
-- Add WordPress form ID.
-- Add assigned staff/user.
-- Add converted project ID.
-- Add integration source metadata.
-- Add follow-up status.
-- Add `last_synced_at`.
-
-### `documents`
-
-Verify it supports:
-
-- Contract and SOW types
-- Client info
-- Project info
-- Scope/description/deliverables/exclusions
-- Terms/payment/warranty/change order/dispute
-- CMI rep/prepared by
-- Status
-- Notes
-
-Recommended improvements:
-
-- Use UUID primary key unless there is a reason for text IDs.
-- Add `contact_id`.
-- Add `project_id`.
-- Add `file_url`.
-- Add PDF export path.
-- Add signature fields.
-- Add sent/signed/completed timestamps.
-- Add Resend email status.
-
-### `team_members`
-
-Verify it supports:
-
-- WordPress post ID
-- Name
-- Slug
-- Role
-- Department
-- Bio
-- Tagline
-- Email
-- Phone
-- Profile photo
-- Secondary hover photo
-- Attributes
-- Availability
-- Sort order
-- Status
-
-Recommended improvements:
-
-- Store key attributes as JSON objects with title and description, not just text array.
-- Add LinkedIn URL.
-- Add schedule JSON.
-- Add `last_synced_at`.
-- Add `sync_status`.
-
-### `blog_posts`
-
-Verify it supports:
-
-- WordPress post ID
-- Title
-- Slug
-- Category
-- Excerpt
-- Content
-- Featured image
-- Author
-- Status
-- Published date
-
-Recommended improvements:
-
-- Add tags.
-- Add gallery images.
-- Add SEO title/description.
-- Add scheduled publish datetime.
-- Add `last_synced_at`.
-- Add `sync_status`.
+- `master` deploys to production automatically through GitHub Actions and Coolify.
+- Commit or push only when asked. When asked, it should land on `master` unless the
+  user says a branch or PR is for review.
+- The working tree usually contains unrelated untracked files (docs, take-offs,
+  exports). Commit only the files you changed, by explicit path. Never use `git add -A`.
+- Before pushing, check that `origin/master` hasn't diverged.
 
 ---
 
-## Security / RLS Requirements
+## Before you finish
 
-The project must not rely on permissive anonymous CRUD in production.
+Summarize:
 
-Review current policies and recommend moving toward:
-
-- Public read only for published portfolio/team/blog/public site data.
-- Authenticated staff CRUD for dashboard data.
-- Service role only for sensitive integration writes.
-- Private access for contacts, quotes, bookings, documents, and internal projects.
-- Audit logging for staff/admin actions.
-- Server-side verification for webhooks.
-- No secrets in browser code.
-
-Expected access model:
-
-```text
-Public users:
-  Can read published portfolio, published team, published blog, public site content.
-
-Staff users:
-  Can read/write dashboard data based on role.
-
-Admin users:
-  Can manage settings, integrations, users, and sync jobs.
-
-Service role / backend:
-  Can process webhooks and sync data.
-```
-
----
-
-## Integration Requirements
-
-### WordPress API
-
-Verify:
-
-- WordPress base URL.
-- Auth method.
-- App password handling.
-- Portfolio CPT sync.
-- Team CPT sync.
-- Blog post sync.
-- Media upload sync.
-- Error handling.
-- Sync logs.
-
-### FluentCRM Pro
-
-Verify:
-
-- Contact create/update.
-- Lists/tags sync.
-- Lead/quote metadata.
-- Booking metadata.
-- Contact status.
-- Error handling.
-- Sync logs.
-
-### FluentBoards Pro
-
-Verify:
-
-- Project/task sync.
-- Board IDs.
-- Stage/status mapping.
-- Priority mapping.
-- Assignee mapping.
-- Due date sync.
-- Error handling.
-- Sync logs.
-
-### FluentBooking Pro
-
-Verify:
-
-- Booking fetch/webhook.
-- Appointment create/update.
-- Contact mapping.
-- Calendar status.
-- Event type mapping.
-- Host mapping.
-- Error handling.
-- Sync logs.
-
-### WS Form
-
-Verify:
-
-- Quote/contact forms submit correctly.
-- Submissions create quotes.
-- Submissions create or update contacts.
-- Lead source is stored.
-- Notifications are sent.
-- Form metadata is logged.
-
-### Resend
-
-Verify:
-
-- Email templates.
-- Contact/lead notifications.
-- Booking confirmations.
-- Quote follow-ups.
-- Document/SOW/contract sends.
-- Delivery/bounce/error logging.
-
----
-
-## Dashboard Cleanup Priorities
-
-Inspect and improve:
-
-- Projects tab data loading.
-- Portfolio tab CRUD and sync.
-- Add Project form save/publish behavior.
-- FluentBoards navigation/loading behavior.
-- Contacts list loading.
-- Bookings calendar/list switch.
-- Quotes & Leads status updates.
-- Team member add/edit, including secondary photo and key attributes.
-- Documents export/PDF behavior.
-- Settings page secure handling.
-- Broken text/encoding issues.
-- Empty states.
-- Success/error toasts.
-- Loading spinners.
-- Form validation.
-- Mobile/responsive dashboard behavior.
-
----
-
-## Environment Variables to Verify
-
-Add safe placeholders to `.env.example` if applicable.
-
-```env
-SUPABASE_URL=
-SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
-
-WORDPRESS_BASE_URL=
-WORDPRESS_USERNAME=
-WORDPRESS_APP_PASSWORD=
-
-FLUENTCRM_BASE_URL=
-FLUENTCRM_API_KEY=
-FLUENTCRM_API_SECRET=
-FLUENTCRM_WEBHOOK_SECRET=
-
-FLUENTBOARDS_BASE_URL=
-FLUENTBOARDS_API_KEY=
-FLUENTBOARDS_API_SECRET=
-FLUENTBOARDS_WEBHOOK_SECRET=
-
-FLUENTBOOKING_BASE_URL=
-FLUENTBOOKING_API_KEY=
-FLUENTBOOKING_API_SECRET=
-FLUENTBOOKING_WEBHOOK_SECRET=
-
-WS_FORM_WEBHOOK_SECRET=
-
-RESEND_API_KEY=
-RESEND_FROM_EMAIL=
-RESEND_FROM_NAME=
-
-ADMIN_EMAIL=
-APP_URL=
-DASHBOARD_URL=
-```
-
----
-
-## Acceptance Criteria
-
-Work is complete only when:
-
-- Existing public site and dashboard behavior is preserved.
-- Data model changes are documented in SQL.
-- No secrets are exposed to browser code.
-- Supabase RLS is reviewed and improved.
-- Dashboard actions have loading/success/error states.
-- Projects and Portfolio sections save/load/sync correctly.
-- WordPress/Fluent/WS Form/Resend integration gaps are identified.
-- Integration logs or webhook event records exist or are planned.
-- Code changes are summarized.
-- Blockers are clearly listed.
-
----
-
-## Suggested First Prompt
-
-Use this as the first prompt from the user:
-
-```text
-Read AGENTS.md and CLAUDE.md first.
-
-Inspect the Constructed Matter / CMI repo only. Do not edit files yet.
-
-Review the current website, staff dashboard, Supabase schema, Projects section, Portfolio section, WordPress API sync, FluentCRM, FluentBoards, FluentBooking, WS Form, Resend, environment variables, dashboard security, and RLS policies.
-
-Provide a full technical review that identifies what exists, what is incomplete, what is missing, and what should be built first. Then provide a phased implementation plan.
-```
+1. The files you changed.
+2. Any migration you added, and whether it still needs to be run.
+3. Any new env vars, and where they need to be set (Coolify, `.env.local`, `.env.example`).
+4. The check results (typecheck, lint, test).
+5. Any blockers or open decisions.
