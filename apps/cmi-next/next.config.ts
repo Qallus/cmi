@@ -43,6 +43,15 @@ const nextConfig: NextConfig = {
     ];
   },
 
+  // OAuth discovery for the MCP server (/api/mcp). Clients probe both the bare
+  // path and the path-suffixed form (…/api/mcp), so match any suffix.
+  async rewrites() {
+    return [
+      { source: "/.well-known/oauth-authorization-server/:path*", destination: "/api/oauth/metadata/authorization-server" },
+      { source: "/.well-known/oauth-protected-resource/:path*", destination: "/api/oauth/metadata/protected-resource" },
+    ];
+  },
+
   async redirects() {
     return [
       // The legal pages moved to the URLs published in the compliance package

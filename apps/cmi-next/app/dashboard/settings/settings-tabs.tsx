@@ -3,11 +3,12 @@
 // Settings is split into tabs so each area stays short. ?tab= keeps the choice
 // in the URL, so a link can open straight to Sidebar Navigation or Credentials.
 import * as React from "react";
-import { KeyRound, PanelLeft, SlidersHorizontal } from "lucide-react";
+import { KeyRound, PanelLeft, SlidersHorizontal, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const TABS = [
   { key: "general", label: "General", icon: SlidersHorizontal },
+  { key: "claude", label: "Claude", icon: Sparkles },
   { key: "sidebar", label: "Sidebar Navigation", icon: PanelLeft },
   { key: "credentials", label: "Credentials", icon: KeyRound },
 ] as const;

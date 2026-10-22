@@ -253,9 +253,14 @@ export const DASHBOARD_GUIDE: GuideEntry[] = [
   {
     id: "settings", name: "Settings", path: "/dashboard/settings", nav: "Sidebar → Settings",
     roles: "Super Admin, Admin",
-    summary: "Tabs: General (appearance, feature flags, Project Canvas visibility, extension access), Sidebar Navigation (hide any sidebar item for everyone; Super Admin) and Credentials (which service keys are set).",
-    steps: ["Hide a sidebar item: Settings → Sidebar Navigation → switch it off."],
-    keywords: ["settings", "sidebar", "hide menu", "feature flags", "credentials", "configuration"],
+    summary: "Tabs: General (appearance, feature flags, Project Canvas visibility, extension access), Claude (who can connect Claude to CMI data, who has company-wide access, and who may receive AI-generated email, SMS, DMs and notifications; Super Admin edits), Sidebar Navigation (hide any sidebar item for everyone; Super Admin) and Credentials (which service keys are set).",
+    steps: [
+      "Hide a sidebar item: Settings → Sidebar Navigation → switch it off.",
+      "Give someone the company-wide (ownership) view in Claude: Settings → Claude → find the person → switch on Company-wide access.",
+      "Let a client or vendor receive AI messages: Settings → Claude → Add a person → search them → switch on AI emails / AI text messages.",
+      "Connect Claude to CMI: Settings → Claude → copy the connector URL → in Claude Team, Admin settings → Connectors → add a custom connector.",
+    ],
+    keywords: ["settings", "sidebar", "hide menu", "feature flags", "credentials", "configuration", "claude", "mcp", "connector", "ai access", "company-wide", "allowlist"],
   },
 
   // ── Pages a Super Admin may hide from the sidebar (dashboard_help notes it live) ──

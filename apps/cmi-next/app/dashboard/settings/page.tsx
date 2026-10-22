@@ -6,6 +6,7 @@ import { ProjectCanvasVisibility } from "@/components/dashboard/project-canvas-v
 import { ExtensionAccessPanel } from "@/components/dashboard/extension-access-panel";
 import { FabVisibility } from "@/components/dashboard/fab-visibility";
 import { NavVisibilityPanel } from "@/components/dashboard/nav-visibility-panel";
+import { ClaudeAccessPanel } from "@/components/dashboard/claude-access-panel";
 import { getSessionStaff } from "@/lib/auth/server-session";
 import { SettingsTabs } from "./settings-tabs";
 
@@ -77,6 +78,20 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     </div>
   );
 
+  const claude = (
+    <div className="max-w-6xl">
+      <Card>
+        <CardHeader>
+          <CardTitle>Claude &amp; AI Access</CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Who can use Claude with CMI data, who has the company-wide view, and who may receive AI-generated email, SMS, DMs and notifications.
+          </p>
+        </CardHeader>
+        <CardContent className="pt-0"><ClaudeAccessPanel /></CardContent>
+      </Card>
+    </div>
+  );
+
   const sidebar = (
     <div className="max-w-2xl">
       <Card>
@@ -142,7 +157,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight">Settings</h1>
         <p className="mt-1 text-sm text-muted-foreground">Credentials are managed in Coolify. Redeploy after changing them.</p>
       </div>
-      <SettingsTabs initialTab={tab} panels={{ general, sidebar, credentials }} />
+      <SettingsTabs initialTab={tab} panels={{ general, claude, sidebar, credentials }} />
     </div>
   );
 }
