@@ -7,8 +7,11 @@ import {
   CheckCircle2, XCircle, ArrowDownLeft, ArrowUpRight, X,
   ClipboardList, ChevronDown, UserRound, LayoutTemplate, Users, Eye, Printer,
   Check, BriefcaseBusiness, Workflow, Archive, Trash2,
+  ArchiveRestore, Copy, Forward, Reply, ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { confirmAction } from "@/components/ui/confirm-action";
+import { RowActionsMenu, type RowAction } from "@/components/ui/row-actions-menu";
 import { cn } from "@/lib/utils";
 import type { Message, MessageChannel } from "@/lib/communications/types";
 import type { ContactSubmission, ContactSubmissionStatus } from "@/lib/contact-submissions/types";
@@ -123,10 +126,13 @@ export function CommunicationsClient({
   initialMessages,
   initialSubmissions,
   serverNow,
+  canDelete = false,
 }: {
   initialMessages: Message[];
   initialSubmissions: ContactSubmission[];
   serverNow?: number;
+  /** Super Admin / Admin: may permanently delete message records. */
+  canDelete?: boolean;
 }) {
   const router = useRouter();
   const nowMs = useServerNow(serverNow);
@@ -151,7 +157,19 @@ export function CommunicationsClient({
   const [subBusy, setSubBusy] = React.useState(false);
   const [subToast, setSubToast] = React.useState<string | null>(null);
 
-  const filtered = tab === "all" ? messages : messages.filter((m) => m.channel === tab);
+  // Message list organization: Inbox vs Archived, received vs sent, multi-select.
+  const [view, setView] = React.useState<"inbox" | "archived">("inbox");
+  const [direction, setDirection] = React.useState<"all" | "inbound" | "outbound">("all");
+  const [msgSelected, setMsgSelected] = React.useState<Set<string>>(new Set());
+  const [msgBusy, setMsgBusy] = React.useState(false);
+  const [msgToast, setMsgToast] = React.useState<string | null>(null);
+
+  const active = messages.filter((m) => !m.archived_at);
+  const archivedCount = messages.length - active.length;
+  const filtered = messages.filter((m) =>
+    (tab === "all" || m.channel === tab) &&
+    (view === "archived" ? !!m.archived_at : !m.archived_at) &&
+    (direction === "all" || m.direction === direction));
 
   const filteredSubmissions = submissionFilter === "all"
     ? submissions
@@ -160,10 +178,10 @@ export function CommunicationsClient({
   const newSubmissionsCount = submissions.filter((s) => s.status === "new").length;
 
   const counts: Record<Tab, number> = {
-    all:          messages.length,
-    email:        messages.filter((m) => m.channel === "email").length,
-    sms:          messages.filter((m) => m.channel === "sms").length,
-    call:         messages.filter((m) => m.channel === "call").length,
+    all:          active.length,
+    email:        active.filter((m) => m.channel === "email").length,
+    sms:          active.filter((m) => m.channel === "sms").length,
+    call:         active.filter((m) => m.channel === "call").length,
     contact_form: submissions.length,
     templates:    0,
     prints:       0,
@@ -186,6 +204,91 @@ export function CommunicationsClient({
     } catch {
       // silent fail -- optimistic update already applied
     }
+  }
+
+  // ── Message actions (row ⋯ menu, detail pane, bulk bar) ──
+  const counterpart = (m: Message) => (m.direction === "inbound" ? m.from_address : m.to_address) ?? "";
+  const plainBody = (m: Message) => (m.body ? (looksLikeHtml(m.body) ? htmlToText(m.body) : m.body) : "");
+
+  function replyTo(m: Message) {
+    if (m.channel === "call") { composeSmsTo(counterpart(m)); return; }
+    const subject = m.subject ? (/^re:/i.test(m.subject) ? m.subject : `Re: ${m.subject}`) : "";
+    setComposeInit({ channel: m.channel, to: counterpart(m), subject });
+  }
+
+  function forward(m: Message) {
+    const when = new Date(m.sent_at).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
+    setComposeInit({
+      channel: "email",
+      subject: m.subject ? (/^fwd?:/i.test(m.subject) ? m.subject : `Fwd: ${m.subject}`) : "Fwd:",
+      body: `\n\n---------- Forwarded message ----------\nFrom: ${m.from_address ?? ""}\nTo: ${m.to_address ?? ""}\nDate: ${when}\n${m.subject ? `Subject: ${m.subject}\n` : ""}\n${plainBody(m)}`,
+    });
+  }
+
+  function flashMsg(text: string) {
+    setMsgToast(text);
+    window.setTimeout(() => setMsgToast((t) => (t === text ? null : t)), 3500);
+  }
+
+  async function copyMessage(m: Message) {
+    try {
+      await navigator.clipboard.writeText([m.subject, plainBody(m)].filter(Boolean).join("\n\n"));
+      flashMsg("Message copied.");
+    } catch { flashMsg("Couldn't copy the message."); }
+  }
+
+  async function organize(ids: string[], action: "archive" | "restore" | "delete") {
+    if (!ids.length) return;
+    if (action === "delete" && !(await confirmAction({
+      title: ids.length === 1 ? "Permanently delete this message?" : `Permanently delete ${ids.length} messages?`,
+      tone: "danger",
+      body: "The message record is removed from Communications and the contact's history. It can't be restored. Archive instead to hide it but keep the record.",
+    }))) return;
+    setMsgBusy(true);
+    try {
+      const res = await fetch("/api/communications/bulk", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids, action }),
+      });
+      const json = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(json.error ?? "Couldn't update the messages.");
+      const set = new Set(ids);
+      const now = new Date().toISOString();
+      setMessages((prev) => action === "delete"
+        ? prev.filter((m) => !set.has(m.id))
+        : prev.map((m) => (set.has(m.id) ? { ...m, archived_at: action === "archive" ? now : null } : m)));
+      if (selected && set.has(selected.id)) setSelected(null);
+      setMsgSelected(new Set());
+      const n = ids.length === 1 ? "Message" : `${ids.length} messages`;
+      flashMsg(action === "delete" ? `${n} deleted.` : action === "archive" ? `${n} archived.` : `${n} moved back to the Inbox.`);
+    } catch (e) {
+      flashMsg(e instanceof Error ? e.message : "Couldn't update the messages.");
+    } finally {
+      setMsgBusy(false);
+    }
+  }
+
+  function messageActions(m: Message): RowAction[] {
+    const archived = !!m.archived_at;
+    return [
+      { key: "open", label: "Open", icon: ExternalLink, run: () => setSelected(m) },
+      { key: "reply", label: m.channel === "call" ? "Text back" : "Reply", icon: Reply, run: () => replyTo(m), hidden: !counterpart(m) },
+      { key: "forward", label: "Forward", icon: Forward, run: () => forward(m), hidden: m.channel !== "email" },
+      { key: "email", label: "Email", icon: Mail, run: () => setComposeInit({ channel: "email", to: m.contact?.email ?? (m.channel === "email" ? counterpart(m) : "") }), hidden: m.channel === "email" || !m.contact?.email },
+      { key: "sms", label: "SMS", icon: MessageSquare, run: () => composeSmsTo(m.contact?.phone ?? (m.channel !== "email" ? counterpart(m) : "")), hidden: m.channel === "sms" || (!m.contact?.phone && m.channel === "email") },
+      { key: "contact", label: "Open contact", icon: UserRound, run: () => router.push(`/dashboard/contacts?focus=${m.contact_id}`), hidden: !m.contact_id },
+      { key: "copy", label: "Copy text", icon: Copy, run: () => void copyMessage(m), hidden: !m.body && !m.subject },
+      archived
+        ? { key: "restore", label: "Move to Inbox", icon: ArchiveRestore, run: () => void organize([m.id], "restore") }
+        : { key: "archive", label: "Archive", icon: Archive, run: () => void organize([m.id], "archive") },
+      { key: "delete", label: "Delete", icon: Trash2, run: () => void organize([m.id], "delete"), danger: true, hidden: !canDelete },
+    ];
+  }
+
+  function toggleMsg(id: string) {
+    setMsgSelected((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  }
+  function toggleAllMsgs() {
+    setMsgSelected((prev) => (prev.size === filtered.length ? new Set() : new Set(filtered.map((m) => m.id))));
   }
 
   function composeSmsTo(phone: string) {
@@ -299,7 +402,7 @@ export function CommunicationsClient({
           <button
             key={key}
             type="button"
-            onClick={() => { setTab(key); setSelected(null); }}
+            onClick={() => { setTab(key); setSelected(null); setMsgSelected(new Set()); }}
             className={cn(
               "flex shrink-0 items-center gap-2 px-4 py-3 text-sm font-medium transition border-b-2 -mb-px whitespace-nowrap",
               tab === key
@@ -444,32 +547,82 @@ export function CommunicationsClient({
       ) : (
         /* Original message list + detail pane */
         <div className="flex flex-1 overflow-hidden">
-          <div className={cn("flex-1 overflow-y-auto divide-y divide-border", selected && "hidden md:block md:w-[360px] md:flex-none")}>
+          <div className={cn("flex-1 overflow-y-auto", selected && "hidden md:block md:w-[360px] md:flex-none")}>
+            {/* View + filter bar, or the bulk bar while messages are selected */}
+            <div className="sticky top-0 z-10 flex min-h-[49px] flex-wrap items-center gap-2 border-b border-border bg-background/95 px-5 py-2.5 backdrop-blur">
+              <input
+                type="checkbox" aria-label="Select all shown messages" className="h-4 w-4"
+                checked={filtered.length > 0 && msgSelected.size === filtered.length}
+                ref={(el) => { if (el) el.indeterminate = msgSelected.size > 0 && msgSelected.size < filtered.length; }}
+                onChange={toggleAllMsgs} disabled={filtered.length === 0}
+              />
+              {msgSelected.size > 0 ? (
+                <>
+                  <span className="text-xs font-medium">{msgSelected.size} selected</span>
+                  {view === "inbox"
+                    ? <BulkBtn disabled={msgBusy} onClick={() => void organize([...msgSelected], "archive")} icon={Archive}>Archive</BulkBtn>
+                    : <BulkBtn disabled={msgBusy} onClick={() => void organize([...msgSelected], "restore")} icon={ArchiveRestore}>Move to Inbox</BulkBtn>}
+                  {canDelete && <BulkBtn disabled={msgBusy} onClick={() => void organize([...msgSelected], "delete")} icon={Trash2} danger>Delete</BulkBtn>}
+                  <button type="button" onClick={() => setMsgSelected(new Set())} className="ml-auto text-xs text-muted-foreground hover:text-foreground">Clear</button>
+                </>
+              ) : (
+                <>
+                  {(["inbox", "archived"] as const).map((v) => (
+                    <button key={v} type="button" onClick={() => { setView(v); setSelected(null); }}
+                      className={cn("rounded-full border px-2.5 py-0.5 text-xs font-medium transition",
+                        view === v ? "border-accent bg-accent/10 text-accent" : "border-border text-muted-foreground hover:text-foreground")}>
+                      {v === "inbox" ? "Inbox" : `Archived${archivedCount ? ` (${archivedCount})` : ""}`}
+                    </button>
+                  ))}
+                  <span className="mx-1 h-4 w-px bg-border" />
+                  {([["all", "All"], ["inbound", "Received"], ["outbound", "Sent"]] as const).map(([d, l]) => (
+                    <button key={d} type="button" onClick={() => setDirection(d)}
+                      className={cn("rounded-full px-2 py-0.5 text-xs transition",
+                        direction === d ? "bg-muted font-medium text-foreground" : "text-muted-foreground hover:text-foreground")}>
+                      {l}
+                    </button>
+                  ))}
+                </>
+              )}
+              {msgToast && <span className="ml-auto rounded-md bg-accent/10 px-3 py-1 text-xs font-medium text-accent">{msgToast}</span>}
+            </div>
+
             {filtered.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-24 text-center">
                 <div className="flex h-14 w-14 items-center justify-center rounded-full border border-border bg-card mb-4">
-                  <Mail className="h-6 w-6 text-muted-foreground" />
+                  {view === "archived" ? <Archive className="h-6 w-6 text-muted-foreground" /> : <Mail className="h-6 w-6 text-muted-foreground" />}
                 </div>
-                <p className="text-sm font-medium">No messages yet</p>
+                <p className="text-sm font-medium">{view === "archived" ? "Nothing archived" : direction !== "all" ? "No messages match this filter" : "No messages yet"}</p>
                 <p className="mt-1 text-xs text-muted-foreground max-w-xs">
-                  Send an email or SMS to get started. Messages will appear here.
+                  {view === "archived"
+                    ? "Archived messages are kept here, out of the Inbox. Use ⋯ → Archive on any message."
+                    : "Send an email or SMS to get started. Messages will appear here."}
                 </p>
-                <Button size="sm" variant="accent" className="mt-4" onClick={() => openCompose("email")}>
-                  <Plus className="h-3.5 w-3.5" /> Compose
-                </Button>
+                {view === "inbox" && (
+                  <Button size="sm" variant="accent" className="mt-4" onClick={() => openCompose("email")}>
+                    <Plus className="h-3.5 w-3.5" /> Compose
+                  </Button>
+                )}
               </div>
             ) : (
-              filtered.map((msg) => (
-                <button
+              <div className="divide-y divide-border">
+              {filtered.map((msg) => (
+                <div
                   key={msg.id}
-                  type="button"
+                  role="button"
+                  tabIndex={0}
                   onClick={() => setSelected(msg)}
+                  onKeyDown={(e) => { if (e.key === "Enter") setSelected(msg); }}
                   className={cn(
-                    "w-full text-left px-5 py-4 transition hover:bg-muted/40",
-                    selected?.id === msg.id && "bg-accent/5"
+                    "group w-full cursor-pointer text-left px-5 py-4 transition hover:bg-muted/40 focus:outline-none focus-visible:bg-muted/40",
+                    (selected?.id === msg.id || msgSelected.has(msg.id)) && "bg-accent/5"
                   )}
                 >
                   <div className="flex items-start gap-3">
+                    <input
+                      type="checkbox" aria-label="Select message" className="mt-2 h-4 w-4 shrink-0"
+                      checked={msgSelected.has(msg.id)} onClick={(e) => e.stopPropagation()} onChange={() => toggleMsg(msg.id)}
+                    />
                     <div className={cn(
                       "mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
                       msg.channel === "email" ? "bg-blue-500/10 text-blue-500" :
@@ -491,6 +644,7 @@ export function CommunicationsClient({
                         <div className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
                           {statusIcon(msg.status)}
                           {timeAgo(msg.sent_at, nowMs)}
+                          <RowActionsMenu items={messageActions(msg)} label={`Actions for message ${msg.subject ?? counterpart(msg)}`} className="-my-1" />
                         </div>
                       </div>
                       {msg.subject && (
@@ -505,8 +659,9 @@ export function CommunicationsClient({
                       ) : null}
                     </div>
                   </div>
-                </button>
-              ))
+                </div>
+              ))}
+              </div>
             )}
           </div>
 
@@ -553,21 +708,33 @@ export function CommunicationsClient({
                     )}
                   </div>
                 )}
-                {selected.channel !== "call" && (
-                  <div className="pt-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setComposeInit({
-                        channel: selected.channel as "email" | "sms",
-                        to: (selected.direction === "inbound" ? selected.from_address : selected.to_address) ?? "",
-                        subject: selected.subject ? `Re: ${selected.subject}` : "",
-                      })}
-                    >
-                      <Send className="h-3.5 w-3.5" /> Reply
+                <div className="flex flex-wrap gap-2 pt-2" role="toolbar" aria-label="Message actions">
+                  {counterpart(selected) && (
+                    <Button size="sm" variant="accent" onClick={() => replyTo(selected)}>
+                      <Reply className="h-3.5 w-3.5" /> {selected.channel === "call" ? "Text back" : "Reply"}
                     </Button>
-                  </div>
-                )}
+                  )}
+                  {selected.channel === "email" && (
+                    <Button size="sm" variant="outline" onClick={() => forward(selected)}>
+                      <Forward className="h-3.5 w-3.5" /> Forward
+                    </Button>
+                  )}
+                  {selected.archived_at ? (
+                    <Button size="sm" variant="outline" disabled={msgBusy} onClick={() => void organize([selected.id], "restore")}>
+                      <ArchiveRestore className="h-3.5 w-3.5" /> Move to Inbox
+                    </Button>
+                  ) : (
+                    <Button size="sm" variant="outline" disabled={msgBusy} onClick={() => void organize([selected.id], "archive")}>
+                      <Archive className="h-3.5 w-3.5" /> Archive
+                    </Button>
+                  )}
+                  {canDelete && (
+                    <Button size="sm" variant="outline" disabled={msgBusy} className="border-destructive/30 text-destructive hover:bg-destructive/10" onClick={() => void organize([selected.id], "delete")}>
+                      <Trash2 className="h-3.5 w-3.5" /> Delete
+                    </Button>
+                  )}
+                  <RowActionsMenu items={messageActions(selected).filter((a) => !["open", "reply", "forward", "archive", "restore", "delete"].includes(a.key))} label="More message actions" className="self-center" />
+                </div>
               </div>
             </div>
           )}

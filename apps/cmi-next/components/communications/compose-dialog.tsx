@@ -27,7 +27,7 @@ export type ComposeRecipient = {
   phone: string | null;
 };
 
-export type ComposeInit = { channel: ComposeChannel; to?: string; subject?: string };
+export type ComposeInit = { channel: ComposeChannel; to?: string; subject?: string; body?: string };
 
 type TemplateRow = { id: string; name: string; subject: string; html?: string; status?: string };
 
@@ -46,7 +46,7 @@ export function ComposeDialog({ init, recipients, jobId, onClose, onSent, onReci
   onClose: () => void;
   onSent?: (sent: Message[]) => void;
 }) {
-  const [draft, setDraft] = React.useState({ channel: init.channel, to: init.to ?? "", subject: init.subject ?? "", body: "" });
+  const [draft, setDraft] = React.useState({ channel: init.channel, to: init.to ?? "", subject: init.subject ?? "", body: init.body ?? "" });
   const [sending, setSending] = React.useState(false);
   const [sendError, setSendError] = React.useState<string | null>(null);
   const [recipientTags, setRecipientTags] = React.useState<string[]>([]);

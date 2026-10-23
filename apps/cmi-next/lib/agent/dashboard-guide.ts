@@ -189,8 +189,10 @@ export const DASHBOARD_GUIDE: GuideEntry[] = [
       "Call from the browser: Communications → Calls / dialer (phone: bottom menu → Call).",
       "Send an email or text: Communications → compose, or open a contact and use Email / Text.",
       "See website form submissions: Communications → Contact Form.",
+      "Reply, forward, archive or delete a message: Communications → the message's ⋯ menu (or open it and use the buttons). Tick several messages to archive or delete them together.",
+      "Find archived messages: Communications → Archived (next to Inbox). Use Received / Sent to filter by direction.",
     ],
-    keywords: ["communications", "email", "sms", "text", "call", "dialer", "phone", "contact form", "submissions", "templates", "prints", "flyers"],
+    keywords: ["communications", "email", "sms", "text", "call", "dialer", "phone", "contact form", "submissions", "templates", "prints", "flyers", "reply", "forward", "archive", "delete message", "inbox"],
   },
   {
     id: "direct-messages", name: "Direct Messages", path: "/dashboard/direct-messages", nav: "Sidebar → Communications → Direct Messages",

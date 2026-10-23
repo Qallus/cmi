@@ -23,6 +23,8 @@ export interface Message {
   recording_url: string | null;
   sent_at: string;
   created_at: string;
+  /** Hidden from the Inbox view when set (messages.archived_at). */
+  archived_at?: string | null;
   // joined
   contact?: { first_name: string; last_name: string; email: string | null; phone: string | null } | null;
 }

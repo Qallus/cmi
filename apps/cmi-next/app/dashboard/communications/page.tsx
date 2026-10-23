@@ -1,4 +1,5 @@
 import { loadMessages } from "@/lib/communications/data";
+import { getSessionStaff } from "@/lib/auth/server-session";
 import { loadContactSubmissions } from "@/lib/contact-submissions/data";
 import { CommunicationsClient } from "./communications-client";
 import type { Message } from "@/lib/communications/types";
@@ -93,5 +94,8 @@ export default async function CommunicationsPage() {
     submissions = getDemoSubmissions();
   }
 
-  return <CommunicationsClient initialMessages={messages} initialSubmissions={submissions} serverNow={Date.now()} />;
+  const staff = await getSessionStaff();
+  const canDelete = staff?.role_slug === "super_admin" || staff?.role_slug === "admin";
+
+  return <CommunicationsClient initialMessages={messages} initialSubmissions={submissions} serverNow={Date.now()} canDelete={canDelete} />;
 }
