@@ -114,6 +114,26 @@ Changes usually take effect within minutes. Google says it can take up to 24 hou
    must be their **@constructedmatter.com** address. For example, Jeremy should
    connect Claude using `jeremy@constructedmatter.com`, not `jwaters@qallus.co`.
 
+## 8. Turn on email reply sync (Coolify Scheduled Task)
+
+Emails sent from the dashboard set **reply-to** to the person who wrote them, so
+replies land in that person's inbox, or in info@ for older emails. The app copies
+those replies into the conversation history, for example **Earlier with this
+person** on a contact form submission. It only looks for mail **from** addresses
+we've emailed from the dashboard.
+
+Opening a submission already syncs that person's replies. For everyone else, add a
+scheduled task in Coolify → CMI app → **Scheduled Tasks → Add**:
+
+| Field | Value |
+| --- | --- |
+| Name | `email-reply-sync` |
+| Frequency | `*/15 * * * *` (every 15 minutes) |
+| Command | `wget -qO- --header="Authorization: Bearer $AUTOMATION_SECRET" http://127.0.0.1:3000/api/email-sync/run` |
+
+The command uses the same `AUTOMATION_SECRET` as the existing `automations` task.
+Use `wget`, because the image has no curl. Don't use single quotes in the command.
+
 ---
 
 ## Later

@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  ArrowLeft, BriefcaseBusiness, Check, ChevronLeft, ChevronRight, ClipboardList, Copy,
+  ArrowLeft, BriefcaseBusiness, Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, Copy,
   ExternalLink, FolderKanban, HardHat, Loader2, Mail, MapPin, MessageSquare, Phone,
   Send, Tag, Trash2, UserRound, Workflow,
 } from "lucide-react";
@@ -581,33 +581,74 @@ function ThreadHistory({ thread }: { thread: ThreadMessage[] }) {
         <span className="text-xs text-muted-foreground">{thread.length}</span>
       </div>
       <ul className="divide-y divide-border">
-        {thread.map((m) => (
-          <li key={m.id} className="px-5 py-3">
-            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              <span className={cn(
-                "rounded-full border px-2 py-0.5 font-medium",
-                m.direction === "inbound" ? "border-info/40 text-info" : "border-border",
-              )}>
-                {m.direction === "inbound" ? "From them" : "From us"}
-              </span>
-              <span className="uppercase tracking-wide">{m.channel}</span>
-              <span>{new Date(m.sent_at ?? m.created_at).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}</span>
-              {m.status && m.status !== "sent" && m.status !== "delivered" && (
-                <span className="text-destructive">{m.status}</span>
-              )}
-            </div>
-            {m.subject && <p className="mt-1 text-sm font-medium">{m.subject}</p>}
-            {m.body && <p className="mt-0.5 line-clamp-3 text-sm text-muted-foreground">{stripHtml(m.body)}</p>}
-          </li>
-        ))}
+        {thread.map((m) => <ThreadItem key={m.id} message={m} />)}
       </ul>
     </section>
   );
 }
 
-/** Logged email bodies are HTML; the history only needs the gist. */
-function stripHtml(html: string): string {
-  return html.replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
+// Collapsed: three lines of the gist. Long messages get a Show full message
+// toggle that opens the whole body with its line breaks kept.
+const CLAMP_CHARS = 240;
+
+function ThreadItem({ message: m }: { message: ThreadMessage }) {
+  const [open, setOpen] = React.useState(false);
+  const text = React.useMemo(() => (m.body ? htmlToPlain(m.body) : ""), [m.body]);
+  const long = text.length > CLAMP_CHARS || text.split("\n").length > 3;
+
+  return (
+    <li className="px-5 py-3">
+      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+        <span className={cn(
+          "rounded-full border px-2 py-0.5 font-medium",
+          m.direction === "inbound" ? "border-info/40 text-info" : "border-border",
+        )}>
+          {m.direction === "inbound" ? "From them" : "From us"}
+        </span>
+        <span className="uppercase tracking-wide">{m.channel}</span>
+        <span>{new Date(m.sent_at ?? m.created_at).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}</span>
+        {m.status && !["sent", "delivered", "received"].includes(m.status) && (
+          <span className="text-destructive">{m.status}</span>
+        )}
+      </div>
+      {m.subject && <p className="mt-1 text-sm font-medium">{m.subject}</p>}
+      {text && (
+        open
+          ? <p className="mt-0.5 whitespace-pre-line text-sm text-muted-foreground">{text}</p>
+          : (
+            <p
+              className={cn("mt-0.5 line-clamp-3 text-sm text-muted-foreground", long && "cursor-pointer")}
+              onClick={long ? () => setOpen(true) : undefined}
+            >
+              {text.replace(/\s+/g, " ")}
+            </p>
+          )
+      )}
+      {long && (
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-accent hover:underline"
+        >
+          {open ? "Show less" : "Show full message"}
+          <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-180")} />
+        </button>
+      )}
+    </li>
+  );
+}
+
+/** Logged email bodies are HTML; keep paragraph and line breaks for the full view. */
+function htmlToPlain(html: string): string {
+  return html
+    .replace(/<(script|style)[\s\S]*?<\/\1>/gi, "")
+    .replace(/<br\s*\/?>|<\/(p|div|li|tr|h\d)>/gi, "\n")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .replace(/[ \t]+/g, " ").replace(/ *\n */g, "\n").replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 /* ── Assign / route ─────────────────────────────────────────────── */

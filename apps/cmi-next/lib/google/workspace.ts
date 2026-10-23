@@ -55,6 +55,31 @@ export async function gmailThread(user: string, threadId: string) {
   return { thread_id: th.id, messages };
 }
 
+/** Message ids in `user`'s mailbox sent by any of `senders` since `since`. */
+export async function gmailMessageIdsFrom(user: string, senders: string[], since: Date, max = 50): Promise<string[]> {
+  if (!senders.length) return [];
+  const q = `from:(${senders.join(" OR ")}) after:${Math.floor(since.getTime() / 1000)} -in:chats`;
+  const res = await googleGet<{ messages?: { id: string }[] }>(
+    user, GOOGLE_SCOPES.gmail, `${GMAIL}/messages?${new URLSearchParams({ q, maxResults: String(max) })}`, "json");
+  return (res.messages ?? []).map((m) => m.id);
+}
+
+export async function gmailMessage(user: string, id: string) {
+  const m = await googleGet<{ id: string; threadId: string; internalDate?: string; payload?: { headers?: Header[] } & Parameters<typeof extractGmailText>[0] }>(
+    user, GOOGLE_SCOPES.gmail, `${GMAIL}/messages/${encodeURIComponent(id)}?format=full`, "json");
+  const from = header(m.payload?.headers, "From") ?? "";
+  return {
+    id: m.id,
+    threadId: m.threadId,
+    from,
+    fromAddress: (from.match(/<([^>]+)>/)?.[1] ?? from).trim().toLowerCase(),
+    to: header(m.payload?.headers, "To"),
+    subject: header(m.payload?.headers, "Subject"),
+    date: m.internalDate ? new Date(Number(m.internalDate)) : new Date(),
+    text: truncate(stripQuoted(extractGmailText(m.payload)), 20_000),
+  };
+}
+
 // ── Drive ──────────────────────────────────────────────────────────────────
 
 const FILE_FIELDS = "id,name,mimeType,modifiedTime,size,webViewLink,shared,owners(displayName,emailAddress),lastModifyingUser(displayName,emailAddress)";

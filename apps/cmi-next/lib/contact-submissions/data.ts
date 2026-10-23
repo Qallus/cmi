@@ -3,6 +3,7 @@ import { createContact } from "@/lib/contacts/data";
 import { createQuote } from "@/lib/quotes/data";
 import { addSubmissionToPipeline } from "@/lib/deals/data";
 import type { Actor } from "@/lib/deals/types";
+import { syncEmailReplies } from "@/lib/email-sync/replies";
 import type { ContactSubmission, ContactSubmissionStatus } from "./types";
 
 export async function loadContactSubmissions(limit = 200): Promise<ContactSubmission[]> {
@@ -187,13 +188,23 @@ export async function loadSubmissionThread(
   phone: string | null,
   limit = 25,
 ): Promise<ThreadMessage[]> {
-  const handles = [email?.trim(), phone?.trim()].filter((v): v is string => !!v);
+  // Phones are stored however they were typed ("(480) 352-7598") or as Twilio
+  // sends them ("+14803527598"), and emails in any case, so match every form.
+  const handles = [...emailForms(email), ...phoneForms(phone)];
   if (handles.length === 0) return [];
 
+  // Pull in any email replies first (best-effort; never blocks the page long).
+  const addr = email?.trim();
+  if (addr) {
+    await Promise.race([
+      syncEmailReplies({ contactEmails: [addr], sinceDays: 90 }).catch(() => null),
+      new Promise((resolve) => setTimeout(resolve, 4_000)),
+    ]);
+  }
+
   const supabase = getSupabaseAdmin();
-  const or = handles
-    .flatMap((h) => [`to_address.eq.${h}`, `from_address.eq.${h}`])
-    .join(",");
+  const list = handles.map((h) => `"${h.replace(/"/g, "")}"`).join(",");
+  const or = `to_address.in.(${list}),from_address.in.(${list})`;
 
   const { data, error } = await supabase
     .from("messages")
@@ -203,6 +214,22 @@ export async function loadSubmissionThread(
     .limit(limit);
   if (error) return [];
   return (data ?? []) as ThreadMessage[];
+}
+
+function emailForms(email: string | null): string[] {
+  const e = email?.trim();
+  return e ? [...new Set([e, e.toLowerCase()])] : [];
+}
+
+/** The common ways a US number is stored: as typed, E.164, and formatted. */
+export function phoneForms(phone: string | null): string[] {
+  const raw = phone?.trim();
+  if (!raw) return [];
+  const digits = raw.replace(/\D/g, "");
+  const d = digits.length === 11 && digits.startsWith("1") ? digits.slice(1) : digits;
+  if (d.length !== 10) return [raw];
+  const [a, b, c] = [d.slice(0, 3), d.slice(3, 6), d.slice(6)];
+  return [...new Set([raw, `+1${d}`, d, `1${d}`, `(${a}) ${b}-${c}`, `${a}-${b}-${c}`, `${a}.${b}.${c}`, `+1 (${a}) ${b}-${c}`, `+1 ${a}-${b}-${c}`])];
 }
 
 export type ThreadMessage = {

@@ -3,7 +3,7 @@ import { logMessage } from "@/lib/communications/data";
 import { isSuppressed } from "@/lib/messaging/consent";
 import type { Message } from "@/lib/communications/types";
 import type { SendCallPayload, SendEmailPayload, SendSmsPayload } from "@/lib/communications/types";
-import { denyUnlessStaff } from "@/lib/auth/guard";
+import { denyUnlessStaff, getStaffSession } from "@/lib/auth/guard";
 import { fromAddress } from "@/lib/email/from";
 
 export async function POST(req: Request) {
@@ -34,6 +34,18 @@ export async function POST(req: Request) {
   }
 }
 
+/** The signed-in staff member's company address, or null to keep the default. */
+async function senderReplyTo(): Promise<string | null> {
+  try {
+    const { user } = await getStaffSession();
+    const email = user.email?.trim().toLowerCase();
+    const domain = (process.env.GOOGLE_WORKSPACE_DOMAIN || "constructedmatter.com").toLowerCase();
+    return email && email.endsWith(`@${domain}`) ? email : null;
+  } catch {
+    return null;
+  }
+}
+
 async function sendEmail(payload: SendEmailPayload & { channel: "email" }) {
   if (await isSuppressed("email", payload.to)) {
     return NextResponse.json({ error: `${payload.to} has opted out of email and was not contacted.` }, { status: 409 });
@@ -45,10 +57,14 @@ async function sendEmail(payload: SendEmailPayload & { channel: "email" }) {
     return NextResponse.json({ error: "RESEND_API_KEY not configured. Restart the Next.js dev server after adding .env.local values." }, { status: 503 });
   }
 
+  // Replies go to the person who wrote the email, so the conversation lands in
+  // their inbox (and the reply sync can pick it up), not the shared info@ box.
+  const replyTo = await senderReplyTo();
+
   const resendRes = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from: fromEmail, to: payload.to, subject: payload.subject, html: payload.body }),
+    body: JSON.stringify({ from: fromEmail, to: payload.to, subject: payload.subject, html: payload.body, ...(replyTo ? { reply_to: replyTo } : {}) }),
   });
 
   const resendJson = await resendRes.json() as { id?: string; message?: string };
