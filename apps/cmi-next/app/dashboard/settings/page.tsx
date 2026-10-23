@@ -135,6 +135,11 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         <EnvRow label="API Key" envKey="OPENAI_API_KEY" masked />
       </CredentialCard>
 
+      <CredentialCard title="Google Workspace" note="Read-only Gmail, Drive, Sheets and Calendar for the Claude connector (domain-wide delegation). Setup: docs/ai-os/google-dwd-setup.md.">
+        <EnvRow label="Service account key (JSON)" envKey="GOOGLE_SERVICE_ACCOUNT_JSON" masked />
+        <EnvRow label="Workspace domain" envKey="GOOGLE_WORKSPACE_DOMAIN" />
+      </CredentialCard>
+
       <CredentialCard title="Twilio (SMS & Voice)">
         <EnvRow label="Account SID" envKey="TWILIO_ACCOUNT_SID" />
         <EnvRow label="Auth Token" envKey="TWILIO_AUTH_TOKEN" masked />
