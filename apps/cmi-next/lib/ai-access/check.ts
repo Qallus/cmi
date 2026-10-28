@@ -3,9 +3,9 @@
 // Resolution for one person + capability:
 //   1. a live row with enabled=false  → off (explicit override)
 //   2. a live row with enabled=true   → on
-//   3. no live row                    → the capability's role default
+//   3. no live row                    → the default (staff: by role; contacts: defaultForContacts)
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { AI_CAPABILITIES, getCapability, isRoleDefault, type AiCapabilityKey } from "./capabilities";
+import { AI_CAPABILITIES, getCapability, isDefaultFor, type AiCapabilityKey } from "./capabilities";
 
 export type AiSubject =
   | { type: "staff"; staffUserId: string; role: string | null | undefined }
@@ -27,7 +27,7 @@ export async function loadAiCapabilities(subject: AiSubject): Promise<Set<AiCapa
   for (const cap of AI_CAPABILITIES) {
     if (!(cap.appliesTo as readonly string[]).includes(subject.type)) continue;
     const set = explicit.get(cap.key);
-    const on = set ?? (subject.type === "staff" && isRoleDefault(cap, subject.role));
+    const on = set ?? isDefaultFor(cap, subject.type === "staff" ? { type: "staff", role: subject.role } : { type: "contact" });
     if (on) out.add(cap.key);
   }
   return out;

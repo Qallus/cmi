@@ -60,10 +60,19 @@ export async function resolveRecipient(channel: Channel, input: { contactId?: st
         if (c) r = { kind: "contact", id: c.id, name: [c.first_name, c.last_name].filter(Boolean).join(" "), firstName: c.first_name, address: norm, contactId: c.id };
       }
     } else {
+      // Staff first (same as email), then contacts. Phones are stored in many
+      // formats, so narrow by the last four digits and compare normalized.
       const last10 = norm.slice(-10);
-      const { data: cs } = await supabase.from("contacts").select("id, first_name, last_name, phone").not("phone", "is", null).ilike("phone", `%${last10.slice(-4)}%`).limit(50);
-      const c = (cs ?? []).find((x) => normalizeAddress("sms", x.phone as string).endsWith(last10));
-      if (c) r = { kind: "contact", id: c.id, name: [c.first_name, c.last_name].filter(Boolean).join(" "), firstName: c.first_name, address: c.phone as string, contactId: c.id };
+      const same = (p: unknown) => typeof p === "string" && normalizeAddress("sms", p).endsWith(last10);
+      const { data: ss } = await supabase.from("staff_users").select("id, display_name, first_name, last_name, email, phone")
+        .in("status", ["active", "invited"]).not("phone", "is", null).ilike("phone", `%${last10.slice(-4)}%`).limit(20);
+      const s = (ss ?? []).find((x) => same(x.phone));
+      if (s) r = { kind: "staff", id: s.id, name: s.display_name || [s.first_name, s.last_name].filter(Boolean).join(" ") || (s.email as string), firstName: s.first_name, address: s.phone as string, contactId: null };
+      if (!r) {
+        const { data: cs } = await supabase.from("contacts").select("id, first_name, last_name, phone").not("phone", "is", null).ilike("phone", `%${last10.slice(-4)}%`).limit(50);
+        const c = (cs ?? []).find((x) => same(x.phone));
+        if (c) r = { kind: "contact", id: c.id, name: [c.first_name, c.last_name].filter(Boolean).join(" "), firstName: c.first_name, address: c.phone as string, contactId: c.id };
+      }
     }
   }
   if (!r) throw new AiSendError("AI messages only go to people in CMI. Add them as a contact, then allow AI messages for them in Settings → Claude.");

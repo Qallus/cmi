@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { confirmAction } from "@/components/ui/confirm-action";
 
-type Capability = { key: string; label: string; description: string; appliesTo: ("staff" | "contact")[]; status: "live" | "planned"; defaultRoles?: string[] };
+type Capability = { key: string; label: string; description: string; appliesTo: ("staff" | "contact")[]; status: "live" | "planned"; defaultRoles?: string[]; defaultForContacts?: boolean };
 type Person = {
   subject_type: "staff" | "contact"; id: string; name: string; email: string | null; phone: string | null;
   kind: string; company?: string | null;
@@ -115,7 +115,10 @@ export function ClaudeAccessPanel() {
   function addPerson(r: SearchResult) {
     setData((d) => {
       if (!d || d.people.some((p) => p.id === r.id)) return d;
-      return { ...d, people: [...d.people, { ...r, phone: null, explicit: {}, effective: {}, claude_connected: false, claude_last_used: null }] };
+      // Start from the defaults (staff by role; contacts get e.g. AI texts) until a switch is changed.
+      const effective = Object.fromEntries(d.capabilities.filter((c) => c.appliesTo.includes(r.subject_type))
+        .map((c) => [c.key, r.subject_type === "staff" ? !!c.defaultRoles?.includes(r.kind) : !!c.defaultForContacts]));
+      return { ...d, people: [...d.people, { ...r, phone: null, explicit: {}, effective, claude_connected: false, claude_last_used: null }] };
     });
     setNameFilter(r.name);
   }

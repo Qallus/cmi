@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { requireAdmin, AuthError } from "@/lib/auth/require-admin";
 import { isStaffRole } from "@/lib/auth/roles";
-import { AI_CAPABILITIES, getCapability, isRoleDefault } from "@/lib/ai-access/capabilities";
+import { AI_CAPABILITIES, getCapability, isDefaultFor, isRoleDefault } from "@/lib/ai-access/capabilities";
 import { publicAppUrl } from "@/lib/twilio";
 
 export const dynamic = "force-dynamic";
@@ -91,7 +91,9 @@ export async function GET(request: Request) {
         const explicit = explicitFor("contact_id", r.id as string);
         return {
           subject_type: "contact" as const, id: r.id as string, name: personName(r), email: r.email, phone: r.phone ?? null,
-          kind: r.type || "Contact", company: r.company, explicit, effective: explicit,
+          kind: r.type || "Contact", company: r.company, explicit,
+          effective: Object.fromEntries(AI_CAPABILITIES.filter((c) => (c.appliesTo as readonly string[]).includes("contact"))
+            .map((c) => [c.key, explicit[c.key] ?? isDefaultFor(c, { type: "contact" })])),
           claude_connected: false, claude_last_used: null,
         };
       }),

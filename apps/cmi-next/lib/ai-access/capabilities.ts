@@ -21,6 +21,8 @@ export type AiCapability = {
   status: "live" | "planned";
   /** Staff roles that have it unless someone switches it off for that person. */
   defaultRoles?: readonly string[];
+  /** Every contact has it unless someone switches it off for that contact. */
+  defaultForContacts?: boolean;
 };
 
 export const AI_CAPABILITIES = [
@@ -63,9 +65,10 @@ export const AI_CAPABILITIES = [
   {
     key: "ai_sms",
     label: "AI text messages",
-    description: "May receive text messages sent through Claude. Opt-outs (STOP) still win.",
+    description: "May receive text messages sent through Claude. On for every contact unless switched off; opt-outs (STOP) still win.",
     appliesTo: ["staff", "contact"],
     status: "live",
+    defaultForContacts: true,
   },
   {
     key: "ai_dm",
@@ -91,4 +94,9 @@ export function getCapability(key: string): AiCapability | undefined {
 
 export function isRoleDefault(cap: AiCapability, role: string | null | undefined): boolean {
   return !!role && !!cap.defaultRoles?.includes(role);
+}
+
+/** On for a person with no explicit setting: staff by role, contacts by defaultForContacts. */
+export function isDefaultFor(cap: AiCapability, subject: { type: "staff"; role: string | null | undefined } | { type: "contact" }): boolean {
+  return subject.type === "staff" ? isRoleDefault(cap, subject.role) : !!cap.defaultForContacts;
 }
