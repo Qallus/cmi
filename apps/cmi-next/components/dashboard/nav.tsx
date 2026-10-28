@@ -9,7 +9,7 @@ import { ClipboardCheck,
   CreditCard, FileText, FolderKanban, HardHat, Home, IdCard, Inbox, LayoutDashboard, LayoutGrid,
   BarChart3, FileBarChart, HandshakeIcon,
   Megaphone, MessageCircle, MessagesSquare, Mic, Minus, Newspaper, Package, Plus, Settings, ShieldCheck,
-  Ruler, Sparkles, SquarePen, Sun, NotebookPen, TrendingUp, User, UserRoundCog, Users, Workflow,
+  ListChecks, Ruler, Sparkles, SquarePen, Sun, NotebookPen, TrendingUp, User, UserRoundCog, Users, Workflow,
 } from "lucide-react";
 
 export type UserRole =
@@ -32,6 +32,7 @@ export type NavItem =
 export const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard/overview",       label: "Overview",       icon: Home },
   { href: "/dashboard/today",          label: "Today",          icon: Sun,            roles: ["super_admin", "admin", "project_manager", "designer", "estimator", "superintendent"] },
+  { href: "/dashboard/commitments",    label: "Commitments",    icon: ListChecks,     roles: ["super_admin", "admin", "project_manager", "designer", "estimator", "superintendent", "staff"], flag: "commitments" },
   {
     href: "/dashboard/contacts",       label: "Contacts",       icon: Users,          roles: ["super_admin", "admin", "project_manager", "estimator"],
     children: [

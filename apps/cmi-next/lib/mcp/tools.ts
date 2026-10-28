@@ -16,6 +16,7 @@ import { entityAllowed, scopeUserEmail } from "./policy";
 import { tierAllowed, type CapGroup, type Risk } from "./safety";
 import type { Preview } from "./actions";
 import { systemTools } from "./tools-system";
+import { crmTools } from "./tools-crm";
 
 export type Json = Record<string, unknown>;
 export type ToolOutput = {
@@ -292,6 +293,7 @@ const READ_TOOLS: Omit<McpTool, "risk">[] = [
 export const MCP_TOOLS: McpTool[] = [
   ...READ_TOOLS.map((t) => ({ ...t, risk: "read" as const })),
   ...systemTools(() => MCP_TOOLS),
+  ...crmTools(),
 ];
 
 /** The tools this caller may see and call: available to them, and within their app's tiers. */

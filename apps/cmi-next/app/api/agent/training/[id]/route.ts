@@ -21,12 +21,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: "Unauthorized" }, { status: s });
   }
   const { id } = await params;
-  const body = (await request.json().catch(() => ({}))) as { title?: string; content?: string; enabled?: boolean };
+  const ctx = await requireAdmin(request);
+  const body = (await request.json().catch(() => ({}))) as { title?: string; content?: string; enabled?: boolean; approve?: boolean };
 
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (body.title !== undefined) patch.title = String(body.title).slice(0, 300);
   if (body.content !== undefined) patch.content = String(body.content).slice(0, 200_000);
   if (typeof body.enabled === "boolean") patch.enabled = body.enabled;
+  // Approving a draft (written by Claude or staff) makes every AI use it.
+  if (body.approve === true) Object.assign(patch, { status: "approved", approved_by: ctx.staff.id, approved_at: new Date().toISOString() });
 
   const { data, error } = await getSupabaseAdmin()
     .from("bolt_training_docs")

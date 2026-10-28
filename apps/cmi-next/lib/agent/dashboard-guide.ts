@@ -241,7 +241,21 @@ export const DASHBOARD_GUIDE: GuideEntry[] = [
   {
     id: "ai-agents", name: "AI Agents (Bolt)", path: "/dashboard/agent", nav: "Sidebar → AI Agents",
     summary: "Chat with Bolt (this assistant), manage what it knows (Training) and see CMI's Paperclip agents. Open Paperclip at paperclip.constructedmatter.com.",
-    keywords: ["bolt", "ai", "agent", "ai agents", "training", "paperclip", "chat"],
+    steps: [
+      "Approve a knowledge draft (one Claude or a teammate wrote): AI Agents → Training → open the Draft → Approve. Drafts aren't used by Bolt or Claude until approved.",
+    ],
+    keywords: ["bolt", "ai", "agent", "ai agents", "training", "paperclip", "chat", "knowledge", "draft", "approve", "sop"],
+  },
+  {
+    id: "commitments", name: "Commitments", path: "/dashboard/commitments", nav: "Sidebar → Commitments",
+    summary: "Promises and follow-ups from emails, meetings, calls and Slack, kept until they're done: who owns it, when it's due, who we're waiting on, and a link back to where it came from. Claude adds them when you approve them.",
+    steps: [
+      "See what you owe: Commitments → Mine. What others are waiting on you for: Waiting on me. Admins: Everyone.",
+      "Close one: click Done and add a short note or link showing it happened (required). Dismiss (X) if it no longer applies; Reopen brings it back.",
+      "Hand one off: Reassign → pick the person → they're notified.",
+      "Capture commitments from a meeting: ask Claude \"what did we promise in today's meeting?\" — it suggests them, and adds only the ones you approve.",
+    ],
+    keywords: ["commitments", "promises", "follow ups", "follow-ups", "waiting on", "action items", "owed", "accountability"],
   },
 
   // ── Account & admin ──

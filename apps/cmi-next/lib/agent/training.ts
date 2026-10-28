@@ -28,6 +28,8 @@ export async function loadTrainingContext(): Promise<string> {
     .from("bolt_training_docs")
     .select("title, content")
     .eq("enabled", true)
+    // Drafts wait for an admin's approval before Bolt uses them.
+    .eq("status", "approved")
     .order("created_at", { ascending: true });
 
   const docs = (data ?? []).filter((d) => (d.content ?? "").trim());

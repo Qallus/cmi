@@ -16,6 +16,8 @@ type TrainingDoc = {
   source_name: string | null;
   file_path: string | null;
   enabled: boolean;
+  /** draft = written by Claude or staff, not used by any AI until approved. */
+  status?: "draft" | "approved";
   created_by_name: string | null;
   created_at: string;
   updated_at: string;
@@ -81,6 +83,14 @@ export function AgentTrainingPanel() {
       body: JSON.stringify({ enabled: !doc.enabled }),
     }).catch(() => void load());
   }
+  async function approve(doc: TrainingDoc) {
+    setDocs((prev) => prev.map((d) => (d.id === doc.id ? { ...d, status: "approved", enabled: true } : d)));
+    setViewing((v) => (v && v.id === doc.id ? { ...v, status: "approved", enabled: true } : v));
+    await fetch(`/api/agent/training/${doc.id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ approve: true, enabled: true }),
+    }).catch(() => void load());
+  }
   async function remove(doc: TrainingDoc) {
     setDocs((prev) => prev.filter((d) => d.id !== doc.id));
     setViewing(null);
@@ -141,6 +151,7 @@ export function AgentTrainingPanel() {
           onEdit={() => { const d = viewing; setViewing(null); setEditing(d); }}
           onToggle={() => void toggle(viewing)}
           onDelete={() => void remove(viewing)}
+          onApprove={() => void approve(viewing)}
         />
       )}
       {(creating || editing) && (
@@ -218,8 +229,9 @@ function DocTable({ docs, onOpen, onToggle, onDelete }: { docs: TrainingDoc[] } 
 
 function DocKanban({ docs, onOpen, onToggle, onDelete }: { docs: TrainingDoc[] } & RowProps) {
   const columns = [
-    { key: "enabled", label: "Active (used by Bolt)", items: docs.filter((d) => d.enabled) },
-    { key: "disabled", label: "Disabled", items: docs.filter((d) => !d.enabled) },
+    { key: "draft", label: "Drafts (waiting for approval)", items: docs.filter((d) => d.status === "draft") },
+    { key: "enabled", label: "Active (used by Bolt)", items: docs.filter((d) => d.enabled && d.status !== "draft") },
+    { key: "disabled", label: "Disabled", items: docs.filter((d) => !d.enabled && d.status !== "draft") },
   ];
   return (
     <div className="flex gap-3 overflow-x-auto pb-2">
@@ -305,14 +317,16 @@ function DocCalendar({ docs, onOpen }: { docs: TrainingDoc[]; onOpen: (d: Traini
   );
 }
 
-function ViewModal({ doc, onClose, onEdit, onToggle, onDelete }: { doc: TrainingDoc; onClose: () => void; onEdit: () => void; onToggle: () => void; onDelete: () => void }) {
+function ViewModal({ doc, onClose, onEdit, onToggle, onDelete, onApprove }: { doc: TrainingDoc; onClose: () => void; onEdit: () => void; onToggle: () => void; onDelete: () => void; onApprove: () => void }) {
   return (
     <div className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-black/50 p-4 backdrop-blur-sm" role="dialog" aria-modal="true">
       <div className="relative my-6 w-full max-w-2xl rounded-xl border border-border bg-card shadow-2xl">
         <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-3">
           <h2 className="min-w-0 truncate text-sm font-semibold">{doc.title || "Untitled"}</h2>
           <div className="flex shrink-0 items-center gap-2">
-            <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase", doc.enabled ? "bg-success/15 text-success" : "bg-muted text-muted-foreground")}>{doc.enabled ? "Active" : "Disabled"}</span>
+            {doc.status === "draft"
+              ? <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-700 dark:text-amber-300" title="Not used by Bolt or Claude until approved">Draft</span>
+              : <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase", doc.enabled ? "bg-success/15 text-success" : "bg-muted text-muted-foreground")}>{doc.enabled ? "Active" : "Disabled"}</span>}
             <button type="button" onClick={onClose} aria-label="Close" className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"><X className="h-4 w-4" /></button>
           </div>
         </div>
@@ -332,6 +346,7 @@ function ViewModal({ doc, onClose, onEdit, onToggle, onDelete }: { doc: Training
             </button>
           </div>
           <div className="flex items-center gap-2">
+            {doc.status === "draft" && <Button size="sm" variant="accent" onClick={onApprove} title="Every AI (Bolt and Claude) will use it">Approve</Button>}
             {doc.file_path && <Button size="sm" variant="outline" onClick={() => void downloadDoc(doc)}><Download className="h-3.5 w-3.5" /> Download</Button>}
             <Button size="sm" variant="accent" onClick={onEdit}><Pencil className="h-3.5 w-3.5" /> Edit</Button>
           </div>

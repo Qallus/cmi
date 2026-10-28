@@ -14,6 +14,8 @@ export async function searchKnowledge(caller: McpCaller, query: string, opts: { 
     .from("bolt_training_docs")
     .select("id, title, category, version, access_level, content, updated_at")
     .eq("enabled", true)
+    // Drafts (written by AI or staff) stay out until an admin approves them.
+    .eq("status", "approved")
     .in("access_level", levels)
     .limit(Math.min(Math.max(opts.limit ?? 5, 1), 10));
   if (query.trim()) q = q.textSearch("search", query.trim(), { type: "websearch", config: "english" });
