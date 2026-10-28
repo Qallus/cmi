@@ -293,7 +293,7 @@ export const DASHBOARD_GUIDE: GuideEntry[] = [
     steps: [
       "Hide a sidebar item: Settings → Sidebar Navigation → switch it off.",
       "Give someone the company-wide (ownership) view in Claude: Settings → Claude → find the person → switch on Company-wide access.",
-      "Let a client or vendor receive AI messages: Settings → Claude → Add a person → search them → switch on AI emails / AI text messages.",
+      "Let a client or vendor receive AI messages: Settings → Claude → Add a person → search them → switch on AI emails / AI text messages. Claude can then email them (from info@, replies come back to whoever asked) or text them, always after showing a preview and getting a yes. Opt-outs (STOP / unsubscribe) always win.",
       "Connect Claude to CMI: Settings → Claude → copy the connector URL → in Claude Team, Admin settings → Connectors → add a custom connector.",
       "Choose which AI apps may connect and what they may do: Settings → Claude → AI Apps, Activity & Trash → Connected apps → tick read / write / high (Super Admin). Add an app (ChatGPT, Codex) with its OAuth redirect URI.",
       "See what AI did, or undo an AI delete: Settings → Claude → AI Apps, Activity & Trash → Activity, or Trash → Restore (Super Admin / Admin). AI deletes always go to this trash, never permanently.",

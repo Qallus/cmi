@@ -56,16 +56,16 @@ export const AI_CAPABILITIES = [
   {
     key: "ai_email",
     label: "AI emails",
-    description: "May receive emails written or sent by an AI agent.",
+    description: "May receive emails sent through Claude (from info@, reply-to the sender). Opt-outs still win.",
     appliesTo: ["staff", "contact"],
-    status: "planned",
+    status: "live",
   },
   {
     key: "ai_sms",
     label: "AI text messages",
-    description: "May receive SMS written or sent by an AI agent.",
+    description: "May receive text messages sent through Claude. Opt-outs (STOP) still win.",
     appliesTo: ["staff", "contact"],
-    status: "planned",
+    status: "live",
   },
   {
     key: "ai_dm",
