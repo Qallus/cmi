@@ -7,6 +7,7 @@ import { ExtensionAccessPanel } from "@/components/dashboard/extension-access-pa
 import { FabVisibility } from "@/components/dashboard/fab-visibility";
 import { NavVisibilityPanel } from "@/components/dashboard/nav-visibility-panel";
 import { ClaudeAccessPanel } from "@/components/dashboard/claude-access-panel";
+import { ClaudeActivityPanel } from "@/components/dashboard/claude-activity-panel";
 import { getSessionStaff } from "@/lib/auth/server-session";
 import { SettingsTabs } from "./settings-tabs";
 
@@ -45,6 +46,7 @@ function CredentialCard({ title, note, children }: { title: string; note?: strin
 
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const [staff, { tab }] = await Promise.all([getSessionStaff(), searchParams]);
+  const canSeeAiActivity = staff?.role_slug === "super_admin" || staff?.role_slug === "admin";
 
   const general = (
     <div className="grid max-w-2xl gap-4">
@@ -89,6 +91,17 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         </CardHeader>
         <CardContent className="pt-0"><ClaudeAccessPanel /></CardContent>
       </Card>
+      {canSeeAiActivity && (
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle>AI Apps, Activity &amp; Trash</CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Which AI apps (Claude, ChatGPT, Codex) may connect and what they may do, everything they did, and anything they deleted (restorable).
+            </p>
+          </CardHeader>
+          <CardContent className="pt-0"><ClaudeActivityPanel /></CardContent>
+        </Card>
+      )}
     </div>
   );
 

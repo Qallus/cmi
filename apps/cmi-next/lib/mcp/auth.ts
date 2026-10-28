@@ -7,6 +7,7 @@ import { canReadFinancials, canUseBolt } from "@/lib/agent/access";
 import { loadAiCapabilities } from "@/lib/ai-access/check";
 import type { StaffContext } from "@/lib/agent/types";
 import { sha256 } from "./pkce";
+import { DEFAULT_TIERS, RISKS, type Risk } from "./safety";
 
 export type McpCaller = {
   ctx: StaffContext;
@@ -14,7 +15,32 @@ export type McpCaller = {
   companyWide: boolean;
   tokenId: string;
   clientId: string;
+  /** claude | chatgpt | codex | paperclip | other, from Settings → Claude → Clients. */
+  clientKind: string;
+  /** Risk tiers this app may use (read / write / high). */
+  allowedTiers: Risk[];
 };
+
+/**
+ * Which app this token belongs to and what it may do. A registration that
+ * doesn't match a known client gets read-only. Never throws: before the
+ * Phase A migration runs, everything stays read-only.
+ */
+async function clientAccess(clientId: string): Promise<{ kind: string; tiers: Risk[]; enabled: boolean }> {
+  try {
+    const supabase = getSupabaseAdmin();
+    const { data: reg } = await supabase.from("mcp_oauth_clients").select("client_kind").eq("client_id", clientId).maybeSingle();
+    const kind = (reg?.client_kind as string | null) ?? "other";
+    const { data: rows } = await supabase.from("mcp_clients").select("allowed_tiers, enabled").eq("kind", kind);
+    if (!rows?.length) return { kind, tiers: [...DEFAULT_TIERS], enabled: true };
+    const enabled = rows.some((r) => r.enabled);
+    const tiers = [...new Set(rows.filter((r) => r.enabled).flatMap((r) => (r.allowed_tiers as string[]) ?? []))]
+      .filter((t): t is Risk => (RISKS as readonly string[]).includes(t));
+    return { kind, tiers: tiers.length ? tiers : [...DEFAULT_TIERS], enabled };
+  } catch {
+    return { kind: "other", tiers: [...DEFAULT_TIERS], enabled: true };
+  }
+}
 
 export class McpAuthError extends Error {
   constructor(message: string, public status: 401 | 403 = 401) {
@@ -57,6 +83,8 @@ export async function resolveMcpCaller(request: Request): Promise<McpCaller> {
 
   const access = await mcpAccessFor(staff);
   if (!access.allowed) throw new McpAuthError(access.reason, 403);
+  const client = await clientAccess(row.client_id);
+  if (!client.enabled) throw new McpAuthError("This app has been switched off for CMI. Ask a Super Admin (Settings → Claude → Clients).", 403);
 
   // Touch at most once a minute; never block the call on it.
   if (!row.last_used_at || Date.now() - new Date(row.last_used_at).getTime() > 60_000) {
@@ -75,5 +103,7 @@ export async function resolveMcpCaller(request: Request): Promise<McpCaller> {
     companyWide: access.companyWide,
     tokenId: row.id,
     clientId: row.client_id,
+    clientKind: client.kind,
+    allowedTiers: client.tiers,
   };
 }

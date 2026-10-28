@@ -6,6 +6,7 @@ import { isSuppressed } from "@/lib/messaging/consent";
 import { getEntity } from "./entities";
 import type { AgentEntity, StaffContext, ToolResult } from "./types";
 import { fromAddress } from "@/lib/email/from";
+import { trashRecord, TrashError } from "@/lib/mcp/trash";
 
 export function canWrite(entity: AgentEntity, ctx: StaffContext): boolean {
   return entity.writeRoles.includes(ctx.role);
@@ -234,9 +235,14 @@ export async function deleteRecord(entityKey: string, id: string, ctx: StaffCont
   const entity = getEntity(entityKey);
   if (!entity) return { error: `Unknown entity "${entityKey}".` };
   if (!canDelete(entity, ctx)) return { error: `Your role (${ctx.role}) can't delete ${entity.plural}.` };
-  const { error } = await getSupabaseAdmin().from(entity.table).delete().eq(entity.idColumn, id);
-  if (error) return { error: error.message };
-  return { message: `Deleted ${entity.label} ${id}.` };
+  // AI never hard-deletes: the record goes to the trash (Settings → Claude →
+  // Activity) and can be restored. Records others depend on are refused.
+  try {
+    const { label, trashId } = await trashRecord(entityKey, id, ctx, "bolt");
+    return { message: `Moved ${entity.label} "${label}" to the trash. It can be restored from Settings → Claude → Activity.`, trash_id: trashId };
+  } catch (err) {
+    return { error: err instanceof TrashError ? err.message : `Couldn't delete: ${(err as Error).message}` };
+  }
 }
 
 // Outbound messaging (email via Resend, SMS via Twilio) + logging.

@@ -43,6 +43,17 @@ export function redactFinancial<T>(value: T): T {
   return out as T;
 }
 
+/**
+ * Money fields a write would set. Only admins (canReadFinancials) may write
+ * money through AI; everyone else gets these back as a refusal.
+ */
+export function moneyKeysIn(data: Record<string, unknown> | null | undefined): string[] {
+  return Object.keys(data ?? {}).filter((key) => {
+    const k = key.toLowerCase();
+    return MONEY_KEYS.has(k) || /(_price|_cost|_amount|_value)$/.test(k);
+  });
+}
+
 export class ScopeError extends Error {}
 
 /**

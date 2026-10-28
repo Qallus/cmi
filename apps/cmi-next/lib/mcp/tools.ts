@@ -1,6 +1,8 @@
 // The MCP tool list. Every tool is a thin wrapper over code Bolt already runs
 // (lib/agent/tools.ts dispatchTool, lib/briefing, lib/deals), so Claude and
-// Bolt see the same data with the same role rules. Phase 1 is read-only.
+// Bolt see the same data with the same role rules. Every tool carries a risk
+// tier (lib/mcp/safety.ts): read runs at once, write runs at once with a
+// before/after audit, high returns a preview and waits for cmi_confirm.
 import { ENTITIES } from "@/lib/agent/entities";
 import { dispatchTool, toolDefsFor } from "@/lib/agent/tools";
 import { buildBriefing, loadBriefingStaff } from "@/lib/briefing/build";
@@ -11,28 +13,53 @@ import { calendarEvents, driveReadFile, driveRecent, gmailSearch, gmailThread, s
 import type { McpCaller } from "./auth";
 import { searchKnowledge } from "./knowledge";
 import { entityAllowed, scopeUserEmail } from "./policy";
+import { tierAllowed, type CapGroup, type Risk } from "./safety";
+import type { Preview } from "./actions";
+import { systemTools } from "./tools-system";
 
-type Json = Record<string, unknown>;
-export type ToolOutput = { result: unknown; targetUserEmail?: string | null };
+export type Json = Record<string, unknown>;
+export type ToolOutput = {
+  result: unknown;
+  targetUserEmail?: string | null;
+  /** For the audit row: which record, and what it looked like before/after. */
+  entity?: string | null;
+  recordId?: string | null;
+  before?: unknown;
+  after?: unknown;
+  /** Set by cmi_confirm: the pending action it ran and its cap group. */
+  confirmationId?: string | null;
+  capGroup?: string | null;
+  executedTool?: string;
+};
 
 export type McpTool = {
   name: string;
   title: string;
   description: string;
+  risk: Risk;
+  /** Reaches outside CMI (sends, publishes, external invites). */
+  openWorld?: boolean;
+  /** Counts against a daily cap (Settings → Claude → Activity). */
+  capGroup?: CapGroup;
   inputSchema: (caller: McpCaller) => Json;
   /** Hidden from tools/list and refused on call when false. */
   available?: (caller: McpCaller) => boolean | Promise<boolean>;
-  run: (args: Json, caller: McpCaller) => Promise<ToolOutput>;
+  /** read and write tools. */
+  run?: (args: Json, caller: McpCaller) => Promise<ToolOutput>;
+  /** high tools: say exactly what would happen, change nothing (throw to refuse). */
+  preview?: (args: Json, caller: McpCaller) => Promise<Preview>;
+  /** high tools: do it, with the arguments stored at preview time. */
+  execute?: (args: Json, caller: McpCaller) => Promise<ToolOutput>;
 };
 
-const obj = (properties: Json = {}, required: string[] = []) => ({ type: "object", properties, required });
-const str = (description: string) => ({ type: "string", description });
-const int = (description: string) => ({ type: "integer", description, minimum: 1, maximum: 100 });
+export const obj = (properties: Json = {}, required: string[] = []) => ({ type: "object", properties, required });
+export const str = (description: string) => ({ type: "string", description });
+export const int = (description: string) => ({ type: "integer", description, minimum: 1, maximum: 100 });
 
-const allowedEntities = (c: McpCaller) => ENTITIES.map((e) => e.key).filter((k) => entityAllowed(k, c.ctx));
-const entityParam = (c: McpCaller) => ({ type: "string", enum: allowedEntities(c), description: "Which kind of record. Call cmi_list_entities for descriptions." });
+export const allowedEntities = (c: McpCaller) => ENTITIES.map((e) => e.key).filter((k) => entityAllowed(k, c.ctx));
+export const entityParam = (c: McpCaller) => ({ type: "string", enum: allowedEntities(c), description: "Which kind of record. Call cmi_list_entities for descriptions." });
 
-function requireEntity(args: Json, c: McpCaller): string {
+export function requireEntity(args: Json, c: McpCaller): string {
   const entity = String(args.entity ?? "");
   if (!entityAllowed(entity, c.ctx) || !ENTITIES.some((e) => e.key === entity)) {
     throw new Error(`"${entity}" isn't available to you through Claude.`);
@@ -41,7 +68,7 @@ function requireEntity(args: Json, c: McpCaller): string {
 }
 
 /** Run a Bolt tool and unwrap its result. */
-async function bolt(name: string, args: Json, c: McpCaller): Promise<ToolOutput> {
+export async function bolt(name: string, args: Json, c: McpCaller): Promise<ToolOutput> {
   const out = await dispatchTool(name, args, c.ctx);
   if (out.pending) throw new Error("This action needs confirmation in the CMI dashboard and isn't available through Claude yet.");
   return { result: out.result };
@@ -62,7 +89,7 @@ async function staffByEmail(email: string) {
   return staff;
 }
 
-export const MCP_TOOLS: McpTool[] = [
+const READ_TOOLS: Omit<McpTool, "risk">[] = [
   {
     name: "cmi_list_entities",
     title: "List CMI record types",
@@ -262,8 +289,17 @@ export const MCP_TOOLS: McpTool[] = [
   },
 ];
 
+export const MCP_TOOLS: McpTool[] = [
+  ...READ_TOOLS.map((t) => ({ ...t, risk: "read" as const })),
+  ...systemTools(() => MCP_TOOLS),
+];
+
+/** The tools this caller may see and call: available to them, and within their app's tiers. */
 export async function toolsFor(caller: McpCaller): Promise<McpTool[]> {
   const out: McpTool[] = [];
-  for (const t of MCP_TOOLS) if (!t.available || (await t.available(caller))) out.push(t);
+  for (const t of MCP_TOOLS) {
+    if (!tierAllowed(t.risk, caller.allowedTiers)) continue;
+    if (!t.available || (await t.available(caller))) out.push(t);
+  }
   return out;
 }
