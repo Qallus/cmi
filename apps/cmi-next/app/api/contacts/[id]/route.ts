@@ -31,7 +31,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const denied = await denyUnlessStaff(); if (denied) return denied;
+  // Permanent: Super Admin / Admin only. Everyone else archives.
+  const denied = await denyUnlessStaff(["super_admin", "admin"]); if (denied) return denied;
 
   try {
     const { id } = await params;

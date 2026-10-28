@@ -11,6 +11,7 @@ import {
   type Answers, type Field,
 } from "@/lib/prequal/form";
 import { MsaStep } from "./msa-step";
+import { resolveMinimums, type CoverageKey, type MinimumsSettings } from "@/lib/prequal/coverage";
 
 const STORAGE_KEY = "cmi-prequal-token";
 
@@ -28,7 +29,24 @@ type Saved = "idle" | "saving" | "saved" | "error";
  * the whole three-column grid — step rail, form, that column — lives in one
  * place and lines up. It stays a server component; only the position is ours.
  */
-export function ApplicationClient({ children }: { children?: React.ReactNode }) {
+/** "Do you carry …?" for each coverage line this applicant must carry; lines not required for them are hidden. */
+function applyMinimums(list: Field[], settings: MinimumsSettings | null | undefined, answers: Answers): Field[] {
+  if (!settings) return list;
+  const resolved = resolveMinimums(settings, {
+    partnerType: typeof answers.partner_type === "string" ? answers.partner_type : null,
+    trades: Array.isArray(answers.trades) ? (answers.trades as string[]) : null,
+  });
+  return list.flatMap((f) => {
+    const key = f.key.match(/^meets_(gl|auto|wc|umbrella)_minimum$/)?.[1] as CoverageKey | undefined;
+    if (!key) return [f];
+    const r = resolved[key];
+    if (!r.required) return [];
+    const label = key === "wc" ? `Do you carry ${r.label.toLowerCase()} (${r.text})?` : `Do you carry ${r.label.toLowerCase()} of at least ${r.text}?`;
+    return [{ ...f, label }];
+  });
+}
+
+export function ApplicationClient({ children, minimums }: { children?: React.ReactNode; minimums?: MinimumsSettings }) {
   const [token, setToken] = React.useState<string | null>(null);
   const [answers, setAnswers] = React.useState<Answers>({});
   const [step, setStep] = React.useState(0);
@@ -105,7 +123,7 @@ export function ApplicationClient({ children }: { children?: React.ReactNode }) 
 
   const progress = progressOf(answers);
   const section = SECTIONS[step];
-  const fields = section ? visibleFields(section, answers) : [];
+  const fields = section ? applyMinimums(visibleFields(section, answers), minimums, answers) : [];
   const missing = missingRequired(answers);
 
   async function saveNow() {

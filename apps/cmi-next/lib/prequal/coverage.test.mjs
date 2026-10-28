@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { checkMinimums, earliestExpiration, redFlags, reminderStage } from "./coverage.ts";
+import { checkMinimums, DEFAULT_MINIMUMS_SETTINGS, earliestExpiration, minimumText, redFlags, reminderStage, resolveMinimums } from "./coverage.ts";
 
 const MIN = {
   gl: { perOccurrence: 1_000_000, aggregate: 2_000_000 }, auto: { perOccurrence: 1_000_000 },
@@ -63,4 +63,37 @@ test("redFlags: only working partners, W-9/COI mandatory, expiry and minimums", 
     redFlags("approved", [w9, { ...coi, ai_flags: ["General liability $500,000 per occurrence is below the $1,000,000 minimum."] }], today),
     ["Coverage below minimum"],
   );
+});
+
+test("minimums by category: default, overrides, strictest wins, lines can be switched off", () => {
+  const st = {
+    default: { gl: { required: true, perOccurrence: 2_000_000, aggregate: 2_000_000 }, auto: { required: false }, wc: { required: false }, umbrella: { required: false } },
+    byPartnerType: { Consultant: { gl: { required: true, perOccurrence: 1_000_000, aggregate: 1_000_000 } } },
+    byTrade: {
+      Roofing: { gl: { required: true, perOccurrence: 5_000_000, aggregate: 5_000_000 }, wc: { required: true, perOccurrence: 1_000_000 } },
+      Painting: { gl: { required: true, perOccurrence: 3_000_000, aggregate: 3_000_000 } },
+      Landscaping: { gl: { required: false } },
+    },
+  };
+  const plain = resolveMinimums(st, { partnerType: "Subcontractor" });
+  assert.equal(plain.gl.perOccurrence, 2_000_000);
+  assert.equal(plain.auto.required, false);
+  assert.equal(resolveMinimums(st, { partnerType: "Consultant" }).gl.perOccurrence, 1_000_000, "an override can lower the default");
+  const both = resolveMinimums(st, { partnerType: "Consultant", trades: ["Roofing", "Painting"] });
+  assert.equal(both.gl.perOccurrence, 5_000_000, "strictest of the overrides that apply");
+  assert.equal(both.gl.source, "Consultant, Roofing, Painting");
+  assert.equal(both.wc.required, true);
+  assert.equal(resolveMinimums(st, { trades: ["Landscaping"] }).gl.required, false, "an override can switch a line off");
+  assert.equal(resolveMinimums(null).gl.perOccurrence, DEFAULT_MINIMUMS_SETTINGS.default.gl.perOccurrence);
+  assert.equal(minimumText("gl", { required: true, perOccurrence: 2_000_000, aggregate: 2_000_000 }), "$2,000,000 per occurrence and aggregate");
+  assert.equal(minimumText("auto", { required: false }), "Not required");
+});
+
+test("a line that isn't required is never flagged", () => {
+  const mins = { gl: { required: true, perOccurrence: 2_000_000, aggregate: 2_000_000 }, auto: { required: false }, wc: { required: false }, umbrella: { required: false } };
+  const { flags, coverages } = checkMinimums([line({ line: "general_liability", each_occurrence: 2_000_000, aggregate: 2_000_000 }), line({ line: "auto", combined_single_limit: 100_000 })], mins);
+  assert.deepEqual(flags, []);
+  assert.equal(coverages[0].meets_minimum, true);
+  assert.equal(coverages[1].meets_minimum, null);
+  assert.deepEqual(checkMinimums([], mins).flags, ["No general liability coverage on the certificate."]);
 });

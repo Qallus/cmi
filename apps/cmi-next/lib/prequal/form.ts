@@ -10,18 +10,18 @@
 // (docs/trade-partners/). Questions it removed live on in RETIRED_SECTION so
 // answers from earlier drafts still show in review and still map to columns.
 
-// ─── CMI insurance minimums (per the MSA) ───────────────────────────────────
-// The application asks a yes/no against each ("Do you carry at least …?") and
-// Phase 3's COI reader checks certificates against the numbers.
-// PLACEHOLDERS until Brandon confirms them from the 2026 MSA. Change them here;
-// lib/prequal/minimums.ts re-exports them. (Kept in this file so form.ts has
-// no local imports and the node test runner can load it directly.)
+// ─── CMI insurance minimums ─────────────────────────────────────────────────
+// The real values are edited in Trade Partners → Setup → Insurance minimums
+// (default + overrides per partner type and trade; lib/prequal/minimums.ts).
+// These are only the fallback wording for the four yes/no questions below;
+// the application form relabels them, and hides lines that aren't required,
+// from the saved settings and the applicant's own type and trades.
 export type CoverageKey = "gl" | "auto" | "wc" | "umbrella";
 export const INSURANCE_MINIMUMS: Record<CoverageKey, { label: string; text: string; perOccurrence?: number; aggregate?: number }> = {
-  gl: { label: "General liability", text: "$1,000,000 per occurrence / $2,000,000 aggregate", perOccurrence: 1_000_000, aggregate: 2_000_000 },
-  auto: { label: "Commercial auto", text: "$1,000,000 combined single limit", perOccurrence: 1_000_000 },
-  wc: { label: "Workers' compensation", text: "Arizona statutory limits, with $1,000,000 employer's liability", perOccurrence: 1_000_000 },
-  umbrella: { label: "Umbrella / excess liability", text: "$1,000,000", perOccurrence: 1_000_000 },
+  gl: { label: "General liability", text: "$2,000,000 per occurrence and aggregate", perOccurrence: 2_000_000, aggregate: 2_000_000 },
+  auto: { label: "Commercial auto", text: "the required combined single limit" },
+  wc: { label: "Workers' compensation", text: "Arizona statutory limits" },
+  umbrella: { label: "Umbrella / excess liability", text: "the required limit" },
 };
 
 export type FieldType =

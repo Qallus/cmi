@@ -5,7 +5,8 @@ import { SiteHeader } from "@/components/site/site-header";
 import { SiteFooter } from "@/components/site/site-footer";
 import { isFeatureEnabled } from "@/lib/flags";
 import { PREQUAL_FLAG } from "@/lib/prequal/access";
-import { INSURANCE_MINIMUMS } from "@/lib/prequal/minimums";
+import { loadMinimumsSettings, resolveMinimums } from "@/lib/prequal/minimums";
+import { COVERAGE_KEYS, COVERAGE_LABEL, minimumText } from "@/lib/prequal/coverage";
 
 export const metadata = {
   title: "Become a Trade Partner — Constructed Matter",
@@ -32,6 +33,15 @@ const NEED = [
 
 export default async function BecomeATradePartnerPage() {
   if (!(await isFeatureEnabled(PREQUAL_FLAG))) notFound();
+  const settings = await loadMinimumsSettings();
+  const baseMinimums = resolveMinimums(settings);
+  // "Roofing: General liability $5,000,000 per occurrence; Commercial auto not required"
+  const describe = (name: string, ov: Partial<Record<(typeof COVERAGE_KEYS)[number], { required: boolean; perOccurrence?: number | null; aggregate?: number | null }>>) =>
+    `${name}: ${COVERAGE_KEYS.filter((k) => ov[k]).map((k) => `${COVERAGE_LABEL[k]} ${ov[k]!.required ? minimumText(k, ov[k]!) : "not required"}`).join("; ")}`;
+  const categoryRules = [
+    ...Object.entries(settings.byPartnerType).map(([n, ov]) => describe(n, ov)),
+    ...Object.entries(settings.byTrade).map(([n, ov]) => describe(n, ov)),
+  ];
 
   return (
     <>
@@ -79,13 +89,21 @@ export default async function BecomeATradePartnerPage() {
                 additional insured where required.
               </p>
               <dl className="mt-6 divide-y divide-border rounded-xl border border-border">
-                {Object.values(INSURANCE_MINIMUMS).map((m) => (
+                {Object.values(baseMinimums).filter((m) => m.required).map((m) => (
                   <div key={m.label} className="flex flex-wrap items-center justify-between gap-2 px-5 py-3.5 text-sm">
                     <dt className="font-medium">{m.label}</dt>
                     <dd className="text-muted-foreground">{m.text}</dd>
                   </div>
                 ))}
               </dl>
+              {categoryRules.length > 0 && (
+                <div className="mt-4 text-sm text-muted-foreground">
+                  <p>Some trades and partner types have different requirements:</p>
+                  <ul className="mt-2 list-disc space-y-1 pl-5">
+                    {categoryRules.map((r) => <li key={r}>{r}</li>)}
+                  </ul>
+                </div>
+              )}
 
               <h2 className="mt-16 font-display text-3xl font-semibold tracking-tight">Staying current</h2>
               <p className="mt-3 text-sm leading-relaxed text-muted-foreground">

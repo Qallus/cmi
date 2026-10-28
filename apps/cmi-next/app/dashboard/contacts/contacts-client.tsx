@@ -52,6 +52,10 @@ import type { Contact, ContactDraft, ContactStatus, ContactType } from "@/lib/co
 import { DuplicateWarning, useDuplicateCheck } from "@/components/contacts/duplicate-warning";
 import { Merge } from "lucide-react";
 import { MergeDuplicates } from "@/components/contacts/merge-duplicates";
+import { RowActionsMenu, type RowAction } from "@/components/ui/row-actions-menu";
+import { confirmAction } from "@/components/ui/confirm-action";
+import { ShareDialog } from "@/app/dashboard/pipeline/deal-actions";
+import { ArchiveRestore, Copy, Download, ExternalLink, Link2, Smartphone } from "lucide-react";
 
 const CONTACT_TYPES: ContactType[] = ["Lead", "Client", "Prospect", "Customer", "Vendor", "Sub Contractor", "Designer", "Other"];
 const CONTACT_ONLY_TYPES: ContactType[] = ["Client", "Prospect", "Customer", "Vendor", "Sub Contractor", "Designer", "Other"];
@@ -352,7 +356,9 @@ function ViewOptions({ columns, onChange, disabled }: { columns: ColumnKey[]; on
   );
 }
 
-export function ContactsClient({ initialContacts }: { initialContacts: Contact[] }) {
+export function ContactsClient({ initialContacts, role = null }: { initialContacts: Contact[]; role?: string | null }) {
+  // Permanent delete is Super Admin / Admin only (the API enforces it too); everyone else archives.
+  const canDelete = role === "super_admin" || role === "admin";
   const [contacts, setContacts] = React.useState<Contact[]>(initialContacts);
   const [search, setSearch] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<string>("all");
@@ -376,12 +382,27 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
     // eslint-disable-next-line -- intentional one-time deep-link sync on mount
     if (t && TABS.some((x) => x.key === t)) setTab(t as Tab);
   }, []);
+  // Deep link from "Copy link" / shared messages: /dashboard/contacts?open=<id>.
+  React.useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("open");
+    const c = id ? initialContacts.find((x) => x.id === id) : null;
+    // eslint-disable-next-line -- intentional one-time deep-link sync on mount
+    if (c) setModal({ mode: "view", contact: c });
+  }, [initialContacts]);
   const [convertLead, setConvertLead] = React.useState<Contact | null>(null);
   // Bulk selection + expanded-modal state.
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [bulkType, setBulkType] = React.useState<ContactType | "">("");
   const [bulkBusy, setBulkBusy] = React.useState(false);
   const [pipelineFlash, setPipelineFlash] = React.useState<string | null>(null);
+  // More bulk actions: status, lead owner, tags.
+  const [bulkStatus, setBulkStatus] = React.useState("");
+  const [bulkOwner, setBulkOwner] = React.useState("");
+  const [bulkTag, setBulkTag] = React.useState("");
+  const [owners, setOwners] = React.useState<string[] | null>(null);
+  const [shareContact, setShareContact] = React.useState<Contact | null>(null);
+  const [flash, setFlash] = React.useState<string | null>(null);
+  const say = (msg: string) => { setFlash(msg); window.setTimeout(() => setFlash(null), 3500); };
   const [modalFull, setModalFull] = React.useState(false);
   const [contactView, setContactView] = React.useState<ContactView>("table");
   const [columns, setColumnsState] = React.useState<ColumnKey[]>(DEFAULT_COLUMNS);
@@ -564,7 +585,7 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
   }
   function clearSelection() { setSelected(new Set()); }
 
-  async function applyBulk(patch: { type?: ContactType; status?: string }) {
+  async function applyBulk(patch: { type?: ContactType; status?: string; lead_owner?: string | null; tags_add?: string[]; tags_remove?: string[] }) {
     const ids = Array.from(selected);
     if (ids.length === 0) return;
     setBulkBusy(true);
@@ -578,8 +599,9 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
       if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
       const byId = new Map((json.updated ?? []).map((c) => [c.id, c]));
       setContacts((prev) => prev.map((c) => byId.get(c.id) ?? c));
+      say(`Updated ${json.updated?.length ?? ids.length} contact${(json.updated?.length ?? ids.length) === 1 ? "" : "s"}.`);
       clearSelection();
-      setBulkType("");
+      setBulkType(""); setBulkStatus(""); setBulkOwner(""); setBulkTag("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Bulk update failed.");
     } finally {
@@ -624,9 +646,100 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
     }
   }
 
-  function exportCSV() {
+  async function bulkArchive() {
+    const n = selected.size;
+    if (!(await confirmAction({
+      title: `Archive ${n} contact${n === 1 ? "" : "s"}?`, tone: "archive",
+      body: "They leave the active lists but keep their history, and can be restored (filter by Archived, then Restore).",
+    }))) return;
+    await applyBulk({ status: "archived" });
+  }
+
+  async function bulkDelete() {
+    const ids = Array.from(selected);
+    if (!(await confirmAction({
+      title: `Permanently delete ${ids.length} contact${ids.length === 1 ? "" : "s"}?`, tone: "danger",
+      body: "This can't be undone. Archive instead if you may need them later.",
+    }))) return;
+    setBulkBusy(true); setError(null);
+    const res = await fetch("/api/contacts/bulk", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids }) });
+    const json = await res.json().catch(() => ({}));
+    setBulkBusy(false);
+    if (!res.ok) { setError(json.error ?? "Delete failed."); return; }
+    setContacts((prev) => prev.filter((c) => !ids.includes(c.id)));
+    clearSelection();
+    say(`Deleted ${ids.length}.`);
+  }
+
+  async function loadOwners() {
+    if (owners) return;
+    const res = await fetch("/api/deals/recipients");
+    const json = await res.json().catch(() => ({}));
+    const list = ((json.recipients ?? json) as { name?: string }[]).map((r) => r.name).filter((n): n is string => !!n);
+    setOwners([...new Set(list)].sort());
+  }
+
+  // ── Row ⋯ menu ──
+  async function copyLink(c: Contact) {
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/dashboard/contacts?open=${c.id}`);
+      say("Link copied — only CMI staff can open it.");
+    } catch {
+      say("Couldn't copy the link.");
+    }
+  }
+
+  async function duplicateContact(c: Contact) {
+    // Email must be unique, so the copy starts without one.
+    const { id: _id, fluent_crm_id: _f, created_at: _c, updated_at: _u, last_activity: _l, ...rest } = c;
+    const res = await fetch("/api/contacts", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...rest, email: null, last_name: `${c.last_name || ""} (copy)`.trim(), confirm_duplicate: true }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) { setError(json.error ?? "Couldn't duplicate."); return; }
+    setContacts((prev) => [json as Contact, ...prev]);
+    openEdit(json as Contact);
+    say("Duplicated — add the email and save.");
+  }
+
+  async function archiveOne(c: Contact, archived: boolean) {
+    if (archived && !(await confirmAction({
+      title: `Archive ${fullName(c)}?`, tone: "archive",
+      body: "They leave the active lists but keep their history, and can be restored.",
+    }))) return;
+    await applyBulkOne(c.id, { status: archived ? "archived" : "active" });
+    say(archived ? "Archived." : "Restored.");
+  }
+
+  async function deleteOne(c: Contact) {
+    if (!(await confirmAction({
+      title: `Permanently delete ${fullName(c)}?`, tone: "danger",
+      body: "This can't be undone. Archive instead if you may need them later.",
+    }))) return;
+    await confirmDelete(c.id);
+    say("Deleted.");
+  }
+
+  function contactMenu(c: Contact): RowAction[] {
+    const archived = c.status === "archived";
+    return [
+      { key: "open", label: "Open", icon: ExternalLink, run: () => openView(c) },
+      { key: "link", label: "Copy link", icon: Link2, run: () => void copyLink(c) },
+      { key: "email", label: "Email", icon: Mail, run: () => setContactAction({ type: "email", contact: c }), hidden: !c.email },
+      { key: "sms", label: "SMS", icon: Smartphone, run: () => setContactAction({ type: "sms", contact: c }), hidden: !c.phone },
+      { key: "dm", label: "Message a teammate", icon: MessageSquare, run: () => setShareContact(c) },
+      { key: "duplicate", label: "Duplicate", icon: Copy, run: () => void duplicateContact(c) },
+      archived
+        ? { key: "restore", label: "Restore", icon: ArchiveRestore, run: () => void archiveOne(c, false) }
+        : { key: "archive", label: "Archive", icon: Archive, run: () => void archiveOne(c, true) },
+      { key: "delete", label: "Delete", icon: Trash2, run: () => void deleteOne(c), danger: true, hidden: !canDelete },
+    ];
+  }
+
+  function exportCSV(list: Contact[] = filtered, name = "contacts.csv") {
     const cols = ["first_name", "last_name", "email", "phone", "company", "type", "status", "city", "state", "tags"];
-    const rows = [cols.join(","), ...filtered.map((c) => cols.map((k) => {
+    const rows = [cols.join(","), ...list.map((c) => cols.map((k) => {
       const v = (c as Record<string, unknown>)[k];
       const s = Array.isArray(v) ? v.join("|") : String(v ?? "");
       return `"${s.replace(/"/g, '""')}"`;
@@ -634,7 +747,7 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
     const blob = new Blob([rows.join("\n")], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = "contacts.csv"; a.click();
+    a.href = url; a.download = name; a.click();
     URL.revokeObjectURL(url);
   }
 
@@ -659,7 +772,7 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
               <Merge className="h-3.5 w-3.5" /> Duplicates
               {dupeCount ? <span className="ml-1 rounded-full bg-amber-500/20 px-1.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300">{dupeCount}</span> : null}
             </Button>
-            <Button size="sm" variant="outline" onClick={exportCSV}>Export CSV</Button>
+            <Button size="sm" variant="outline" onClick={() => exportCSV()}>Export CSV</Button>
             <Button size="sm" variant="outline" onClick={() => setShowImport(true)}>
               <FileUp className="h-3.5 w-3.5" /> Import
             </Button>
@@ -726,34 +839,60 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
 
       {/* Bulk action bar */}
       {selected.size > 0 && (
-        <div className="flex flex-wrap items-center gap-3 border-b border-border bg-accent/5 px-4 py-2.5 md:px-6">
-          <span className="text-sm font-medium">{selected.size} selected</span>
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs text-muted-foreground">Change type to</span>
-            <Select value={bulkType} onChange={(e) => setBulkType(e.target.value as ContactType)} className="w-40 [&>button]:h-8">
-              <option value="">Select…</option>
-              {CONTACT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+        <div className="flex flex-wrap items-center gap-2 border-b border-border bg-accent/5 px-4 py-2.5 md:px-6">
+          <span className="mr-1 text-sm font-medium">{selected.size} selected</span>
+          <Select value={bulkType} onChange={(e) => { const t = e.target.value as ContactType; setBulkType(t); if (t) void applyBulk({ type: t }); }} className="w-40 [&>button]:h-8" aria-label="Change type">
+            <option value="">Change type…</option>
+            {CONTACT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+          </Select>
+          <Select value={bulkStatus} onChange={(e) => { const v = e.target.value; setBulkStatus(v); if (v) void applyBulk({ status: v }); }} className="w-36 [&>button]:h-8" aria-label="Change status">
+            <option value="">Set status…</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </Select>
+          <div onFocus={() => void loadOwners()} onMouseEnter={() => void loadOwners()}>
+            <Select value={bulkOwner} onChange={(e) => { const v = e.target.value; setBulkOwner(v); if (v) void applyBulk({ lead_owner: v === "__none" ? null : v }); }} className="w-44 [&>button]:h-8" aria-label="Lead owner">
+              <option value="">Lead owner…</option>
+              <option value="__none">No owner</option>
+              {(owners ?? []).map((o) => <option key={o} value={o}>{o}</option>)}
             </Select>
-            <Button size="sm" variant="accent" disabled={!bulkType || bulkBusy} onClick={() => void applyBulk({ type: bulkType as ContactType })}>
-              {bulkBusy ? "Applying…" : "Apply"}
+          </div>
+          <div className="flex items-center gap-1">
+            <input value={bulkTag} onChange={(e) => setBulkTag(e.target.value)} placeholder="Tag(s), comma separated"
+              className="h-8 w-44 rounded-md border border-border bg-background px-2 text-sm outline-none focus:border-accent" aria-label="Tags" />
+            <Button size="sm" variant="outline" disabled={!bulkTag.trim() || bulkBusy} onClick={() => void applyBulk({ tags_add: bulkTag.split(",").map((t) => t.trim()).filter(Boolean) })}>
+              <Tag className="h-3.5 w-3.5" /> Add
+            </Button>
+            <Button size="sm" variant="ghost" disabled={!bulkTag.trim() || bulkBusy} onClick={() => void applyBulk({ tags_remove: bulkTag.split(",").map((t) => t.trim()).filter(Boolean) })}>
+              Remove
             </Button>
           </div>
           <Button size="sm" variant="outline" disabled={bulkBusy} onClick={() => void addContactsToPipeline(Array.from(selected))}>
             <Workflow className="h-3.5 w-3.5" /> Add to Pipeline
           </Button>
-          <Button size="sm" variant="outline" disabled={bulkBusy} onClick={() => void applyBulk({ status: "archived" })}>
+          <Button size="sm" variant="outline" disabled={bulkBusy} onClick={() => exportCSV(contacts.filter((c) => selected.has(c.id)), "contacts-selected.csv")}>
+            <Download className="h-3.5 w-3.5" /> Export
+          </Button>
+          <Button size="sm" variant="outline" disabled={bulkBusy} onClick={() => void bulkArchive()}>
             <Archive className="h-3.5 w-3.5" /> Archive
           </Button>
+          {canDelete && (
+            <Button size="sm" variant="outline" className="border-destructive/50 text-destructive hover:bg-destructive/10" disabled={bulkBusy} onClick={() => void bulkDelete()}>
+              <Trash2 className="h-3.5 w-3.5" /> Delete
+            </Button>
+          )}
+          {bulkBusy && <span className="text-xs text-muted-foreground">Working…</span>}
           {pipelineFlash && <span className="text-xs font-medium text-accent">{pipelineFlash}</span>}
           <Button size="sm" variant="ghost" className="ml-auto" onClick={clearSelection}>Clear</Button>
         </div>
       )}
+      {flash && <div className="border-b border-border bg-accent/10 px-4 py-1.5 text-xs font-medium text-accent md:px-6">{flash}</div>}
 
       {/* Non-table views */}
       {contactView !== "table" && (
         <div className="flex-1 overflow-auto p-4 md:p-6">
-          {contactView === "list" && <ContactListView contacts={pageContacts} selected={selected} onToggle={toggleSelect} onOpen={openView} onEdit={openEdit} onAction={(type, contact) => setContactAction({ type, contact })} />}
-          {contactView === "cards" && <ContactCardsView contacts={pageContacts} selected={selected} onToggle={toggleSelect} onOpen={openView} onEdit={openEdit} onAction={(type, contact) => setContactAction({ type, contact })} />}
+          {contactView === "list" && <ContactListView contacts={pageContacts} selected={selected} onToggle={toggleSelect} onOpen={openView} onEdit={openEdit} onAction={(type, contact) => setContactAction({ type, contact })} menuFor={contactMenu} />}
+          {contactView === "cards" && <ContactCardsView contacts={pageContacts} selected={selected} onToggle={toggleSelect} onOpen={openView} onEdit={openEdit} onAction={(type, contact) => setContactAction({ type, contact })} menuFor={contactMenu} />}
           {contactView === "kanban" && <ContactKanbanView contacts={filtered} onOpen={openView} onAction={(type, contact) => setContactAction({ type, contact })} onChangeType={(id, type) => void applyBulkOne(id, { type })} />}
           {contactView === "calendar" && <ContactCalendarView contacts={filtered} onOpen={openView} />}
         </div>
@@ -785,7 +924,7 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
               {CONTACT_COLUMNS.filter((col) => columns.includes(col.key)).map((col) => (
                 <th key={col.key} className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">{col.label}</th>
               ))}
-              <th className="w-10 px-4 py-3" />
+              <th className="sticky right-0 z-10 w-10 bg-card px-4 py-3" />
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -812,7 +951,8 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
                 {CONTACT_COLUMNS.filter((col) => columns.includes(col.key)).map((col) => (
                   <td key={col.key} className="px-4 py-3"><ContactCell contact={c} column={col.key} /></td>
                 ))}
-                <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                {/* Pinned right so the actions stay reachable however far the table scrolls. */}
+                <td className="sticky right-0 bg-card px-4 py-3 shadow-[-10px_0_10px_-10px_rgb(0_0_0/0.18)]" onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center justify-end gap-0.5">
                     {c.phone && (
                       <>
@@ -822,7 +962,7 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
                     )}
                     <QuickIcon label="Email" onClick={() => setContactAction({ type: "email", contact: c })}><Mail className="h-4 w-4" /></QuickIcon>
                     <QuickIcon label="Edit" onClick={() => openEdit(c)}><Pencil className="h-4 w-4" /></QuickIcon>
-                    <QuickIcon label="More" onClick={() => openView(c)}><MoreHorizontal className="h-4 w-4" /></QuickIcon>
+                    <RowActionsMenu items={contactMenu(c)} label={`Actions for ${fullName(c)}`} />
                   </div>
                 </td>
               </tr>
@@ -1073,6 +1213,14 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
         </Modal>
       )}
 
+      {shareContact && (
+        <ShareDialog
+          id={shareContact.id} name={fullName(shareContact)} channel="dm"
+          shareUrl={(id) => `/api/contacts/${id}/share`} noun={{ one: "contact", many: "contacts" }}
+          blurb="Sends this contact's card and a link to them in CMI as a direct message."
+          onClose={() => setShareContact(null)} onDone={(msg) => { setShareContact(null); say(msg); }}
+        />
+      )}
       {contactAction && (
         <ContactActionModal
           action={contactAction.type}
@@ -1879,7 +2027,7 @@ function ConvertLeadModal({
 
 type ActionFn = (type: "call" | "sms" | "email", contact: Contact) => void;
 
-function RowQuickIcons({ c, onEdit, onAction }: { c: Contact; onEdit: (c: Contact) => void; onAction: ActionFn }) {
+function RowQuickIcons({ c, onEdit, onAction, menu }: { c: Contact; onEdit: (c: Contact) => void; onAction: ActionFn; menu?: RowAction[] }) {
   return (
     <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
       {c.phone && (
@@ -1890,12 +2038,14 @@ function RowQuickIcons({ c, onEdit, onAction }: { c: Contact; onEdit: (c: Contac
       )}
       <QuickIcon label="Email" onClick={() => onAction("email", c)}><Mail className="h-4 w-4" /></QuickIcon>
       <QuickIcon label="Edit" onClick={() => onEdit(c)}><Pencil className="h-4 w-4" /></QuickIcon>
+      {menu && <RowActionsMenu items={menu} label={`Actions for ${fullName(c)}`} />}
     </div>
   );
 }
 
-function ContactListView({ contacts, selected, onToggle, onOpen, onEdit, onAction }: {
+function ContactListView({ contacts, selected, onToggle, onOpen, onEdit, onAction, menuFor }: {
   contacts: Contact[]; selected: Set<string>; onToggle: (id: string) => void; onOpen: (c: Contact) => void; onEdit: (c: Contact) => void; onAction: ActionFn;
+  menuFor?: (c: Contact) => RowAction[];
 }) {
   if (contacts.length === 0) return <EmptyState />;
   return (
@@ -1911,15 +2061,16 @@ function ContactListView({ contacts, selected, onToggle, onOpen, onEdit, onActio
             </div>
             {c.type && <Badge tone={TYPE_TONES[c.type] ?? "default"}>{c.type}</Badge>}
           </button>
-          <RowQuickIcons c={c} onEdit={onEdit} onAction={onAction} />
+          <RowQuickIcons c={c} onEdit={onEdit} onAction={onAction} menu={menuFor?.(c)} />
         </div>
       ))}
     </div>
   );
 }
 
-function ContactCardsView({ contacts, selected, onToggle, onOpen, onEdit, onAction }: {
+function ContactCardsView({ contacts, selected, onToggle, onOpen, onEdit, onAction, menuFor }: {
   contacts: Contact[]; selected: Set<string>; onToggle: (id: string) => void; onOpen: (c: Contact) => void; onEdit: (c: Contact) => void; onAction: ActionFn;
+  menuFor?: (c: Contact) => RowAction[];
 }) {
   if (contacts.length === 0) return <EmptyState />;
   return (
@@ -1942,7 +2093,7 @@ function ContactCardsView({ contacts, selected, onToggle, onOpen, onEdit, onActi
           </button>
           <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
             {c.type ? <Badge tone={TYPE_TONES[c.type] ?? "default"}>{c.type}</Badge> : <span />}
-            <RowQuickIcons c={c} onEdit={onEdit} onAction={onAction} />
+            <RowQuickIcons c={c} onEdit={onEdit} onAction={onAction} menu={menuFor?.(c)} />
           </div>
         </div>
       ))}

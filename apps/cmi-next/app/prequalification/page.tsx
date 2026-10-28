@@ -4,6 +4,7 @@ import { SiteFooter } from "@/components/site/site-footer";
 import { isFeatureEnabled } from "@/lib/flags";
 import { PREQUAL_FLAG } from "@/lib/prequal/access";
 import { ApplicationClient } from "./application-client";
+import { loadMinimumsSettings } from "@/lib/prequal/minimums";
 
 export const metadata = {
   title: "Become a Trade Partner — Constructed Matter",
@@ -29,6 +30,8 @@ const READY = [
 
 export default async function PrequalificationPage() {
   if (!(await isFeatureEnabled(PREQUAL_FLAG))) notFound();
+  // Insurance questions follow Trade Partners → Setup → Insurance minimums.
+  const minimums = await loadMinimumsSettings();
 
   return (
     <>
@@ -55,7 +58,7 @@ export default async function PrequalificationPage() {
             together by ApplicationClient — see the comment on it. */}
         <section className="bg-background py-20 lg:py-28">
           <div className="mx-auto max-w-[1400px] px-5 lg:px-8">
-            <ApplicationClient>
+            <ApplicationClient minimums={minimums}>
                 <div className="rounded-2xl border border-border bg-card p-8">
                   <h3 className="mb-6 font-display text-xl font-semibold">How it works</h3>
                   <ol className="space-y-5">

@@ -12,7 +12,7 @@ import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
 import { after } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { INSURANCE_MINIMUMS } from "./form";
+import { minimumsForCompany } from "./minimums";
 import { checkMinimums, earliestExpiration, LINE_LABEL, type Coverage } from "./coverage";
 
 const BUCKET = "prequal-documents";
@@ -159,7 +159,8 @@ export async function readDocument(docId: string): Promise<{ status: string; sum
         await mark({ ai_status: "parsed", ai_parsed_at: now, ai_model: response.model, ai_summary: "This doesn't look like a certificate of insurance.", ai_flags: ["Not a certificate of insurance. Ask the sub for their COI."], coverages: [] });
         return { status: "parsed", flags: ["Not a certificate of insurance."] };
       }
-      const { coverages, flags } = checkMinimums(p.coverages as Coverage[], INSURANCE_MINIMUMS);
+      // The minimums for this partner's type and trades (Trade Partners → Setup).
+      const { coverages, flags } = checkMinimums(p.coverages as Coverage[], await minimumsForCompany(doc.company_id));
       if (p.constructed_matter_additional_insured === false) flags.push("Constructed Matter isn't listed as additional insured.");
       const gl = coverages.find((c) => c.line === "general_liability");
       const summary = coverages.map((c) => `${LINE_LABEL[c.line]}: ${c.carrier ?? "carrier ?"}, ${

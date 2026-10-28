@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { confirmAction } from "@/components/ui/confirm-action";
+import { MinimumsCard } from "./minimums-card";
 
 type Version = { id: string; label: string; file_name: string | null; effective_at: string | null; is_current: boolean; created_at: string; url: string | null; sha256: string };
 type Sig = {
@@ -23,6 +24,7 @@ export function SetupPanel({ canDecide }: { canDecide: boolean }) {
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
       <div className="space-y-5">
+        <MinimumsCard canDecide={canDecide} />
         <MsaCard canDecide={canDecide} />
         <GuideCard canDecide={canDecide} />
       </div>
