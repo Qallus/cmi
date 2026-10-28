@@ -205,6 +205,44 @@ Follow spec Section 5 field by field:
 - **Requalification:** a pre-filled short form with expired documents highlighted. Office staff select all or pick
   specific subs, exclude some, and send with an optional mass message or updated MSA for signature.
 
+### Phase 3 as built (2026-10-28)
+
+Migration `apps/cmi-next/supabase/migrations/2026-10-28_trade_partner_phase3.sql`. Run it **before** deploying.
+
+- **AI reading:** `lib/prequal/ai-reader.ts` sends each COI, W-9 or license (PDF, JPG, PNG or WebP) to Claude
+  (`claude-opus-5-5`) and gets structured output back. Server-side fallbacks are on.
+  - **When it runs:** in the background after every upload (the sub's link, office upload, and submit). The drawer also
+    has **Read with AI / Re-read**.
+  - **COI:** each coverage line goes into `company_documents.coverages` with `meets_minimum`. The earliest expiry
+    becomes `expires_on`. Shortfalls, missing lines and a missing additional-insured go into `ai_flags`.
+  - **W-9:** reads the classification, signature and date. It fills `business_structure` if blank. The TIN is never
+    transcribed; we only record whether one is present.
+  - **License:** reads the number, class, state and expiry.
+  - **No verification:** AI never marks a document verified. The office still clicks Verify.
+  - **Without `ANTHROPIC_API_KEY`:** nothing is read.
+  - **Code:** the pure checks are in `lib/prequal/coverage.ts`, tested by `coverage.test.mjs`.
+- **Insurance tracking:** Directory → **Insurance tracking** downloads a CSV with one row per coverage line, soonest
+  expiry first. The live Google Sheet waits on the Workspace key.
+- **Reminders** (`lib/prequal/reminders.ts`, called by the automation runner):
+  - **Schedule:** 45 days out, then weekly. The last 7 days are urgent, with `TRADE_PARTNER_COMPLIANCE_CC` copied.
+  - **Recipient and link:** the accounting contact, falling back to the primary. Each notice links to the sub's upload
+    page.
+  - **Stale reminders:** a queued reminder is skipped if a newer upload or a later stage replaced it.
+  - **After expiry:** reminders stop, the document is marked expired, and the office gets one bell/email alert.
+  - **Still gated:** `AUTOMATION_ENABLED`, and held outside production.
+- **Red flags** on Directory cards, for qualified, approved and preferred partners: no W-9, no COI, expired insurance or
+  license, or coverage below the minimums.
+- **Requalification** (`lib/prequal/requalify.ts`, `POST/PATCH /api/trade-partners/requalify`, Super Admin/Admin):
+  - **Sending:** Directory checkboxes or **Select all approved**, which skips partners marked **Exclude from
+    requalification**. The office can add an optional message and an optional "sign the current MSA again".
+  - **The form:** each partner gets a copy of their last application. Documents that are still current carry over;
+    expired or expiring ones are blank and listed in a banner.
+  - **MSA:** only re-signed when the office asks or the current version was never signed.
+  - **Submitting:** updates the same company (status kept) and replaces the files on existing document rows.
+  - **Approve:** sends "qualification renewed", sets `last_requalified_at` and resets the year.
+- **Still open:** the V drive file naming, the live tracking Sheet (both need the Google key), and the insurance minimums
+  in `lib/prequal/form.ts#INSURANCE_MINIMUMS` (still placeholders until Brandon confirms).
+
 ## Phase 4: POs and Adaptive (outline)
 
 - **`lib/compliance/check.ts#isCompliant(companyId)`** checks approved status, W-9 and COI on file and not expired, and

@@ -5,6 +5,7 @@
 // insurance is current — without opening a single PDF.
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import type { Company } from "./data";
+import { redFlags, type FlagDoc } from "@/lib/prequal/coverage";
 
 export type ComplianceState = "clear" | "expiring" | "expired" | "missing" | "none";
 
@@ -15,6 +16,8 @@ export type DirectoryRow = Company & {
   docs_outstanding: number;
   next_expiry: string | null;
   compliance: ComplianceState;
+  /** Approved partners missing a W-9/COI, expired, or under minimums. */
+  red_flags: string[];
 };
 
 export type DirectoryFilters = {
@@ -67,7 +70,7 @@ export async function loadDirectory(filters: DirectoryFilters = {}): Promise<Dir
   const [docs, contacts] = await Promise.all([documentSummary(ids), contactCounts(ids)]);
 
   const rows = companies.map((c) => {
-    const d = docs.get(c.id) ?? { total: 0, verified: 0, outstanding: 0, next: null, expired: false, expiring: false };
+    const d = docs.get(c.id) ?? { total: 0, verified: 0, outstanding: 0, next: null, expired: false, expiring: false, rows: [] };
     const compliance: ComplianceState =
       d.total === 0 ? "none"
       : d.expired ? "expired"
@@ -82,6 +85,7 @@ export async function loadDirectory(filters: DirectoryFilters = {}): Promise<Dir
       docs_outstanding: d.outstanding,
       next_expiry: d.next,
       compliance,
+      red_flags: redFlags(c.qualification_status, d.rows),
     };
   });
 
@@ -91,20 +95,21 @@ export async function loadDirectory(filters: DirectoryFilters = {}): Promise<Dir
   return rows;
 }
 
-type DocSummary = { total: number; verified: number; outstanding: number; next: string | null; expired: boolean; expiring: boolean };
+type DocSummary = { total: number; verified: number; outstanding: number; next: string | null; expired: boolean; expiring: boolean; rows: FlagDoc[] };
 
 async function documentSummary(ids: string[]): Promise<Map<string, DocSummary>> {
   const out = new Map<string, DocSummary>();
   if (ids.length === 0) return out;
 
   const { data } = await getSupabaseAdmin()
-    .from("company_documents").select("company_id, status, expires_on").in("company_id", ids);
+    .from("company_documents").select("company_id, doc_type, status, expires_on, file_url, file_id, ai_flags").in("company_id", ids);
 
   const today = new Date().toISOString().slice(0, 10);
   const soon = new Date(Date.now() + SOON_DAYS * 86_400_000).toISOString().slice(0, 10);
 
-  for (const row of (data ?? []) as { company_id: string; status: string; expires_on: string | null }[]) {
-    const e = out.get(row.company_id) ?? { total: 0, verified: 0, outstanding: 0, next: null, expired: false, expiring: false };
+  for (const row of (data ?? []) as { company_id: string; doc_type: string; status: string; expires_on: string | null; file_url: string | null; file_id: string | null; ai_flags: string[] | null }[]) {
+    const e = out.get(row.company_id) ?? { total: 0, verified: 0, outstanding: 0, next: null, expired: false, expiring: false, rows: [] };
+    e.rows.push({ doc_type: row.doc_type, status: row.status, expires_on: row.expires_on, has_file: !!(row.file_url || row.file_id), ai_flags: row.ai_flags });
     e.total += 1;
     if (row.status === "verified") e.verified += 1;
     else e.outstanding += 1;

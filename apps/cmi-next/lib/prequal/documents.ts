@@ -6,6 +6,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { publicAppUrl } from "@/lib/twilio";
 import { PrequalError, type Application } from "./data";
 import type { CompanyDocument } from "./review";
+import { queueDocumentRead } from "./ai-reader";
 
 const BUCKET = "prequal-documents";
 export const MAX_DOC_BYTES = 15 * 1024 * 1024;
@@ -44,10 +45,12 @@ export async function storeDocumentFile(docId: string, file: File, opts: { folde
   const { data, error } = await supabase.from("company_documents").update({
     file_url: path, file_name: file.name, status: "uploaded", uploaded_at: now,
     rejection_reason: null, verified_by: null, verified_at: null, expires_on: null,
+    coverages: null, ai_status: null, ai_summary: null, ai_flags: [], ai_parsed_at: null, ai_error: null,
     notes: opts.uploadedBy ? `Uploaded by office staff on ${now.slice(0, 10)}.` : `Uploaded by the trade partner on ${now.slice(0, 10)}.`,
     updated_at: now,
   }).eq("id", docId).select().single();
   if (error) throw new PrequalError(error.message, 500);
+  queueDocumentRead(docId);
   return data as CompanyDocument;
 }
 

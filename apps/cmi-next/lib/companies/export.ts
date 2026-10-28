@@ -75,3 +75,46 @@ export async function tradePartnerCsv(opts: { includeHidden?: boolean } = {}): P
 
   return "﻿" + toCsv(headers, rows);
 }
+
+/**
+ * Master insurance tracking (brief §7.2): one row per coverage line Claude
+ * read off each certificate, plus a row for any certificate not yet read, so
+ * the office can sort by expiry. The Google Sheet version follows once the
+ * Workspace key exists; this is the same table as a download.
+ */
+export async function insuranceTrackingCsv(): Promise<string> {
+  const supabase = getSupabaseAdmin();
+  const { data } = await supabase.from("company_documents")
+    .select("id, doc_type, label, status, expires_on, carrier, policy_number, coverage_amount, coverages, ai_status, ai_flags, companies(name, qualification_status, archived_at)")
+    .in("doc_type", ["coi", "gl", "wc", "auto", "license"]).limit(5000);
+  type Row = {
+    doc_type: string; label: string | null; status: string; expires_on: string | null; carrier: string | null;
+    policy_number: string | null; coverage_amount: number | null; ai_status: string | null; ai_flags: string[] | null;
+    coverages: { line: string; carrier: string | null; policy_number: string | null; effective_date: string | null; expiration_date: string | null;
+      each_occurrence: number | null; aggregate: number | null; combined_single_limit: number | null;
+      employers_liability_each_accident: number | null; meets_minimum?: boolean | null }[] | null;
+    companies: { name: string; qualification_status: string | null; archived_at: string | null } | null;
+  };
+  const today = new Date().toISOString().slice(0, 10);
+  const days = (d: string | null) => (d ? Math.round((new Date(`${d}T00:00:00Z`).getTime() - new Date(`${today}T00:00:00Z`).getTime()) / 86_400_000) : "");
+  const headers = ["Company", "Status", "Document", "Coverage", "Carrier", "Policy #", "Effective", "Expires", "Days left",
+    "Each occurrence / limit", "Aggregate", "Employer's liability", "Meets minimum", "Document status", "Flags"];
+  const rows: unknown[][] = [];
+  for (const d of ((data ?? []) as unknown as Row[]).filter((r) => r.companies && !r.companies.archived_at)) {
+    const base = [d.companies!.name, d.companies!.qualification_status ?? "", d.label || d.doc_type.toUpperCase()];
+    const flags = (d.ai_flags ?? []).join(" | ");
+    const status = d.expires_on && d.expires_on < today ? "expired" : d.status;
+    if (d.coverages?.length) {
+      for (const c of d.coverages) {
+        rows.push([...base, c.line.replace(/_/g, " "), c.carrier ?? "", c.policy_number ?? "", c.effective_date ?? "",
+          c.expiration_date ?? "", days(c.expiration_date), c.combined_single_limit ?? c.each_occurrence ?? "", c.aggregate ?? "",
+          c.employers_liability_each_accident ?? "", c.meets_minimum == null ? "" : c.meets_minimum ? "Yes" : "No", status, flags]);
+      }
+    } else {
+      rows.push([...base, d.ai_status === "parsed" ? "none read" : "not read yet", d.carrier ?? "", d.policy_number ?? "", "",
+        d.expires_on ?? "", days(d.expires_on), d.coverage_amount ?? "", "", "", "", status, flags]);
+    }
+  }
+  rows.sort((a, b) => String(a[7] || "9999").localeCompare(String(b[7] || "9999")));
+  return "﻿" + toCsv(headers, rows);
+}

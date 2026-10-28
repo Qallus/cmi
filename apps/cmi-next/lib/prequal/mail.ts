@@ -14,6 +14,7 @@ export function canEmailApplicants(): boolean {
 
 export async function sendApplicantEmail(input: {
   to: string | string[];
+  cc?: string | string[] | null;
   subject: string;
   html: string;
   replyTo?: string | null;
@@ -33,6 +34,7 @@ export async function sendApplicantEmail(input: {
     body: JSON.stringify({
       from: fromAddress(),
       to,
+      ...(input.cc ? { cc: Array.isArray(input.cc) ? input.cc : [input.cc] } : {}),
       subject: input.subject,
       html: input.html,
       ...(input.replyTo ? { reply_to: input.replyTo } : {}),

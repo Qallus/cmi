@@ -27,6 +27,13 @@ export type CompanyDocument = {
   license_class: string | null;
   license_state: string | null;
   notes: string | null;
+  // What Claude read off the file (Phase 3); null until it has run.
+  coverages?: import("./coverage").Coverage[] | null;
+  ai_status?: "pending" | "parsed" | "failed" | "skipped" | null;
+  ai_summary?: string | null;
+  ai_flags?: string[] | null;
+  ai_parsed_at?: string | null;
+  ai_error?: string | null;
   created_at: string;
   updated_at: string;
 };

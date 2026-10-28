@@ -108,8 +108,17 @@ export async function msaStateForToken(token: string) {
   if (!app) throw new PrequalError("That application link is no longer valid.", 404);
   const msa = await getCurrentMsa();
   const signature = await signatureForApplication(app.id);
+  // A requalification only re-signs when the office asked for it or this
+  // company never signed the current version.
+  let onFile = false;
+  if (msa && app.source === "requalification" && !app.requal_include_msa && app.company_id) {
+    const { count } = await getSupabaseAdmin().from("msa_signatures").select("id", { count: "exact", head: true })
+      .eq("company_id", app.company_id).eq("msa_version_id", msa.id).not("signed_at", "is", null);
+    onFile = (count ?? 0) > 0;
+  }
   return {
     msa: msa ? { id: msa.id, label: msa.label, url: await signedUrl(msa.storage_path, 1800) } : null,
+    on_file: onFile,
     signature: signature ? { signer_name: signature.signer_name, signer_title: signature.signer_title, signed_at: signature.signed_at, version_matches: signature.msa_version_id === msa?.id } : null,
     consent_text: ESIGN_CONSENT_TEXT,
   };
@@ -280,14 +289,14 @@ export async function countersign(signatureId: string, staff: { id: string; name
   }).eq("id", sig.id).select().single();
   if (error) throw new PrequalError(error.message, 500);
 
+  const fileName = `MSA_${fileLabel(version.label)}_executed${now.slice(0, 10)}.pdf`;
   if (sig.company_id) {
     await supabase.from("company_documents").update({
-      file_url: path, status: "verified", verified_by: staff.id, verified_at: now,
+      file_url: path, file_name: fileName, status: "verified", verified_by: staff.id, verified_at: now,
       notes: `Countersigned by ${staff.name}.`, updated_at: now,
     }).eq("company_id", sig.company_id).eq("doc_type", "msa").eq("file_url", sig.signed_pdf_path);
   }
 
-  const fileName = `MSA_${fileLabel(version.label)}_executed${now.slice(0, 10)}.pdf`;
   await sendApplicantEmail({
     to: sig.signer_email,
     subject: "Fully executed: Constructed Matter Master Subcontractor Agreement",

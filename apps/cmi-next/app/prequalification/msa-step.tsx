@@ -15,6 +15,8 @@ type State = {
   msa: { id: string; label: string; url: string | null } | null;
   signature: { signer_name: string; signer_title: string | null; signed_at: string | null; version_matches: boolean } | null;
   consent_text: string;
+  /** Requalification with the current version already signed: nothing to sign. */
+  on_file?: boolean;
 };
 
 export function MsaStep({ token, answers, onSigned }: { token: string | null; answers: Answers; onSigned: (v: unknown) => void }) {
@@ -73,6 +75,15 @@ export function MsaStep({ token, answers, onSigned }: { token: string | null; an
     return (
       <div className="rounded-xl border border-border bg-muted/40 p-4 text-sm leading-relaxed text-muted-foreground sm:col-span-2">
         Our Master Subcontractor Agreement isn&apos;t available online yet. We&apos;ll send it to you for signature after we review your application.
+      </div>
+    );
+  }
+
+  if (state.on_file && !(state.signature && state.signature.version_matches)) {
+    return (
+      <div className="flex items-start gap-3 rounded-xl border border-accent/40 bg-accent/10 p-4 text-sm sm:col-span-2">
+        <Check className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+        <p>Your signed Master Subcontractor Agreement ({state.msa.label}) is already on file. There&apos;s nothing to sign this time.</p>
       </div>
     );
   }

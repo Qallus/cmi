@@ -15,6 +15,8 @@ import {
 } from "./form";
 import { fileSignatureOnSubmit, getCurrentMsa, signatureForApplication } from "./msa";
 import { alertOffice, linkRoleContacts, sendConfirmation } from "./after-submit";
+import { queueDocumentRead } from "./ai-reader";
+import { msaRequiredFor, REQUAL_SOURCE } from "./requalify";
 
 export type ApplicationStatus =
   | "draft" | "submitted" | "in_review" | "info_requested"
@@ -49,6 +51,10 @@ export type Application = {
   /** Out of the queue but not gone — see setApplicationArchived. */
   archived_at: string | null;
   archived_by: string | null;
+  /** "public_page", or "requalification" for a refresh the office sent. */
+  source?: string | null;
+  requal_message?: string | null;
+  requal_include_msa?: boolean | null;
   created_at: string;
   updated_at: string;
 };
@@ -61,7 +67,7 @@ export class PrequalError extends Error {
 export type Audit = { sourceUrl?: string | null; ip?: string | null; userAgent?: string | null };
 
 /** 32 hex characters — long enough that the link is the credential. */
-function newToken(): string {
+export function newToken(): string {
   return randomBytes(16).toString("hex");
 }
 
@@ -150,7 +156,10 @@ export async function submitApplication(token: string, audit: Audit = {}): Promi
   // uploaded, applications go through and the office sends it later.
   const msa = await getCurrentMsa();
   const signature = await signatureForApplication(app.id);
-  if (msa && !signature) {
+  // A requalification re-signs only when asked, or when the current version
+  // was never signed by this company.
+  const requal = app.source === REQUAL_SOURCE && !!app.company_id;
+  if (msa && !signature && (await msaRequiredFor(app, msa.id))) {
     throw new PrequalError("Please review and sign the Master Subcontractor Agreement on the last step before submitting.");
   }
 
@@ -164,13 +173,19 @@ export async function submitApplication(token: string, audit: Audit = {}): Promi
 
   // The company gets everything the form maps to a column, so the profile is
   // searchable the moment it lands.
-  const company = await findOrCreateCompany(companyName, {
-    ...(answersToCompany(answers) as Partial<Company>),
-    qualification_status: "applicant",
-  });
+  // A requalification updates the partner it was sent to and keeps their status.
+  const company = requal
+    ? { id: app.company_id as string }
+    : await findOrCreateCompany(companyName, {
+      ...(answersToCompany(answers) as Partial<Company>),
+      qualification_status: "applicant",
+    });
+  if (requal) {
+    await supabase.from("companies").update({ ...answersToCompany(answers), updated_at: new Date().toISOString() }).eq("id", company.id);
+  }
 
   const contactId = await linkContact(app, answers, company.id);
-  await openDocumentRows(company.id, app.id, answers);
+  await openDocumentRows(company.id, app.id, answers, { replace: requal });
 
   const { data, error } = await supabase
     .from("prequal_applications")
@@ -270,7 +285,7 @@ function partnerTypeToContactType(partnerType: string): string {
  * One compliance row per document this applicant owes, whether or not they
  * uploaded it — that's what makes "missing documentation" reportable.
  */
-async function openDocumentRows(companyId: string, applicationId: string, answers: Answers): Promise<void> {
+async function openDocumentRows(companyId: string, applicationId: string, answers: Answers, opts: { replace?: boolean } = {}): Promise<void> {
   const supabase = getSupabaseAdmin();
   // Retired document questions count when an earlier draft uploaded one.
   const relevant = relevantDocuments(answers, [...SECTIONS, RETIRED_SECTION]);
@@ -281,10 +296,28 @@ async function openDocumentRows(companyId: string, applicationId: string, answer
 
   const { data: existing } = await supabase
     .from("company_documents")
-    .select("doc_type")
+    .select("id, doc_type, file_url")
     .eq("company_id", companyId)
     .in("doc_type", wanted.map((d) => d.docType));
   const have = new Set((existing ?? []).map((r) => (r as { doc_type: string }).doc_type));
+
+  // Requalification: a new upload replaces the file on the row already tracked.
+  if (opts.replace) {
+    for (const row of (existing ?? []) as { id: string; doc_type: string; file_url: string | null }[]) {
+      const uploaded = answers[`doc_${row.doc_type}`] as { name?: string; url?: string; path?: string } | undefined;
+      const path = uploaded?.url ?? uploaded?.path;
+      if (!path || path === row.file_url) continue;
+      const now = new Date().toISOString();
+      await supabase.from("company_documents").update({
+        application_id: applicationId, file_url: path, file_name: uploaded?.name ?? null,
+        status: "uploaded", uploaded_at: now, rejection_reason: null, verified_by: null, verified_at: null,
+        expires_on: expiryFor(row.doc_type, answers), carrier: carrierFor(row.doc_type, answers),
+        coverages: null, ai_status: null, ai_summary: null, ai_flags: [], ai_parsed_at: null, ai_error: null,
+        notes: `Replaced in requalification on ${now.slice(0, 10)}.`, updated_at: now,
+      }).eq("id", row.id);
+      queueDocumentRead(row.id);
+    }
+  }
 
   const rows = wanted
     .filter((d) => !have.has(d.docType))
@@ -315,7 +348,9 @@ async function openDocumentRows(companyId: string, applicationId: string, answer
       };
     });
 
-  if (rows.length > 0) await supabase.from("company_documents").insert(rows);
+  if (rows.length === 0) return;
+  const { data: inserted } = await supabase.from("company_documents").insert(rows).select("id, file_url");
+  for (const r of inserted ?? []) if (r.file_url) queueDocumentRead(r.id as string);
 }
 
 function expiryFor(docType: string, a: Answers): string | null {

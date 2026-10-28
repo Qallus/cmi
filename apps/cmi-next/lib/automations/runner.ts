@@ -8,9 +8,10 @@ import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { sendEmail, sendSms, shareEmailHtml, escapeHtml } from "@/lib/messaging/send";
 import { isSuppressed } from "@/lib/messaging/consent";
 import { publicAppUrl } from "@/lib/twilio";
-
-/** Days before an expiry date that we speak up. */
-export const EXPIRY_THRESHOLDS = [30, 7, 0] as const;
+import { sendApplicantEmail } from "@/lib/prequal/mail";
+import {
+  TP_REMINDER_KIND, reminderStillDue, renderTradePartnerReminder, scanTradePartnerDocuments, type ReminderPayload,
+} from "@/lib/prequal/reminders";
 
 /**
  * A booking confirmation queued weeks ago is not worth sending now — the
@@ -48,7 +49,8 @@ export async function runAutomations(opts: { trigger?: string; dryRun?: boolean 
 
   const scanned: Record<string, number> = {};
   try {
-    scanned.document_expiries = await scanDocumentExpiries();
+    // COI / license reminders: 45 days, weekly, then urgent at 7 (lib/prequal/reminders.ts).
+    scanned.document_expiries = await scanTradePartnerDocuments(queue, { dryRun: !!opts.dryRun });
     scanned.qualification_renewals = await scanQualificationRenewals();
     scanned.awaiting_review = await scanAwaitingReview();
     scanned.queued_bookings = await scanQueuedBookings();
@@ -102,55 +104,6 @@ async function queue(event: {
   // 23505 = already queued on an earlier run, which is the normal case.
   if (error && error.code !== "23505") throw new Error(error.message);
   return !error;
-}
-
-/** Insurance certificates and licences approaching, or past, their expiry. */
-async function scanDocumentExpiries(): Promise<number> {
-  const supabase = getSupabaseAdmin();
-  const { data } = await supabase
-    .from("company_documents")
-    .select("id, company_id, doc_type, label, expires_on, status, companies(name)")
-    .not("expires_on", "is", null)
-    .lte("expires_on", daysFromNow(Math.max(...EXPIRY_THRESHOLDS)))
-    .neq("status", "rejected");
-
-  const rows = (data ?? []) as unknown as {
-    id: string; company_id: string; doc_type: string; label: string | null;
-    expires_on: string; status: string; companies: { name: string } | null;
-  }[];
-
-  let queued = 0;
-  for (const doc of rows) {
-    const daysLeft = Math.floor(
-      (new Date(`${doc.expires_on}T00:00:00`).getTime() - new Date(`${today()}T00:00:00`).getTime()) / 86_400_000,
-    );
-    // The tightest threshold this document has now crossed.
-    const threshold = EXPIRY_THRESHOLDS.find((t) => daysLeft <= t);
-    if (threshold === undefined) continue;
-
-    const contact = await primaryContactFor(doc.company_id);
-    if (await queue({
-      kind: daysLeft < 0 ? "document_expired" : "document_expiring",
-      dedupeKey: `doc_expiry_${threshold}:${doc.id}`,
-      subjectType: "company_document",
-      subjectId: doc.id,
-      channel: "email",
-      recipient: contact?.email ?? null,
-      payload: {
-        company: doc.companies?.name ?? "your company",
-        company_id: doc.company_id,
-        document: doc.label ?? doc.doc_type,
-        expires_on: doc.expires_on,
-        days_left: daysLeft,
-        contact_name: contact?.first_name ?? null,
-      },
-    })) queued += 1;
-
-    if (daysLeft < 0 && doc.status !== "expired") {
-      await supabase.from("company_documents").update({ status: "expired" }).eq("id", doc.id);
-    }
-  }
-  return queued;
 }
 
 /** Approved partners whose yearly qualification is running out. */
@@ -331,6 +284,30 @@ async function dispatchPending() {
       await close("skipped", { skip_reason: "recipient opted out" });
       skipped += 1;
       log.push({ kind: event.kind, recipient: event.recipient, status: "skipped", reason: "opted out" });
+      continue;
+    }
+
+    // Trade partner reminders: skip one a newer upload or a later stage replaced,
+    // and send through the applicant mailer (CC + held outside production).
+    if (event.kind === TP_REMINDER_KIND) {
+      const p = event.payload as unknown as ReminderPayload;
+      if (!(await reminderStillDue(event.subject_id, p))) {
+        await close("skipped", { skip_reason: "superseded" });
+        skipped += 1;
+        log.push({ kind: event.kind, recipient: event.recipient, status: "skipped", reason: "superseded" });
+        continue;
+      }
+      const msg = renderTradePartnerReminder(p);
+      const result = await sendApplicantEmail({ to: event.recipient, cc: p.cc, subject: msg.subject, html: msg.html });
+      if (result.sent) {
+        await close("sent");
+        sent += 1;
+        log.push({ kind: event.kind, recipient: event.recipient, status: "sent" });
+      } else {
+        // Held outside production stays pending, so it goes out from production.
+        if (!result.held) { await close("failed", { error: result.error ?? "send failed" }); failed += 1; }
+        log.push({ kind: event.kind, recipient: event.recipient, status: result.held ? "held" : "failed", reason: result.error });
+      }
       continue;
     }
 

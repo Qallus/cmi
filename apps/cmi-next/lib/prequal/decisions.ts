@@ -92,8 +92,24 @@ export async function approve(id: string, staffId: string, note: string | null) 
   const [{ app, docs }, r, guide] = await Promise.all([load(id), reviewer(staffId), onboardingGuide()]);
   // After approval the W-9 and COI are mandatory — anything not in is a red flag.
   const outstanding = outstandingDocuments(docs).filter((d) => ["w9", "coi", "license", "msa"].includes(d.doc_type)).map(docName);
-  const pdf = guide.url ? await guide.bytes() : null;
   let emailed = { sent: false, held: false };
+
+  // A requalification: they're already a partner, so confirm rather than welcome.
+  if (app.source === "requalification") {
+    await getSupabaseAdmin().from("companies").update({ last_requalified_at: new Date().toISOString() }).eq("id", app.company_id);
+    if (app.contact_email) {
+      const paragraphs = [
+        `${app.contact_first_name ? `Hi ${app.contact_first_name},` : "Hello,"} thank you for updating ${app.company_name ?? "your company"}'s profile. Your trade partner qualification with Constructed Matter is renewed for another year.`,
+        ...(outstanding.length ? [`We still need: ${outstanding.join(", ")}. Upload them at ${documentUploadUrl(app)} or reply to this email with them attached.`] : []),
+        "Keep your insurance and W-9 current through the same link. We'll remind you before anything expires.",
+      ];
+      const result = await send(app, r, "Your trade partner qualification is renewed", paragraphs, undefined, "Requalification complete");
+      emailed = { sent: result.sent, held: !!result.held };
+    }
+    return { emailed, outstanding, guideAttached: false };
+  }
+
+  const pdf = guide.url ? await guide.bytes() : null;
   if (app.contact_email) {
     const result = await send(app, r, "Welcome to Constructed Matter's trade partner network", approvalParagraphs({
       firstName: app.contact_first_name, company: app.company_name, outstanding, hasGuide: !!pdf, uploadUrl: documentUploadUrl(app),

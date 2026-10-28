@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import {
-  AlertTriangle, CalendarClock, Check, Copy, ExternalLink, FileText, Loader2, Mail, Send, ShieldCheck, ThumbsDown, Upload, X,
+  AlertTriangle, CalendarClock, Check, Copy, ExternalLink, FileText, Loader2, Mail, Send, ShieldCheck, Sparkles, ThumbsDown, Upload, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -370,6 +370,14 @@ export function ApplicationDrawer({
 function DocumentRow({ doc, canDecide, onChanged }: { doc: CompanyDocument; canDecide: boolean; onChanged: () => Promise<void> }) {
   const [busy, setBusy] = React.useState(false);
   const [expires, setExpires] = React.useState(doc.expires_on ?? "");
+  // Claude may fill the expiry after an upload; follow the saved value.
+  React.useEffect(() => { setExpires(doc.expires_on ?? ""); }, [doc.expires_on]);
+  // A read runs in the background after an upload; check back until it lands.
+  React.useEffect(() => {
+    if (doc.ai_status !== "pending") return;
+    const t = setTimeout(() => { void onChanged(); }, 8000);
+    return () => clearTimeout(t);
+  }, [doc.ai_status, doc.updated_at, onChanged]);
   const [rejecting, setRejecting] = React.useState(false);
   const [reason, setReason] = React.useState("");
 
@@ -402,7 +410,20 @@ function DocumentRow({ doc, canDecide, onChanged }: { doc: CompanyDocument; canD
     await onChanged();
   }
 
+  // Re-read the file with Claude (COI coverages, W-9, license).
+  const [reading, setReading] = React.useState(false);
+  const [readError, setReadError] = React.useState<string | null>(null);
+  async function reread() {
+    setReading(true); setReadError(null);
+    const res = await fetch(`/api/trade-partners/documents/${doc.id}/read`, { method: "POST" });
+    const json = await res.json().catch(() => ({}));
+    setReading(false);
+    if (!res.ok) { setReadError(json.error ?? "Couldn't read that document."); return; }
+    await onChanged();
+  }
+
   const hasFile = !!(doc.file_url || doc.file_id);
+  const readable = hasFile && AI_READABLE.has(doc.doc_type);
   const expired = !!doc.expires_on && doc.expires_on < new Date().toISOString().slice(0, 10);
 
   return (
@@ -452,7 +473,17 @@ function DocumentRow({ doc, canDecide, onChanged }: { doc: CompanyDocument; canD
         {canDecide && hasFile && doc.status !== "rejected" && (
           <Button size="sm" variant="outline" disabled={busy} onClick={() => setRejecting((v) => !v)}>Reject</Button>
         )}
+        {readable && (
+          <Button size="sm" variant="ghost" disabled={busy || reading || doc.ai_status === "pending"} onClick={() => void reread()}
+            title="Have Claude read the coverages, dates and limits again">
+            {reading || doc.ai_status === "pending" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+            {doc.ai_status === "parsed" ? "Re-read" : "Read with AI"}
+          </Button>
+        )}
       </div>
+
+      {readable && <AiReading doc={doc} />}
+      {readError && <p className="mt-1 text-[11px] text-destructive">{readError}</p>}
 
       {doc.rejection_reason && !rejecting && (
         <p className="mt-1 text-[11px] text-destructive">Rejected — {doc.rejection_reason}</p>
@@ -469,6 +500,57 @@ function DocumentRow({ doc, canDecide, onChanged }: { doc: CompanyDocument; canD
       )}
       {uploadError && <p className="mt-1 text-[11px] text-destructive">{uploadError}</p>}
     </li>
+  );
+}
+
+const AI_READABLE = new Set(["coi", "gl", "wc", "auto", "w9", "license"]);
+const usd = (n: number | null) => (n == null ? "?" : `$${n.toLocaleString("en-US")}`);
+const LINE: Record<string, string> = {
+  general_liability: "General liability", auto: "Auto", workers_comp: "Workers' comp",
+  umbrella: "Umbrella", professional: "Professional", other: "Other",
+};
+
+/** What Claude read off the file: coverage lines against the minimums, and anything to check. */
+function AiReading({ doc }: { doc: CompanyDocument }) {
+  if (doc.ai_status === "pending") return <p className="mt-2 text-[11px] text-muted-foreground">Claude is reading this document…</p>;
+  if (doc.ai_status === "failed") return <p className="mt-2 text-[11px] text-destructive">Claude couldn&apos;t read it{doc.ai_error ? `: ${doc.ai_error}` : "."}</p>;
+  if (doc.ai_status === "skipped") return doc.ai_error ? <p className="mt-2 text-[11px] text-muted-foreground">Not read automatically: {doc.ai_error}</p> : null;
+  if (doc.ai_status !== "parsed") return null;
+  const coverages = doc.coverages ?? [];
+  const flags = doc.ai_flags ?? [];
+  return (
+    <div className="mt-2 rounded-md border border-border bg-muted/30 p-2 text-[11px]">
+      <p className="flex items-center gap-1 font-medium text-muted-foreground">
+        <Sparkles className="h-3 w-3" /> Read by Claude{doc.ai_parsed_at ? ` · ${when(doc.ai_parsed_at)}` : ""} · check before verifying
+      </p>
+      {coverages.length > 0 ? (
+        <table className="mt-1 w-full">
+          <tbody>
+            {coverages.map((c, i) => (
+              <tr key={i} className="align-top">
+                <td className="py-0.5 pr-2 font-medium">{LINE[c.line] ?? c.line}</td>
+                <td className="py-0.5 pr-2">{c.carrier ?? "—"}{c.policy_number ? ` · ${c.policy_number}` : ""}</td>
+                <td className="py-0.5 pr-2 whitespace-nowrap">
+                  {c.line === "general_liability" ? `${usd(c.each_occurrence)} / ${usd(c.aggregate)}`
+                    : c.line === "workers_comp" ? `EL ${usd(c.employers_liability_each_accident)}`
+                    : usd(c.combined_single_limit ?? c.each_occurrence)}
+                </td>
+                <td className="py-0.5 pr-2 whitespace-nowrap">to {c.expiration_date ?? "?"}</td>
+                <td className="py-0.5">
+                  {c.meets_minimum === true && <Check className="h-3 w-3 text-emerald-600" aria-label="Meets minimum" />}
+                  {c.meets_minimum === false && <AlertTriangle className="h-3 w-3 text-destructive" aria-label="Below minimum" />}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : doc.ai_summary ? <p className="mt-1">{doc.ai_summary}</p> : null}
+      {flags.length > 0 && (
+        <ul className="mt-1 space-y-0.5 text-amber-700 dark:text-amber-300">
+          {flags.map((f) => <li key={f} className="flex gap-1"><AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />{f}</li>)}
+        </ul>
+      )}
+    </div>
   );
 }
 

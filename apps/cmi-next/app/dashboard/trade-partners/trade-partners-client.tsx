@@ -4,11 +4,11 @@ import * as React from "react";
 import Link from "next/link";
 import {
   AlertTriangle, Building2, CheckCircle2, ClipboardList, ExternalLink, FileWarning,
-  Download, GitMerge, Inbox, Loader2, MessagesSquare, Settings2, ShieldCheck, Users,
+  Download, Flag, GitMerge, Inbox, Loader2, MessagesSquare, RefreshCw, Settings2, ShieldCheck, Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Input, Select } from "@/components/ui/input";
+import { Input, Select, Textarea } from "@/components/ui/input";
 import { TRADES, SERVICE_AREAS } from "@/lib/prequal/form";
 import type { ApplicationRow } from "@/lib/prequal/review";
 import type { DirectoryRow, ComplianceItem } from "@/lib/companies/directory";
@@ -239,7 +239,12 @@ function Applications({
           {rows.map((r) => (
             <tr key={r.id} onClick={() => onOpen(r.id)} className="cursor-pointer border-t border-border transition hover:bg-muted/40">
               <td className="px-3 py-2.5">
-                <div className="font-medium">{r.company_name_resolved || "Unnamed"}</div>
+                <div className="font-medium">
+                  {r.company_name_resolved || "Unnamed"}
+                  {r.source === "requalification" && (
+                    <span className="ml-1.5 rounded-full bg-accent/10 px-1.5 py-0.5 text-[10px] font-medium text-accent">Requalification</span>
+                  )}
+                </div>
                 {r.progress < 100 && r.status === "draft" && (
                   <div className="text-[11px] text-muted-foreground">{r.progress}% complete</div>
                 )}
@@ -293,6 +298,15 @@ function Directory({ initial, canDecide }: { initial: DirectoryRow[]; canDecide:
   const [status, setStatus] = React.useState("all");
   const [value, setValue] = React.useState("");
   const [busy, setBusy] = React.useState(false);
+  // Requalification: pick partners, then send from the panel.
+  const [selected, setSelected] = React.useState<Set<string>>(new Set());
+  const [requal, setRequal] = React.useState(false);
+  const toggle = (id: string) => setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  async function setExcluded(id: string, excluded: boolean) {
+    await fetch("/api/trade-partners/requalify", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ company_id: id, excluded }) });
+    setRows((rs) => rs.map((r) => (r.id === id ? { ...r, requal_excluded: excluded } : r)));
+    if (excluded) setSelected((s) => { const n = new Set(s); n.delete(id); return n; });
+  }
 
   React.useEffect(() => {
     const t = setTimeout(async () => {
@@ -337,24 +351,44 @@ function Directory({ initial, canDecide }: { initial: DirectoryRow[]; canDecide:
         <a href={`/api/trade-partners/export${hidden ? "?hidden=1" : ""}`} className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs font-medium hover:bg-muted" title="Excel-ready list with cost codes, 1099 structure, contacts by role and document status">
           <Download className="h-3.5 w-3.5" /> Export to Excel
         </a>
+        <a href="/api/trade-partners/insurance-export" className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs font-medium hover:bg-muted" title="Every coverage line Claude read off each certificate: carrier, policy, limits, expiry, and whether it meets our minimums">
+          <ShieldCheck className="h-3.5 w-3.5" /> Insurance tracking
+        </a>
+        {canDecide && (
+          <Button size="sm" variant={selected.size ? "accent" : "outline"} onClick={() => setRequal((v) => !v)}>
+            <RefreshCw className="h-3.5 w-3.5" /> Requalify{selected.size ? ` (${selected.size})` : ""}
+          </Button>
+        )}
         {busy && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
         <span className="ml-auto text-xs text-muted-foreground">{rows.length} companies</span>
       </div>
 
       {dupes && <DuplicatesPanel onClose={() => setDupes(false)} onMerged={() => setReload((n) => n + 1)} />}
+      {requal && canDecide && (
+        <RequalifyPanel
+          rows={rows} selected={selected} setSelected={setSelected}
+          onClose={() => setRequal(false)} onSent={() => { setSelected(new Set()); setReload((n) => n + 1); }}
+        />
+      )}
 
       {rows.length === 0 ? (
         <Empty icon={Building2} title="Nothing matches" body="Try widening the trade, area or job size." />
       ) : (
         <ul className="grid gap-2 lg:grid-cols-2">
           {rows.map((c) => (
-            <li key={c.id} className="rounded-lg border border-border bg-card p-4">
+            <li key={c.id} className={cn("rounded-lg border bg-card p-4", c.red_flags.length ? "border-destructive/40" : "border-border")}>
               <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate font-medium">{c.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {[c.partner_type, c.city].filter(Boolean).join(" · ") || "No details yet"}
-                  </p>
+                <div className="flex min-w-0 items-start gap-2">
+                  {canDecide && (
+                    <input type="checkbox" className="mt-1" checked={selected.has(c.id)} onChange={() => toggle(c.id)}
+                      aria-label={`Select ${c.name} for requalification`} />
+                  )}
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{c.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {[c.partner_type, c.city].filter(Boolean).join(" · ") || "No details yet"}
+                    </p>
+                  </div>
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-1">
                   <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", STATUS_TONE[c.qualification_status] ?? "bg-muted")}>
@@ -387,11 +421,33 @@ function Directory({ initial, canDecide }: { initial: DirectoryRow[]; canDecide:
                 <div><dt>At once</dt><dd className="text-foreground">{c.concurrent_capacity ?? "—"}</dd></div>
               </dl>
 
-              {c.contact_count > 0 && (
-                <Link href={`/dashboard/contacts?q=${encodeURIComponent(c.name)}`} className="mt-2 inline-flex items-center gap-1 text-[11px] text-accent hover:underline">
-                  <Users className="h-3 w-3" /> {c.contact_count} contact{c.contact_count === 1 ? "" : "s"}
-                </Link>
+              {c.red_flags.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {c.red_flags.map((f) => (
+                    <span key={f} className="inline-flex items-center gap-1 rounded-full bg-destructive/15 px-2 py-0.5 text-[11px] font-medium text-destructive">
+                      <Flag className="h-3 w-3" /> {f}
+                    </span>
+                  ))}
+                </div>
               )}
+
+              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+                {c.contact_count > 0 && (
+                  <Link href={`/dashboard/contacts?q=${encodeURIComponent(c.name)}`} className="inline-flex items-center gap-1 text-accent hover:underline">
+                    <Users className="h-3 w-3" /> {c.contact_count} contact{c.contact_count === 1 ? "" : "s"}
+                  </Link>
+                )}
+                {c.last_requalified_at && <span>Requalified {when(c.last_requalified_at)}</span>}
+                {c.requal_requested_at && (!c.last_requalified_at || c.requal_requested_at > c.last_requalified_at) && (
+                  <span>Update requested {when(c.requal_requested_at)}</span>
+                )}
+                {canDecide && (
+                  <button type="button" className="ml-auto hover:text-foreground hover:underline" onClick={() => void setExcluded(c.id, !c.requal_excluded)}
+                    title="Excluded partners are left out of select-all requalification sends">
+                    {c.requal_excluded ? "Excluded from requalification · include" : "Exclude from requalification"}
+                  </button>
+                )}
+              </div>
             </li>
           ))}
         </ul>
@@ -399,6 +455,82 @@ function Directory({ initial, canDecide }: { initial: DirectoryRow[]; canDecide:
     </div>
   );
 }
+
+/** Send selected partners a pre-filled update form, with an optional note and MSA. */
+function RequalifyPanel({ rows, selected, setSelected, onClose, onSent }: {
+  rows: DirectoryRow[]; selected: Set<string>; setSelected: (s: Set<string>) => void; onClose: () => void; onSent: () => void;
+}) {
+  const [message, setMessage] = React.useState("");
+  const [includeMsa, setIncludeMsa] = React.useState(false);
+  const [sending, setSending] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [result, setResult] = React.useState<{ sent: { company: string; email: string; held: boolean }[]; skipped: { company: string; reason: string }[] } | null>(null);
+  const working = rows.filter((r) => ["approved", "preferred", "qualified"].includes(r.qualification_status));
+  const eligible = working.filter((r) => !r.requal_excluded);
+  const excluded = working.length - eligible.length;
+
+  async function send() {
+    if (!confirm(`Email ${selected.size} trade partner${selected.size === 1 ? "" : "s"} a requalification form?`)) return;
+    setSending(true); setError(null); setResult(null);
+    const res = await fetch("/api/trade-partners/requalify", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ company_ids: [...selected], message, include_msa: includeMsa }),
+    });
+    const json = await res.json().catch(() => ({}));
+    setSending(false);
+    if (!res.ok) { setError(json.error ?? "Couldn't send."); return; }
+    setResult(json);
+    onSent();
+  }
+
+  return (
+    <div className="space-y-3 rounded-lg border border-accent/40 bg-card p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-sm font-medium">Requalify trade partners</p>
+          <p className="text-xs text-muted-foreground">
+            Each partner gets a link to their last application, already filled in. Expired or expiring documents are left blank to upload again.
+          </p>
+        </div>
+        <Button size="sm" variant="ghost" onClick={onClose}>Close</Button>
+      </div>
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <span className="font-medium">{selected.size} selected</span>
+        <Button size="sm" variant="outline" onClick={() => setSelected(new Set(eligible.map((r) => r.id)))}>
+          Select all approved ({eligible.length})
+        </Button>
+        {selected.size > 0 && <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>Clear</Button>}
+        {excluded > 0 && <span className="text-muted-foreground">{excluded} excluded partner{excluded === 1 ? "" : "s"} left out</span>}
+      </div>
+      <Textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={3}
+        placeholder="Optional message to include, e.g. our minimums changed this year, or the new MSA is ready to sign." />
+      <label className="flex items-center gap-2 text-xs">
+        <input type="checkbox" checked={includeMsa} onChange={(e) => setIncludeMsa(e.target.checked)} />
+        Ask everyone to sign the current MSA again (partners who never signed the current version are always asked)
+      </label>
+      <div className="flex items-center gap-2">
+        <Button size="sm" variant="accent" disabled={sending || selected.size === 0} onClick={() => void send()}>
+          {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />} Send requalification
+        </Button>
+        {error && <span className="text-xs text-destructive">{error}</span>}
+      </div>
+      {result && (
+        <div className="rounded-md bg-muted/40 p-2 text-xs">
+          <p>
+            Sent to {result.sent.length}{result.sent.some((s) => s.held) ? " (held: not production)" : ""}
+            {result.skipped.length ? `, skipped ${result.skipped.length}` : ""}.
+          </p>
+          {result.skipped.length > 0 && (
+            <ul className="mt-1 list-disc pl-4 text-muted-foreground">
+              {result.skipped.map((s) => <li key={s.company}>{s.company}: {s.reason}</li>)}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 // ─── Compliance ─────────────────────────────────────────────────────────────
 

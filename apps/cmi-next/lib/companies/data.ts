@@ -55,6 +55,10 @@ export type Company = {
   notes: string | null;
   internal_notes: string | null;
   archived_at: string | null;
+  /** Requalification (Phase 3): last renewed, last asked, and left out of "select all". */
+  last_requalified_at?: string | null;
+  requal_requested_at?: string | null;
+  requal_excluded?: boolean | null;
   created_at: string;
   updated_at: string;
 };

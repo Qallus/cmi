@@ -35,17 +35,47 @@ export function similarity(a: string, b: string): number {
   return shared / (ga.size + gb.size - shared);
 }
 
+// Words many unrelated companies share. "HPA Consulting Engineers" and "QA
+// Consulting Engineers" are different firms; the match has to come from the
+// distinctive part of the name ("hpa" vs "qa").
+const GENERIC = new Set([
+  "engineering", "engineers", "engineer", "consulting", "consultants", "consultant", "design", "designs", "designer",
+  "construction", "constructors", "builders", "builder", "building", "homes", "home", "services", "service",
+  "solutions", "group", "contracting", "contractors", "contractor", "enterprises", "studio", "interiors", "interior",
+  "electric", "electrical", "plumbing", "hvac", "roofing", "landscape", "landscaping", "pools", "pool", "painting",
+  "concrete", "masonry", "framing", "flooring", "floors", "cabinets", "cabinetry", "supply", "supplies", "development",
+  "properties", "realty", "architecture", "architects", "automation", "systems", "technologies", "tech", "partners",
+  "associates", "and", "of", "az", "arizona", "phoenix", "scottsdale", "custom", "remodeling", "remodel", "restoration",
+]);
+
+/** The part of a normalized name that identifies the company. */
+export function distinctivePart(normalized: string): string {
+  return normalized.split(" ").filter((w) => !GENERIC.has(w)).join(" ");
+}
+
 export type CompanyLite = { id: string; name: string; created_at?: string | null };
 export type DuplicatePair = { a: CompanyLite; b: CompanyLite; score: number; exact: boolean };
 
-/** Candidate pairs, best match first. Each company appears in at most `perCompany` pairs. */
+/**
+ * Candidate pairs, best match first. Each company appears in at most
+ * `perCompany` pairs. A pair must match on its distinctive words AND be
+ * reasonably close overall, so a shared trade word can't carry a match and a
+ * shared prefix ("ABC Plumbing" vs "ABC Electric") isn't enough on its own.
+ */
 export function findDuplicatePairs(companies: CompanyLite[], threshold = 0.6, perCompany = 3): DuplicatePair[] {
-  const norm = companies.map((c) => ({ c, n: normalizeCompanyName(c.name) })).filter((x) => x.n.length >= 2);
+  const norm = companies
+    .map((c) => { const n = normalizeCompanyName(c.name); return { c, n, d: distinctivePart(n) || n }; })
+    .filter((x) => x.n.length >= 2);
   const pairs: DuplicatePair[] = [];
   for (let i = 0; i < norm.length; i++) {
     for (let j = i + 1; j < norm.length; j++) {
       const exact = norm[i].n === norm[j].n;
-      const score = exact ? 1 : similarity(norm[i].n, norm[j].n);
+      if (exact) { pairs.push({ a: norm[i].c, b: norm[j].c, score: 1, exact }); continue; }
+      const core = similarity(norm[i].d, norm[j].d);
+      if (core < threshold) continue;
+      const full = similarity(norm[i].n, norm[j].n);
+      if (full < 0.45) continue;
+      const score = 0.7 * core + 0.3 * full;
       if (score >= threshold) pairs.push({ a: norm[i].c, b: norm[j].c, score: Math.round(score * 100) / 100, exact });
     }
   }

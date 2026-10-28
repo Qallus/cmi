@@ -36,6 +36,7 @@ export function ApplicationClient({ children }: { children?: React.ReactNode }) 
   const [submitted, setSubmitted] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [booting, setBooting] = React.useState(true);
+  const [requal, setRequal] = React.useState<Requalification | null>(null);
 
   // Resume the draft if there is one, otherwise open a new application.
   React.useEffect(() => {
@@ -57,6 +58,7 @@ export function ApplicationClient({ children }: { children?: React.ReactNode }) 
           if (!alive) return;
           setToken(existing);
           setAnswers(json.answers ?? {});
+          setRequal(json.requalification ?? null);
           if (json.status !== "draft") setSubmitted(true);
           // Remember it, so a refresh without ?t= still finds the draft.
           try { window.localStorage.setItem(STORAGE_KEY, existing); } catch { /* private window */ }
@@ -141,10 +143,11 @@ export function ApplicationClient({ children }: { children?: React.ReactNode }) 
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-accent/10">
               <Check className="h-6 w-6 text-accent" />
             </div>
-            <h2 className="font-display text-2xl font-semibold">Application Received</h2>
+            <h2 className="font-display text-2xl font-semibold">{requal ? "Update Received" : "Application Received"}</h2>
             <p className="leading-relaxed text-muted-foreground">
-              Thank you. Our team reviews every prequalification application and will be in touch. If anything is
-              missing or we need a current certificate, we&apos;ll email the contact you gave us.
+              {requal
+                ? "Thank you for keeping your profile current. We'll review the changes and let you know if we need anything else."
+                : "Thank you. Our team reviews every prequalification application and will be in touch. If anything is missing or we need a current certificate, we'll email the contact you gave us."}
             </p>
             <a href="mailto:info@constructedmatter.com" className="mt-2 text-sm font-medium text-accent hover:underline">
               Questions? Email us &rarr;
@@ -168,6 +171,7 @@ export function ApplicationClient({ children }: { children?: React.ReactNode }) 
 
       {/* Current section */}
       <div className="min-w-0">
+        {requal && step === 0 && <RequalBanner requal={requal} />}
         <div className="rounded-2xl border border-border bg-card p-6 sm:p-8">
           <h2 className="font-display text-2xl font-semibold">{section?.title}</h2>
           {section?.description && <p className="mt-2 leading-relaxed text-muted-foreground">{section.description}</p>}
@@ -202,7 +206,7 @@ export function ApplicationClient({ children }: { children?: React.ReactNode }) 
                 </Button>
               ) : (
                 <Button variant="accent" disabled={missing.length > 0} onClick={() => void submit()}>
-                  <Check className="h-4 w-4" /> Submit application
+                  <Check className="h-4 w-4" /> {requal ? "Submit update" : "Submit application"}
                 </Button>
               )}
             </div>
@@ -440,6 +444,38 @@ function DocumentInput({
         </label>
       )}
       {error && <p className="mt-1 text-xs text-destructive">{error}</p>}
+    </div>
+  );
+}
+
+type Requalification = {
+  company: string | null;
+  message: string | null;
+  renew: { label: string; expires_on: string | null; status: string }[];
+};
+
+/** Requalification: why they're here, the office's note, and what to renew. */
+function RequalBanner({ requal }: { requal: Requalification }) {
+  return (
+    <div className="mb-4 rounded-2xl border border-accent/40 bg-accent/5 p-5 text-sm leading-relaxed">
+      <p className="font-medium">Updating {requal.company ?? "your"} trade partner profile</p>
+      <p className="mt-1 text-muted-foreground">
+        Your last answers are filled in. Check each step, change anything that&apos;s different, and submit at the end.
+      </p>
+      {requal.message && <p className="mt-3 whitespace-pre-line border-l-2 border-accent pl-3">{requal.message}</p>}
+      {requal.renew.length > 0 && (
+        <div className="mt-3">
+          <p className="font-medium text-destructive">Please upload a current copy of:</p>
+          <ul className="mt-1 list-disc pl-5">
+            {requal.renew.map((d) => (
+              <li key={d.label}>
+                {d.label}
+                {d.expires_on ? ` (${d.status === "expired" || d.expires_on < new Date().toISOString().slice(0, 10) ? "expired" : "expires"} ${d.expires_on})` : d.status === "requested" ? " (not on file)" : ""}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

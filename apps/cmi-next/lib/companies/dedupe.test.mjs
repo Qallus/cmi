@@ -26,6 +26,17 @@ test("pairs: exact normalized matches first, unrelated names excluded", () => {
   assert.ok(!pairs.some((p) => p.a.id === "5" || p.b.id === "5"));
 });
 
+test("shared trade words don't make different firms duplicates (live false positives)", () => {
+  const pairs = findDuplicatePairs([
+    { id: "h", name: "HPA Consulting Engineers" }, { id: "q", name: "QA Consulting Engineers" },
+    { id: "t", name: "TJK Consulting Engineers" }, { id: "e", name: "Automation EZ" }, { id: "n", name: "ECN Automation" },
+    { id: "a1", name: "Ace Design" }, { id: "a2", name: "ACG Design" }, { id: "p", name: "ABC Plumbing" }, { id: "x", name: "ABC Electric" },
+    { id: "w1", name: "Wright Engineering" }, { id: "w2", name: "Wright Engineers" },
+  ]);
+  const ids = pairs.map((p) => [p.a.id, p.b.id].sort().join("-"));
+  assert.deepEqual(ids, ["w1-w2"], `got ${ids.join(", ")}`);
+});
+
 test("merge patch fills gaps, unions lists, keeps the survivor's values", () => {
   const survivor = { id: "s", name: "Acme Framing", phone: "480-555-0100", email: null, trades: ["Framing"], notes: "Good crew", qualification_status: "approved" };
   const dup = { id: "d", name: "ACME Framing LLC", phone: "602-555-0199", email: "office@acme.test", trades: ["Framing", "Trusses / Lumber Supply"], notes: "Slow on bids", qualification_status: "prospect" };

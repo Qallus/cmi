@@ -145,6 +145,11 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         <EnvRow label="Secret key" envKey="TURNSTILE_SECRET_KEY" masked />
       </CredentialCard>
 
+      <CredentialCard title="Claude (Anthropic API)" note="Reads uploaded certificates of insurance, W-9s and licenses for Trade Partners and checks them against our minimums. Optional; without it, documents are simply not read.">
+        <EnvRow label="API key" envKey="ANTHROPIC_API_KEY" masked />
+        <EnvRow label="Compliance reminder CC" envKey="TRADE_PARTNER_COMPLIANCE_CC" />
+      </CredentialCard>
+
       <CredentialCard title="Twilio (SMS & Voice)">
         <EnvRow label="Account SID" envKey="TWILIO_ACCOUNT_SID" />
         <EnvRow label="Auth Token" envKey="TWILIO_AUTH_TOKEN" masked />
