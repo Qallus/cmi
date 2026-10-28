@@ -17,6 +17,7 @@ export async function GET(request: Request) {
       status: q.get("status"),
       compliance: (q.get("compliance") as ComplianceState | "any" | null) ?? null,
       projectValue: value ? Number(value) : null,
+      includeHidden: q.get("hidden") === "1",
     }));
   } catch (err) {
     return prequalErrorResponse(err);

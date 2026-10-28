@@ -5,15 +5,33 @@
 // interview workspace can ask follow-ups about specific keys; and `mapsTo`
 // records which company column an answer belongs in, which is what turns a
 // submitted form into operational data rather than an archived PDF.
+//
+// 2026-10-28 revision follows Brandon's Trade Partner Portal brief §5
+// (docs/trade-partners/). Questions it removed live on in RETIRED_SECTION so
+// answers from earlier drafts still show in review and still map to columns.
+
+// ─── CMI insurance minimums (per the MSA) ───────────────────────────────────
+// The application asks a yes/no against each ("Do you carry at least …?") and
+// Phase 3's COI reader checks certificates against the numbers.
+// PLACEHOLDERS until Brandon confirms them from the 2026 MSA. Change them here;
+// lib/prequal/minimums.ts re-exports them. (Kept in this file so form.ts has
+// no local imports and the node test runner can load it directly.)
+export type CoverageKey = "gl" | "auto" | "wc" | "umbrella";
+export const INSURANCE_MINIMUMS: Record<CoverageKey, { label: string; text: string; perOccurrence?: number; aggregate?: number }> = {
+  gl: { label: "General liability", text: "$1,000,000 per occurrence / $2,000,000 aggregate", perOccurrence: 1_000_000, aggregate: 2_000_000 },
+  auto: { label: "Commercial auto", text: "$1,000,000 combined single limit", perOccurrence: 1_000_000 },
+  wc: { label: "Workers' compensation", text: "Arizona statutory limits, with $1,000,000 employer's liability", perOccurrence: 1_000_000 },
+  umbrella: { label: "Umbrella / excess liability", text: "$1,000,000", perOccurrence: 1_000_000 },
+};
 
 export type FieldType =
   | "text" | "textarea" | "email" | "phone" | "url"
   | "number" | "currency" | "date"
   | "select" | "multiselect" | "yesno"
-  | "document" | "content";
+  | "document" | "content" | "heading" | "msa";
 
 /** Show this field only when another answer says so. */
-export type ShowIf = { key: string; equals?: string | number | boolean; truthy?: boolean; includes?: string };
+export type ShowIf = { key: string; equals?: string | number | boolean; truthy?: boolean; falsy?: boolean; includes?: string };
 
 export type Field = {
   key: string;
@@ -45,20 +63,26 @@ export type Section = {
   fields: readonly Field[];
 };
 
-export const FORM_VERSION = "2026-09-23";
+export const FORM_VERSION = "2026-10-28";
 
 export const PARTNER_TYPES = [
-  "Subcontractor", "General Contractor", "Vendor", "Supplier", "Designer",
-  "Architect", "Engineer", "Consultant", "Other",
+  "Subcontractor", "Supplier / Vendor", "Consultant", "Designer", "Architect",
+  "Engineer", "General Contractor", "Vendor", "Supplier", "Other",
 ] as const;
 
+// Original names are kept verbatim (existing companies.trades hold them);
+// new trades are added. Each maps to a CMI cost code in trade_cost_codes.
 export const TRADES = [
-  "Demolition", "Excavation / Grading", "Concrete", "Masonry", "Framing",
-  "Roofing", "Windows & Doors", "Stucco / Siding", "Plumbing", "HVAC",
-  "Electrical", "Low Voltage / AV", "Insulation", "Drywall", "Painting",
-  "Tile", "Flooring", "Cabinetry / Millwork", "Countertops", "Glass & Mirror",
-  "Landscape", "Pools & Spas", "Solar", "Fire Protection", "Elevators",
-  "Specialty Metals", "Waterproofing", "Abatement", "Other",
+  "Demolition", "Excavation / Grading", "Site Utilities", "Concrete", "Concrete Flatwork",
+  "Rebar / Post-Tension", "Masonry", "Structural Steel", "Framing", "Trusses / Lumber Supply",
+  "Roofing", "Sheet Metal / Gutters", "Windows & Doors", "Garage Doors", "Stucco / Siding",
+  "Waterproofing", "Insulation", "Drywall", "Plumbing", "HVAC", "Electrical",
+  "Low Voltage / AV", "Security / Smart Home", "Solar", "Fire Protection", "Painting", "Tile",
+  "Flooring", "Carpet", "Cabinetry / Millwork", "Finish Carpentry / Trim", "Countertops",
+  "Glass & Mirror", "Appliances", "Fireplaces", "Ironwork / Railings", "Specialty Metals",
+  "Landscape", "Hardscape / Pavers", "Irrigation", "Pools & Spas", "Fencing / Gates",
+  "Elevators", "Abatement", "Surveying", "Engineering", "Testing / Inspections",
+  "Cleaning", "Dumpsters / Hauling", "Portable Toilets", "Equipment Rental", "Other",
 ] as const;
 
 export const SERVICE_AREAS = [
@@ -68,8 +92,13 @@ export const SERVICE_AREAS = [
   "Outside metro Phoenix", "Statewide",
 ] as const;
 
+/** Still used by interview templates; no longer asked on the public form. */
 export const PRICING_METHODS = ["Lump sum", "Unit pricing", "Time and materials", "Cost plus", "Other"] as const;
 export const BUSINESS_STRUCTURES = ["Sole proprietor", "LLC", "S Corporation", "C Corporation", "Partnership", "Other"] as const;
+export const YEARS_IN_BUSINESS = ["Less than 1 year", "1–2 years", "3–5 years", "6–10 years", "11–20 years", "More than 20 years"] as const;
+export const CREW_SIZES = ["Just me", "2–5", "6–10", "11–25", "26–50", "51–100", "More than 100"] as const;
+export const WORKFORCE_MIX = ["All W-2 employees", "Mostly W-2 employees", "Mostly 1099 / subcontracted", "All 1099 / subcontracted"] as const;
+export const CONCURRENT_PROJECTS = ["1", "2–3", "4–6", "7–10", "More than 10"] as const;
 
 /** Compliance documents, and whether every applicant needs one. */
 export const DOCUMENT_TYPES = [
@@ -82,20 +111,26 @@ export const DOCUMENT_TYPES = [
   { key: "safety_program", label: "Safety program", always: false },
   { key: "references", label: "References", always: false },
   { key: "portfolio", label: "Portfolio / project photos", always: false },
+  { key: "msa", label: "Master Subcontractor Agreement (signed)", always: false },
 ] as const;
+
+const notPrimary = (key: string): ShowIf => ({ key, falsy: true });
+const M = INSURANCE_MINIMUMS;
 
 export const SECTIONS: readonly Section[] = [
   {
     key: "company",
     title: "Your company",
-    description: "The basics, as they appear on your licence and insurance.",
+    description: "The basics, as they appear on your license and insurance.",
     fields: [
       { key: "company_name", label: "Company name", type: "text", mapsTo: "name" },
       { key: "legal_name", label: "Legal name, if different", type: "text", mapsTo: "legal_name" },
-      { key: "partner_type", label: "What kind of partner are you?", type: "select", options: PARTNER_TYPES, mapsTo: "partner_type" },
-      { key: "business_structure", label: "Business structure", type: "select", options: BUSINESS_STRUCTURES, mapsTo: "business_structure" },
-      { key: "years_in_business", label: "Years in business", type: "number", mapsTo: "years_in_business" },
-      { key: "website", label: "Website", type: "url", mapsTo: "website" },
+      { key: "partner_type", label: "Type of partner", type: "select", options: ["Subcontractor", "Supplier / Vendor", "Consultant", "Designer", "Architect", "Engineer", "Other"], mapsTo: "partner_type" },
+      { key: "partner_type_other", label: "Tell us what kind of partner", type: "text", mapsTo: "partner_type_other", showIf: { key: "partner_type", equals: "Other" } },
+      { key: "business_structure", label: "Business structure", type: "select", options: BUSINESS_STRUCTURES, mapsTo: "business_structure", help: "Tells us whether we issue you a 1099." },
+      { key: "business_structure_other", label: "Describe your business structure", type: "text", mapsTo: "business_structure_other", showIf: { key: "business_structure", equals: "Other" } },
+      { key: "years_in_business_range", label: "Years in business", type: "select", options: YEARS_IN_BUSINESS, mapsTo: "years_in_business_range" },
+      { key: "website", label: "Website or social media", type: "url", mapsTo: "website" },
       { key: "company_phone", label: "Office phone", type: "phone", mapsTo: "phone" },
       { key: "company_email", label: "Company email", type: "email", mapsTo: "email" },
       { key: "street_address", label: "Business address", type: "text", mapsTo: "street_address" },
@@ -106,26 +141,48 @@ export const SECTIONS: readonly Section[] = [
   },
   {
     key: "contact",
-    title: "Primary contact",
-    description: "Who should we talk to about work and scheduling?",
+    title: "Contacts",
+    description: "Who we should reach for what. Tick \"Same as primary contact\" for any role your primary contact covers.",
     fields: [
+      { key: "h_primary", label: "Primary contact", type: "heading" },
       { key: "contact_first_name", label: "First name", type: "text", required: true },
       { key: "contact_last_name", label: "Last name", type: "text", required: true },
       { key: "contact_title", label: "Title / role", type: "text" },
       { key: "contact_email", label: "Email", type: "email", required: true },
       { key: "contact_phone", label: "Mobile phone", type: "phone", required: true },
-      { key: "estimator_name", label: "Estimator, if different", type: "text" },
-      { key: "field_supervisor", label: "Field supervisor / foreman", type: "text" },
-      { key: "emergency_contact", label: "After-hours or emergency contact", type: "text" },
+
+      { key: "h_accounting", label: "Accounting contact", type: "heading" },
+      { key: "accounting_same", label: "Same as primary contact", type: "yesno" },
+      { key: "accounting_name", label: "Name", type: "text", showIf: notPrimary("accounting_same") },
+      { key: "accounting_email", label: "Email", type: "email", showIf: notPrimary("accounting_same") },
+      { key: "accounting_phone", label: "Phone", type: "phone", showIf: notPrimary("accounting_same") },
+
+      { key: "h_estimating", label: "Estimating / bid contact", type: "heading" },
+      { key: "estimating_same", label: "Same as primary contact", type: "yesno" },
+      { key: "estimating_name", label: "Name", type: "text", showIf: notPrimary("estimating_same") },
+      { key: "estimating_email", label: "Email", type: "email", showIf: notPrimary("estimating_same") },
+      { key: "estimating_phone", label: "Phone", type: "phone", showIf: notPrimary("estimating_same") },
+
+      { key: "h_field", label: "Field contact", type: "heading" },
+      { key: "field_same", label: "Same as primary contact", type: "yesno" },
+      { key: "field_name", label: "Name", type: "text", showIf: notPrimary("field_same") },
+      { key: "field_email", label: "Email", type: "email", showIf: notPrimary("field_same") },
+      { key: "field_phone", label: "Phone", type: "phone", showIf: notPrimary("field_same") },
+
+      { key: "h_emergency", label: "After-hours emergency contact", type: "heading" },
+      { key: "emergency_same", label: "Same as primary contact", type: "yesno" },
+      { key: "emergency_name", label: "Name", type: "text", showIf: notPrimary("emergency_same") },
+      { key: "emergency_phone", label: "Phone", type: "phone", showIf: notPrimary("emergency_same") },
     ],
   },
   {
     key: "trades",
-    title: "What you do",
+    title: "Trades and specialties",
     fields: [
       { key: "trades", label: "Trades and specialties", type: "multiselect", options: TRADES, mapsTo: "trades" },
-      { key: "specialty_notes", label: "What do you specialise in?", type: "textarea", placeholder: "The work you'd most like us to send you." },
-      { key: "avoid_notes", label: "What would you rather not take on?", type: "textarea", help: "Just as useful to us — it saves everyone a wasted bid." },
+      { key: "trades_other", label: "Describe your other trade or specialty", type: "text", mapsTo: "trades_other", showIf: { key: "trades", includes: "Other" } },
+      { key: "specialty_notes", label: "What are you specialized in?", type: "textarea", placeholder: "The work you'd most like us to send you." },
+      { key: "avoid_notes", label: "What would you rather not take on?", type: "textarea", help: "Just as useful to us. It saves everyone a wasted bid." },
       { key: "does_residential", label: "Do you do residential work?", type: "yesno", mapsTo: "does_residential" },
       { key: "does_commercial", label: "Do you do commercial work?", type: "yesno", mapsTo: "does_commercial" },
       { key: "self_perform", label: "What do you self-perform?", type: "textarea" },
@@ -137,121 +194,145 @@ export const SECTIONS: readonly Section[] = [
     fields: [
       { key: "service_areas", label: "Service areas", type: "multiselect", options: SERVICE_AREAS, mapsTo: "service_areas" },
       { key: "max_travel_miles", label: "Maximum travel from your yard (miles)", type: "number", mapsTo: "max_travel_miles" },
-      { key: "travel_surcharge", label: "Do you charge for travel or mobilisation?", type: "yesno" },
+      { key: "travel_surcharge", label: "Do you charge for travel or mobilization?", type: "yesno" },
       { key: "travel_surcharge_detail", label: "How is that charged?", type: "textarea", showIf: { key: "travel_surcharge", truthy: true } },
     ],
   },
   {
     key: "workforce",
-    title: "Your team",
+    title: "Your team and capacity",
     fields: [
-      { key: "employee_count", label: "Total people", type: "number", mapsTo: "employee_count" },
-      { key: "w2_employee_count", label: "W2 employees", type: "number", mapsTo: "w2_employee_count" },
+      { key: "employee_count_range", label: "Crew size (total people)", type: "select", options: CREW_SIZES, mapsTo: "employee_count_range" },
+      { key: "workforce_mix", label: "Your crew is", type: "select", options: WORKFORCE_MIX },
       { key: "uses_subcontractors", label: "Do you use subcontractors?", type: "yesno", mapsTo: "uses_subcontractors" },
-      { key: "subcontractor_count", label: "How many do you use regularly?", type: "number", mapsTo: "subcontractor_count", showIf: { key: "uses_subcontractors", truthy: true } },
       { key: "subcontracted_scopes", label: "Which scopes do you subcontract?", type: "textarea", showIf: { key: "uses_subcontractors", truthy: true } },
-      { key: "sub_qualification", label: "How do you qualify your subcontractors?", type: "textarea", help: "Licences, insurance certificates, safety checks.", showIf: { key: "uses_subcontractors", truthy: true } },
       { key: "osha_trained", label: "Are your crews OSHA trained?", type: "yesno", mapsTo: "osha_trained" },
       { key: "has_safety_program", label: "Do you have a written safety program?", type: "yesno", mapsTo: "has_safety_program" },
-      { key: "safety_incidents", label: "Any recordable safety incidents in the last three years?", type: "textarea", help: "If none, say none." },
-    ],
-  },
-  {
-    key: "capacity",
-    title: "Capacity and project size",
-    fields: [
+      { key: "had_safety_incidents", label: "Any recordable safety incidents in the last three years?", type: "yesno" },
+      { key: "safety_incidents", label: "Tell us briefly what happened", type: "textarea", showIf: { key: "had_safety_incidents", truthy: true } },
+      { key: "concurrent_capacity_range", label: "How many projects can you run at once?", type: "select", options: CONCURRENT_PROJECTS, mapsTo: "concurrent_capacity_range" },
       { key: "min_project_value", label: "Minimum project you'll take", type: "currency", mapsTo: "min_project_value" },
-      { key: "ideal_project_value", label: "Ideal project size", type: "currency", mapsTo: "ideal_project_value" },
-      { key: "max_project_value", label: "Largest you're comfortable with today", type: "currency", mapsTo: "max_project_value" },
-      { key: "concurrent_capacity", label: "How many projects can you run at once?", type: "number", mapsTo: "concurrent_capacity" },
-      { key: "current_backlog", label: "How far out are you booked?", type: "text", placeholder: "e.g. 6 weeks" },
-      { key: "mobilisation_notice", label: "Notice you need to mobilise", type: "text", placeholder: "e.g. 10 working days" },
-      { key: "accelerated_schedules", label: "Can you support accelerated schedules?", type: "yesno" },
+      { key: "max_project_value", label: "Largest project you're comfortable with today", type: "currency", mapsTo: "max_project_value" },
+      { key: "currently_available", label: "Are you currently available to take on new work?", type: "yesno", mapsTo: "currently_available" },
+      { key: "available_from", label: "Available from", type: "date", mapsTo: "available_from", showIf: { key: "currently_available", truthy: true } },
+      { key: "capacity_notes", label: "What capacity do you have, and what projects would you take?", type: "textarea", mapsTo: "capacity_notes", showIf: { key: "currently_available", truthy: true } },
+      { key: "mobilisation_notice", label: "Notice you need to mobilize", type: "text", placeholder: "e.g. 10 working days" },
     ],
   },
   {
     key: "pricing",
     title: "Estimating and pricing",
     fields: [
-      { key: "pricing_methods", label: "How do you price work?", type: "multiselect", options: PRICING_METHODS, mapsTo: "pricing_methods" },
       { key: "estimates_from_plans", label: "Can you estimate from plans?", type: "yesno", mapsTo: "estimates_from_plans" },
+      { key: "estimates_without_plans", label: "Can you estimate without plans?", type: "yesno", mapsTo: "estimates_without_plans" },
       { key: "requires_site_walk", label: "Do you need a site walk before bidding?", type: "yesno", mapsTo: "requires_site_walk" },
       { key: "bid_turnaround", label: "Typical bid turnaround", type: "text", placeholder: "e.g. 5 business days" },
-      { key: "payment_terms", label: "Payment terms you work on", type: "text" },
-      { key: "accepts_retainage", label: "Do you accept retainage?", type: "yesno" },
-      { key: "bid_requirements", label: "What do you need from us for an accurate bid?", type: "textarea" },
-    ],
-  },
-  {
-    key: "equipment",
-    title: "Equipment and certifications",
-    fields: [
-      { key: "equipment", label: "Equipment you own", type: "textarea", help: "One per line.", mapsTo: "equipment" },
-      { key: "equipment_rented", label: "Equipment you typically rent", type: "textarea" },
-      { key: "certifications", label: "Certifications and manufacturer approvals", type: "textarea", help: "One per line.", mapsTo: "certifications" },
-      { key: "bonding_capacity", label: "Bonding capacity, if bonded", type: "currency", mapsTo: "bonding_capacity" },
+      { key: "payment_terms", label: "Payment terms you typically work on (optional)", type: "text", mapsTo: "payment_terms" },
     ],
   },
   {
     key: "licensing",
     title: "Licensing and insurance",
-    description: "We verify these before sending work. Upload the certificates on the next step.",
+    description: "We verify these before sending work.",
     fields: [
-      { key: "is_licensed", label: "Do you hold a contractor licence?", type: "yesno" },
-      { key: "license_number", label: "Licence number", type: "text", showIf: { key: "is_licensed", truthy: true } },
-      { key: "license_class", label: "Licence classification", type: "text", showIf: { key: "is_licensed", truthy: true } },
+      {
+        key: "insurance_notice", label: "", type: "content",
+        body: "Before working with Constructed Matter you must provide a current W-9 and Certificate(s) of Insurance. You can submit this application without a certificate, but we can't issue work until it's on file.",
+      },
+      { key: "is_licensed", label: "Do you hold a contractor license (ROC)?", type: "yesno" },
+      { key: "license_number", label: "License number", type: "text", showIf: { key: "is_licensed", truthy: true } },
+      { key: "license_class", label: "License classification", type: "text", showIf: { key: "is_licensed", truthy: true } },
       { key: "license_state", label: "Issuing state", type: "text", showIf: { key: "is_licensed", truthy: true } },
-      { key: "license_expires", label: "Licence expires", type: "date", showIf: { key: "is_licensed", truthy: true } },
-      { key: "gl_carrier", label: "General liability carrier", type: "text" },
-      { key: "gl_limit", label: "General liability limit", type: "currency" },
-      { key: "gl_expires", label: "General liability expires", type: "date" },
-      { key: "wc_carrier", label: "Workers' compensation carrier", type: "text" },
-      { key: "wc_expires", label: "Workers' compensation expires", type: "date" },
-      { key: "auto_carrier", label: "Commercial auto carrier", type: "text" },
-      { key: "auto_expires", label: "Commercial auto expires", type: "date" },
-      { key: "umbrella_limit", label: "Umbrella coverage limit", type: "currency" },
-      { key: "can_name_additional_insured", label: "Can CMI be named as additional insured?", type: "yesno" },
+      { key: "license_expires", label: "License expires", type: "date", showIf: { key: "is_licensed", truthy: true } },
+      { key: "certifications", label: "Certifications and manufacturer approvals", type: "textarea", help: "One per line.", mapsTo: "certifications" },
+      { key: "bonding_capacity", label: "Bonding capacity, if bonded", type: "currency", mapsTo: "bonding_capacity" },
+      { key: "meets_gl_minimum", label: `Do you carry ${M.gl.label.toLowerCase()} of at least ${M.gl.text}?`, type: "yesno", mapsTo: "meets_gl_minimum" },
+      { key: "meets_auto_minimum", label: `Do you carry ${M.auto.label.toLowerCase()} of at least ${M.auto.text}?`, type: "yesno", mapsTo: "meets_auto_minimum" },
+      { key: "meets_wc_minimum", label: `Do you carry ${M.wc.label.toLowerCase()} (${M.wc.text})?`, type: "yesno", mapsTo: "meets_wc_minimum" },
+      { key: "meets_umbrella_minimum", label: `Do you carry ${M.umbrella.label.toLowerCase()} of at least ${M.umbrella.text}?`, type: "yesno", mapsTo: "meets_umbrella_minimum" },
+      { key: "can_name_additional_insured", label: "Can Constructed Matter be named as additional insured?", type: "yesno", mapsTo: "can_name_additional_insured" },
     ],
   },
   {
     key: "documents",
     title: "Documents",
-    description: "PDF, JPG or PNG. You can come back and add these later — your progress is saved.",
+    description: "PDF, JPG or PNG. You can come back and add these later. Your progress is saved.",
     fields: [
       { key: "doc_w9", label: "W-9", type: "document", docType: "w9", docRequired: true },
-      { key: "doc_coi", label: "Certificate of Insurance", type: "document", docType: "coi", docRequired: true },
-      { key: "doc_license", label: "Contractor licence", type: "document", docType: "license", docRequired: true, showIf: { key: "is_licensed", truthy: true } },
-      { key: "doc_wc", label: "Workers' compensation certificate", type: "document", docType: "wc" },
-      { key: "doc_auto", label: "Commercial auto certificate", type: "document", docType: "auto" },
+      { key: "doc_coi", label: "Certificate of Insurance", type: "document", docType: "coi", docRequired: true, help: "General liability, auto and workers' comp are often on one certificate." },
+      { key: "doc_license", label: "Contractor license (ROC)", type: "document", docType: "license", docRequired: true, showIf: { key: "is_licensed", truthy: true } },
+      { key: "doc_wc", label: "Workers' compensation certificate, if separate", type: "document", docType: "wc" },
+      { key: "doc_auto", label: "Commercial auto certificate, if separate", type: "document", docType: "auto" },
       { key: "doc_safety", label: "Safety program", type: "document", docType: "safety_program", showIf: { key: "has_safety_program", truthy: true } },
-      { key: "doc_references", label: "References", type: "document", docType: "references" },
-      { key: "doc_portfolio", label: "Portfolio or project photos", type: "document", docType: "portfolio" },
-    ],
-  },
-  {
-    key: "experience",
-    title: "Experience and references",
-    fields: [
-      { key: "similar_projects", label: "Recent projects like ours", type: "textarea" },
-      { key: "gc_references", label: "General contractors or builders you work with", type: "textarea" },
-      { key: "reference_contacts", label: "Reference contacts", type: "textarea", help: "Name, company, phone or email — one per line." },
-      { key: "largest_project", label: "Largest comparable project completed", type: "text" },
-      { key: "disputes", label: "Any disputes, claims, or terminations in the last five years?", type: "textarea", help: "If none, say none. We'd rather hear it here." },
-      { key: "why_cmi", label: "What makes a project run well from your side?", type: "textarea" },
+      { key: "portfolio_url", label: "Portfolio link (optional)", type: "url", mapsTo: "portfolio_url", placeholder: "Website, Instagram, Houzz, Google Drive…" },
+      { key: "doc_portfolio", label: "Or upload project photos (optional)", type: "document", docType: "portfolio" },
     ],
   },
   {
     key: "attestation",
-    title: "Confirm and submit",
+    title: "Confirm and sign",
     fields: [
       {
         key: "attestation_body", label: "", type: "content",
-        body: "By submitting, you confirm the information is accurate and complete to the best of your knowledge, that you're authorised to submit it for your company, and that CMI may verify your licence, insurance and references. Prequalification is not an offer of work or a contract.",
+        body: "By submitting, you confirm the information is accurate and complete to the best of your knowledge, that you're authorized to submit it for your company, and that Constructed Matter may verify your license and insurance. Prequalification is not an offer of work.",
       },
-      { key: "attestation_name", label: "Your full name", type: "text" },
-      { key: "attestation_title", label: "Your title", type: "text" },
+      { key: "msa_signature", label: "Master Subcontractor Agreement", type: "msa" },
     ],
   },
+] as const;
+
+/**
+ * Questions the 2026-10-28 revision removed. Never rendered on the public
+ * form, never required; kept so earlier drafts' answers still show in review
+ * and still land on the company columns they always mapped to.
+ */
+export const RETIRED_SECTION: Section = {
+  key: "retired",
+  title: "Earlier questions (previous form)",
+  fields: [
+    { key: "years_in_business", label: "Years in business", type: "number", mapsTo: "years_in_business" },
+    { key: "estimator_name", label: "Estimator", type: "text" },
+    { key: "field_supervisor", label: "Field supervisor / foreman", type: "text" },
+    { key: "emergency_contact", label: "After-hours or emergency contact", type: "text" },
+    { key: "employee_count", label: "Total people", type: "number", mapsTo: "employee_count" },
+    { key: "w2_employee_count", label: "W-2 employees", type: "number", mapsTo: "w2_employee_count" },
+    { key: "subcontractor_count", label: "Subcontractors used regularly", type: "number", mapsTo: "subcontractor_count" },
+    { key: "sub_qualification", label: "How they qualify subcontractors", type: "textarea" },
+    { key: "ideal_project_value", label: "Ideal project size", type: "currency", mapsTo: "ideal_project_value" },
+    { key: "concurrent_capacity", label: "Projects at once", type: "number", mapsTo: "concurrent_capacity" },
+    { key: "current_backlog", label: "How far out they're booked", type: "text" },
+    { key: "accelerated_schedules", label: "Supports accelerated schedules", type: "yesno" },
+    { key: "pricing_methods", label: "How they price work", type: "multiselect", options: PRICING_METHODS, mapsTo: "pricing_methods" },
+    { key: "accepts_retainage", label: "Accepts retainage", type: "yesno" },
+    { key: "bid_requirements", label: "What they need for an accurate bid", type: "textarea" },
+    { key: "equipment", label: "Equipment owned", type: "textarea", mapsTo: "equipment" },
+    { key: "equipment_rented", label: "Equipment rented", type: "textarea" },
+    { key: "gl_carrier", label: "General liability carrier", type: "text" },
+    { key: "gl_limit", label: "General liability limit", type: "currency" },
+    { key: "gl_expires", label: "General liability expires", type: "date" },
+    { key: "wc_carrier", label: "Workers' compensation carrier", type: "text" },
+    { key: "wc_expires", label: "Workers' compensation expires", type: "date" },
+    { key: "auto_carrier", label: "Commercial auto carrier", type: "text" },
+    { key: "auto_expires", label: "Commercial auto expires", type: "date" },
+    { key: "umbrella_limit", label: "Umbrella limit", type: "currency" },
+    { key: "doc_references", label: "References", type: "document", docType: "references" },
+    { key: "similar_projects", label: "Recent projects like ours", type: "textarea" },
+    { key: "gc_references", label: "General contractors they work with", type: "textarea" },
+    { key: "reference_contacts", label: "Reference contacts", type: "textarea" },
+    { key: "largest_project", label: "Largest comparable project", type: "text" },
+    { key: "disputes", label: "Disputes, claims or terminations (5 years)", type: "textarea" },
+    { key: "why_cmi", label: "What makes a project run well", type: "textarea" },
+    { key: "attestation_name", label: "Attested by", type: "text" },
+    { key: "attestation_title", label: "Attester's title", type: "text" },
+  ],
+};
+
+/** Contact roles collected on the form, in order (feeds bid packages). */
+export const CONTACT_ROLES = [
+  { role: "accounting", label: "Accounting", same: "accounting_same", name: "accounting_name", email: "accounting_email", phone: "accounting_phone" },
+  { role: "estimating", label: "Estimating / bid", same: "estimating_same", name: "estimating_name", email: "estimating_email", phone: "estimating_phone" },
+  { role: "field", label: "Field", same: "field_same", name: "field_name", email: "field_email", phone: "field_phone" },
+  { role: "emergency", label: "After-hours emergency", same: "emergency_same", name: "emergency_name", email: null, phone: "emergency_phone" },
 ] as const;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -260,12 +341,18 @@ export type Answers = Record<string, unknown>;
 
 const truthy = (v: unknown) => v === true || v === "yes" || v === "Yes";
 
+/** Headings, notices and the MSA step: shown, but not questions to count. */
+export function isDisplayOnly(field: Field): boolean {
+  return field.type === "content" || field.type === "heading" || field.type === "msa";
+}
+
 /** Whether a conditional field should be on screen given the answers so far. */
 export function isVisible(field: Field, answers: Answers): boolean {
   const cond = field.showIf;
   if (!cond) return true;
   const value = answers[cond.key];
   if (cond.truthy) return truthy(value);
+  if (cond.falsy) return !truthy(value);
   if (cond.equals !== undefined) return value === cond.equals;
   if (cond.includes !== undefined) return Array.isArray(value) && value.includes(cond.includes);
   return true;
@@ -290,7 +377,7 @@ export function progressOf(answers: Answers, sections: readonly Section[] = SECT
   let done = 0;
   for (const section of sections) {
     for (const field of visibleFields(section, answers)) {
-      if (field.type === "content") continue;
+      if (isDisplayOnly(field)) continue;
       total += 1;
       if (answered(answers[field.key])) done += 1;
     }
@@ -324,6 +411,8 @@ const NUMBER_COLUMNS = new Set([
 const BOOLEAN_COLUMNS = new Set([
   "uses_subcontractors", "does_residential", "does_commercial", "osha_trained",
   "has_safety_program", "estimates_from_plans", "requires_site_walk",
+  "estimates_without_plans", "currently_available", "can_name_additional_insured",
+  "meets_gl_minimum", "meets_auto_minimum", "meets_wc_minimum", "meets_umbrella_minimum",
 ]);
 
 /**
@@ -331,7 +420,7 @@ const BOOLEAN_COLUMNS = new Set([
  * submitted form searchable rather than a stored document.
  */
 export function answersToCompany(
-  answers: Answers, sections: readonly Section[] = SECTIONS,
+  answers: Answers, sections: readonly Section[] = [...SECTIONS, RETIRED_SECTION],
 ): Record<string, unknown> {
   const patch: Record<string, unknown> = {};
   for (const section of sections) {
@@ -356,6 +445,24 @@ export function answersToCompany(
     }
   }
   return patch;
+}
+
+/**
+ * Contacts by role from the answers. "Same as primary" copies the primary
+ * contact; an empty secondary contact is left out.
+ */
+export function contactsByRole(answers: Answers): { role: string; name: string; email: string | null; phone: string | null; samePrimary: boolean }[] {
+  const s = (k: string | null) => (k && typeof answers[k] === "string" ? String(answers[k]).trim() : "");
+  const primaryName = [s("contact_first_name"), s("contact_last_name")].filter(Boolean).join(" ");
+  const out: { role: string; name: string; email: string | null; phone: string | null; samePrimary: boolean }[] = [];
+  for (const r of CONTACT_ROLES) {
+    if (truthy(answers[r.same])) {
+      out.push({ role: r.role, name: primaryName, email: s("contact_email") || null, phone: s("contact_phone") || null, samePrimary: true });
+    } else if (s(r.name) || s(r.email) || s(r.phone)) {
+      out.push({ role: r.role, name: s(r.name), email: s(r.email) || null, phone: s(r.phone) || null, samePrimary: false });
+    }
+  }
+  return out;
 }
 
 /**

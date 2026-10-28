@@ -10,9 +10,11 @@ import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { findOrCreateCompany, type Company } from "@/lib/companies/data";
 import { findDuplicateContacts } from "@/lib/contacts/duplicates";
 import {
-  FORM_VERSION, answersToCompany, missingRequired, progressOf, relevantDocuments,
+  FORM_VERSION, RETIRED_SECTION, SECTIONS, answersToCompany, missingRequired, progressOf, relevantDocuments,
   type Answers,
 } from "./form";
+import { fileSignatureOnSubmit, getCurrentMsa, signatureForApplication } from "./msa";
+import { alertOffice, linkRoleContacts, sendConfirmation } from "./after-submit";
 
 export type ApplicationStatus =
   | "draft" | "submitted" | "in_review" | "info_requested"
@@ -144,6 +146,14 @@ export async function submitApplication(token: string, audit: Audit = {}): Promi
     );
   }
 
+  // When an MSA is published, signing it is part of submitting. Before one is
+  // uploaded, applications go through and the office sends it later.
+  const msa = await getCurrentMsa();
+  const signature = await signatureForApplication(app.id);
+  if (msa && !signature) {
+    throw new PrequalError("Please review and sign the Master Subcontractor Agreement on the last step before submitting.");
+  }
+
   // Only the contact fields are required on the form, so a sole trader who
   // skipped the company name still gets a company record — under their own
   // name, which staff can correct later.
@@ -171,9 +181,10 @@ export async function submitApplication(token: string, audit: Audit = {}): Promi
       contact_id: contactId,
       progress: progressOf(answers),
       attestation_name:
+        signature?.signer_name ||
         (answers.attestation_name as string) ||
         [answers.contact_first_name, answers.contact_last_name].filter(Boolean).join(" ") || null,
-      attestation_title: (answers.attestation_title as string) || null,
+      attestation_title: signature?.signer_title || (answers.attestation_title as string) || null,
       attestation_at: new Date().toISOString(),
       ip: audit.ip ?? app.ip,
       user_agent: audit.userAgent?.slice(0, 500) ?? null,
@@ -184,7 +195,14 @@ export async function submitApplication(token: string, audit: Audit = {}): Promi
     .single();
   if (error) throw new PrequalError(error.message, 500);
 
-  return data as Application;
+  const submitted = data as Application;
+  await linkRoleContacts(answers, company.id, contactId);
+  await fileSignatureOnSubmit(submitted, company.id);
+  const owed = relevantDocuments(answers).filter((d) => d.required && !answers[`doc_${d.docType}`]).map((d) => d.label);
+  await sendConfirmation(submitted, answers, owed, !!signature);
+  await alertOffice(submitted, answers);
+
+  return submitted;
 }
 
 /**
@@ -254,7 +272,8 @@ function partnerTypeToContactType(partnerType: string): string {
  */
 async function openDocumentRows(companyId: string, applicationId: string, answers: Answers): Promise<void> {
   const supabase = getSupabaseAdmin();
-  const relevant = relevantDocuments(answers);
+  // Retired document questions count when an earlier draft uploaded one.
+  const relevant = relevantDocuments(answers, [...SECTIONS, RETIRED_SECTION]);
   // An optional document only becomes a tracked row once a file arrives —
   // otherwise every partner would sit permanently "missing" a portfolio.
   const wanted = relevant.filter((d) => d.required || answers[`doc_${d.docType}`]);

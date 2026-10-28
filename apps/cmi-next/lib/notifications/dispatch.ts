@@ -82,12 +82,23 @@ export async function notifyStaff(input: NotifyInput): Promise<{
       // Scoped per person so two people can be told about the same thing.
       dedupe_key: input.dedupeKey ?? null,
     }));
-    const { data, error } = await supabase
-      .from("staff_notifications")
-      .upsert(rows, { onConflict: "recipient_staff_id,dedupe_key", ignoreDuplicates: true })
-      .select("recipient_staff_id");
-    if (error) throw new Error(error.message);
-    stored = ((data ?? []) as { recipient_staff_id: string }[]).map((r) => r.recipient_staff_id);
+    // Plain insert, not upsert: the dedupe index is partial (WHERE dedupe_key
+    // IS NOT NULL), which ON CONFLICT can't target — every upsert failed and no
+    // bell row was ever stored. A unique violation (23505) means "already told";
+    // then insert one at a time so only the repeats are skipped.
+    const { data, error } = await supabase.from("staff_notifications").insert(rows).select("recipient_staff_id");
+    if (!error) {
+      stored = ((data ?? []) as { recipient_staff_id: string }[]).map((r) => r.recipient_staff_id);
+    } else if (error.code === "23505") {
+      stored = [];
+      for (const row of rows) {
+        const one = await supabase.from("staff_notifications").insert(row).select("recipient_staff_id");
+        if (!one.error) stored.push(row.recipient_staff_id);
+        else if (one.error.code !== "23505") throw new Error(one.error.message);
+      }
+    } else {
+      throw new Error(error.message);
+    }
   } catch (err) {
     errors.push(`row: ${(err as Error).message}`);
     // Still try to reach them — a lost bell row is no reason to stay silent.

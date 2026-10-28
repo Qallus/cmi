@@ -14,17 +14,17 @@ export const metadata = {
 export const dynamic = "force-dynamic";
 
 const STEPS = [
-  { title: "Tell us about your company", body: "Your trade, where you work, the size of project that suits you, and how you price." },
-  { title: "Send your paperwork", body: "W-9, certificate of insurance, and your licence if you hold one. We verify before sending work." },
+  { title: "Tell us about your company", body: "Your trades, where you work, your contacts, and the size of project that suits you." },
+  { title: "Send your paperwork and sign", body: "W-9, certificate of insurance, and your license if you hold one, then sign our Master Subcontractor Agreement online. We verify before sending work." },
   { title: "Meet the team", body: "For most trades we'll set up a short call or site walk to go through scope and scheduling." },
   { title: "Get on the bid list", body: "Approved partners are matched to projects by trade, service area and capacity." },
 ];
 
 const READY = [
-  "Your licence number and expiry",
-  "Certificate of Insurance",
+  "Your license (ROC) number and expiration",
+  "Certificate of Insurance (GL, auto, workers' comp)",
   "A completed W-9",
-  "Two or three references",
+  "Contacts for accounting, estimating and the field",
 ];
 
 export default async function PrequalificationPage() {
@@ -74,7 +74,7 @@ export default async function PrequalificationPage() {
                 </div>
 
                 <div className="rounded-2xl border border-border bg-card p-8">
-                  <h3 className="mb-4 font-display text-xl font-semibold">Have these to hand</h3>
+                  <h3 className="mb-4 font-display text-xl font-semibold">Have these ready</h3>
                   <ul className="space-y-2.5 text-sm text-muted-foreground">
                     {READY.map((item) => (
                       <li key={item} className="flex items-start gap-3">

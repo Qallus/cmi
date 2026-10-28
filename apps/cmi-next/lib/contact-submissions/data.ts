@@ -21,11 +21,18 @@ export async function createContactSubmission(
   draft: Omit<ContactSubmission, "id" | "created_at" | "submitted_at">
 ): Promise<ContactSubmission> {
   const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("contact_submissions")
     .insert(draft)
     .select()
     .single();
+  // Before the 2026-10-28 migration adds kind/spam_reason, keep the message
+  // rather than lose it.
+  if (error && /kind|spam_reason/.test(error.message)) {
+    const { kind: _k, spam_reason: _s, ...rest } = draft;
+    void _k; void _s;
+    ({ data, error } = await supabase.from("contact_submissions").insert(rest).select().single());
+  }
   if (error) throw new Error(error.message);
   return data as ContactSubmission;
 }

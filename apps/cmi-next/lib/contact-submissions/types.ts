@@ -1,4 +1,6 @@
 export type ContactSubmissionStatus = "new" | "read" | "archived";
+/** Which path on the contact page it came in on; "spam" is filtered out of the inbox. */
+export type ContactSubmissionKind = "client" | "vendor_pitch" | "trade_partner" | "spam";
 
 export interface ContactSubmission {
   id: string;
@@ -21,6 +23,8 @@ export interface ContactSubmission {
   budget_amount: string | null;
   project_status: string[];
   status: ContactSubmissionStatus;
+  kind?: ContactSubmissionKind;
+  spam_reason?: string | null;
   contact_id: string | null;
   submitted_at: string;
   created_at: string;

@@ -197,6 +197,9 @@ export function ApplicationDrawer({
                 )}
               </section>
 
+              {/* Master Subcontractor Agreement */}
+              <MsaBlock msa={detail.msa} canDecide={canDecide} onChanged={load} />
+
               {/* Documents */}
               <section>
                 <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Documents</h3>
@@ -339,5 +342,44 @@ function DocumentRow({ doc, canDecide, onChanged }: { doc: CompanyDocument; canD
         </div>
       )}
     </li>
+  );
+}
+
+/** The MSA signed in the application, with countersign for Super Admin / Admin. */
+function MsaBlock({ msa, canDecide, onChanged }: { msa: ApplicationDetail["msa"]; canDecide: boolean; onChanged: () => void }) {
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const when = (iso: string) => new Date(iso).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
+
+  async function countersign() {
+    if (!msa) return;
+    setBusy(true); setError(null);
+    const res = await fetch("/api/trade-partners/msa/countersign", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ signature_id: msa.id }) });
+    const json = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) { setError(json.error ?? "Couldn't countersign."); return; }
+    onChanged();
+  }
+
+  return (
+    <section>
+      <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Master Subcontractor Agreement</h3>
+      {!msa ? (
+        <p className="text-sm text-muted-foreground">Not signed in the application. Send the MSA for signature, or ask them to sign when they requalify.</p>
+      ) : (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border p-3 text-sm">
+          <span>
+            Signed by <span className="font-medium">{msa.signer_name}</span>{msa.signer_title ? `, ${msa.signer_title}` : ""} on {when(msa.signed_at)}
+            <span className="block text-xs text-muted-foreground">
+              {msa.countersigned_at ? `Countersigned by ${msa.countersigner_name} on ${when(msa.countersigned_at)}` : "Awaiting Constructed Matter countersignature"}
+            </span>
+          </span>
+          {!msa.countersigned_at && canDecide && (
+            <Button size="sm" variant="accent" disabled={busy} onClick={() => void countersign()}>{busy ? "Countersigning…" : "Countersign"}</Button>
+          )}
+          {error && <p className="w-full text-xs text-destructive">{error}</p>}
+        </div>
+      )}
+    </section>
   );
 }

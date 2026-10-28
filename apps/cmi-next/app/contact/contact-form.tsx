@@ -1,8 +1,19 @@
 "use client";
 
-import { useState } from "react";
-import { ArrowRight, Check } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { ArrowRight, Check, Hammer, Home, Package } from "lucide-react";
 import { Select } from "@/components/ui/input";
+import { Turnstile } from "@/components/site/turnstile";
+
+// Each visitor picks a path first (trade partner brief §4), so vendor pitches
+// and trade partner applications stop landing in the client lead inbox.
+type Path = "client" | "vendor_pitch" | "trade_partner";
+const PATHS: { key: Path; title: string; body: string; icon: typeof Home }[] = [
+  { key: "client", title: "I'm looking to build or remodel", body: "A new home, addition, casita or remodel.", icon: Home },
+  { key: "trade_partner", title: "I'm a trade partner looking to work with you", body: "Subcontractors, suppliers and consultants.", icon: Hammer },
+  { key: "vendor_pitch", title: "I have a product or service to present", body: "Materials, products, software and services.", icon: Package },
+];
 
 const HOW_DID_YOU_HEAR = [
   "Google Search",
@@ -56,7 +67,18 @@ const US_STATES = [
 const inputCls =
   "w-full rounded-lg border border-border bg-card px-4 py-2.5 text-sm outline-none placeholder:text-muted-foreground/50 focus:border-accent focus:ring-1 focus:ring-accent";
 
-export function ContactForm() {
+export function ContactForm({ turnstileSiteKey, tradePartnersOn = true }: { turnstileSiteKey?: string | null; tradePartnersOn?: boolean }) {
+  const [path, setPath] = useState<Path | null>(null);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const onToken = useCallback((t: string | null) => setTurnstileToken(t), []);
+  // When the form was opened: a bot submits faster than a person can type.
+  const startedAt = useRef(0);
+  useEffect(() => {
+    startedAt.current = Date.now();
+    const p = new URLSearchParams(window.location.search).get("path");
+    // eslint-disable-next-line -- one-time deep-link read on mount
+    if (p === "client" || p === "vendor_pitch" || p === "trade_partner") setPath(p);
+  }, []);
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
   const [source, setSource] = useState("");
@@ -78,6 +100,11 @@ export function ContactForm() {
     const form = e.currentTarget;
     const val = (n: string) => (form.elements.namedItem(n) as HTMLInputElement | null)?.value ?? "";
     const data = {
+      path,
+      company: val("company"),
+      company_website: val("company_website"),
+      startedAt: startedAt.current,
+      turnstileToken,
       firstName: val("firstName"),
       lastName: val("lastName"),
       email: val("email"),
@@ -141,8 +168,64 @@ export function ContactForm() {
     );
   }
 
+  const pitch = path === "vendor_pitch";
   return (
+    <div className="space-y-6">
+      <fieldset>
+        <legend className="mb-3 text-sm font-medium">How can we help? <span className="text-accent">*</span></legend>
+        <div className="grid gap-3 sm:grid-cols-3">
+          {PATHS.map((p) => {
+            const on = path === p.key;
+            return (
+              <button
+                key={p.key} type="button" aria-pressed={on} onClick={() => setPath(p.key)}
+                className={"flex flex-col items-start gap-2 rounded-xl border p-4 text-left transition " +
+                  (on ? "border-accent bg-accent/10" : "border-border bg-card hover:border-accent/40")}
+              >
+                <p.icon className={"h-5 w-5 " + (on ? "text-accent" : "text-muted-foreground")} strokeWidth={1.6} />
+                <span className="text-sm font-semibold leading-snug">{p.title}</span>
+                <span className="text-xs leading-relaxed text-muted-foreground">{p.body}</span>
+              </button>
+            );
+          })}
+        </div>
+      </fieldset>
+
+      {path === "trade_partner" && (
+        <div className="rounded-2xl border border-border bg-card p-8">
+          <h2 className="font-display text-2xl font-semibold">Become a trade partner</h2>
+          {tradePartnersOn ? (
+            <>
+              <p className="mt-2 leading-relaxed text-muted-foreground">
+                Trade partners apply through our online pre-qualification application. You&apos;ll tell us about your
+                company and trades, upload your W-9 and insurance, and sign our Master Subcontractor Agreement in one place.
+              </p>
+              <div className="mt-5 flex flex-wrap gap-3">
+                <Link href="/prequalification" className="inline-flex items-center gap-2 rounded-lg bg-accent px-6 py-3 text-sm font-semibold text-white transition hover:bg-accent/90">
+                  Start the application <ArrowRight className="h-4 w-4" />
+                </Link>
+                <Link href="/become-a-trade-partner" className="inline-flex items-center gap-2 rounded-lg border border-border px-6 py-3 text-sm font-semibold transition hover:bg-muted">
+                  What to expect
+                </Link>
+              </div>
+            </>
+          ) : (
+            <p className="mt-2 leading-relaxed text-muted-foreground">
+              Email <a className="text-accent hover:underline" href="mailto:info@constructedmatter.com">info@constructedmatter.com</a> with your
+              company, trades and service area, and we&apos;ll send you our pre-qualification application.
+            </p>
+          )}
+        </div>
+      )}
+
+      {(path === "client" || pitch) && (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Bots fill every field; people never see this one. */}
+      <div aria-hidden="true" className="absolute -left-[9999px] h-0 w-0 overflow-hidden">
+        <label htmlFor="company_website">Company website</label>
+        <input id="company_website" name="company_website" type="text" tabIndex={-1} autoComplete="off" />
+      </div>
+
       {/* Name row */}
       <div className="grid gap-5 sm:grid-cols-2">
         <div>
@@ -175,6 +258,14 @@ export function ContactForm() {
         </div>
       </div>
 
+      {pitch && (
+        <div>
+          <label htmlFor="company" className="mb-1.5 block text-sm font-medium">Company</label>
+          <input id="company" name="company" type="text" placeholder="Your company" className={inputCls} />
+        </div>
+      )}
+
+      {!pitch && (<>
       {/* Address */}
       <fieldset className="space-y-4 rounded-xl border border-border bg-card/40 p-5">
         <legend className="px-1 text-sm font-medium">Project Address</legend>
@@ -286,17 +377,19 @@ export function ContactForm() {
         </div>
       </div>
 
+      </>)}
+
       {/* Subject */}
       <div>
         <label htmlFor="subject" className="mb-1.5 block text-sm font-medium">
-          Project Title / Subject <span className="text-accent">*</span>
+          {pitch ? "Product or service" : "Project Title / Subject"} <span className="text-accent">*</span>
         </label>
         <input
           id="subject"
           name="subject"
           type="text"
           required
-          placeholder="e.g. Custom Home Build — Paradise Valley"
+          placeholder={pitch ? "e.g. Engineered stone countertops" : "e.g. Custom Home Build — Paradise Valley"}
           className={inputCls}
         />
       </div>
@@ -311,7 +404,7 @@ export function ContactForm() {
           name="message"
           required
           rows={6}
-          placeholder="Tell us about your project — timeline, location, scope, or anything else we should know."
+          placeholder={pitch ? "Tell us what you offer and why it's a fit for our projects." : "Tell us about your project — timeline, location, scope, or anything else we should know."}
           className={inputCls + " resize-none"}
         />
       </div>
@@ -320,6 +413,8 @@ export function ContactForm() {
       <p className="text-xs leading-relaxed text-muted-foreground">
         By submitting this form you agree to be contacted by Constructed Matter regarding your inquiry. We do not share your information with third parties.
       </p>
+
+      <Turnstile siteKey={turnstileSiteKey} onToken={onToken} />
 
       {/* Error */}
       {status === "error" && (
@@ -349,5 +444,7 @@ export function ContactForm() {
         )}
       </button>
     </form>
+      )}
+    </div>
   );
 }

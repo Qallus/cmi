@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import {
   AlertTriangle, Building2, CheckCircle2, ClipboardList, ExternalLink, FileWarning,
-  Inbox, Loader2, MessagesSquare, ShieldCheck, Users,
+  GitMerge, Inbox, Loader2, MessagesSquare, Settings2, ShieldCheck, Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -15,8 +15,10 @@ import type { DirectoryRow, ComplianceItem } from "@/lib/companies/directory";
 import { ApplicationDrawer } from "./application-drawer";
 import { ApplicationActions } from "./application-actions";
 import { InterviewsPanel } from "../interviews/interviews-panel";
+import { SetupPanel } from "./setup-panel";
+import { DuplicatesPanel } from "./duplicates-panel";
 
-type Tab = "applications" | "directory" | "compliance" | "interviews";
+type Tab = "applications" | "directory" | "compliance" | "interviews" | "setup";
 
 // Which tab was last open, so coming back from an interview workspace
 // lands where you left rather than on Applications.
@@ -122,6 +124,7 @@ export function TradePartnersClient({
           ["directory", "Directory", Building2],
           ["interviews", "Interviews", MessagesSquare],
           ["compliance", "Compliance", FileWarning],
+          ["setup", "Setup", Settings2],
         ] as const).filter(([key]) => key !== "interviews" || interviewsEnabled).map(([key, label, Icon]) => (
           <button
             key={key} onClick={() => pickTab(key)}
@@ -142,7 +145,7 @@ export function TradePartnersClient({
           onRemoved={() => setOpenId(null)}
         />
       )}
-      {tab === "directory" && <Directory initial={initialDirectory} />}
+      {tab === "directory" && <Directory initial={initialDirectory} canDecide={canDecide} />}
       {tab === "interviews" && interviewsEnabled && (
         <InterviewsPanel
           companies={initialDirectory.map((c) => ({ id: c.id, name: c.name, trades: c.trades ?? [] }))}
@@ -153,6 +156,7 @@ export function TradePartnersClient({
         />
       )}
       {tab === "compliance" && <Compliance initial={initialCompliance} />}
+      {tab === "setup" && <SetupPanel canDecide={canDecide} />}
 
       {openId && (
         <ApplicationDrawer
@@ -275,8 +279,12 @@ function Applications({
 
 // ─── Directory ──────────────────────────────────────────────────────────────
 
-function Directory({ initial }: { initial: DirectoryRow[] }) {
+function Directory({ initial, canDecide }: { initial: DirectoryRow[]; canDecide: boolean }) {
   const [rows, setRows] = React.useState(initial);
+  // Companies that were only ever a contact's employer stay out unless asked for.
+  const [hidden, setHidden] = React.useState(false);
+  const [dupes, setDupes] = React.useState(false);
+  const [reload, setReload] = React.useState(0);
   const [q, setQ] = React.useState("");
   const [trade, setTrade] = React.useState("");
   const [area, setArea] = React.useState("");
@@ -293,12 +301,13 @@ function Directory({ initial }: { initial: DirectoryRow[] }) {
       if (area) params.set("area", area);
       if (status !== "all") params.set("status", status);
       if (value) params.set("value", value);
+      if (hidden) params.set("hidden", "1");
       const res = await fetch(`/api/trade-partners/directory?${params}`);
       if (res.ok) setRows(await res.json());
       setBusy(false);
     }, 300);
     return () => clearTimeout(t);
-  }, [q, trade, area, status, value]);
+  }, [q, trade, area, status, value, hidden, reload]);
 
   return (
     <div className="space-y-3">
@@ -319,9 +328,15 @@ function Directory({ initial }: { initial: DirectoryRow[] }) {
           ))}
         </Select>
         <Input value={value} onChange={(e) => setValue(e.target.value)} type="number" placeholder="Job size $" className="w-[130px]" />
+        <label className="flex items-center gap-1.5 text-xs text-muted-foreground" title="Companies that came from contacts and never applied or got a partner type">
+          <input type="checkbox" checked={hidden} onChange={(e) => setHidden(e.target.checked)} /> Show non-partner companies
+        </label>
+        {canDecide && <Button size="sm" variant="outline" onClick={() => setDupes((v) => !v)}><GitMerge className="h-3.5 w-3.5" /> Duplicates</Button>}
         {busy && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
         <span className="ml-auto text-xs text-muted-foreground">{rows.length} companies</span>
       </div>
+
+      {dupes && <DuplicatesPanel onClose={() => setDupes(false)} onMerged={() => setReload((n) => n + 1)} />}
 
       {rows.length === 0 ? (
         <Empty icon={Building2} title="Nothing matches" body="Try widening the trade, area or job size." />

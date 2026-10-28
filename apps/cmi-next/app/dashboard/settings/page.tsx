@@ -140,6 +140,11 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         <EnvRow label="Workspace domain" envKey="GOOGLE_WORKSPACE_DOMAIN" />
       </CredentialCard>
 
+      <CredentialCard title="Cloudflare Turnstile" note="Spam protection on the Contact page and trade partner forms. Optional; without it, honeypot and timing checks still run.">
+        <EnvRow label="Site key" envKey="TURNSTILE_SITE_KEY" />
+        <EnvRow label="Secret key" envKey="TURNSTILE_SECRET_KEY" masked />
+      </CredentialCard>
+
       <CredentialCard title="Twilio (SMS & Voice)">
         <EnvRow label="Account SID" envKey="TWILIO_ACCOUNT_SID" />
         <EnvRow label="Auth Token" envKey="TWILIO_AUTH_TOKEN" masked />

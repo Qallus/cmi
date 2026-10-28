@@ -151,7 +151,7 @@ export function CommunicationsClient({
   }, []);
   const [composeInit, setComposeInit] = React.useState<ComposeInit | null>(null);
   const [selected, setSelected] = React.useState<Message | null>(null);
-  const [submissionFilter, setSubmissionFilter] = React.useState<ContactSubmissionStatus | "all">("all");
+  const [submissionFilter, setSubmissionFilter] = React.useState<ContactSubmissionStatus | "all" | "vendor_pitch" | "spam">("all");
   // Contact Form multi-select + action feedback.
   const [subSelected, setSubSelected] = React.useState<Set<string>>(new Set());
   const [subBusy, setSubBusy] = React.useState(false);
@@ -171,11 +171,15 @@ export function CommunicationsClient({
     (view === "archived" ? !!m.archived_at : !m.archived_at) &&
     (direction === "all" || m.direction === direction));
 
-  const filteredSubmissions = submissionFilter === "all"
-    ? submissions
-    : submissions.filter((s) => s.status === submissionFilter);
+  // Spam is kept for review but never mixed into the inbox views.
+  const isSpam = (s: ContactSubmission) => s.kind === "spam";
+  const filteredSubmissions = submissionFilter === "spam"
+    ? submissions.filter(isSpam)
+    : submissionFilter === "vendor_pitch"
+      ? submissions.filter((s) => s.kind === "vendor_pitch")
+      : submissions.filter((s) => !isSpam(s) && (submissionFilter === "all" || s.status === submissionFilter));
 
-  const newSubmissionsCount = submissions.filter((s) => s.status === "new").length;
+  const newSubmissionsCount = submissions.filter((s) => s.status === "new" && !isSpam(s)).length;
 
   const counts: Record<Tab, number> = {
     all:          active.length,
@@ -443,7 +447,7 @@ export function CommunicationsClient({
             {/* Sub-filter + toast */}
             <div className="flex items-center gap-2 border-b border-border px-5 py-3">
               <span className="text-xs text-muted-foreground">Filter:</span>
-              {(["all", "new", "read", "archived"] as const).map((f) => (
+              {(["all", "new", "read", "archived", "vendor_pitch", "spam"] as const).map((f) => (
                 <button
                   key={f}
                   type="button"
@@ -455,7 +459,7 @@ export function CommunicationsClient({
                       : "border-border text-muted-foreground hover:border-accent/40 hover:text-foreground"
                   )}
                 >
-                  {f === "all" ? "All" : f.charAt(0).toUpperCase() + f.slice(1)}
+                  {f === "all" ? "All" : f === "vendor_pitch" ? "Vendor pitches" : f.charAt(0).toUpperCase() + f.slice(1)}
                 </button>
               ))}
               {subToast && <span className="ml-auto rounded-md bg-accent/10 px-3 py-1 text-xs font-medium text-accent">{subToast}</span>}
@@ -525,6 +529,8 @@ export function CommunicationsClient({
                       <td className="px-5 py-3.5">{submissionStatusBadge(sub.status)}</td>
                       <td className="px-5 py-3.5 whitespace-nowrap">
                         {sub.first_name} {sub.last_name}
+                        {sub.kind === "vendor_pitch" && <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">Vendor pitch</span>}
+                        {sub.kind === "spam" && <span className="ml-2 rounded-full bg-destructive/10 px-2 py-0.5 text-[10px] font-medium text-destructive" title={sub.spam_reason ?? undefined}>Spam</span>}
                       </td>
                       <td className="px-5 py-3.5 text-muted-foreground">{sub.email}</td>
                       <td className="px-5 py-3.5 max-w-[200px] truncate">{sub.subject}</td>

@@ -58,8 +58,15 @@ export const DASHBOARD_GUIDE: GuideEntry[] = [
   },
   {
     id: "trade-partners", name: "Trade Partners", path: "/dashboard/trade-partners", nav: "Sidebar → Contacts → Trade Partners",
-    summary: "Trade partner (subcontractor) prequalification applications, the company directory, compliance documents and qualification interviews.",
-    keywords: ["trade partners", "subcontractors", "prequalification", "prequal", "vendors", "compliance", "insurance", "interviews"],
+    summary: "Trade partner (subcontractor) prequalification applications, the company directory, compliance documents, qualification interviews and Setup (the Master Subcontractor Agreement applicants sign online, and the trade → cost code map). Applicants start at constructedmatter.com/become-a-trade-partner or the trade partner path on the Contact page.",
+    steps: [
+      "Upload a new MSA version: Trade Partners → Setup → choose the PDF → Upload as current. New applicants sign that version.",
+      "Countersign a signed MSA: Trade Partners → open the application → Master Subcontractor Agreement → Countersign (or Setup → Signed agreements). The executed PDF is emailed to the sub.",
+      "Map trades to cost codes: Trade Partners → Setup → Trade cost codes → enter codes → Save.",
+      "Clean up duplicates: Trade Partners → Directory → Duplicates → Keep first / Keep second (the other is archived, not deleted).",
+      "See companies that were only a contact's employer: Trade Partners → Directory → tick Show non-partner companies.",
+    ],
+    keywords: ["trade partners", "subcontractors", "prequalification", "prequal", "vendors", "compliance", "insurance", "interviews", "msa", "master subcontractor agreement", "countersign", "cost codes", "duplicates", "merge"],
   },
   {
     id: "pipeline", name: "Pipeline (Deals)", path: "/dashboard/pipeline", nav: "Sidebar → Pipeline",
@@ -188,7 +195,7 @@ export const DASHBOARD_GUIDE: GuideEntry[] = [
     steps: [
       "Call from the browser: Communications → Calls / dialer (phone: bottom menu → Call).",
       "Send an email or text: Communications → compose, or open a contact and use Email / Text.",
-      "See website form submissions: Communications → Contact Form.",
+      "See website form submissions: Communications → Contact Form. Vendor pitches have their own filter; spam is kept under Spam, out of the inbox.",
       "Reply, forward, archive or delete a message: Communications → the message's ⋯ menu (or open it and use the buttons). Tick several messages to archive or delete them together.",
       "Find archived messages: Communications → Archived (next to Inbox). Use Received / Sent to filter by direction.",
     ],

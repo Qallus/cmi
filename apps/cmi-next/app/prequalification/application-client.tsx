@@ -7,9 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Input, Select, Textarea } from "@/components/ui/input";
 import { MoneyInput, PhoneInput } from "@/components/ui/formatted-input";
 import {
-  SECTIONS, isVisible, missingRequired, progressOf, visibleFields,
+  SECTIONS, isDisplayOnly, missingRequired, progressOf, visibleFields,
   type Answers, type Field,
 } from "@/lib/prequal/form";
+import { MsaStep } from "./msa-step";
 
 const STORAGE_KEY = "cmi-prequal-token";
 
@@ -173,10 +174,14 @@ export function ApplicationClient({ children }: { children?: React.ReactNode }) 
 
           <div className="mt-6 grid gap-5 sm:grid-cols-2">
             {fields.map((field) => (
-              <FieldInput
-                key={field.key} field={field} value={answers[field.key]}
-                token={token} onChange={(v) => set(field.key, v)}
-              />
+              field.type === "msa" ? (
+                <MsaStep key={field.key} token={token} answers={answers} onSigned={(v) => set(field.key, v)} />
+              ) : (
+                <FieldInput
+                  key={field.key} field={field} value={answers[field.key]}
+                  token={token} onChange={(v) => set(field.key, v)}
+                />
+              )
             ))}
           </div>
 
@@ -245,7 +250,7 @@ function StepRail({
         // A tick means "you've put something here", not "this is complete":
         // almost nothing is required, so completeness ticks would show up on
         // every untouched section.
-        const started = visibleFields(s, answers).some((f) => f.type !== "content" && filled(answers[f.key]));
+        const started = visibleFields(s, answers).some((f) => !isDisplayOnly(f) && filled(answers[f.key]));
         const active = i === step;
         return (
           <li key={s.key}>
@@ -318,6 +323,10 @@ function FieldInput({
   field: Field; value: unknown; token: string | null; onChange: (v: unknown) => void;
 }) {
   const wide = field.type === "textarea" || field.type === "multiselect" || field.type === "content" || field.type === "document";
+
+  if (field.type === "heading") {
+    return <h3 className="border-t border-border pt-4 text-sm font-semibold uppercase tracking-wide text-muted-foreground first:border-t-0 first:pt-0 sm:col-span-2">{field.label}</h3>;
+  }
 
   if (field.type === "content") {
     return (

@@ -4,6 +4,7 @@ import { SiteHeader } from "@/components/site/site-header";
 import { SiteFooter } from "@/components/site/site-footer";
 import { isFeatureEnabled } from "@/lib/flags";
 import { PREQUAL_FLAG } from "@/lib/prequal/access";
+import { turnstileSiteKey } from "@/lib/spam/turnstile";
 import { ContactForm } from "./contact-form";
 
 export const metadata = { title: "Contact Us — Constructed Matter" };
@@ -34,6 +35,14 @@ export default async function ContactPage() {
               <p className="mt-5 text-base leading-relaxed text-muted-foreground">
                 Whether you have a project in mind or just want to learn more about what we do, we&apos;d love to hear from you. Our team typically responds within one business day.
               </p>
+              {tradePartnersOn && (
+                <Link
+                  href="/become-a-trade-partner"
+                  className="mt-6 inline-flex items-center gap-2 rounded-lg border border-accent px-5 py-2.5 text-sm font-semibold text-accent transition hover:bg-accent hover:text-white"
+                >
+                  <Handshake className="h-4 w-4" strokeWidth={1.8} /> Interested in working with us?
+                </Link>
+              )}
             </div>
           </div>
         </section>
@@ -42,7 +51,7 @@ export default async function ContactPage() {
         <section className="bg-background py-20 lg:py-28">
           <div className="mx-auto max-w-7xl px-5 lg:px-8">
             <div className="grid items-start gap-16 lg:grid-cols-[1fr_420px] lg:gap-20">
-              <ContactForm />
+              <ContactForm turnstileSiteKey={turnstileSiteKey()} tradePartnersOn={tradePartnersOn} />
 
               {/* Sidebar — sticks in view while the form scrolls (desktop only) */}
               <div className="space-y-8 lg:sticky lg:top-24 lg:self-start">
@@ -122,10 +131,10 @@ export default async function ContactPage() {
                       Valley. Tell us what you do and we&apos;ll match you to the work that fits.
                     </p>
                     <Link
-                      href="/prequalification"
+                      href="/become-a-trade-partner"
                       className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-accent transition hover:underline"
                     >
-                      Start an application &rarr;
+                      Become a trade partner &rarr;
                     </Link>
                   </div>
                 )}

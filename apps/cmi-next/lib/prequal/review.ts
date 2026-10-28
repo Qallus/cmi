@@ -2,7 +2,7 @@
 // verification, and the decision that turns an applicant into a trade partner.
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { updateCompany, type Company } from "@/lib/companies/data";
-import { SECTIONS, visibleFields, type Answers, type Field } from "./form";
+import { RETIRED_SECTION, SECTIONS, isDisplayOnly, visibleFields, type Answers, type Field } from "./form";
 import { PrequalError, type Application, type ApplicationStatus } from "./data";
 
 export type CompanyDocument = {
@@ -104,6 +104,8 @@ export type ApplicationDetail = {
   groups: AnswerGroup[];
   /** What a reviewer should chase: unanswered, missing or expiring. */
   gaps: { kind: "missing_answer" | "missing_document" | "expiring" | "expired" | "rejected"; label: string; detail?: string }[];
+  /** The MSA signed in the application, if any. */
+  msa: { id: string; signer_name: string; signer_title: string | null; signer_email: string; signed_at: string; countersigned_at: string | null; countersigner_name: string | null } | null;
 };
 
 export async function getApplicationDetail(id: string): Promise<ApplicationDetail | null> {
@@ -112,13 +114,16 @@ export async function getApplicationDetail(id: string): Promise<ApplicationDetai
   if (!app) return null;
   const application = app as Application;
 
-  const [companyRes, docsRes] = await Promise.all([
+  const [companyRes, docsRes, msaRes] = await Promise.all([
     application.company_id
       ? supabase.from("companies").select("*").eq("id", application.company_id).maybeSingle()
       : Promise.resolve({ data: null }),
     application.company_id
       ? supabase.from("company_documents").select("*").eq("company_id", application.company_id).order("doc_type")
       : Promise.resolve({ data: [] }),
+    supabase.from("msa_signatures")
+      .select("id, signer_name, signer_title, signer_email, signed_at, countersigned_at, countersigner_name")
+      .eq("application_id", id).not("signed_at", "is", null).order("signed_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
 
   const company = (companyRes.data as Company) ?? null;
@@ -131,6 +136,8 @@ export async function getApplicationDetail(id: string): Promise<ApplicationDetai
     documents,
     groups: groupAnswers(answers),
     gaps: findGaps(answers, documents),
+    // Before the Phase 1 migration the table doesn't exist; treat as unsigned.
+    msa: (msaRes.error ? null : (msaRes.data as ApplicationDetail["msa"])) ?? null,
   };
 }
 
@@ -152,9 +159,10 @@ function display(field: Field, value: unknown): string {
 /** Answers, in the order the form asked them, skipping anything unanswered. */
 function groupAnswers(answers: Answers): AnswerGroup[] {
   const groups: AnswerGroup[] = [];
-  for (const section of SECTIONS) {
+  // Retired questions only appear when an earlier draft answered them.
+  for (const section of [...SECTIONS, RETIRED_SECTION]) {
     const rows = visibleFields(section, answers)
-      .filter((f) => f.type !== "content" && f.type !== "document")
+      .filter((f) => !isDisplayOnly(f) && f.type !== "document")
       .map((f) => ({ key: f.key, label: f.label, value: display(f, answers[f.key]) }))
       .filter((r) => r.value !== "");
     if (rows.length > 0) groups.push({ title: section.title, rows });
@@ -173,7 +181,7 @@ function findGaps(answers: Answers, documents: CompanyDocument[]): ApplicationDe
 
   for (const section of SECTIONS) {
     for (const field of visibleFields(section, answers)) {
-      if (field.type === "content" || field.type === "document") continue;
+      if (isDisplayOnly(field) || field.type === "document") continue;
       const v = answers[field.key];
       const empty = v === null || v === undefined || v === "" || (Array.isArray(v) && v.length === 0);
       if (empty) gaps.push({ kind: "missing_answer", label: field.label, detail: section.title });

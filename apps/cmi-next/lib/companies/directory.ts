@@ -25,6 +25,11 @@ export type DirectoryFilters = {
   compliance?: ComplianceState | "any" | null;
   /** Partners who'll take a job of this size. */
   projectValue?: number | null;
+  /**
+   * Include companies that were only ever a contact's employer (the
+   * September backfill): no partner type, never applied. Hidden by default.
+   */
+  includeHidden?: boolean;
 };
 
 const SOON_DAYS = 60;
@@ -40,6 +45,7 @@ export async function loadDirectory(filters: DirectoryFilters = {}): Promise<Dir
   const { data, error } = await query;
   if (error) throw new Error(error.message);
   let companies = (data ?? []) as Company[];
+  if (!filters.includeHidden) companies = companies.filter((c) => !!c.partner_type || c.qualification_status !== "prospect");
 
   const q = filters.q?.trim().toLowerCase();
   if (q) {
