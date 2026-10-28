@@ -78,7 +78,7 @@ const jobLabel = (j: { job_number: string | null; job_name: string | null }) =>
   j.job_number && j.job_name && j.job_number.includes(j.job_name) ? j.job_number : [j.job_number, j.job_name].filter(Boolean).join(" ");
 
 /** A job by id or exact job number; a name only when exactly one job matches (writes must not guess). */
-async function resolveJobId(ref: unknown): Promise<{ id: string; label: string }> {
+export async function resolveJobId(ref: unknown): Promise<{ id: string; label: string }> {
   const r = s(ref);
   if (!r) throw new Error("Which job? Give its id, job number (e.g. 26_014) or exact name.");
   const pick = (j: { id: string; job_number: string | null; job_name: string | null }) => ({ id: j.id, label: jobLabel(j) });
@@ -94,7 +94,7 @@ async function resolveJobId(ref: unknown): Promise<{ id: string; label: string }
   throw new Error(`No job matches "${r}".`);
 }
 
-async function staffIdFor(ref: unknown): Promise<string | null> {
+export async function staffIdFor(ref: unknown): Promise<string | null> {
   const r = s(ref);
   if (!r) return null;
   if (UUID_RE.test(r)) return r;

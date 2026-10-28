@@ -85,6 +85,7 @@ export const TRASH_POLICY: Record<string, TrashRule> = {
   message: { method: "archive", table: "messages", column: "archived_at", byColumn: "archived_by" },
   business_card: { method: "archive", table: "business_cards", column: "archived_at" },
   portfolio_item: { method: "archive", table: "portfolio", column: "deleted_at" },
+  cloud_file: { method: "archive", table: "files", column: "deleted_at" },
   contact: { method: "status", table: "contacts", column: "status", value: "archived" },
   daily_log: { method: "snapshot", table: "daily_logs" },
   job_note: { method: "snapshot", table: "job_notes" },
