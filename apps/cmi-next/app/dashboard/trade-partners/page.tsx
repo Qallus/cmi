@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import "leaflet/dist/leaflet.css";
 import { getSessionStaff } from "@/lib/auth/server-session";
 import { isFeatureEnabled } from "@/lib/flags";
 import { canUsePrequal, canDecidePrequal, PREQUAL_FLAG } from "@/lib/prequal/access";

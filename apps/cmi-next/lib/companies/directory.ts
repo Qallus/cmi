@@ -18,6 +18,8 @@ export type DirectoryRow = Company & {
   compliance: ComplianceState;
   /** Approved partners missing a W-9/COI, expired, or under minimums. */
   red_flags: string[];
+  /** Their most recent application, so the Directory can open it. */
+  application_id: string | null;
 };
 
 export type DirectoryFilters = {
@@ -67,7 +69,7 @@ export async function loadDirectory(filters: DirectoryFilters = {}): Promise<Dir
   }
 
   const ids = companies.map((c) => c.id);
-  const [docs, contacts] = await Promise.all([documentSummary(ids), contactCounts(ids)]);
+  const [docs, contacts, apps] = await Promise.all([documentSummary(ids), contactCounts(ids), latestApplications(ids)]);
 
   const rows = companies.map((c) => {
     const d = docs.get(c.id) ?? { total: 0, verified: 0, outstanding: 0, next: null, expired: false, expiring: false, rows: [] };
@@ -86,6 +88,7 @@ export async function loadDirectory(filters: DirectoryFilters = {}): Promise<Dir
       next_expiry: d.next,
       compliance,
       red_flags: redFlags(c.qualification_status, d.rows),
+      application_id: apps.get(c.id) ?? null,
     };
   });
 
@@ -120,6 +123,19 @@ async function documentSummary(ids: string[]): Promise<Map<string, DocSummary>> 
       else if (row.expires_on <= soon) e.expiring = true;
     }
     out.set(row.company_id, e);
+  }
+  return out;
+}
+
+/** Each company's latest submitted application (or latest draft if none was submitted). */
+async function latestApplications(ids: string[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  if (ids.length === 0) return out;
+  const { data } = await getSupabaseAdmin().from("prequal_applications")
+    .select("id, company_id, status, submitted_at, created_at").in("company_id", ids)
+    .order("submitted_at", { ascending: false, nullsFirst: false }).order("created_at", { ascending: false });
+  for (const a of (data ?? []) as { id: string; company_id: string; status: string }[]) {
+    if (!out.has(a.company_id)) out.set(a.company_id, a.id);
   }
   return out;
 }

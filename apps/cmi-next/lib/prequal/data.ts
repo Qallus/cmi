@@ -17,6 +17,7 @@ import { fileSignatureOnSubmit, getCurrentMsa, signatureForApplication } from ".
 import { alertOffice, linkRoleContacts, sendConfirmation } from "./after-submit";
 import { queueDocumentRead } from "./ai-reader";
 import { msaRequiredFor, REQUAL_SOURCE } from "./requalify";
+import { queueLocate } from "@/lib/companies/locate";
 
 export type ApplicationStatus =
   | "draft" | "submitted" | "in_review" | "info_requested"
@@ -183,6 +184,8 @@ export async function submitApplication(token: string, audit: Audit = {}): Promi
   if (requal) {
     await supabase.from("companies").update({ ...answersToCompany(answers), updated_at: new Date().toISOString() }).eq("id", company.id);
   }
+
+  queueLocate(company.id);
 
   const contactId = await linkContact(app, answers, company.id);
   await openDocumentRows(company.id, app.id, answers, { replace: requal });

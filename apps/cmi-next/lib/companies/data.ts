@@ -23,6 +23,8 @@ export type Company = {
   city: string | null;
   state: string | null;
   zip: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   business_structure: string | null;
   years_in_business: number | null;
   employee_count: number | null;

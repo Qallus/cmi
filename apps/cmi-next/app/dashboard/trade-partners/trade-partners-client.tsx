@@ -3,8 +3,9 @@
 import * as React from "react";
 import Link from "next/link";
 import {
-  AlertTriangle, Building2, CheckCircle2, ClipboardList, ExternalLink, FileWarning,
-  Download, Flag, GitMerge, Inbox, Loader2, MessagesSquare, RefreshCw, Settings2, ShieldCheck, Users,
+  AlertTriangle, Building2, CalendarDays, CheckCircle2, ClipboardList, Columns3, ExternalLink, FileWarning,
+  Download, GitMerge, Inbox, LayoutGrid, List, Loader2, Map as MapIcon, MessagesSquare, RefreshCw, Settings2, ShieldCheck,
+  Table as TableIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,10 @@ import { ApplicationActions } from "./application-actions";
 import { InterviewsPanel } from "../interviews/interviews-panel";
 import { SetupPanel } from "./setup-panel";
 import { DuplicatesPanel } from "./duplicates-panel";
+import {
+  COMPLIANCE_TONE, DirectoryCalendar, DirectoryCards, DirectoryKanban, DirectoryList, DirectoryMap, DirectoryTable,
+  STATUS_TONE, money, pretty, when, type DirectoryView,
+} from "./directory-views";
 
 type Tab = "applications" | "directory" | "compliance" | "interviews" | "setup";
 
@@ -25,34 +30,6 @@ type Tab = "applications" | "directory" | "compliance" | "interviews" | "setup";
 const TAB_KEY = "cmi-trade-partners-tab";
 type Reviewer = { id: string; name: string };
 
-const money = (n: number | null) => (n == null ? "—" : `$${Number(n).toLocaleString("en-US")}`);
-const when = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—";
-
-const STATUS_TONE: Record<string, string> = {
-  draft: "bg-muted text-muted-foreground",
-  submitted: "bg-info/15 text-info",
-  in_review: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
-  info_requested: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
-  interview: "bg-accent/15 text-accent",
-  approved: "bg-emerald-600/18 text-emerald-700 dark:text-emerald-300",
-  preferred: "bg-emerald-600/18 text-emerald-700 dark:text-emerald-300",
-  declined: "bg-destructive/15 text-destructive",
-  applicant: "bg-info/15 text-info",
-  prospect: "bg-muted text-muted-foreground",
-};
-
-const COMPLIANCE_TONE: Record<string, string> = {
-  clear: "bg-emerald-600/18 text-emerald-700 dark:text-emerald-300",
-  expiring: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
-  expired: "bg-destructive/15 text-destructive",
-  missing: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
-  none: "bg-muted text-muted-foreground",
-};
-
-// Office names for the review states (brief §6); everything else reads as-is.
-const STATUS_LABEL: Record<string, string> = { in_review: "Under review", info_requested: "Waiting on documents", interview: "Follow-up meeting" };
-const pretty = (s: string) => STATUS_LABEL[s] ?? s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
 export function TradePartnersClient({
   initialApplications, initialDirectory, initialCompliance, stats, reviewers, canDecide, isSuperAdmin,
@@ -84,6 +61,11 @@ export function TradePartnersClient({
     setTab(next);
     try { window.localStorage.setItem(TAB_KEY, next); } catch { /* fine */ }
   }, []);
+  // Directory actions sit in the page header, so their state lives here.
+  const [dirHidden, setDirHidden] = React.useState(false);
+  const [dirPanel, setDirPanel] = React.useState<"dupes" | "requal" | null>(null);
+  const [dirSelected, setDirSelected] = React.useState<Set<string>>(new Set());
+  const togglePanel = (p: "dupes" | "requal") => setDirPanel((cur) => (cur === p ? null : p));
   const [applications, setApplications] = React.useState(initialApplications);
   const [openId, setOpenId] = React.useState<string | null>(null);
   const [showArchived, setShowArchived] = React.useState(false);
@@ -105,12 +87,34 @@ export function TradePartnersClient({
     // Page padding and header typography follow the house pattern (see Selections):
     // the dashboard layout supplies no gutter, so every page brings its own.
     <div className="space-y-5 p-4 md:p-6">
-      <header>
-        <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-accent">Prequalification</div>
-        <h1 className="mt-2 font-display text-2xl font-semibold tracking-tight">Trade Partners</h1>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-          Prequalification applications, the partner directory, and what&apos;s missing or expiring.
-        </p>
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-accent">Prequalification</div>
+          <h1 className="mt-2 font-display text-2xl font-semibold tracking-tight">Trade Partners</h1>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
+            Prequalification applications, the partner directory, and what&apos;s missing or expiring.
+          </p>
+        </div>
+        {tab === "directory" && (
+          <div className="flex flex-wrap items-center gap-2">
+            {canDecide && (
+              <Button size="sm" variant="outline" onClick={() => togglePanel("dupes")}>
+                <GitMerge className="h-3.5 w-3.5" /> Duplicates
+              </Button>
+            )}
+            <a href="/api/trade-partners/insurance-export" className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-card px-3 text-sm font-medium hover:bg-muted" title="Every coverage line Claude read off each certificate: carrier, policy, limits, expiry, and whether it meets our minimums">
+              <ShieldCheck className="h-3.5 w-3.5" /> Insurance tracking
+            </a>
+            <a href={`/api/trade-partners/export${dirHidden ? "?hidden=1" : ""}`} className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-card px-3 text-sm font-medium hover:bg-muted" title="Excel-ready list with cost codes, 1099 structure, contacts by role and document status">
+              <Download className="h-3.5 w-3.5" /> Export to Excel
+            </a>
+            {canDecide && (
+              <Button size="sm" variant="accent" onClick={() => togglePanel("requal")}>
+                <RefreshCw className="h-3.5 w-3.5" /> Requalify{dirSelected.size ? ` (${dirSelected.size})` : ""}
+              </Button>
+            )}
+          </div>
+        )}
       </header>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -147,7 +151,15 @@ export function TradePartnersClient({
           onRemoved={() => setOpenId(null)}
         />
       )}
-      {tab === "directory" && <Directory initial={initialDirectory} canDecide={canDecide} />}
+      {tab === "directory" && (
+        <Directory
+          initial={initialDirectory} canDecide={canDecide}
+          hidden={dirHidden} setHidden={setDirHidden}
+          panel={dirPanel} setPanel={setDirPanel}
+          selected={dirSelected} setSelected={setDirSelected}
+          onOpenApplication={(id) => setOpenId(id)}
+        />
+      )}
       {tab === "interviews" && interviewsEnabled && (
         <InterviewsPanel
           companies={initialDirectory.map((c) => ({ id: c.id, name: c.name, trades: c.trades ?? [] }))}
@@ -286,11 +298,29 @@ function Applications({
 
 // ─── Directory ──────────────────────────────────────────────────────────────
 
-function Directory({ initial, canDecide }: { initial: DirectoryRow[]; canDecide: boolean }) {
+const DIR_VIEW_KEY = "cmi-trade-partners-directory-view";
+const DIR_VIEWS: { key: DirectoryView; label: string; Icon: typeof Inbox }[] = [
+  { key: "table", label: "Table", Icon: TableIcon },
+  { key: "list", label: "List", Icon: List },
+  { key: "cards", label: "Cards", Icon: LayoutGrid },
+  { key: "kanban", label: "Kanban (by status)", Icon: Columns3 },
+  { key: "calendar", label: "Calendar (expiries and renewals)", Icon: CalendarDays },
+  { key: "map", label: "Map", Icon: MapIcon },
+];
+
+function Directory({ initial, canDecide, hidden, setHidden, panel, setPanel, selected, setSelected, onOpenApplication }: {
+  initial: DirectoryRow[];
+  canDecide: boolean;
+  /** Companies that were only ever a contact's employer stay out unless asked for. */
+  hidden: boolean;
+  setHidden: (v: boolean) => void;
+  panel: "dupes" | "requal" | null;
+  setPanel: (p: "dupes" | "requal" | null) => void;
+  selected: Set<string>;
+  setSelected: React.Dispatch<React.SetStateAction<Set<string>>>;
+  onOpenApplication: (applicationId: string) => void;
+}) {
   const [rows, setRows] = React.useState(initial);
-  // Companies that were only ever a contact's employer stay out unless asked for.
-  const [hidden, setHidden] = React.useState(false);
-  const [dupes, setDupes] = React.useState(false);
   const [reload, setReload] = React.useState(0);
   const [q, setQ] = React.useState("");
   const [trade, setTrade] = React.useState("");
@@ -298,14 +328,32 @@ function Directory({ initial, canDecide }: { initial: DirectoryRow[]; canDecide:
   const [status, setStatus] = React.useState("all");
   const [value, setValue] = React.useState("");
   const [busy, setBusy] = React.useState(false);
-  // Requalification: pick partners, then send from the panel.
-  const [selected, setSelected] = React.useState<Set<string>>(new Set());
-  const [requal, setRequal] = React.useState(false);
+  const [view, setViewState] = React.useState<DirectoryView>("cards");
+  const [notice, setNotice] = React.useState<string | null>(null);
+
+  // Restore the last view after the first paint, so server and client markup match.
+  React.useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(DIR_VIEW_KEY) as DirectoryView | null;
+      // eslint-disable-next-line -- one-time restore of saved preference on mount
+      if (saved && DIR_VIEWS.some((v) => v.key === saved)) setViewState(saved);
+    } catch { /* private window */ }
+  }, []);
+  const setView = (v: DirectoryView) => {
+    setViewState(v);
+    try { window.localStorage.setItem(DIR_VIEW_KEY, v); } catch { /* fine */ }
+  };
+
   const toggle = (id: string) => setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const toggleAll = (ids: string[], on: boolean) => setSelected((s) => { const n = new Set(s); ids.forEach((id) => (on ? n.add(id) : n.delete(id))); return n; });
   async function setExcluded(id: string, excluded: boolean) {
     await fetch("/api/trade-partners/requalify", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ company_id: id, excluded }) });
     setRows((rs) => rs.map((r) => (r.id === id ? { ...r, requal_excluded: excluded } : r)));
     if (excluded) setSelected((s) => { const n = new Set(s); n.delete(id); return n; });
+  }
+  function open(row: DirectoryRow) {
+    if (row.application_id) { setNotice(null); onOpenApplication(row.application_id); return; }
+    setNotice(`${row.name} hasn't applied yet, so there's no application to open.`);
   }
 
   React.useEffect(() => {
@@ -325,133 +373,65 @@ function Directory({ initial, canDecide }: { initial: DirectoryRow[]; canDecide:
     return () => clearTimeout(t);
   }, [q, trade, area, status, value, hidden, reload]);
 
+  const viewProps = { rows, selected, onToggle: toggle, onToggleAll: toggleAll, canDecide, onOpen: open, onExclude: (id: string, ex: boolean) => void setExcluded(id, ex) };
+
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card p-3">
-        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search companies…" className="w-auto min-w-[200px] flex-1" />
-        <Select value={trade} onChange={(e) => setTrade(e.target.value)} className="w-auto min-w-[150px]">
+        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Search ${rows.length} companies…`} className="w-auto min-w-[160px] max-w-[15rem] flex-1" />
+        <Select value={trade} onChange={(e) => setTrade(e.target.value)} className="w-auto min-w-[130px]">
           <option value="">All trades</option>
           {TRADES.map((t) => <option key={t} value={t}>{t}</option>)}
         </Select>
-        <Select value={area} onChange={(e) => setArea(e.target.value)} className="w-auto min-w-[150px]">
+        <Select value={area} onChange={(e) => setArea(e.target.value)} className="w-auto min-w-[130px]">
           <option value="">All areas</option>
           {SERVICE_AREAS.map((a) => <option key={a} value={a}>{a}</option>)}
         </Select>
-        <Select value={status} onChange={(e) => setStatus(e.target.value)} className="w-auto min-w-[140px]">
+        <Select value={status} onChange={(e) => setStatus(e.target.value)} className="w-auto min-w-[130px]">
           <option value="all">Any status</option>
           {["prospect", "applicant", "in_review", "interview", "approved", "preferred", "declined"].map((s) => (
             <option key={s} value={s}>{pretty(s)}</option>
           ))}
         </Select>
-        <Input value={value} onChange={(e) => setValue(e.target.value)} type="number" placeholder="Job size $" className="w-[130px]" />
+        <Input value={value} onChange={(e) => setValue(e.target.value)} type="number" placeholder="Job size $" className="w-[110px]" />
         <label className="flex items-center gap-1.5 text-xs text-muted-foreground" title="Companies that came from contacts and never applied or got a partner type">
-          <input type="checkbox" checked={hidden} onChange={(e) => setHidden(e.target.checked)} /> Show non-partner companies
+          <input type="checkbox" checked={hidden} onChange={(e) => setHidden(e.target.checked)} /> Show non-partners
         </label>
-        {canDecide && <Button size="sm" variant="outline" onClick={() => setDupes((v) => !v)}><GitMerge className="h-3.5 w-3.5" /> Duplicates</Button>}
-        <a href={`/api/trade-partners/export${hidden ? "?hidden=1" : ""}`} className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs font-medium hover:bg-muted" title="Excel-ready list with cost codes, 1099 structure, contacts by role and document status">
-          <Download className="h-3.5 w-3.5" /> Export to Excel
-        </a>
-        <a href="/api/trade-partners/insurance-export" className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs font-medium hover:bg-muted" title="Every coverage line Claude read off each certificate: carrier, policy, limits, expiry, and whether it meets our minimums">
-          <ShieldCheck className="h-3.5 w-3.5" /> Insurance tracking
-        </a>
-        {canDecide && (
-          <Button size="sm" variant={selected.size ? "accent" : "outline"} onClick={() => setRequal((v) => !v)}>
-            <RefreshCw className="h-3.5 w-3.5" /> Requalify{selected.size ? ` (${selected.size})` : ""}
-          </Button>
-        )}
-        {busy && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
-        <span className="ml-auto text-xs text-muted-foreground">{rows.length} companies</span>
+        <div className="ml-auto flex items-center gap-3">
+          {busy && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+          <div className="inline-flex rounded-md border border-border p-0.5" role="group" aria-label="Directory view">
+            {DIR_VIEWS.map(({ key, label, Icon }) => (
+              <button key={key} type="button" title={label} aria-label={label} aria-pressed={view === key} onClick={() => setView(key)}
+                className={cn("inline-flex h-7 w-7 items-center justify-center rounded", view === key ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground")}>
+                <Icon className="h-3.5 w-3.5" />
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
-      {dupes && <DuplicatesPanel onClose={() => setDupes(false)} onMerged={() => setReload((n) => n + 1)} />}
-      {requal && canDecide && (
+      {panel === "dupes" && <DuplicatesPanel onClose={() => setPanel(null)} onMerged={() => setReload((n) => n + 1)} />}
+      {panel === "requal" && canDecide && (
         <RequalifyPanel
           rows={rows} selected={selected} setSelected={setSelected}
-          onClose={() => setRequal(false)} onSent={() => { setSelected(new Set()); setReload((n) => n + 1); }}
+          onClose={() => setPanel(null)} onSent={() => { setSelected(new Set()); setReload((n) => n + 1); }}
         />
+      )}
+      {notice && (
+        <p className="flex items-center justify-between rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+          {notice}
+          <button type="button" className="hover:text-foreground" onClick={() => setNotice(null)}>Dismiss</button>
+        </p>
       )}
 
       {rows.length === 0 ? (
         <Empty icon={Building2} title="Nothing matches" body="Try widening the trade, area or job size." />
-      ) : (
-        <ul className="grid gap-2 lg:grid-cols-2">
-          {rows.map((c) => (
-            <li key={c.id} className={cn("rounded-lg border bg-card p-4", c.red_flags.length ? "border-destructive/40" : "border-border")}>
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex min-w-0 items-start gap-2">
-                  {canDecide && (
-                    <input type="checkbox" className="mt-1" checked={selected.has(c.id)} onChange={() => toggle(c.id)}
-                      aria-label={`Select ${c.name} for requalification`} />
-                  )}
-                  <div className="min-w-0">
-                    <p className="truncate font-medium">{c.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {[c.partner_type, c.city].filter(Boolean).join(" · ") || "No details yet"}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex shrink-0 flex-col items-end gap-1">
-                  <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", STATUS_TONE[c.qualification_status] ?? "bg-muted")}>
-                    {pretty(c.qualification_status)}
-                  </span>
-                  {c.docs_total > 0 && (
-                    <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium", COMPLIANCE_TONE[c.compliance])}>
-                      {c.compliance === "clear" ? "Docs verified"
-                        : c.compliance === "missing" ? `${c.docs_outstanding} outstanding`
-                        : pretty(c.compliance)}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {(c.trades?.length || c.service_areas?.length) ? (
-                <div className="mt-2 flex flex-wrap gap-1">
-                  {(c.trades ?? []).slice(0, 4).map((t) => (
-                    <span key={t} className="rounded-full bg-accent/10 px-2 py-0.5 text-[11px] text-accent">{t}</span>
-                  ))}
-                  {(c.service_areas ?? []).slice(0, 3).map((a) => (
-                    <span key={a} className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">{a}</span>
-                  ))}
-                </div>
-              ) : null}
-
-              <dl className="mt-2 grid grid-cols-3 gap-2 text-[11px] text-muted-foreground">
-                <div><dt>Project size</dt><dd className="text-foreground">{money(c.min_project_value)} – {money(c.max_project_value)}</dd></div>
-                <div><dt>Crew</dt><dd className="text-foreground">{c.employee_count ?? "—"}</dd></div>
-                <div><dt>At once</dt><dd className="text-foreground">{c.concurrent_capacity ?? "—"}</dd></div>
-              </dl>
-
-              {c.red_flags.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-1">
-                  {c.red_flags.map((f) => (
-                    <span key={f} className="inline-flex items-center gap-1 rounded-full bg-destructive/15 px-2 py-0.5 text-[11px] font-medium text-destructive">
-                      <Flag className="h-3 w-3" /> {f}
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-                {c.contact_count > 0 && (
-                  <Link href={`/dashboard/contacts?q=${encodeURIComponent(c.name)}`} className="inline-flex items-center gap-1 text-accent hover:underline">
-                    <Users className="h-3 w-3" /> {c.contact_count} contact{c.contact_count === 1 ? "" : "s"}
-                  </Link>
-                )}
-                {c.last_requalified_at && <span>Requalified {when(c.last_requalified_at)}</span>}
-                {c.requal_requested_at && (!c.last_requalified_at || c.requal_requested_at > c.last_requalified_at) && (
-                  <span>Update requested {when(c.requal_requested_at)}</span>
-                )}
-                {canDecide && (
-                  <button type="button" className="ml-auto hover:text-foreground hover:underline" onClick={() => void setExcluded(c.id, !c.requal_excluded)}
-                    title="Excluded partners are left out of select-all requalification sends">
-                    {c.requal_excluded ? "Excluded from requalification · include" : "Exclude from requalification"}
-                  </button>
-                )}
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
+      ) : view === "table" ? <DirectoryTable {...viewProps} />
+        : view === "list" ? <DirectoryList {...viewProps} />
+        : view === "kanban" ? <DirectoryKanban {...viewProps} />
+        : view === "calendar" ? <DirectoryCalendar {...viewProps} />
+        : view === "map" ? <DirectoryMap {...viewProps} onReload={() => setReload((n) => n + 1)} />
+        : <DirectoryCards {...viewProps} />}
     </div>
   );
 }
