@@ -53,6 +53,7 @@ export const DASHBOARD_GUIDE: GuideEntry[] = [
       "See leads: Contacts → the Leads tab.",
       "Assign a contact to an existing deal: open the contact → Pipeline deals → Assign to Pipeline → pick the deal and their role → Assign.",
       "Start a new deal from a contact: open the contact → More (…) → + Pipeline.",
+      "Choose which columns the table shows: Contacts → View options (next to the view buttons) → tick or untick Email, Phone, Company, Lead Owner, Type, Status, Tags, Source, City / State, Last Activity, Created. Reset to default restores the standard set; the choice is remembered in your browser. Scroll the table sideways for more columns.",
     ],
     keywords: ["contacts", "crm", "people", "leads", "clients", "add contact", "import", "duplicates", "assign to pipeline"],
   },

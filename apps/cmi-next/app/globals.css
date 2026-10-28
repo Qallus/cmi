@@ -403,6 +403,31 @@
     box-shadow: 0 1px 4px rgb(20 14 6 / 0.18);
   }
 
+  /* Wide data tables (Contacts): rows stay on one line and the table scrolls
+     sideways. Themed from the tokens, so light and dark both follow. */
+  .cmi-table-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklch, var(--accent) 60%, var(--muted)) color-mix(in oklch, var(--muted) 70%, var(--background));
+  }
+  .cmi-table-scroll::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  .cmi-table-scroll::-webkit-scrollbar-track {
+    background: color-mix(in oklch, var(--muted) 70%, var(--background));
+  }
+  .cmi-table-scroll::-webkit-scrollbar-thumb {
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background: color-mix(in oklch, var(--accent) 60%, var(--muted)) padding-box;
+  }
+  .cmi-table-scroll::-webkit-scrollbar-thumb:hover {
+    background: var(--accent) padding-box;
+  }
+  .cmi-table-scroll::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
   /* Slim scrollbar for the date-time picker's time columns so the numbers
      aren't crowded by a thick native scrollbar. */
   .cmi-time-scroll {

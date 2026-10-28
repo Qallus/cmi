@@ -32,6 +32,7 @@ import {
   Phone,
   Plus,
   Search,
+  SlidersHorizontal,
   Table as TableIcon,
   Tag,
   Trash2,
@@ -248,6 +249,109 @@ const EMPTY_DRAFT: ContactDraft = {
 
 type ModalMode = "add" | "edit" | "view";
 
+// ─── Table columns (View options) ──────────────────────────────────────────
+// Name and the row actions are always shown; everything else can be turned
+// on or off per person, remembered in this browser.
+type ColumnKey =
+  | "email" | "phone" | "company" | "lead_owner" | "type" | "status" | "tags"
+  | "source" | "location" | "last_activity" | "created_at";
+
+const CONTACT_COLUMNS: { key: ColumnKey; label: string; default: boolean }[] = [
+  { key: "email", label: "Email", default: true },
+  { key: "phone", label: "Phone", default: true },
+  { key: "company", label: "Company", default: true },
+  { key: "lead_owner", label: "Lead Owner", default: true },
+  { key: "type", label: "Type", default: true },
+  { key: "status", label: "Status", default: true },
+  { key: "tags", label: "Tags", default: true },
+  { key: "source", label: "Source", default: false },
+  { key: "location", label: "City / State", default: false },
+  { key: "last_activity", label: "Last Activity", default: false },
+  { key: "created_at", label: "Created", default: false },
+];
+const DEFAULT_COLUMNS = CONTACT_COLUMNS.filter((c) => c.default).map((c) => c.key);
+const COLUMNS_KEY = "cmi-contacts-columns";
+
+const shortDate = (iso: string | null | undefined) =>
+  iso ? new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "--";
+
+/** One line, capped width, full value on hover: long or pasted-in values can't stretch the table. */
+function CellText({ value, width = "max-w-[16rem]" }: { value: string | null | undefined; width?: string }) {
+  return <span className={cn("block truncate text-muted-foreground", width)} title={value ?? undefined}>{value || "--"}</span>;
+}
+
+function ContactCell({ contact: c, column }: { contact: Contact; column: ColumnKey }) {
+  switch (column) {
+    case "email": return <CellText value={c.email} width="max-w-[18rem]" />;
+    case "phone": return <CellText value={c.phone} width="max-w-[10rem]" />;
+    case "company": return <CellText value={c.company} />;
+    case "lead_owner": return <CellText value={c.lead_owner} width="max-w-[12rem]" />;
+    case "type": return c.type ? <Badge tone={TYPE_TONES[c.type] ?? "default"}>{c.type}</Badge> : <span className="text-muted-foreground">--</span>;
+    case "status": return <Badge tone={statusTone(c.status)}>{c.status}</Badge>;
+    case "tags":
+      return (
+        <div className="flex gap-1">
+          {(c.tags ?? []).slice(0, 2).map((t) => (
+            <span key={t} className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">{t}</span>
+          ))}
+          {(c.tags ?? []).length > 2 && <span className="text-[11px] text-muted-foreground">+{(c.tags ?? []).length - 2}</span>}
+        </div>
+      );
+    case "source": return <CellText value={c.source} width="max-w-[12rem]" />;
+    case "location": return <CellText value={[c.city, c.state].filter(Boolean).join(", ")} width="max-w-[12rem]" />;
+    case "last_activity": return <span className="text-muted-foreground">{shortDate(c.last_activity)}</span>;
+    case "created_at": return <span className="text-muted-foreground">{shortDate(c.created_at)}</span>;
+  }
+}
+
+/** Multi-select of the table's columns, with a reset to the defaults. */
+function ViewOptions({ columns, onChange, disabled }: { columns: ColumnKey[]; onChange: (next: ColumnKey[]) => void; disabled?: boolean }) {
+  const [open, setOpen] = React.useState(false);
+  const ref = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    if (!open) return;
+    function onDoc(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); }
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") setOpen(false); }
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
+  }, [open]);
+  const toggle = (key: ColumnKey) =>
+    onChange(columns.includes(key) ? columns.filter((k) => k !== key) : CONTACT_COLUMNS.map((c) => c.key).filter((k) => k === key || columns.includes(k)));
+
+  return (
+    <div ref={ref} className="relative ml-auto">
+      <button
+        type="button" disabled={disabled} aria-haspopup="true" aria-expanded={open} onClick={() => setOpen((v) => !v)}
+        title={disabled ? "View options apply to the table view" : "Choose which columns the table shows"}
+        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 text-sm text-foreground hover:bg-muted disabled:opacity-50"
+      >
+        <SlidersHorizontal className="h-3.5 w-3.5 text-muted-foreground" />
+        View options
+        <span className="rounded-full bg-muted px-1.5 text-[11px] text-muted-foreground">{columns.length + 1}</span>
+        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+      </button>
+      {open && (
+        <div role="menu" className="absolute right-0 z-30 mt-1 w-56 overflow-hidden rounded-lg border border-border bg-card py-1 shadow-lg">
+          <p className="px-3 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Columns</p>
+          <label className="flex cursor-not-allowed items-center gap-2 px-3 py-1.5 text-sm text-muted-foreground">
+            <input type="checkbox" checked disabled className="h-4 w-4 accent-[var(--accent)]" /> Name
+          </label>
+          {CONTACT_COLUMNS.map((col) => (
+            <label key={col.key} role="menuitemcheckbox" aria-checked={columns.includes(col.key)} className="flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm hover:bg-muted">
+              <input type="checkbox" className="h-4 w-4 accent-[var(--accent)]" checked={columns.includes(col.key)} onChange={() => toggle(col.key)} />
+              {col.label}
+            </label>
+          ))}
+          <div className="mt-1 border-t border-border px-3 pt-1.5 pb-1">
+            <button type="button" className="text-xs font-medium text-accent hover:underline" onClick={() => onChange(DEFAULT_COLUMNS)}>Reset to default</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ContactsClient({ initialContacts }: { initialContacts: Contact[] }) {
   const [contacts, setContacts] = React.useState<Contact[]>(initialContacts);
   const [search, setSearch] = React.useState("");
@@ -280,6 +384,20 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
   const [pipelineFlash, setPipelineFlash] = React.useState<string | null>(null);
   const [modalFull, setModalFull] = React.useState(false);
   const [contactView, setContactView] = React.useState<ContactView>("table");
+  const [columns, setColumnsState] = React.useState<ColumnKey[]>(DEFAULT_COLUMNS);
+  React.useEffect(() => {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(COLUMNS_KEY) ?? "null") as unknown;
+      if (Array.isArray(saved)) {
+        const known = CONTACT_COLUMNS.map((c) => c.key).filter((k) => saved.includes(k));
+        setColumnsState(known);
+      }
+    } catch { /* private window or bad value: keep defaults */ }
+  }, []);
+  const setColumns = (next: ColumnKey[]) => {
+    setColumnsState(next);
+    try { window.localStorage.setItem(COLUMNS_KEY, JSON.stringify(next)); } catch { /* fine */ }
+  };
 
   React.useEffect(() => {
     function handleDashboardSearch(event: Event) {
@@ -597,7 +715,8 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
           >
             {[25, 50, 100].map((n) => <option key={n} value={n}>{n} / page</option>)}
           </Select>
-          <div className="ml-auto inline-flex rounded-md border border-border p-0.5">
+          <ViewOptions columns={columns} onChange={setColumns} disabled={contactView !== "table"} />
+          <div className="inline-flex rounded-md border border-border p-0.5">
             {([["table", TableIcon], ["list", List], ["cards", LayoutGrid], ["kanban", Columns3], ["calendar", CalendarDays]] as const).map(([v, Icon]) => (
               <button key={v} type="button" title={v} onClick={() => setContactView(v)} className={cn("inline-flex h-7 w-7 items-center justify-center rounded", contactView === v ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground")}><Icon className="h-3.5 w-3.5" /></button>
             ))}
@@ -642,8 +761,8 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
 
       {/* Table */}
       {contactView === "table" && (
-      <div className="flex-1 overflow-auto">
-        <table className="w-full min-w-[640px] border-collapse text-sm">
+      <div className="cmi-table-scroll flex-1 overflow-auto">
+        <table className="w-full min-w-max border-collapse whitespace-nowrap text-sm">
           <thead className="sticky top-0 z-10 bg-card">
             <tr className="border-b border-border text-left">
               <th className="w-10 px-4 py-3">
@@ -663,19 +782,15 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
                 />
               </th>
               <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Name</th>
-              <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Email</th>
-              <th className="hidden px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground md:table-cell">Phone</th>
-              <th className="hidden px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground lg:table-cell">Company</th>
-              <th className="hidden px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground lg:table-cell">Lead Owner</th>
-              <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Type</th>
-              <th className="hidden px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground sm:table-cell">Status</th>
-              <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Tags</th>
+              {CONTACT_COLUMNS.filter((col) => columns.includes(col.key)).map((col) => (
+                <th key={col.key} className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">{col.label}</th>
+              ))}
               <th className="w-10 px-4 py-3" />
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
             {pageContacts.length === 0 && (
-              <tr><td colSpan={10} className="px-4 py-12 text-center text-sm text-muted-foreground">No contacts found.</td></tr>
+              <tr><td colSpan={columns.length + 3} className="px-4 py-12 text-center text-sm text-muted-foreground">No contacts found.</td></tr>
             )}
             {pageContacts.map((c) => (
               <tr key={c.id} className={cn("transition hover:bg-muted/30 cursor-pointer", selected.has(c.id) && "bg-accent/5")} onClick={() => openView(c)}>
@@ -691,27 +806,12 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2.5">
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent/15 text-xs font-semibold text-accent">{initials(c)}</div>
-                    <span className="font-medium">{fullName(c)}</span>
+                    <span className="block max-w-[14rem] truncate font-medium" title={fullName(c)}>{fullName(c)}</span>
                   </div>
                 </td>
-                <td className="px-4 py-3 text-muted-foreground">{c.email}</td>
-                <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">{c.phone ?? "--"}</td>
-                <td className="hidden px-4 py-3 text-muted-foreground lg:table-cell">{c.company ?? "--"}</td>
-                <td className="hidden px-4 py-3 text-muted-foreground lg:table-cell">{c.lead_owner ?? "--"}</td>
-                <td className="px-4 py-3">
-                  {c.type ? <Badge tone={TYPE_TONES[c.type] ?? "default"}>{c.type}</Badge> : <span className="text-muted-foreground">--</span>}
-                </td>
-                <td className="hidden px-4 py-3 sm:table-cell">
-                  <Badge tone={statusTone(c.status)}>{c.status}</Badge>
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex flex-wrap gap-1">
-                    {(c.tags ?? []).slice(0, 2).map((t) => (
-                      <span key={t} className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">{t}</span>
-                    ))}
-                    {(c.tags ?? []).length > 2 && <span className="text-[11px] text-muted-foreground">+{(c.tags ?? []).length - 2}</span>}
-                  </div>
-                </td>
+                {CONTACT_COLUMNS.filter((col) => columns.includes(col.key)).map((col) => (
+                  <td key={col.key} className="px-4 py-3"><ContactCell contact={c} column={col.key} /></td>
+                ))}
                 <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center justify-end gap-0.5">
                     {c.phone && (
