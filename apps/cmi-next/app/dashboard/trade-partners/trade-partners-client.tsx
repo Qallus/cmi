@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import {
   AlertTriangle, Building2, CheckCircle2, ClipboardList, ExternalLink, FileWarning,
-  GitMerge, Inbox, Loader2, MessagesSquare, Settings2, ShieldCheck, Users,
+  Download, GitMerge, Inbox, Loader2, MessagesSquare, Settings2, ShieldCheck, Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -50,7 +50,9 @@ const COMPLIANCE_TONE: Record<string, string> = {
   none: "bg-muted text-muted-foreground",
 };
 
-const pretty = (s: string) => s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+// Office names for the review states (brief §6); everything else reads as-is.
+const STATUS_LABEL: Record<string, string> = { in_review: "Under review", info_requested: "Waiting on documents", interview: "Follow-up meeting" };
+const pretty = (s: string) => STATUS_LABEL[s] ?? s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
 export function TradePartnersClient({
   initialApplications, initialDirectory, initialCompliance, stats, reviewers, canDecide, isSuperAdmin,
@@ -332,6 +334,9 @@ function Directory({ initial, canDecide }: { initial: DirectoryRow[]; canDecide:
           <input type="checkbox" checked={hidden} onChange={(e) => setHidden(e.target.checked)} /> Show non-partner companies
         </label>
         {canDecide && <Button size="sm" variant="outline" onClick={() => setDupes((v) => !v)}><GitMerge className="h-3.5 w-3.5" /> Duplicates</Button>}
+        <a href={`/api/trade-partners/export${hidden ? "?hidden=1" : ""}`} className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs font-medium hover:bg-muted" title="Excel-ready list with cost codes, 1099 structure, contacts by role and document status">
+          <Download className="h-3.5 w-3.5" /> Export to Excel
+        </a>
         {busy && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
         <span className="ml-auto text-xs text-muted-foreground">{rows.length} companies</span>
       </div>

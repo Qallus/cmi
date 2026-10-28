@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import {
-  AlertTriangle, Check, ExternalLink, FileText, Loader2, ShieldCheck, ThumbsDown, X,
+  AlertTriangle, CalendarClock, Check, Copy, ExternalLink, FileText, Loader2, Mail, Send, ShieldCheck, ThumbsDown, Upload, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,11 @@ type Reviewer = { id: string; name: string };
 const when = (iso: string | null) =>
   iso ? new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—";
 const pretty = (s: string) => s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+/** Status names the office uses (brief §6). */
+const STATUS_LABEL: Record<string, string> = {
+  in_review: "Under review", info_requested: "Waiting on documents", interview: "Follow-up meeting",
+};
+const statusLabel = (s: string) => STATUS_LABEL[s] ?? pretty(s);
 
 const GAP_TONE: Record<string, string> = {
   missing_document: "text-amber-700 dark:text-amber-300",
@@ -48,6 +53,10 @@ export function ApplicationDrawer({
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [reason, setReason] = React.useState("");
+  // Footer mode: a decline reason, or an editable follow-up draft.
+  const [mode, setMode] = React.useState<null | "decline" | "meeting" | "missing">(null);
+  const [draft, setDraft] = React.useState<{ subject: string; body: string; to: string | null; replyTo: string; uploadUrl: string } | null>(null);
+  const [notice, setNotice] = React.useState<string | null>(null);
 
   const load = React.useCallback(async () => {
     const res = await fetch(`/api/trade-partners/applications/${id}`);
@@ -86,6 +95,58 @@ export function ApplicationDrawer({
     await load();
     onChanged();
     return true;
+  }
+
+  async function decide(action: "approve" | "decline") {
+    setBusy(true); setError(null); setNotice(null);
+    const res = await fetch(`/api/trade-partners/applications/${id}/decision`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(action === "approve" ? { action } : { action, reason }),
+    });
+    const json = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) { setError(json.error ?? "That didn't save."); return; }
+    if (action === "approve") {
+      const how = json.emailed?.sent ? "Onboarding email sent"
+        : json.emailed?.held ? "Onboarding email queued (held outside production)"
+        : "No contact email on file, so no onboarding email went out";
+      setNotice(`Approved. ${how}${json.guideAttached ? " with the onboarding guide attached" : ""}.${json.outstanding?.length ? ` Still needed: ${json.outstanding.join(", ")}.` : ""}`);
+    } else {
+      setNotice("Declined and moved to Archive.");
+    }
+    setMode(null); setReason("");
+    await load(); onChanged();
+  }
+
+  async function openDraft(kind: "meeting" | "missing") {
+    setBusy(true); setError(null); setNotice(null);
+    const res = await fetch(`/api/trade-partners/applications/${id}/drafts`);
+    const json = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) { setError(json.error ?? "Couldn't prepare the email."); return; }
+    const d = kind === "meeting" ? json.meeting : json.missing;
+    setDraft({ subject: d.subject, body: d.body, to: json.to, replyTo: json.replyTo, uploadUrl: json.uploadUrl });
+    setMode(kind);
+  }
+
+  async function sendDraft() {
+    if (!draft || (mode !== "meeting" && mode !== "missing")) return;
+    setBusy(true); setError(null);
+    const res = await fetch(`/api/trade-partners/applications/${id}/email`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind: mode, subject: draft.subject, body: draft.body }),
+    });
+    const json = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) { setError(json.error ?? "Couldn't send."); return; }
+    setNotice(json.held ? "Email queued (held outside production). Status updated." : "Email sent. Status updated.");
+    setMode(null); setDraft(null);
+    await load(); onChanged();
+  }
+
+  async function copyUploadLink(url: string) {
+    try { await navigator.clipboard.writeText(url); setNotice("Upload link copied."); }
+    catch { setNotice(url); }
   }
 
   const app = detail?.application;
@@ -131,7 +192,7 @@ export function ApplicationDrawer({
                     onChange={(e) => void patch({ status: e.target.value })}
                   >
                     {["submitted", "in_review", "info_requested", "interview", "approved", "declined", "withdrawn"].map((s) => (
-                      <option key={s} value={s} disabled={!canDecide && (s === "approved" || s === "declined")}>{pretty(s)}</option>
+                      <option key={s} value={s} disabled={!canDecide && (s === "approved" || s === "declined")}>{statusLabel(s)}</option>
                     ))}
                   </Select>
                 </label>
@@ -237,24 +298,66 @@ export function ApplicationDrawer({
           )}
         </div>
 
-        {canDecide && detail && (
+        {detail && (
           <footer className="space-y-2 border-t border-border px-5 py-3">
-            <Textarea
-              value={reason} onChange={(e) => setReason(e.target.value)}
-              placeholder="Reason, if you're declining or want a note on the decision (optional)"
-              className="min-h-[52px] text-sm"
-            />
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" disabled={busy} onClick={() => void patch({ status: "declined", reason })}>
-                <ThumbsDown className="h-4 w-4" /> Decline
-              </Button>
-              <Button variant="accent" disabled={busy} onClick={() => void patch({ status: "approved", reason })}>
-                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Approve as trade partner
-              </Button>
-            </div>
-            {blocking.length > 0 && (
+            {notice && <p role="status" className="rounded-md bg-muted px-3 py-2 text-xs">{notice}</p>}
+
+            {mode === "decline" && (
+              <div className="space-y-2">
+                <Textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why are we declining? Required, and kept with the application." className="min-h-[60px] text-sm" />
+                <div className="flex justify-end gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => setMode(null)}>Cancel</Button>
+                  <Button variant="destructive" size="sm" disabled={busy || !reason.trim()} onClick={() => void decide("decline")}>
+                    <ThumbsDown className="h-3.5 w-3.5" /> Decline and archive
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {(mode === "meeting" || mode === "missing") && draft && (
+              <div className="space-y-2 rounded-lg border border-border p-3">
+                <p className="text-xs text-muted-foreground">
+                  To <span className="font-medium text-foreground">{draft.to ?? "no email on file"}</span> · from info@ · replies go to {draft.replyTo}
+                </p>
+                <Input value={draft.subject} onChange={(e) => setDraft({ ...draft, subject: e.target.value })} aria-label="Subject" />
+                <Textarea value={draft.body} onChange={(e) => setDraft({ ...draft, body: e.target.value })} aria-label="Message" className="min-h-[220px] text-sm" />
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <button type="button" className="inline-flex items-center gap-1 text-xs text-accent hover:underline" onClick={() => void copyUploadLink(draft.uploadUrl)}>
+                    <Copy className="h-3 w-3" /> Copy their upload link
+                  </button>
+                  <div className="flex gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => { setMode(null); setDraft(null); }}>Cancel</Button>
+                    <Button variant="accent" size="sm" disabled={busy || !draft.to} onClick={() => void sendDraft()}>
+                      {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />} Send email
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {!mode && (
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button variant="outline" size="sm" disabled={busy} onClick={() => void openDraft("missing")}>
+                  <Mail className="h-3.5 w-3.5" /> Follow up: missing documents
+                </Button>
+                <Button variant="outline" size="sm" disabled={busy} onClick={() => void openDraft("meeting")}>
+                  <CalendarClock className="h-3.5 w-3.5" /> Schedule follow-up meeting
+                </Button>
+                {canDecide && (
+                  <>
+                    <Button variant="outline" size="sm" disabled={busy} onClick={() => setMode("decline")}>
+                      <ThumbsDown className="h-3.5 w-3.5" /> Decline
+                    </Button>
+                    <Button variant="accent" size="sm" disabled={busy || app?.status === "approved"} onClick={() => void decide("approve")}>
+                      {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Approve as trade partner
+                    </Button>
+                  </>
+                )}
+              </div>
+            )}
+            {!mode && canDecide && blocking.length > 0 && (
               <p className="text-right text-[11px] text-amber-700 dark:text-amber-300">
-                {`${blocking.length} document ${blocking.length === 1 ? "issue" : "issues"} outstanding`} — approving anyway is allowed, but it&apos;s recorded.
+                {`${blocking.length} document ${blocking.length === 1 ? "issue" : "issues"} outstanding`}. Approving is allowed; they stay red-flagged until resolved.
               </p>
             )}
           </footer>
@@ -285,6 +388,20 @@ function DocumentRow({ doc, canDecide, onChanged }: { doc: CompanyDocument; canD
     if (json.url) window.open(json.url, "_blank", "noopener");
   }
 
+  // Office upload: something a sub emailed in goes through the same tracking.
+  const fileRef = React.useRef<HTMLInputElement>(null);
+  const [uploadError, setUploadError] = React.useState<string | null>(null);
+  async function upload(file: File) {
+    setBusy(true); setUploadError(null);
+    const body = new FormData();
+    body.set("file", file);
+    const res = await fetch(`/api/trade-partners/documents/${doc.id}/upload`, { method: "POST", body });
+    const json = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) { setUploadError(json.error ?? "Upload failed."); return; }
+    await onChanged();
+  }
+
   const hasFile = !!(doc.file_url || doc.file_id);
   const expired = !!doc.expires_on && doc.expires_on < new Date().toISOString().slice(0, 10);
 
@@ -305,6 +422,15 @@ function DocumentRow({ doc, canDecide, onChanged }: { doc: CompanyDocument; canD
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-2">
+        {doc.doc_type !== "msa" && (
+          <>
+            <input ref={fileRef} type="file" accept=".pdf,image/*" className="sr-only" aria-label={`Upload ${doc.label ?? doc.doc_type}`}
+              onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void upload(f); }} />
+            <Button size="sm" variant="outline" disabled={busy} onClick={() => fileRef.current?.click()}>
+              <Upload className="h-3.5 w-3.5" /> {hasFile ? "Replace" : "Upload"}
+            </Button>
+          </>
+        )}
         {hasFile && (
           <Button size="sm" variant="outline" onClick={() => void view()}>
             <FileText className="h-3.5 w-3.5" /> View
@@ -341,6 +467,7 @@ function DocumentRow({ doc, canDecide, onChanged }: { doc: CompanyDocument; canD
           </Button>
         </div>
       )}
+      {uploadError && <p className="mt-1 text-[11px] text-destructive">{uploadError}</p>}
     </li>
   );
 }

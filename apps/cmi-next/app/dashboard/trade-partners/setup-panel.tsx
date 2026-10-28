@@ -22,9 +22,57 @@ const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("en-
 export function SetupPanel({ canDecide }: { canDecide: boolean }) {
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
-      <MsaCard canDecide={canDecide} />
+      <div className="space-y-5">
+        <MsaCard canDecide={canDecide} />
+        <GuideCard canDecide={canDecide} />
+      </div>
       <CostCodesCard canDecide={canDecide} />
     </div>
+  );
+}
+
+/** The Trade Partner Onboarding Guide PDF, attached to every approval email. */
+function GuideCard({ canDecide }: { canDecide: boolean }) {
+  const [url, setUrl] = React.useState<string | null | undefined>(undefined);
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const fileRef = React.useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    void fetch("/api/trade-partners/onboarding-guide").then((r) => r.json()).then((j) => setUrl(j.url ?? null)).catch(() => setUrl(null));
+  }, []);
+
+  async function upload(file: File) {
+    setBusy(true); setError(null);
+    const body = new FormData();
+    body.set("file", file);
+    const res = await fetch("/api/trade-partners/onboarding-guide", { method: "POST", body });
+    const json = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) { setError(json.error ?? "Upload failed."); return; }
+    setUrl(json.url ?? null);
+  }
+
+  return (
+    <section className="rounded-lg border border-border bg-card p-5">
+      <h2 className="font-semibold">Trade Partner Onboarding Guide</h2>
+      <p className="mt-1 text-sm text-muted-foreground">Attached to the welcome email every approved partner receives.</p>
+      <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+        {url === undefined ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          : url ? <a href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-accent hover:underline">View current guide <ExternalLink className="h-3 w-3" /></a>
+          : <span className="text-muted-foreground">No guide uploaded yet. Approval emails go out without it.</span>}
+        {canDecide && (
+          <>
+            <input ref={fileRef} type="file" accept="application/pdf" className="sr-only" aria-label="Upload onboarding guide"
+              onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void upload(f); }} />
+            <Button size="sm" variant="outline" disabled={busy} onClick={() => fileRef.current?.click()}>
+              {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />} {url ? "Replace PDF" : "Upload PDF"}
+            </Button>
+          </>
+        )}
+      </div>
+      {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
+    </section>
   );
 }
 

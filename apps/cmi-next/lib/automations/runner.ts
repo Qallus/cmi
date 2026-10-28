@@ -22,6 +22,9 @@ const STALE_NOTIFICATION_HOURS = 24;
 /** Applications nobody has picked up after this long get chased internally. */
 const AWAITING_REVIEW_DAYS = 3;
 
+/** Incomplete applications with no activity this long go to Archive (trade partner brief §6). */
+const STALE_APPLICATION_DAYS = 90;
+
 type Summary = {
   run_id: string;
   scanned: Record<string, number>;
@@ -49,6 +52,7 @@ export async function runAutomations(opts: { trigger?: string; dryRun?: boolean 
     scanned.qualification_renewals = await scanQualificationRenewals();
     scanned.awaiting_review = await scanAwaitingReview();
     scanned.queued_bookings = await scanQueuedBookings();
+    scanned.stale_applications = await archiveStaleApplications(!!opts.dryRun);
   } catch (err) {
     await supabase.from("automation_runs")
       .update({ finished_at: new Date().toISOString(), error: (err as Error).message, scanned })
@@ -173,6 +177,30 @@ async function scanQualificationRenewals(): Promise<number> {
     })) queued += 1;
   }
   return queued;
+}
+
+/**
+ * Drafts nobody finished and applications waiting on the sub for documents,
+ * untouched for 90 days, move to Archive (reversible; nothing is deleted).
+ * A dry run only counts them.
+ */
+async function archiveStaleApplications(dryRun: boolean): Promise<number> {
+  const supabase = getSupabaseAdmin();
+  const cutoff = new Date(Date.now() - STALE_APPLICATION_DAYS * 86_400_000).toISOString();
+  const { data } = await supabase
+    .from("prequal_applications")
+    .select("id, updated_at, last_seen_at")
+    .in("status", ["draft", "info_requested"])
+    .is("archived_at", null)
+    .lt("updated_at", cutoff)
+    .limit(500);
+  const stale = ((data ?? []) as { id: string; updated_at: string; last_seen_at: string | null }[])
+    .filter((a) => !a.last_seen_at || a.last_seen_at < cutoff)
+    .map((a) => a.id);
+  if (!dryRun && stale.length) {
+    await supabase.from("prequal_applications").update({ archived_at: new Date().toISOString() }).in("id", stale);
+  }
+  return stale.length;
 }
 
 /** Applications sitting unreviewed — chased internally, not to the applicant. */

@@ -60,6 +60,11 @@ export const DASHBOARD_GUIDE: GuideEntry[] = [
     id: "trade-partners", name: "Trade Partners", path: "/dashboard/trade-partners", nav: "Sidebar → Contacts → Trade Partners",
     summary: "Trade partner (subcontractor) prequalification applications, the company directory, compliance documents, qualification interviews and Setup (the Master Subcontractor Agreement applicants sign online, and the trade → cost code map). Applicants start at constructedmatter.com/become-a-trade-partner or the trade partner path on the Contact page.",
     steps: [
+      "Review an application: Trade Partners → open it → Approve as trade partner (emails the onboarding guide), Decline (reason required; moves to Archive), Schedule follow-up meeting or Follow up: missing documents (each opens an editable email draft; nothing sends until you click Send).",
+      "Upload a document a sub emailed in: open the application → Documents → Upload / Replace on that document.",
+      "Export the partner list to Excel (cost codes, 1099 structure, contacts by role, document status): Trade Partners → Directory → Export to Excel.",
+      "Attach the onboarding guide to approval emails: Trade Partners → Setup → Trade Partner Onboarding Guide → Upload PDF.",
+      "Subs send missing or renewed documents from the link in our emails (constructedmatter.com/prequalification/documents). Incomplete applications with no activity for 90 days move to Archive automatically.",
       "Upload a new MSA version: Trade Partners → Setup → choose the PDF → Upload as current. New applicants sign that version.",
       "Countersign a signed MSA: Trade Partners → open the application → Master Subcontractor Agreement → Countersign (or Setup → Signed agreements). The executed PDF is emailed to the sub.",
       "Map trades to cost codes: Trade Partners → Setup → Trade cost codes → enter codes → Save.",

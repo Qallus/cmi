@@ -47,7 +47,8 @@ export function notificationEmailHtml(email: NotificationEmail): string {
   const e = escapeHtml;
 
   const paragraphs = (email.paragraphs ?? [])
-    .map((p) => `<p style="margin:0 0 14px;font-size:15px;line-height:1.65;color:${BRAND.body};">${e(p)}</p>`)
+    // Escaped first, so turning line breaks into <br/> is safe (signature blocks).
+    .map((p) => `<p style="margin:0 0 14px;font-size:15px;line-height:1.65;color:${BRAND.body};">${e(p).replace(/\n/g, "<br/>")}</p>`)
     .join("");
 
   const facts = (email.facts ?? []).length
