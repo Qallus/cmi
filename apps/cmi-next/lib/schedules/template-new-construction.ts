@@ -10,7 +10,7 @@ export const NEW_CONSTRUCTION_TEMPLATE: ScheduleTemplate = {
   id: "new_construction",
   name: "New Construction",
   type: "construction",
-  description: "Full new-build schedule: site visit and contract → design and permits → site, framing, MEP → finishes → final walkthrough (76 tasks, about 207 working days).",
+  description: "Full new-build schedule: site visit and contract → design and permits → site, framing, MEP → finishes → final walkthrough, about 207 working days.",
   unit: "workdays",
   phases: [
     { key: "precon", name: "Pre-Construction" },

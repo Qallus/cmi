@@ -9,6 +9,7 @@ import { Readable } from "node:stream";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { listItems, getItem, updateItem, createItem, getSchedule, updateSchedule, applyTemplate, applyPackage, shiftSchedule, createDependency, listScopeSchedules, scopeScheduleHeader, scopeLabel, createScopeSchedule } from "@/lib/schedules/data";
 import { searchLinkable, labelForLink, LINK_TYPES } from "@/lib/schedules/links";
+import { SCHEDULE_HELP, HELP_TOPICS, type HelpTopic } from "@/lib/schedules/help";
 import { isFeatureEnabled } from "@/lib/flags";
 import { canEditSchedules, canManageSchedules, canViewSchedules } from "@/lib/schedules/permissions";
 import { SCHEDULE_TEMPLATES, SCHEDULE_PACKAGES, getTemplate, getPackage, templateSummary } from "@/lib/schedules/templates";
@@ -84,6 +85,25 @@ const forProps = {
 };
 
 const scheduleTools: McpTool[] = [
+  {
+    name: "cmi_schedule_help",
+    title: "How Schedules work",
+    description: `Explains CMI Schedules in plain words so you can answer staff questions and walk them through setting one up. Topics: ${HELP_TOPICS.join(", ")}. Leave topic empty for everything. Also says whether the Schedule Builder (schedules for deals / Pre-Con / selections, schedules inside schedules, task links) is switched on, and lists the templates.`,
+    risk: "read",
+    available: (c) => canViewSchedules(c.ctx.role),
+    inputSchema: () => obj({ topic: { type: "string", enum: HELP_TOPICS, description: "One topic (optional)" } }),
+    run: async (a) => {
+      const builder = await isFeatureEnabled("schedule_builder");
+      const topics = HELP_TOPICS.includes(s(a.topic) as HelpTopic) ? [s(a.topic) as HelpTopic] : HELP_TOPICS;
+      return { result: {
+        schedule_builder_on: builder,
+        ...(builder ? {} : { note: "The Schedule Builder is off: schedules belong to jobs only, with no schedules inside schedules or task links. An admin turns it on under Settings → Features (schedule_builder)." }),
+        guide: topics.map((k) => ({ topic: k, ...SCHEDULE_HELP[k] })),
+        templates: SCHEDULE_TEMPLATES.map(templateSummary),
+        how_to_help: "Answer from this guide in the person's terms. To set one up for them, ask only what's missing: the job (or deal / Pre-Con / selection), template or blank, start date, whether linked tasks should move automatically, any schedules inside it, Master or not. Confirm the plan in one line, then call cmi_schedule_create. Afterwards give the finish date and where to find it (job → Schedule tab).",
+      } };
+    },
+  },
   {
     name: "cmi_schedules_list",
     title: "A job's schedules",

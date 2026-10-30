@@ -9,6 +9,7 @@ import { entityAllowed } from "./policy";
 import { canTrash, recordLabel, tierAllowed, trashRuleFor, type CapGroup } from "./safety";
 import { listTrash, restoreRecord, trashRecord } from "./trash";
 import type { McpTool, ToolOutput } from "./tools";
+import { searchGuide } from "@/lib/agent/dashboard-guide";
 
 type Json = Record<string, unknown>;
 const obj = (properties: Json = {}, required: string[] = []) => ({ type: "object", properties, required });
@@ -31,6 +32,19 @@ export function systemTools(all: () => McpTool[]): McpTool[] {
           company_wide: c.companyWide, client: c.clientKind, allowed_tiers: c.allowedTiers,
           can_trash: isAdmin(c), daily_caps: caps, used_today: used,
         } };
+      },
+    },
+    {
+      name: "cmi_how_to",
+      title: "How to do something in the dashboard",
+      description: "Step-by-step help for the CMI dashboard (the same guide Bolt uses): where a page is, what it's for, and how to do things there — e.g. 'add a schedule', 'shift a schedule', 'give someone a second job title', 'send selections for approval'. Use it to answer 'how do I…' questions before guessing.",
+      risk: "read",
+      inputSchema: () => obj({ question: str("What the person wants to do or know") }, ["question"]),
+      run: async (a) => {
+        const hits = searchGuide(String(a.question ?? ""), 4);
+        return { result: hits.length
+          ? { matches: hits.map((e) => ({ area: e.name, where: `${e.nav} (${e.path})`, roles: e.roles ?? "All staff", summary: e.summary, steps: e.steps ?? [] })) }
+          : { matches: [], note: "Nothing in the dashboard guide matched. Try other words, or cmi_search_knowledge for how CMI does things." } };
       },
     },
     {

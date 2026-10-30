@@ -9,6 +9,7 @@ import {
   countRecords, createRecord, deleteRecord, getRecord, listRecords, sendMessage, updateRecord,
 } from "./registry";
 import { DASHBOARD_GUIDE, searchGuide } from "./dashboard-guide";
+import { SCHEDULE_HELP } from "@/lib/schedules/help";
 import { COMPANY_LINES, findPeople, loadTeamDirectory } from "./team-directory";
 import { loadHiddenNav } from "@/lib/nav-settings";
 import { publicAppUrl } from "@/lib/twilio";
@@ -290,7 +291,9 @@ export async function dispatchTool(name: string, args: Record<string, unknown>, 
           what_it_does: e.summary,
           steps: e.steps ?? [],
         }));
-        return { result: { matches: entries, note: matches.length ? undefined : "No close match; showing the main pages." }, activity: act(`Looked up "${query}" in the dashboard guide`) };
+        // Schedules questions also get the full how-it-works guide.
+        const scheduleHelp = matches.some((e) => e.id === "schedules") ? Object.values(SCHEDULE_HELP) : undefined;
+        return { result: { matches: entries, ...(scheduleHelp ? { schedule_guide: scheduleHelp } : {}), note: matches.length ? undefined : "No close match; showing the main pages." }, activity: act(`Looked up "${query}" in the dashboard guide`) };
       }
 
       case "list_records": {
