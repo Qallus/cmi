@@ -6,6 +6,7 @@ import { ClipboardCheck,
   ArrowLeft, BriefcaseBusiness, ChevronLeft, ChevronRight, Clock, Loader2, Mail, MapPin, Phone,
 } from "lucide-react";
 import { PunchListPanel } from "@/components/punch/punch-list-panel";
+import { RecordSchedulesPanel } from "@/components/schedules/record-schedules-panel";
 import { ExecSummaryButton } from "@/components/exec-summary/exec-summary-button";
 import { cn } from "@/lib/utils";
 import { Input, Select, Textarea } from "@/components/ui/input";
@@ -306,7 +307,10 @@ export function OpportunityDetailClient({
         {tab === "history" ? (
           <History rows={history} />
         ) : tab === "punch" ? (
-          <PunchListPanel parentType="precon" parentId={opp.id} parentLabel={opp.opportunity_name} />
+          <div className="space-y-4">
+            <PunchListPanel parentType="precon" parentId={opp.id} parentLabel={opp.opportunity_name} />
+            <RecordSchedulesPanel type="precon" id={opp.id} schedulePage={`/dashboard/schedules/precon/${opp.id}`} />
+          </div>
         ) : (
           <div className="rounded-lg border border-border bg-card p-5">
             <div className="mb-4 flex items-center justify-between">

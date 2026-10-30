@@ -1,14 +1,17 @@
 // Create a schedule from the Add Schedule wizard: the schedule itself, then its
 // items from a template or a copy of another schedule. Shared by the job
 // Schedule tab and the global Schedules page.
-import type { JobSchedule, ScheduleDraft, ScheduleItem } from "@/lib/schedules/types";
+import type { JobSchedule, ScheduleDraft, ScheduleItem, ScheduleScope } from "@/lib/schedules/types";
 import type { ScheduleSource } from "./add-schedule-wizard";
 import { fmtDate } from "./shared";
 
-export async function createScheduleFromWizard(jobId: string, draft: ScheduleDraft, source: ScheduleSource): Promise<{ schedule: JobSchedule | null; message: string }> {
+export async function createScheduleFromWizard(scope: ScheduleScope, draft: ScheduleDraft, source: ScheduleSource): Promise<{ schedule: JobSchedule | null; message: string }> {
   const json = { "Content-Type": "application/json" };
-  const res = await fetch(`/api/jobs/${jobId}/schedules`, { method: "POST", headers: json, body: JSON.stringify(draft) });
-  if (!res.ok) return { schedule: null, message: "Could not create the schedule." };
+  const res = await fetch(`/api/schedule-scopes/${scope.type}/${scope.id}`, { method: "POST", headers: json, body: JSON.stringify(draft) });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    return { schedule: null, message: err.error ? `Could not create the schedule: ${err.error}` : "Could not create the schedule." };
+  }
   const schedule: JobSchedule = await res.json();
 
   if (source.mode === "copy" && source.copyFromId) {

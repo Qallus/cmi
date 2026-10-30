@@ -9,6 +9,7 @@ import {
   Clock, ArrowRight, Plus, Maximize2, Minimize2,
 } from "lucide-react";
 import { PunchListPanel } from "@/components/punch/punch-list-panel";
+import { RecordSchedulesPanel } from "@/components/schedules/record-schedules-panel";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -473,6 +474,7 @@ export function DealDetailClient({
           <div className="rounded-lg border border-border bg-card p-4">
             <PunchListPanel parentType="deal" parentId={deal.id} parentLabel={[deal.job_number, deal.title].filter(Boolean).join("_")} />
           </div>
+          <RecordSchedulesPanel type="deal" id={deal.id} schedulePage={`/dashboard/schedules/deal/${deal.id}`} />
 
           <Card title="Activity timeline" action={
             <div className="flex flex-wrap items-center gap-1 text-xs">

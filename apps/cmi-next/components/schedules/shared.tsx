@@ -73,3 +73,20 @@ export function Progress({ value, className }: { value: number; className?: stri
     </div>
   );
 }
+
+/** Schedules in tree order (each one followed by the schedules inside it) with
+ *  their depth, for indented pickers. Orphans (parent archived or elsewhere) sit at the top level. */
+export function scheduleTree<T extends { id: string; parent_schedule_id?: string | null }>(list: T[]): { schedule: T; depth: number }[] {
+  const ids = new Set(list.map((s) => s.id));
+  const kids = new Map<string | null, T[]>();
+  for (const s of list) {
+    const p = s.parent_schedule_id && ids.has(s.parent_schedule_id) ? s.parent_schedule_id : null;
+    kids.set(p, [...(kids.get(p) ?? []), s]);
+  }
+  const out: { schedule: T; depth: number }[] = [];
+  const walk = (parent: string | null, depth: number) => {
+    for (const s of kids.get(parent) ?? []) { out.push({ schedule: s, depth }); if (depth < 20) walk(s.id, depth + 1); }
+  };
+  walk(null, 0);
+  return out;
+}

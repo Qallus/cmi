@@ -6,6 +6,7 @@ import { ScheduleModal } from "./schedule-modal";
 import { Button } from "@/components/ui/button";
 import { Input, Select, Textarea } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { RecordPicker } from "./record-picker";
 import {
   ITEM_STATUS_LABELS, PRIORITY_LABELS, DEPENDENCY_LABELS, DEPENDENCY_ABBR,
   type ScheduleItem, type SchedulePhase, type ScheduleDependency, type ItemStatus,
@@ -15,7 +16,7 @@ import {
 type Staff = { id: string; name: string };
 
 export function ItemDrawer({
-  open, item, phases, staff, allItems, dependencies, isMasterSchedule, canEdit,
+  open, item, phases, staff, allItems, dependencies, isMasterSchedule, canEdit, linkable = false,
   onClose, onSave, onDelete, onAddDependency, onRemoveDependency,
 }: {
   open: boolean;
@@ -26,6 +27,8 @@ export function ItemDrawer({
   dependencies: ScheduleDependency[];
   isMasterSchedule?: boolean;
   canEdit?: boolean;
+  /** Schedule Builder: the item can point at a dashboard record. */
+  linkable?: boolean;
   onClose: () => void;
   onSave: (patch: Partial<ScheduleItem>) => void | Promise<void>;
   onDelete?: () => void;
@@ -116,6 +119,22 @@ export function ItemDrawer({
           <Field label="Responsible company"><Input value={draft.responsible_company ?? ""} disabled={!canEdit} onChange={(e) => set("responsible_company", e.target.value || null)} placeholder="Vendor / trade" /></Field>
           <Field label="Location"><Input value={draft.location ?? ""} disabled={!canEdit} onChange={(e) => set("location", e.target.value || null)} placeholder="Area / room" /></Field>
         </div>
+
+        {linkable ? (
+          <div className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-muted-foreground">Linked to</span>
+            <RecordPicker
+              disabled={!canEdit}
+              value={draft.link_type && draft.link_id ? { type: draft.link_type, id: draft.link_id, label: draft.link_label ?? "Record" } : null}
+              onChange={(v) => setDraft((d) => ({
+                ...d, link_type: v?.type ?? null, link_id: v?.id ?? null, link_label: v?.label ?? null,
+                // A new item takes the record's name as its title until you type one.
+                title: !d.title?.trim() && v ? v.label : d.title,
+              }))}
+              placeholder="A deal, job, vendor, trade partner, selection, schedule…"
+            />
+          </div>
+        ) : null}
 
         <Field label="Tags"><Input value={(draft.tags ?? []).join(", ")} disabled={!canEdit} onChange={(e) => set("tags", e.target.value.split(",").map((t) => t.trim()).filter(Boolean))} placeholder="comma, separated" /></Field>
 

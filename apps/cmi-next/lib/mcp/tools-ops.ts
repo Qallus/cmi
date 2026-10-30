@@ -7,10 +7,12 @@
 // decline / requalify behind cmi_confirm). Thin wrappers over lib/*.
 import { Readable } from "node:stream";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { listSchedules, listItems, getItem, updateItem, createItem, jobScheduleHeader, getSchedule, createSchedule, updateSchedule, applyTemplate, applyPackage, shiftSchedule, createDependency } from "@/lib/schedules/data";
+import { listItems, getItem, updateItem, createItem, getSchedule, updateSchedule, applyTemplate, applyPackage, shiftSchedule, createDependency, listScopeSchedules, scopeScheduleHeader, scopeLabel, createScopeSchedule } from "@/lib/schedules/data";
+import { searchLinkable, labelForLink, LINK_TYPES } from "@/lib/schedules/links";
+import { isFeatureEnabled } from "@/lib/flags";
 import { canEditSchedules, canManageSchedules, canViewSchedules } from "@/lib/schedules/permissions";
 import { SCHEDULE_TEMPLATES, SCHEDULE_PACKAGES, getTemplate, getPackage, templateSummary } from "@/lib/schedules/templates";
-import { DEFAULT_WORKDAYS, SCHEDULE_TYPE_LABELS, type ScheduleItem, type ScheduleType } from "@/lib/schedules/types";
+import { DEFAULT_WORKDAYS, SCHEDULE_TYPE_LABELS, type ScheduleItem, type ScheduleType, type ScheduleScope, type LinkType } from "@/lib/schedules/types";
 import { loadLists, getList, createList, addItems, updateItem as updatePunchItem, listTemplates } from "@/lib/punch/data";
 import { canWritePunch, type PunchParentType, type PunchItemDraft } from "@/lib/punch/types";
 import { canModify, getFile, insertFile, listFiles, searchFiles, updateFile } from "@/lib/files/data";
@@ -60,18 +62,39 @@ const brief = (i: ScheduleItem & { schedule_name?: string }) => ({
   percent: i.percent_complete, assignees: i.assignees.map((x) => x.name), critical: i.is_critical, client_visible: i.client_visible, locked: i.is_locked,
 });
 
+// What a schedule belongs to: a job (by id, number or name), or with the Schedule
+// Builder flag a Pipeline deal, Pre-Con record or selection (by id).
+const FOR_TYPES = ["job", "deal", "precon", "selection"] as const;
+async function resolveScope(a: Json): Promise<{ scope: ScheduleScope; label: string }> {
+  const type = s(a.for_type) || "job";
+  if (type === "job") {
+    const job = await resolveJobId(a.job ?? a.for_id);
+    return { scope: { type: "job", id: job.id }, label: job.label };
+  }
+  if (!(FOR_TYPES as readonly string[]).includes(type)) throw new Error("for_type must be job, deal, precon or selection.");
+  if (!(await isFeatureEnabled("schedule_builder"))) throw new Error("Schedules for deals, Pre-Con and selections aren't switched on yet (the schedule_builder flag).");
+  if (!s(a.for_id)) throw new Error(`Give for_id: the ${type}'s id (cmi_schedule_find_record finds it).`);
+  const scope = { type: type as ScheduleScope["type"], id: s(a.for_id) };
+  return { scope, label: await scopeLabel(scope) };
+}
+const forProps = {
+  job: str("Job id, number or name (when the schedule is for a job)"),
+  for_type: { type: "string", enum: [...FOR_TYPES], description: "What the schedule belongs to (default job). deal / precon / selection need the Schedule Builder flag." },
+  for_id: str("Id of the deal, Pre-Con record or selection (cmi_schedule_find_record)"),
+};
+
 const scheduleTools: McpTool[] = [
   {
     name: "cmi_schedules_list",
     title: "A job's schedules",
-    description: "The schedules on a job (construction, design, selections…) with status, dates and progress, plus the job's overall schedule health.",
+    description: "The schedules on a job (construction, design, selections…), or on a Pipeline deal, Pre-Con record or selection, with status, dates, progress and which schedule each sits inside (parent_schedule_id), plus overall health.",
     risk: "read",
     available: (c) => canViewSchedules(c.ctx.role),
-    inputSchema: () => obj({ job: str("Job id, number or name") }, ["job"]),
+    inputSchema: () => obj(forProps),
     run: async (a) => {
-      const job = await resolveJobId(a.job);
-      const [schedules, header] = await Promise.all([listSchedules(job.id), jobScheduleHeader(job.id)]);
-      return { result: { job: job.label, header, schedules } };
+      const { scope, label } = await resolveScope(a);
+      const [schedules, header] = await Promise.all([listScopeSchedules(scope), scopeScheduleHeader(scope)]);
+      return { result: { for: { ...scope, label }, header, schedules } };
     },
   },
   {
@@ -151,34 +174,46 @@ const scheduleTools: McpTool[] = [
   {
     name: "cmi_schedule_create",
     title: "Create a schedule",
-    description: "Add a schedule to a job, empty or from a template (cmi_schedule_templates). With a template, start_date lays out every task with the template's spacing (working days), and auto_cascade (default true) decides whether moving a task later moves the tasks linked after it, or whether the PM adjusts dates by hand. Returns the item count and the finish date. Ask for the start date if the person didn't give one.",
+    description: "Add a schedule to a job (or, with the Schedule Builder, a Pipeline deal, Pre-Con record or selection), empty or from a template (cmi_schedule_templates). With a template, start_date lays out every task with the template's spacing (working days), and auto_cascade (default true) decides whether moving a task later moves the tasks linked after it, or whether the PM adjusts dates by hand. parent_schedule_id puts it inside another schedule; sub_schedules adds schedules inside it in one go (e.g. Customer, Vendor, Trade Partner; or Demo, Electrical, Windows). Returns item counts and the finish date. Ask for the start date if the person didn't give one.",
     risk: "write",
     available: (c) => canEditSchedules(c.ctx.role),
     inputSchema: () => obj({
-      job: str("Job id, number or name"), name: str("Schedule name (defaults to the template's name)"),
+      ...forProps, name: str("Schedule name (defaults to the template's name)"),
+      parent_schedule_id: str("Put it inside this schedule (Schedule Builder)"),
+      sub_schedules: { type: "array", description: "Schedules to create inside it (Schedule Builder): {name, type?, template_id?}", items: { type: "object", properties: { name: { type: "string" }, type: { type: "string", enum: Object.keys(SCHEDULE_TYPE_LABELS) }, template_id: { type: "string" } }, required: ["name"] } },
       template_id: str("Template id from cmi_schedule_templates (optional)"), start_date: str("First day, YYYY-MM-DD"),
       auto_cascade: { type: "boolean", description: "Template links move following tasks automatically (default true)" },
       type: { type: "string", enum: Object.keys(SCHEDULE_TYPE_LABELS) }, description: str("Description"),
       is_master: { type: "boolean", description: "Make it the job's Master Schedule (Project Manager and up)" },
       manager: str("Schedule manager (staff email or id)"),
       work_saturdays: { type: "boolean", description: "Count Saturdays as working days (default Mon–Fri)" },
-    }, ["job"]),
+    }),
     run: async (a, c) => {
-      const job = await resolveJobId(a.job);
+      const { scope, label } = await resolveScope(a);
+      const nested = !!s(a.parent_schedule_id) || (Array.isArray(a.sub_schedules) && a.sub_schedules.length > 0);
+      if (nested && !(await isFeatureEnabled("schedule_builder"))) return { result: { error: "Schedules inside schedules aren't switched on yet (the schedule_builder flag)." } };
       const tpl = s(a.template_id) ? getTemplate(s(a.template_id)) : undefined;
       if (s(a.template_id) && !tpl) return { result: { error: `No template "${s(a.template_id)}". Use cmi_schedule_templates.` } };
       if (s(a.start_date) && !/^\d{4}-\d{2}-\d{2}$/.test(s(a.start_date))) return { result: { error: "start_date must be YYYY-MM-DD." } };
       if (a.is_master === true && !canManageSchedules(c.ctx.role)) return { result: { error: "Only a Project Manager, Admin or Super Admin can set the Master Schedule." } };
       const type = (Object.keys(SCHEDULE_TYPE_LABELS).includes(s(a.type)) ? s(a.type) : tpl?.type ?? "construction") as ScheduleType;
-      const schedule = await createSchedule(job.id, {
+      const schedule = await createScopeSchedule(scope, {
         name: s(a.name) || tpl?.name || "Untitled Schedule", type, description: s(a.description) || tpl?.description || null,
-        start_date: s(a.start_date) || null, is_master: a.is_master === true,
+        start_date: s(a.start_date) || null, is_master: a.is_master === true && !s(a.parent_schedule_id), parent_schedule_id: s(a.parent_schedule_id) || null,
         manager_id: s(a.manager) ? await staffIdFor(a.manager) : null,
         workdays: { ...DEFAULT_WORKDAYS, sat: a.work_saturdays === true },
       }, actorOf(c));
       const applied = tpl ? await applyTemplate(schedule.id, tpl.id, actorOf(c), { startDate: s(a.start_date) || null, autoCascade: a.auto_cascade !== false }) : null;
+      const inside: { id: string; name: string; items?: number; error?: string }[] = [];
+      for (const sub of (Array.isArray(a.sub_schedules) ? a.sub_schedules : []) as Json[]) {
+        const subTpl = s(sub.template_id) ? getTemplate(s(sub.template_id)) : undefined;
+        const subType = (Object.keys(SCHEDULE_TYPE_LABELS).includes(s(sub.type)) ? s(sub.type) : subTpl?.type ?? "custom") as ScheduleType;
+        const child = await createScopeSchedule(scope, { name: s(sub.name) || subTpl?.name || "Schedule", type: subType, start_date: s(a.start_date) || null, parent_schedule_id: schedule.id, workdays: { ...DEFAULT_WORKDAYS, sat: a.work_saturdays === true } }, actorOf(c));
+        const r = subTpl ? await applyTemplate(child.id, subTpl.id, actorOf(c), { startDate: s(a.start_date) || null, autoCascade: a.auto_cascade !== false }) : null;
+        inside.push({ id: child.id, name: child.name, ...(r ? { items: r.items } : {}), ...(s(sub.template_id) && !subTpl ? { error: `No template "${s(sub.template_id)}"` } : {}) });
+      }
       return {
-        result: { job: job.label, schedule: { id: schedule.id, name: schedule.name, type: schedule.type, is_master: schedule.is_master }, template: tpl?.name ?? null, ...(applied ?? {}), auto_cascade: tpl ? a.auto_cascade !== false : undefined },
+        result: { for: { ...scope, label }, schedule: { id: schedule.id, name: schedule.name, type: schedule.type, is_master: schedule.is_master, inside_of: schedule.parent_schedule_id ?? null }, template: tpl?.name ?? null, ...(applied ?? {}), auto_cascade: tpl ? a.auto_cascade !== false : undefined, ...(inside.length ? { sub_schedules: inside } : {}) },
         entity: "job_schedule", recordId: schedule.id, before: null, after: { ...schedule, template: tpl?.id ?? null },
       };
     },
@@ -202,12 +237,12 @@ const scheduleTools: McpTool[] = [
     description: "Create every schedule in a package (cmi_schedule_templates → packages) on a job at once, all starting on start_date.",
     risk: "write",
     available: (c) => canEditSchedules(c.ctx.role),
-    inputSchema: () => obj({ job: str("Job id, number or name"), package_id: str("Package id"), start_date: str("YYYY-MM-DD"), auto_cascade: { type: "boolean" } }, ["job", "package_id"]),
+    inputSchema: () => obj({ ...forProps, package_id: str("Package id"), start_date: str("YYYY-MM-DD"), auto_cascade: { type: "boolean" } }, ["package_id"]),
     run: async (a, c) => {
-      const job = await resolveJobId(a.job);
+      const { scope, label } = await resolveScope(a);
       if (!getPackage(s(a.package_id))) return { result: { error: `No package "${s(a.package_id)}". Use cmi_schedule_templates.` } };
-      const created = await applyPackage(job.id, s(a.package_id), actorOf(c), { startDate: s(a.start_date) || null, autoCascade: a.auto_cascade !== false });
-      return { result: { job: job.label, created: created.map((x) => ({ id: x.id, name: x.name, type: x.type })) }, entity: "job_schedule", recordId: created[0]?.id, before: null, after: { package: s(a.package_id), schedules: created.map((x) => x.id) } };
+      const created = await applyPackage(scope, s(a.package_id), actorOf(c), { startDate: s(a.start_date) || null, autoCascade: a.auto_cascade !== false });
+      return { result: { for: label, created: created.map((x) => ({ id: x.id, name: x.name, type: x.type })) }, entity: "job_schedule", recordId: created[0]?.id, before: null, after: { package: s(a.package_id), schedules: created.map((x) => x.id) } };
     },
   },
   {
@@ -264,6 +299,38 @@ const scheduleTools: McpTool[] = [
       if (!Object.keys(patch).length) return { result: { error: "Nothing to change." } };
       const after = await updateSchedule(before.id, patch, actorOf(c));
       return { result: { updated: { id: after.id, name: after.name, status: after.status, priority: after.priority, target_completion: after.target_completion, is_master: after.is_master } }, entity: "job_schedule", recordId: after.id, before, after };
+    },
+  },
+  {
+    name: "cmi_schedule_find_record",
+    title: "Find a record for scheduling",
+    description: `Find a dashboard record by name to put a schedule on (deal, precon, selection) or to link a schedule item to: ${LINK_TYPES.join(", ")}. Returns type + id.`,
+    risk: "read",
+    available: (c) => canViewSchedules(c.ctx.role),
+    inputSchema: () => obj({ query: str("Name to search for"), types: { type: "array", items: { type: "string", enum: LINK_TYPES }, description: "Limit to these record types" } }, ["query"]),
+    run: async (a) => ({ result: { hits: await searchLinkable(s(a.query), Array.isArray(a.types) ? (a.types as LinkType[]).filter((x) => LINK_TYPES.includes(x)) : undefined) } }),
+  },
+  {
+    name: "cmi_schedule_item_link",
+    title: "Link a schedule task to a record",
+    description: `Point a schedule task or milestone at a dashboard record (${LINK_TYPES.join(", ")}), e.g. "Windows install" → the window vendor, or "Cabinet decision" → the selection. The record then lists it under Schedules. Pass link_type null to remove the link. Schedule Builder only.`,
+    risk: "write",
+    available: (c) => canEditSchedules(c.ctx.role),
+    inputSchema: () => obj({ item_id: str("Schedule item id"), link_type: { type: ["string", "null"], enum: [...LINK_TYPES, null] }, link_id: str("Record id (cmi_schedule_find_record)") }, ["item_id"]),
+    run: async (a, c) => {
+      if (!(await isFeatureEnabled("schedule_builder"))) return { result: { error: "Linking schedule items to records isn't switched on yet (the schedule_builder flag)." } };
+      const before = await getItem(s(a.item_id));
+      if (!before) return { result: { error: "No schedule item with that id." } };
+      let patch: Partial<ScheduleItem> = { link_type: null, link_id: null, link_label: null };
+      if (a.link_type) {
+        const type = s(a.link_type) as LinkType;
+        if (!LINK_TYPES.includes(type) || !s(a.link_id)) return { result: { error: "Give link_type and link_id (cmi_schedule_find_record)." } };
+        const label = await labelForLink(type, s(a.link_id));
+        if (!label) return { result: { error: `No ${type.replace("_", " ")} with that id.` } };
+        patch = { link_type: type, link_id: s(a.link_id), link_label: label };
+      }
+      const { item } = await updateItem(before.id, patch, actorOf(c), { cascade: false });
+      return { result: { item: brief(item), linked_to: item.link_type ? { type: item.link_type, id: item.link_id, label: item.link_label } : null }, entity: "schedule_item", recordId: item.id, before, after: item };
     },
   },
 ];

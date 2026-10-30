@@ -1,11 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { Plus, GitBranch, Flag, Layers, CalendarClock, CalendarRange, FileText, Star, Archive, ChevronDown } from "lucide-react";
+import { Plus, GitBranch, Flag, Layers, CalendarClock, CalendarRange, FileText, Star, Archive, ChevronDown, CornerDownRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { VIEWS, HealthChip, TypeBadge, Progress, fmtDate, scheduleColor } from "./shared";
+import { VIEWS, HealthChip, TypeBadge, Progress, fmtDate, scheduleColor, scheduleTree } from "./shared";
 import { GanttView } from "./views/gantt-view";
 import { ListView } from "./views/list-view";
 import { CalendarView } from "./views/calendar-view";
@@ -15,18 +15,27 @@ import { ItemDrawer } from "./item-drawer";
 import { AddScheduleWizard, type ScheduleSource } from "./add-schedule-wizard";
 import { ShiftDialog } from "./shift-dialog";
 import { createScheduleFromWizard } from "./create-schedule";
-import type { JobSchedule, ScheduleItem, SchedulePhase, ScheduleDependency, ScheduleView, ScheduleDraft, DependencyType, ScheduleType } from "@/lib/schedules/types";
+import type { JobSchedule, ScheduleItem, SchedulePhase, ScheduleDependency, ScheduleView, ScheduleDraft, DependencyType, ScheduleType, ScheduleScope } from "@/lib/schedules/types";
 
 type Staff = { id: string; name: string };
 type Bundle = { schedule: JobSchedule; phases: SchedulePhase[]; items: ScheduleItem[]; dependencies: ScheduleDependency[] };
 type Header = { schedule_count: number; active_count: number; overall_progress: number; health: string; projected_completion: string | null; next_milestone: { title: string; date: string | null; schedule_name: string } | null };
 
-export function SchedulesWorkspace({ jobId, jobLabel, initialSchedules, initialHeader, staff, canEdit, canManage }: {
-  jobId: string; jobLabel: string; initialSchedules: JobSchedule[]; initialHeader: Header; staff: Staff[]; canEdit: boolean; canManage: boolean;
+// `scope`: whose schedules these are (a job, or with the Schedule Builder a deal,
+// Pre-Con record or selection). `builder` turns on schedules-inside-schedules and
+// item links. `initialScheduleId` opens a particular schedule (?schedule=… links).
+export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initialHeader, staff, canEdit, canManage, builder = false, initialScheduleId }: {
+  scope: ScheduleScope; scopeLabel: string; initialSchedules: JobSchedule[]; initialHeader: Header; staff: Staff[]; canEdit: boolean; canManage: boolean;
+  builder?: boolean; initialScheduleId?: string | null;
 }) {
+  const jobId = scope.type === "job" ? scope.id : null;
+  const scopeApi = `/api/schedule-scopes/${scope.type}/${scope.id}`;
   const [schedules, setSchedules] = React.useState<JobSchedule[]>(initialSchedules);
   const [header, setHeader] = React.useState<Header>(initialHeader);
-  const [selected, setSelected] = React.useState<Set<string>>(() => new Set(initialSchedules.slice(0, 1).map((s) => s.id)));
+  const [selected, setSelected] = React.useState<Set<string>>(() => new Set(
+    initialScheduleId && initialSchedules.some((s) => s.id === initialScheduleId) ? [initialScheduleId] : initialSchedules.slice(0, 1).map((s) => s.id),
+  ));
+  const [parentForNew, setParentForNew] = React.useState<string | null>(null);
   const [bundles, setBundles] = React.useState<Record<string, Bundle>>({});
   const [view, setView] = React.useState<ScheduleView>("gantt");
   const [zoom, setZoom] = React.useState<"day" | "week" | "month">("week");
@@ -58,7 +67,7 @@ export function SchedulesWorkspace({ jobId, jobLabel, initialSchedules, initialH
   }
   async function runPackage(packageId: string) {
     setBanner("Applying package…");
-    const res = await fetch(`/api/jobs/${jobId}/schedule-packages`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ packageId, startDate: pkgStart || null }) });
+    const res = await fetch(`${scopeApi}/packages`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ packageId, startDate: pkgStart || null }) });
     if (res.ok) { await refreshSchedules(); const d = await res.json(); if (d.created?.[0]) { setSelected(new Set([d.created[0].id])); await loadBundle(d.created[0].id); } setBanner("Package applied."); }
     else setBanner("Could not apply the package.");
   }
@@ -85,9 +94,9 @@ export function SchedulesWorkspace({ jobId, jobLabel, initialSchedules, initialH
   }, [selectedIds.join(",")]);
 
   const refreshSchedules = React.useCallback(async () => {
-    const res = await fetch(`/api/jobs/${jobId}/schedules`);
+    const res = await fetch(scopeApi);
     if (res.ok) { const d = await res.json(); setSchedules(d.schedules); setHeader(d.header); }
-  }, [jobId]);
+  }, [scopeApi]);
 
   // Derived working set across selected schedules.
   const items = React.useMemo(() => selectedIds.flatMap((id) => bundles[id]?.items ?? []), [selectedIds, bundles]);
@@ -164,7 +173,8 @@ export function SchedulesWorkspace({ jobId, jobLabel, initialSchedules, initialH
   }
 
   async function createSchedule(draft: ScheduleDraft, source: ScheduleSource) {
-    const { schedule, message } = await createScheduleFromWizard(jobId, draft, source);
+    const { schedule, message } = await createScheduleFromWizard(scope, { ...draft, parent_schedule_id: draft.parent_schedule_id ?? parentForNew }, source);
+    setParentForNew(null);
     setBanner(message);
     if (!schedule) return;
     setWizardOpen(false);
@@ -181,7 +191,7 @@ export function SchedulesWorkspace({ jobId, jobLabel, initialSchedules, initialH
       <div className="border-b border-border bg-card px-4 py-3 md:px-6">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
           <div>
-            <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">{jobLabel}</div>
+            <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">{scopeLabel}</div>
             <h1 className="font-display text-xl font-semibold tracking-tight">Schedules</h1>
           </div>
           <Stat label="Schedules" value={String(header.schedule_count)} />
@@ -233,8 +243,9 @@ export function SchedulesWorkspace({ jobId, jobLabel, initialSchedules, initialH
                   <div className="fixed inset-0 z-40" onClick={() => setSelectorOpen(false)} />
                   <div className="absolute left-0 z-50 mt-1 w-72 rounded-lg border border-border bg-card p-1 shadow-lg">
                     <div className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Overlay schedules</div>
-                    {schedules.map((s) => (
-                      <div key={s.id} className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-muted/50">
+                    {scheduleTree(schedules).map(({ schedule: s, depth }) => (
+                      <div key={s.id} className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-muted/50" style={{ paddingLeft: 8 + depth * 14 }}>
+                        {depth ? <CornerDownRight className="-mr-1 h-3 w-3 shrink-0 text-muted-foreground/60" /> : null}
                         <input type="checkbox" checked={selected.has(s.id)} onChange={() => toggleSchedule(s.id)} className="h-4 w-4 accent-[var(--accent)]" />
                         <span className="h-2.5 w-2.5 rounded-sm" style={{ background: scheduleColor(s.id, s.color) }} />
                         <button type="button" onClick={() => soloSchedule(s.id)} className="min-w-0 flex-1 truncate text-left text-sm">{s.is_master ? "★ " : ""}{s.name}</button>
@@ -286,6 +297,7 @@ export function SchedulesWorkspace({ jobId, jobLabel, initialSchedules, initialH
               </div>
             ) : null}
             <div className="flex-1" />
+            {builder && primarySchedule && canEdit && !overlay ? <Button size="sm" variant="ghost" onClick={() => { setParentForNew(primarySchedule.id); setWizardOpen(true); }} title="Add a schedule inside this one"><CornerDownRight className="h-3.5 w-3.5" /> Add inside</Button> : null}
             {primarySchedule && canEdit && !overlay ? <Button size="sm" variant="ghost" onClick={() => setShiftOpen(true)}><CalendarRange className="h-3.5 w-3.5" /> Shift dates</Button> : null}
             {primarySchedule ? <Button size="sm" variant="ghost" onClick={() => window.open(`/api/schedules/${primarySchedule.id}/pdf`, "_blank")}><FileText className="h-3.5 w-3.5" /> PDF</Button> : null}
             {primarySchedule && canManage ? (
@@ -322,10 +334,11 @@ export function SchedulesWorkspace({ jobId, jobLabel, initialSchedules, initialH
         if (primaryId) await loadBundle(primaryId);
         void refreshSchedules();
       }} /> : null}
-      <AddScheduleWizard open={wizardOpen} staff={staff} templates={templates} existing={schedules} onClose={() => setWizardOpen(false)} onCreate={createSchedule} />
+      <AddScheduleWizard open={wizardOpen} staff={staff} templates={templates} existing={schedules} onClose={() => { setWizardOpen(false); setParentForNew(null); }} onCreate={createSchedule}
+        parents={builder ? schedules : undefined} defaultParentId={parentForNew} scopeNoun={scope.type === "job" ? "Job" : scope.type === "deal" ? "Deal" : scope.type === "precon" ? "Pre-Con" : "Selection"} />
       <ItemDrawer
         open={!!editing} item={editing} phases={phases.length ? phases : (primaryId ? bundles[primaryId]?.phases ?? [] : [])} staff={staff}
-        allItems={items} dependencies={dependencies} isMasterSchedule={primarySchedule?.is_master} canEdit={canEdit}
+        allItems={items} dependencies={dependencies} isMasterSchedule={primarySchedule?.is_master} canEdit={canEdit} linkable={builder}
         onClose={() => setEditing(null)} onSave={saveItem} onDelete={editing?.id ? deleteItem : undefined}
         onAddDependency={(sourceId, type, lag) => { if (editing?.id) void addDependency(sourceId, editing.id, type, lag); }}
         onRemoveDependency={removeDependency}

@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { listAllSchedules, dashboardMetrics, listAllItems } from "@/lib/schedules/data";
 import { canViewSchedules, canEditSchedules, canManageSchedules } from "@/lib/schedules/permissions";
 import { SchedulesDashboardClient } from "./schedules-dashboard-client";
+import { isFeatureEnabled } from "@/lib/flags";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Schedules — CMI Dashboard" };
@@ -26,9 +27,9 @@ export default async function SchedulesDashboardPage() {
   if (!canViewSchedules(staffMember?.role_slug)) {
     return <div className="p-10 text-center text-sm text-muted-foreground">You don&apos;t have access to schedules.</div>;
   }
-  const [schedules, metrics, items, staff, jobs] = await Promise.all([listAllSchedules(), dashboardMetrics(), listAllItems(), loadStaff(), loadJobs()]);
+  const [schedules, metrics, items, staff, jobs, builder] = await Promise.all([listAllSchedules(), dashboardMetrics(), listAllItems(), loadStaff(), loadJobs(), isFeatureEnabled("schedule_builder")]);
   return (
     <SchedulesDashboardClient schedules={schedules} metrics={metrics} items={items} staff={staff} jobs={jobs}
-      canEdit={canEditSchedules(staffMember?.role_slug)} canManage={canManageSchedules(staffMember?.role_slug)} />
+      canEdit={canEditSchedules(staffMember?.role_slug)} canManage={canManageSchedules(staffMember?.role_slug)} builder={builder} />
   );
 }

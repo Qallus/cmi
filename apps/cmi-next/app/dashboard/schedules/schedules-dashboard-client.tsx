@@ -15,23 +15,26 @@ import { ListView } from "@/components/schedules/views/list-view";
 import { CalendarView } from "@/components/schedules/views/calendar-view";
 import { BoardView } from "@/components/schedules/views/board-view";
 import { ResourceView } from "@/components/schedules/views/resource-view";
-import { SCHEDULE_TYPE_LABELS, HEALTH_LABELS, SCHEDULE_STATUS_LABELS, type ScheduleDraft, type ScheduleHealth, type ScheduleType } from "@/lib/schedules/types";
+import { SCHEDULE_TYPE_LABELS, HEALTH_LABELS, SCHEDULE_STATUS_LABELS, SCOPE_LABELS, type ScheduleDraft, type ScheduleHealth, type ScheduleType, type ScheduleScope } from "@/lib/schedules/types";
 import type { GlobalScheduleRow, DashboardMetrics, GlobalItem } from "@/lib/schedules/data";
 import type { ScheduleView } from "@/lib/schedules/types";
 
 // A job number already ends with the job name ("26_012_26_027_Lindquist…"), so it's the whole label.
-const jobLabel = (s: { job_number: string | null; job_name: string }) => s.job_number || s.job_name;
+const jobLabel = (s: { job_number: string | null; job_name: string; scope_label?: string }) => s.scope_label || s.job_number || s.job_name;
+// Where a schedule lives: its job's Schedule tab, or the record's schedule page.
+const scheduleHref = (s: { id: string; job_id: string | null; scope_type?: string; scope_id?: string | null }) =>
+  s.job_id ? `/dashboard/jobs/${s.job_id}/schedule?schedule=${s.id}` : `/dashboard/schedules/${s.scope_type}/${s.scope_id}?schedule=${s.id}`;
 
-const COLUMNS = [["Schedule", "name"], ["Job", "job"], ["Type", "type"], ["Health", "health"], ["Progress", "progress"], ["Items", "items"], ["Overdue", "overdue"], ["Projected", "projected"]] as const;
+const COLUMNS = [["Schedule", "name"], ["For", "job"], ["Type", "type"], ["Health", "health"], ["Progress", "progress"], ["Items", "items"], ["Overdue", "overdue"], ["Projected", "projected"]] as const;
 
 // GlobalItem re-declared for the client boundary (matches lib type).
 type Item = GlobalItem & { job_number?: string | null; job_name?: string | null };
 
 const HEALTH_RANK: Record<string, number> = { on_track: 0, watch: 1, at_risk: 2, delayed: 3, critical: 4 };
 
-export function SchedulesDashboardClient({ schedules, metrics, items, staff, jobs: jobOptions, canEdit, canManage }: {
+export function SchedulesDashboardClient({ schedules, metrics, items, staff, jobs: jobOptions, canEdit, canManage, builder = false }: {
   schedules: GlobalScheduleRow[]; metrics: DashboardMetrics; items: Item[]; staff: { id: string; name: string }[];
-  jobs: { id: string; label: string }[]; canEdit: boolean; canManage: boolean;
+  jobs: { id: string; label: string }[]; canEdit: boolean; canManage: boolean; builder?: boolean;
 }) {
   const router = useRouter();
   const [wizardOpen, setWizardOpen] = React.useState(false);
@@ -80,13 +83,13 @@ export function SchedulesDashboardClient({ schedules, metrics, items, staff, job
   const visibleIds = React.useMemo(() => sortedSchedules.map((s) => s.id), [sortedSchedules]);
   const selection = useRowSelection(visibleIds);
 
-  async function createFromWizard(draft: ScheduleDraft, source: ScheduleSource, jobId?: string) {
-    if (!jobId) return;
-    const { schedule, message } = await createScheduleFromWizard(jobId, draft, source);
+  async function createFromWizard(draft: ScheduleDraft, source: ScheduleSource, scope?: ScheduleScope) {
+    if (!scope) return;
+    const { schedule, message } = await createScheduleFromWizard(scope, draft, source);
     setNotice(message);
     if (!schedule) return;
     setWizardOpen(false);
-    router.push(`/dashboard/jobs/${jobId}/schedule`);
+    router.push(scheduleHref(schedule));
   }
 
   // Quick actions on the selected schedules.
@@ -189,8 +192,8 @@ export function SchedulesDashboardClient({ schedules, metrics, items, staff, job
                   {sortedSchedules.map((s) => (
                     <tr key={s.id} className={cn("hover:bg-muted/30", selection.ids.has(s.id) && "bg-accent/5")}>
                       {canEdit ? <RowCheckbox id={s.id} selection={selection} label={`Select ${s.name}`} /> : null}
-                      <td className="px-3 py-2"><Link href={`/dashboard/jobs/${s.job_id}/schedule`} className="flex items-center gap-2 font-medium hover:text-accent"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: scheduleColor(s.id, s.color) }} />{s.is_master ? "★ " : ""}{s.name}</Link></td>
-                      <td className="px-3 py-2 text-muted-foreground">{jobLabel(s)}</td>
+                      <td className="px-3 py-2"><Link href={scheduleHref(s)} className="flex items-center gap-2 font-medium hover:text-accent">{s.parent_schedule_id ? <span className="text-muted-foreground" title="Inside another schedule">↳</span> : null}<span className="h-2.5 w-2.5 rounded-sm" style={{ background: scheduleColor(s.id, s.color) }} />{s.is_master ? "★ " : ""}{s.name}</Link></td>
+                      <td className="px-3 py-2 text-muted-foreground">{!s.job_id && s.scope_type ? <span className="mr-1.5 rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide">{SCOPE_LABELS[s.scope_type]}</span> : null}{jobLabel(s)}</td>
                       <td className="px-3 py-2"><TypeBadge type={s.type} /></td>
                       <td className="px-3 py-2"><HealthChip health={s.health} /></td>
                       <td className="px-3 py-2"><div className="flex items-center gap-2"><Progress value={s.progress} className="w-16" /><span className="text-xs tabular-nums text-muted-foreground">{s.progress}%</span></div></td>
@@ -231,7 +234,7 @@ export function SchedulesDashboardClient({ schedules, metrics, items, staff, job
           {canManage ? <BarAction icon={Trash2} label="Delete" danger onClick={() => void bulk("delete", "Deleted")} disabled={busy} /> : null}
         </SelectionBar>
       ) : null}
-      <AddScheduleWizard open={wizardOpen} staff={staff} templates={templates} existing={schedules} jobs={jobOptions} onClose={() => setWizardOpen(false)} onCreate={createFromWizard} />
+      <AddScheduleWizard open={wizardOpen} staff={staff} templates={templates} existing={schedules} jobs={jobOptions} scopes={builder} onClose={() => setWizardOpen(false)} onCreate={createFromWizard} />
     </div>
   );
 }

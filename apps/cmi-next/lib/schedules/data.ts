@@ -7,6 +7,7 @@ import { DEFAULT_WORKDAYS } from "./types";
 import type {
   JobSchedule, SchedulePhase, ScheduleItem, ScheduleDependency, ScheduleParticipant,
   ScheduleBaseline, ScheduleActivity, ScheduleDraft, Workdays, DependencyType, Assignee,
+  ScheduleScope, ScheduleScopeType, LinkType,
 } from "./types";
 
 type Actor = { id?: string | null; name?: string | null };
@@ -94,12 +95,20 @@ export async function getSchedule(id: string): Promise<JobSchedule | null> {
 }
 
 export async function createSchedule(jobId: string, draft: ScheduleDraft, actor?: Actor): Promise<JobSchedule> {
+  return insertSchedule({ job_id: jobId }, draft, actor);
+}
+
+// Job schedules insert only job_id, so they work before and after the Schedule
+// Builder migration; other scopes also set scope_type / scope_id.
+async function insertSchedule(owner: { job_id: string | null; scope_type?: ScheduleScopeType; scope_id?: string }, draft: ScheduleDraft, actor?: Actor): Promise<JobSchedule> {
   const sb = getSupabaseAdmin();
   if (draft.is_master) {
-    await sb.from("job_schedules").update({ is_master: false }).eq("job_id", jobId).eq("is_master", true);
+    const clear = sb.from("job_schedules").update({ is_master: false }).eq("is_master", true);
+    await (owner.job_id ? clear.eq("job_id", owner.job_id) : clear.eq("scope_type", owner.scope_type!).eq("scope_id", owner.scope_id!));
   }
   const { data, error } = await sb.from("job_schedules").insert({
-    job_id: jobId,
+    ...owner,
+    ...(draft.parent_schedule_id ? { parent_schedule_id: draft.parent_schedule_id } : {}),
     name: draft.name?.trim() || "Untitled Schedule",
     type: draft.type ?? "construction",
     description: draft.description ?? null,
@@ -117,15 +126,17 @@ export async function createSchedule(jobId: string, draft: ScheduleDraft, actor?
     updated_by: actor?.id ?? null,
   }).select("*").single();
   if (error) throw new Error(error.message);
-  await logActivity({ jobId, scheduleId: data.id, action: "schedule_created", detail: { name: data.name, type: data.type }, actor });
+  await logActivity({ jobId: owner.job_id, scheduleId: data.id, action: "schedule_created", detail: { name: data.name, type: data.type, inside: draft.parent_schedule_id ?? null }, actor });
   return mapSchedule(data);
 }
 
 export async function updateSchedule(id: string, patch: Partial<ScheduleDraft> & { progress?: number; health?: string; status?: string }, actor?: Actor): Promise<JobSchedule> {
   const sb = getSupabaseAdmin();
-  const { data: cur } = await sb.from("job_schedules").select("job_id, is_master").eq("id", id).maybeSingle();
-  if (patch.is_master && cur?.job_id) {
-    await sb.from("job_schedules").update({ is_master: false }).eq("job_id", cur.job_id).eq("is_master", true).neq("id", id);
+  const { data: cur } = await sb.from("job_schedules").select("*").eq("id", id).maybeSingle();
+  if (patch.is_master && cur) {
+    const clear = sb.from("job_schedules").update({ is_master: false }).eq("is_master", true).neq("id", id);
+    if (cur.job_id) await clear.eq("job_id", cur.job_id);
+    else if (cur.scope_id) await clear.eq("scope_type", cur.scope_type).eq("scope_id", cur.scope_id);
   }
   const clean: Record<string, unknown> = { updated_by: actor?.id ?? null, updated_at: new Date().toISOString() };
   for (const k of ["name", "type", "description", "owner_id", "manager_id", "start_date", "target_completion", "projected_completion", "status", "priority", "progress", "health", "is_master", "visibility", "workdays", "color", "sort_order"] as const) {
@@ -135,6 +146,11 @@ export async function updateSchedule(id: string, patch: Partial<ScheduleDraft> &
   const { data, error } = await sb.from("job_schedules").update(clean).eq("id", id).select("*").single();
   if (error) throw new Error(error.message);
   await logActivity({ jobId: data.job_id, scheduleId: id, action: "schedule_updated", detail: { fields: Object.keys(clean) }, actor });
+  // Archiving or restoring a schedule does the same to the schedules inside it.
+  if (patch.status === "archived" || (patch.status === "active" && cur?.status === "archived")) {
+    const inside = await descendantScheduleIds(id);
+    if (inside.length) await sb.from("job_schedules").update({ status: patch.status, archived_at: patch.status === "archived" ? clean.archived_at : null, updated_at: clean.updated_at }).in("id", inside);
+  }
   return mapSchedule(data);
 }
 
@@ -183,6 +199,7 @@ const ITEM_FIELDS = [
   "responsible_company", "client_visible", "confirmation_required", "tags", "location",
   "internal_notes", "client_notes", "is_critical", "is_locked", "baseline_start", "baseline_end",
   "recurrence", "relationships", "milestone_kind", "master_display", "sort_order",
+  "link_type", "link_id", "link_label",
 ] as const;
 
 export async function listItems(opts: { scheduleId?: string; scheduleIds?: string[]; jobId?: string; clientVisibleOnly?: boolean }): Promise<ScheduleItem[]> {
@@ -253,7 +270,7 @@ export async function updateItem(id: string, patch: Partial<ScheduleItem>, actor
   }
 
   let cascaded: ScheduleItem[] = [];
-  if (opts.cascade !== false && datesChanged && data.job_id) {
+  if (opts.cascade !== false && datesChanged) {
     cascaded = await applyCascade(data.job_id, id, actor);
   }
   return { item: mapItem(data), cascaded };
@@ -321,18 +338,48 @@ export async function deleteDependency(id: string, actor?: Actor): Promise<void>
 type CascadeChange = { item: ScheduleItem; from: { start: string | null; end: string | null }; to: { start: string | null; end: string | null } };
 
 /** Compute (without persisting) the downstream date changes if `changedItemId`
- *  moved. Respects dependency type, lag, per-schedule workdays, and locks. */
-export async function computeCascade(jobId: string, changedItemId: string): Promise<CascadeChange[]> {
+ *  moved. Follows the links themselves (so it works for schedules that aren't on
+ *  a job, and across schedules inside schedules). Respects dependency type, lag,
+ *  per-schedule workdays, and locks. */
+export async function computeCascade(_jobId: string | null, changedItemId: string): Promise<CascadeChange[]> {
   const sb = getSupabaseAdmin();
-  const [{ data: itemRows }, { data: deps }, { data: scheds }] = await Promise.all([
-    sb.from("schedule_items").select("*").eq("job_id", jobId),
-    sb.from("schedule_dependencies").select("*").eq("job_id", jobId),
-    sb.from("job_schedules").select("id, workdays").eq("job_id", jobId),
-  ]);
-  const items = new Map<string, any>((itemRows ?? []).map((i) => [i.id, { ...i }]));
-  const wdBySched = new Map<string, Workdays>((scheds ?? []).map((s) => [s.id, (s.workdays ?? DEFAULT_WORKDAYS) as Workdays]));
+  const fail = (what: string, err: { message: string } | null) => { if (err) throw new Error(`Couldn't move the linked tasks (${what}): ${err.message}`); };
+  const items = new Map<string, any>();
   const bySource = new Map<string, any[]>();
-  for (const d of deps ?? []) { const a = bySource.get(d.source_item_id) ?? []; a.push(d); bySource.set(d.source_item_id, a); }
+  const addDeps = (deps: any[]) => { for (const d of deps) { const a = bySource.get(d.source_item_id) ?? []; a.push(d); bySource.set(d.source_item_id, a); } };
+  const { data: first, error: firstErr } = await sb.from("schedule_items").select("*").eq("id", changedItemId).maybeSingle();
+  fail("the task", firstErr);
+  if (!first) return [];
+  if (first.job_id) {
+    // A job's schedules (nested ones included) share its job_id: load them in one go.
+    const [{ data: rows, error: e1 }, { data: deps, error: e2 }] = await Promise.all([
+      sb.from("schedule_items").select("*").eq("job_id", first.job_id),
+      sb.from("schedule_dependencies").select("*").eq("job_id", first.job_id),
+    ]);
+    fail("the job's tasks", e1); fail("the job's links", e2);
+    for (const r of rows ?? []) items.set(r.id, { ...r });
+    addDeps(deps ?? []);
+  } else {
+    // Deal / Pre-Con / selection schedules: follow the links out from the changed task.
+    items.set(first.id, { ...first });
+    let frontier = [changedItemId];
+    for (let depth = 0; frontier.length && depth < 200; depth++) {
+      const { data: deps, error } = await sb.from("schedule_dependencies").select("*").in("source_item_id", frontier);
+      fail("links", error);
+      addDeps(deps ?? []);
+      const next = Array.from(new Set((deps ?? []).map((d) => d.target_item_id as string))).filter((id) => !items.has(id));
+      if (next.length) {
+        const { data: rows, error: e3 } = await sb.from("schedule_items").select("*").in("id", next);
+        fail("linked tasks", e3);
+        for (const r of rows ?? []) items.set(r.id, { ...r });
+      }
+      frontier = next;
+    }
+  }
+  const schedIds = Array.from(new Set(Array.from(items.values()).map((i) => i.schedule_id as string)));
+  const { data: scheds, error: e4 } = await sb.from("job_schedules").select("id, workdays").in("id", schedIds);
+  fail("work calendars", e4);
+  const wdBySched = new Map<string, Workdays>((scheds ?? []).map((s) => [s.id, (s.workdays ?? DEFAULT_WORKDAYS) as Workdays]));
 
   const changes: CascadeChange[] = [];
   const queue: string[] = [changedItemId];
@@ -368,7 +415,7 @@ export async function computeCascade(jobId: string, changedItemId: string): Prom
   return changes;
 }
 
-export async function applyCascade(jobId: string, changedItemId: string, actor?: Actor): Promise<ScheduleItem[]> {
+export async function applyCascade(jobId: string | null, changedItemId: string, actor?: Actor): Promise<ScheduleItem[]> {
   const changes = await computeCascade(jobId, changedItemId);
   if (!changes.length) return [];
   const sb = getSupabaseAdmin();
@@ -498,14 +545,16 @@ export async function applyTemplate(scheduleId: string, templateId: string, acto
 }
 
 /** Apply a Job Schedule Package: create each template as its own schedule. */
-export async function applyPackage(jobId: string, packageId: string, actor?: Actor, opts: ApplyTemplateOptions = {}): Promise<JobSchedule[]> {
+export async function applyPackage(target: string | ScheduleScope, packageId: string, actor?: Actor, opts: ApplyTemplateOptions = {}): Promise<JobSchedule[]> {
+  const scope: ScheduleScope = typeof target === "string" ? { type: "job", id: target } : target;
+  const jobId = scope.type === "job" ? scope.id : null;
   const { getPackage, getTemplate } = await import("./templates");
   const pkg = getPackage(packageId);
   if (!pkg) throw new Error("Unknown package.");
   const created: JobSchedule[] = [];
   for (const tid of pkg.templateIds) {
     const tpl = getTemplate(tid); if (!tpl) continue;
-    const schedule = await createSchedule(jobId, { name: tpl.name, type: tpl.type, description: tpl.description, is_master: tid === "construction", start_date: opts.startDate || null }, actor);
+    const schedule = await createScopeSchedule(scope, { name: tpl.name, type: tpl.type, description: tpl.description, is_master: tid === "construction", start_date: opts.startDate || null }, actor);
     await applyTemplate(schedule.id, tid, actor, opts);
     created.push(schedule);
   }
@@ -572,6 +621,86 @@ export async function shiftSchedule(scheduleId: string, newStart: string, actor?
   return result;
 }
 
+// ---- scopes (Schedule Builder) ----
+// A job's schedules are read by job_id as always. Deals, Pre-Con records and
+// selections use scope_type / scope_id (migration 2026-10-30_schedule_builder).
+
+/** A readable name for what a schedule belongs to. */
+export async function scopeLabel(scope: ScheduleScope): Promise<string> {
+  const sb = getSupabaseAdmin();
+  if (scope.type === "job") {
+    const { data } = await sb.from("jobs").select("job_number, job_name").eq("id", scope.id).maybeSingle();
+    return data?.job_number || data?.job_name || "Job";
+  }
+  if (scope.type === "deal") {
+    const { data } = await sb.from("deals").select("title").eq("id", scope.id).maybeSingle();
+    return data?.title || "Pipeline deal";
+  }
+  if (scope.type === "precon") {
+    const { data } = await sb.from("pipeline_opportunities").select("opportunity_name, job_number").eq("id", scope.id).maybeSingle();
+    return data?.opportunity_name || data?.job_number || "Pre-Con";
+  }
+  const { data } = await sb.from("project_selections").select("name, category").eq("id", scope.id).maybeSingle();
+  return data?.name || "Selection";
+}
+
+export async function listScopeSchedules(scope: ScheduleScope, opts: { includeArchived?: boolean } = {}): Promise<JobSchedule[]> {
+  if (scope.type === "job") return listSchedules(scope.id, opts);
+  const sb = getSupabaseAdmin();
+  let q = sb.from("job_schedules").select("*").eq("scope_type", scope.type).eq("scope_id", scope.id)
+    .order("is_master", { ascending: false }).order("sort_order").order("created_at");
+  if (!opts.includeArchived) q = q.neq("status", "archived");
+  const [{ data: rows }, names] = await Promise.all([q, staffNames()]);
+  return withCounts((rows ?? []).map((r) => mapSchedule(r, names)));
+}
+
+/** Create a schedule for a job, deal, Pre-Con record or selection. A schedule
+ *  created inside another one always belongs to the same record. */
+export async function createScopeSchedule(scope: ScheduleScope, draft: ScheduleDraft, actor?: Actor): Promise<JobSchedule> {
+  let target = scope;
+  if (draft.parent_schedule_id) {
+    const parent = await getSchedule(draft.parent_schedule_id);
+    if (!parent) throw new Error("The schedule to put it inside wasn't found.");
+    target = parent.job_id ? { type: "job", id: parent.job_id } : { type: (parent.scope_type ?? "job") as ScheduleScopeType, id: parent.scope_id ?? "" };
+  }
+  if (target.type === "job") return createSchedule(target.id, draft, actor);
+  return insertSchedule({ job_id: null, scope_type: target.type, scope_id: target.id }, draft, actor);
+}
+
+/** The schedule and every schedule inside it, at any depth. */
+export async function descendantScheduleIds(id: string): Promise<string[]> {
+  const sb = getSupabaseAdmin();
+  const out: string[] = [];
+  let frontier = [id];
+  for (let depth = 0; frontier.length && depth < 20; depth++) {
+    const { data } = await sb.from("job_schedules").select("id").in("parent_schedule_id", frontier);
+    frontier = (data ?? []).map((r) => r.id as string).filter((x) => !out.includes(x));
+    out.push(...frontier);
+  }
+  return out;
+}
+
+export async function scopeScheduleHeader(scope: ScheduleScope): Promise<JobScheduleHeader> {
+  if (scope.type === "job") return jobScheduleHeader(scope.id);
+  const schedules = await listScopeSchedules(scope);
+  const items = schedules.length ? await listItems({ scheduleIds: schedules.map((s) => s.id) }) : [];
+  return headerFor(schedules, items);
+}
+
+/** Schedules belonging to a record, plus schedule items anywhere that point at it. */
+export async function linksForRecord(type: LinkType, id: string): Promise<{ schedules: JobSchedule[]; items: (ScheduleItem & { schedule_name?: string })[] }> {
+  const sb = getSupabaseAdmin();
+  const scoped = (["job", "deal", "precon", "selection"] as string[]).includes(type) ? await listScopeSchedules({ type: type as ScheduleScopeType, id }) : [];
+  const { data } = await sb.from("schedule_items").select("*").eq("link_type", type).eq("link_id", id).order("start_date").limit(200);
+  const items = (data ?? []).map(mapItem);
+  if (items.length) {
+    const { data: scheds } = await sb.from("job_schedules").select("id, name").in("id", Array.from(new Set(items.map((i) => i.schedule_id))));
+    const names = new Map((scheds ?? []).map((s) => [s.id as string, s.name as string]));
+    for (const i of items) (i as ScheduleItem & { schedule_name?: string }).schedule_name = names.get(i.schedule_id);
+  }
+  return { schedules: scoped, items };
+}
+
 // ---- participants ----
 export async function listParticipants(scheduleId: string): Promise<ScheduleParticipant[]> {
   const sb = getSupabaseAdmin();
@@ -618,7 +747,11 @@ export type JobScheduleHeader = {
 };
 
 export async function jobScheduleHeader(jobId: string): Promise<JobScheduleHeader> {
-  const schedules = await listSchedules(jobId);
+  const [schedules, items] = await Promise.all([listSchedules(jobId), listItems({ jobId })]);
+  return headerFor(schedules, items);
+}
+
+function headerFor(schedules: JobSchedule[], items: ScheduleItem[]): JobScheduleHeader {
   const active = schedules.filter((s) => s.status === "active");
   const overall = active.length ? Math.round(active.reduce((a, s) => a + (s.progress || 0), 0) / active.length) : 0;
   const rank = { critical: 4, delayed: 3, at_risk: 2, watch: 1, on_track: 0 } as Record<string, number>;
@@ -629,7 +762,6 @@ export async function jobScheduleHeader(jobId: string): Promise<JobScheduleHeade
   }, null);
   // Next upcoming milestone across schedules.
   const today = fmtISO(new Date());
-  const items = await listItems({ jobId });
   const upcoming = items
     .filter((i) => i.kind === "milestone" && i.status !== "complete" && i.status !== "cancelled" && i.start_date && i.start_date >= today)
     .sort((a, b) => (a.start_date! < b.start_date! ? -1 : 1))[0];
@@ -644,14 +776,20 @@ export async function jobScheduleHeader(jobId: string): Promise<JobScheduleHeade
 }
 
 // ---- global dashboard ----
-export type GlobalScheduleRow = JobSchedule & { job_number: string | null; job_name: string; client: string | null };
+export type GlobalScheduleRow = JobSchedule & { job_number: string | null; job_name: string; client: string | null; scope_label: string };
 
 export async function listAllSchedules(opts: { includeArchived?: boolean; limit?: number } = {}): Promise<GlobalScheduleRow[]> {
   const sb = getSupabaseAdmin();
   let q = sb.from("job_schedules").select("*, job:jobs(job_number, job_name)").order("updated_at", { ascending: false }).limit(opts.limit ?? 500);
   if (!opts.includeArchived) q = q.neq("status", "archived");
   const [{ data }, names] = await Promise.all([q, staffNames()]);
-  return withCounts((data ?? []).map((r: any) => ({ ...mapSchedule(r, names), job_number: r.job?.job_number ?? null, job_name: r.job?.job_name ?? "Job", client: null })));
+  // Deal / Pre-Con / selection schedules are labelled with their record's name.
+  const others = (data ?? []).filter((r: any) => !r.job_id && r.scope_id);
+  const labels = new Map<string, string>(await Promise.all(others.map(async (r: any) => [r.id, await scopeLabel({ type: r.scope_type, id: r.scope_id })] as [string, string])));
+  return withCounts((data ?? []).map((r: any) => ({
+    ...mapSchedule(r, names), job_number: r.job?.job_number ?? null, job_name: r.job?.job_name ?? "Job", client: null,
+    scope_label: r.job_id ? (r.job?.job_number || r.job?.job_name || "Job") : labels.get(r.id) ?? "—",
+  })));
 }
 
 // All items across every schedule (for the global dashboard), decorated with
@@ -705,4 +843,25 @@ export async function dashboardMetrics(): Promise<DashboardMetrics> {
     upcoming_milestones: its.filter((i) => i.kind === "milestone" && open(i) && i.start_date && i.start_date >= today && i.start_date <= weekEnd).length,
     overdue: its.filter((i) => open(i) && i.end_date && i.end_date < today).length,
   };
+}
+
+/** When Pre-Con becomes a job, the schedules the deal and the Pre-Con record
+ *  had (Schedule Builder) become the job's, items and links included. */
+export async function moveSchedulesToJob(from: ScheduleScope[], jobId: string, actor?: Actor): Promise<number> {
+  const sb = getSupabaseAdmin();
+  let moved = 0;
+  try {
+    for (const scope of from) {
+      const { data: scheds } = await sb.from("job_schedules").select("id").eq("scope_type", scope.type).eq("scope_id", scope.id);
+      const ids = (scheds ?? []).map((s) => s.id as string);
+      if (!ids.length) continue;
+      await sb.from("job_schedules").update({ job_id: jobId, scope_type: "job", scope_id: jobId, is_master: false }).in("id", ids);
+      const { data: items } = await sb.from("schedule_items").update({ job_id: jobId }).in("schedule_id", ids).select("id");
+      const itemIds = (items ?? []).map((i) => i.id as string);
+      if (itemIds.length) await sb.from("schedule_dependencies").update({ job_id: jobId }).in("target_item_id", itemIds);
+      moved += ids.length;
+    }
+    if (moved) await logActivity({ jobId, action: "schedules_moved_to_job", detail: { schedules: moved, from }, actor });
+  } catch { /* before the Schedule Builder migration there's nothing to move */ }
+  return moved;
 }

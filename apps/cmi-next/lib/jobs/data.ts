@@ -472,6 +472,13 @@ export async function convertOpportunityToJob(
   }
   const job = await createJob(draft, actor);
 
+  // Schedules the deal or Pre-Con record had now belong to the job.
+  {
+    const { data: deals } = await sb.from("deals").select("id").eq("opportunity_id", opportunityId);
+    const { moveSchedulesToJob } = await import("@/lib/schedules/data");
+    await moveSchedulesToJob([{ type: "precon", id: opportunityId }, ...(deals ?? []).map((d) => ({ type: "deal" as const, id: d.id as string }))], job.id, actor);
+  }
+
   // Keep the pipeline number (or a legacy CM-YYYY-####) on the job too, so the
   // deal → Pre-Con → job chain shares one traceable number.
   if (opp.job_number) {

@@ -6,6 +6,7 @@ import { listSchedules, jobScheduleHeader } from "@/lib/schedules/data";
 import { canEditSchedules, canManageSchedules, canViewSchedules } from "@/lib/schedules/permissions";
 import { SchedulesWorkspace } from "@/components/schedules/schedules-workspace";
 import { JobDetailNav } from "../job-detail-nav";
+import { isFeatureEnabled } from "@/lib/flags";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Schedules — CMI Dashboard" };
@@ -20,14 +21,15 @@ async function loadStaff(): Promise<{ id: string; name: string }[]> {
 // (Construction, Procurement, Selections, …), each with phases, items,
 // milestones, dependencies, and multiple views. Replaces the former
 // project-manager-board-scoped-to-job (now the "Projects & Tasks" tab).
-export default async function JobSchedulePage({ params }: { params: Promise<{ jobId: string }> }) {
+export default async function JobSchedulePage({ params, searchParams }: { params: Promise<{ jobId: string }>; searchParams: Promise<{ schedule?: string }> }) {
   const { jobId } = await params;
+  const { schedule: initialScheduleId } = await searchParams;
   const job = await getJob(jobId);
   if (!job) notFound();
 
   const staffMember = await getSessionStaff();
   const role = staffMember?.role_slug ?? null;
-  const [schedules, header, staff] = await Promise.all([listSchedules(job.id), jobScheduleHeader(job.id), loadStaff()]);
+  const [schedules, header, staff, builder] = await Promise.all([listSchedules(job.id), jobScheduleHeader(job.id), loadStaff(), isFeatureEnabled("schedule_builder")]);
   const jobLabel = [job.job_number, job.job_name].filter(Boolean).join(" · ") || job.job_name;
 
   return (
@@ -37,8 +39,10 @@ export default async function JobSchedulePage({ params }: { params: Promise<{ jo
         <div className="p-10 text-center text-sm text-muted-foreground">You don&apos;t have access to schedules.</div>
       ) : (
         <SchedulesWorkspace
-          jobId={job.id}
-          jobLabel={jobLabel}
+          scope={{ type: "job", id: job.id }}
+          scopeLabel={jobLabel}
+          builder={builder}
+          initialScheduleId={initialScheduleId ?? null}
           initialSchedules={schedules}
           initialHeader={header}
           staff={staff}

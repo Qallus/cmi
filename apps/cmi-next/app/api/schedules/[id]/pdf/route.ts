@@ -3,7 +3,7 @@ import { createElement } from "react";
 import { NextResponse } from "next/server";
 import { requireAdmin, AuthError } from "@/lib/auth/require-admin";
 import { canViewSchedules } from "@/lib/schedules/permissions";
-import { getSchedule, listItems, listPhases } from "@/lib/schedules/data";
+import { scopeLabel, getSchedule, listItems, listPhases } from "@/lib/schedules/data";
 import { getJob } from "@/lib/jobs/data";
 import { renderPdf } from "@/lib/pdf/render";
 import { getBrandLogoDataUri } from "@/lib/pdf/assets";
@@ -20,9 +20,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const schedule = await getSchedule(id);
     if (!schedule) return NextResponse.json({ error: "Not found." }, { status: 404 });
     const [items, phases, job, logo] = await Promise.all([
-      listItems({ scheduleId: id }), listPhases(id), getJob(schedule.job_id), getBrandLogoDataUri(),
+      listItems({ scheduleId: id }), listPhases(id), schedule.job_id ? getJob(schedule.job_id) : null, getBrandLogoDataUri(),
     ]);
-    const jobLite = job ? { job_number: job.job_number, job_name: job.job_name, full_address: job.full_address } : { job_number: null, job_name: "Job" };
+    // Deal, Pre-Con and selection schedules show what they belong to instead of a job.
+    const jobLite = job ? { job_number: job.job_number, job_name: job.job_name, full_address: job.full_address }
+      : { job_number: null, job_name: schedule.scope_id ? await scopeLabel({ type: schedule.scope_type ?? "job", id: schedule.scope_id }) : "Job" };
     const buffer = await renderPdf(createElement(SchedulePdf, { schedule, items, phases, job: jobLite, client: job ? (primaryClient(job)?.name ?? null) : null, logo }));
     return new NextResponse(new Uint8Array(buffer), {
       headers: {

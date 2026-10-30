@@ -20,7 +20,7 @@ export function ListView({ items, mode, showSchedule, onOpenItem }: { items: Sch
           <tbody className="divide-y divide-border">
             {items.map((i) => (
               <tr key={i.id} className="cursor-pointer hover:bg-muted/30" onClick={() => onOpenItem?.(i)}>
-                <td className="px-3 py-2"><div className="flex items-center gap-1.5"><PriorityDot priority={i.priority} />{i.kind === "milestone" ? <span className="text-accent">◆</span> : null}<span className={cn("font-medium", i.status === "complete" && "text-muted-foreground line-through")}>{i.title}</span></div></td>
+                <td className="px-3 py-2"><div className="flex items-center gap-1.5"><PriorityDot priority={i.priority} />{i.kind === "milestone" ? <span className="text-accent">◆</span> : null}<span className={cn("font-medium", i.status === "complete" && "text-muted-foreground line-through")}>{i.title}</span><LinkTag item={i} /></div></td>
                 <td className="px-3 py-2 text-muted-foreground">{showSchedule ? i.schedule_name ?? "—" : "—"}</td>
                 <td className="px-3 py-2"><StatusChip status={i.status} /></td>
                 <td className="px-3 py-2 text-muted-foreground">{fmtDate(i.start_date)}</td>
@@ -62,7 +62,7 @@ export function ListView({ items, mode, showSchedule, onOpenItem }: { items: Sch
           <PriorityDot priority={i.priority} />
           {i.kind === "milestone" ? <span className="text-accent">◆</span> : null}
           <div className="min-w-0 flex-1">
-            <div className={cn("truncate text-sm font-medium", i.status === "complete" && "text-muted-foreground line-through")}>{i.title}</div>
+            <div className={cn("truncate text-sm font-medium", i.status === "complete" && "text-muted-foreground line-through")}>{i.title}</div><LinkTag item={i} />
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               {showSchedule && i.schedule_name ? <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-sm" style={{ background: scheduleColor(i.schedule_id, i.schedule_color) }} />{i.schedule_name}</span> : null}
               <span>{fmtDate(i.start_date)} → {fmtDate(i.end_date)}</span>
@@ -79,4 +79,15 @@ export function ListView({ items, mode, showSchedule, onOpenItem }: { items: Sch
 
 function Empty() {
   return <div className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted-foreground">No schedule items yet.</div>;
+}
+
+// The record a Schedule Builder item points at, as a small link.
+function LinkTag({ item }: { item: { link_type?: string | null; link_id?: string | null; link_label?: string | null } }) {
+  if (!item.link_type || !item.link_id) return null;
+  return (
+    <a href={`/api/schedule-links/open?type=${item.link_type}&id=${item.link_id}`} onClick={(e) => e.stopPropagation()}
+      className="ml-1 inline-flex max-w-[180px] items-center truncate rounded bg-accent/10 px-1.5 py-0.5 text-[10px] font-medium text-accent hover:bg-accent/20" title="Open the linked record">
+      ↗ {item.link_label ?? "Linked record"}
+    </a>
+  );
 }

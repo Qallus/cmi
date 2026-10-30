@@ -72,9 +72,26 @@ export type Workdays = { mon: boolean; tue: boolean; wed: boolean; thu: boolean;
 
 export type Assignee = { id: string; name: string; type?: "staff" | "vendor" | "contractor" | "client" };
 
+// What a schedule belongs to. Jobs are the main case; a Pipeline deal, a
+// Pre-Con record or a selection can have schedules too (Schedule Builder).
+export type ScheduleScopeType = "job" | "deal" | "precon" | "selection";
+export type ScheduleScope = { type: ScheduleScopeType; id: string };
+export const SCOPE_LABELS: Record<ScheduleScopeType, string> = { job: "Job", deal: "Pipeline deal", precon: "Pre-Con", selection: "Selection" };
+
+// Records a schedule item can point at.
+export type LinkType = "deal" | "job" | "precon" | "company" | "contact" | "selection" | "project" | "punch_list" | "schedule";
+export const LINK_LABELS: Record<LinkType, string> = {
+  deal: "Pipeline deal", job: "Job", precon: "Pre-Con", company: "Vendor / Trade Partner", contact: "Contact",
+  selection: "Selection", project: "Project", punch_list: "Punch list", schedule: "Schedule",
+};
+
 export type JobSchedule = {
   id: string;
-  job_id: string;
+  /** Null for schedules that belong to a deal, Pre-Con record or selection. */
+  job_id: string | null;
+  parent_schedule_id?: string | null;
+  scope_type?: ScheduleScopeType;
+  scope_id?: string | null;
   name: string;
   type: ScheduleType;
   description: string | null;
@@ -152,6 +169,9 @@ export type ScheduleItem = {
   relationships: Record<string, unknown>;
   milestone_kind: string | null;
   master_display: MasterDisplay;
+  link_type?: LinkType | null;
+  link_id?: string | null;
+  link_label?: string | null;
   sort_order: number;
   created_at: string;
   updated_at: string;
@@ -216,6 +236,8 @@ export const DEFAULT_WORKDAYS: Workdays = { mon: true, tue: true, wed: true, thu
 // A blank schedule draft.
 export type ScheduleDraft = {
   name: string;
+  /** Put the new schedule inside another one (same job / record). */
+  parent_schedule_id?: string | null;
   type: ScheduleType;
   description?: string | null;
   owner_id?: string | null;
