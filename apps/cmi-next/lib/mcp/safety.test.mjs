@@ -51,7 +51,10 @@ test("trash: archive where the table archives, snapshot only leaf rows, refuse t
   assert.deepEqual(trashRuleFor("job"), { method: "archive", table: "jobs", column: "archived_at" });
   assert.equal(trashRuleFor("contact").method, "status");
   assert.equal(trashRuleFor("daily_log").method, "snapshot");
-  for (const parent of ["quote", "invoice", "selection", "project_item", "booking", "user", "change_order", "document"]) {
+  // Change orders have no child records, so they snapshot (PMs+ may trash them, 2026-10-30).
+  assert.equal(trashRuleFor("change_order").method, "snapshot");
+  assert.equal(trashRuleFor("site_page").method, "archive");
+  for (const parent of ["quote", "invoice", "selection", "project_item", "booking", "user", "document"]) {
     assert.equal(trashRuleFor(parent), null, `${parent} must not be trashable`);
   }
   // Every rule names a table.

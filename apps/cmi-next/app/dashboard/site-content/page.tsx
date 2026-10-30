@@ -1,5 +1,8 @@
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { SiteContentHub } from "./site-content-hub";
+import { SitePagesPanel } from "./site-pages-panel";
+import { getSessionStaff } from "@/lib/auth/server-session";
+import { listPages, type SitePage } from "@/lib/site-pages/data";
 
 export const metadata = { title: "Site Content — CMI Dashboard" };
 
@@ -29,10 +32,14 @@ async function loadBlocks(): Promise<ContentBlock[]> {
 export const dynamic = "force-dynamic";
 
 export default async function SiteContentPage() {
+  // Landing pages are a Super Admin feature (managed through Claude).
+  const staff = await getSessionStaff();
+  const pages: SitePage[] | null = staff?.role_slug === "super_admin" ? await listPages().catch(() => []) : null;
+  const panel = pages ? <SitePagesPanel pages={pages} /> : null;
   try {
     const blocks = await loadBlocks();
-    return <SiteContentHub initialBlocks={blocks} />;
+    return <>{panel}<SiteContentHub initialBlocks={blocks} /></>;
   } catch {
-    return <SiteContentHub initialBlocks={[]} />;
+    return <>{panel}<SiteContentHub initialBlocks={[]} /></>;
   }
 }

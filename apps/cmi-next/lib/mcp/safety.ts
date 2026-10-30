@@ -86,6 +86,7 @@ export const TRASH_POLICY: Record<string, TrashRule> = {
   business_card: { method: "archive", table: "business_cards", column: "archived_at" },
   portfolio_item: { method: "archive", table: "portfolio", column: "deleted_at" },
   cloud_file: { method: "archive", table: "files", column: "deleted_at" },
+  site_page: { method: "archive", table: "site_pages", column: "deleted_at" },
   contact: { method: "status", table: "contacts", column: "status", value: "archived" },
   daily_log: { method: "snapshot", table: "daily_logs" },
   job_note: { method: "snapshot", table: "job_notes" },
@@ -97,6 +98,7 @@ export const TRASH_POLICY: Record<string, TrashRule> = {
   email_template: { method: "snapshot", table: "email_templates" },
   contact_submission: { method: "snapshot", table: "contact_submissions" },
   meeting: { method: "snapshot", table: "meetings" },
+  change_order: { method: "snapshot", table: "change_orders" },
   commitment: { method: "snapshot", table: "commitments" },
   knowledge_doc: { method: "snapshot", table: "bolt_training_docs" },
 };

@@ -240,7 +240,10 @@ export const DASHBOARD_GUIDE: GuideEntry[] = [
     id: "site-content", name: "Site Content", path: "/dashboard/site-content", nav: "Sidebar → Site Content",
     roles: "Super Admin, Admin, Designer",
     summary: "The public website's content: Portfolio, Team, Blog and Messaging Consent (SMS/email opt-in records).",
-    keywords: ["site content", "website", "portfolio", "team", "blog", "messaging consent", "opt out"],
+    steps: [
+      "Landing pages (Super Admin): Site Content → Landing pages lists them with Preview and Live links. Create or edit them by asking Claude (CMI connector), e.g. \"draft a landing page at /lp/kitchen-remodels\"; Claude shares a private preview link and publishes only after you confirm. Every publish is kept in history and can be rolled back.",
+    ],
+    keywords: ["site content", "website", "portfolio", "team", "blog", "messaging consent", "opt out", "landing page", "publish", "preview"],
   },
   {
     id: "ai-agents", name: "AI Agents (Bolt)", path: "/dashboard/agent", nav: "Sidebar → AI Agents",
