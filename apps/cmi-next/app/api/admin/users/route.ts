@@ -4,6 +4,7 @@ import { requireAdmin, AuthError } from "@/lib/auth/require-admin";
 import { normalizeUser } from "@/lib/users/data";
 import type { UserInput, UserRole } from "@/lib/users/types";
 import { generateInviteLink, sendInviteEmail } from "@/lib/email/invite";
+import { cleanJobRoles } from "@/lib/jobs/team-roles";
 
 const contactRoleTypes: Partial<Record<UserRole, "Client" | "Vendor" | "Sub Contractor" | "Lead">> = {
   client: "Client",
@@ -32,6 +33,7 @@ function cleanInput(input: Partial<UserInput>): UserInput {
     phone: String(input.phone || "").trim(),
     company_name: String(input.company_name || "").trim(),
     job_title: String(input.job_title || "").trim(),
+    job_roles: cleanJobRoles(input.job_roles),
     avatar_url: String(input.avatar_url || "").trim(),
     notes: String(input.notes || "").trim(),
     send_invite: Boolean(input.send_invite),
@@ -103,6 +105,7 @@ export async function POST(request: Request) {
         phone: input.phone || null,
         title: input.job_title || null,
         job_title: input.job_title || null,
+        job_roles: input.job_roles,
         company_name: input.company_name || null,
         avatar_url: input.avatar_url || null,
         role_slug: input.role_slug,

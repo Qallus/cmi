@@ -16,3 +16,11 @@ export function jobTeamRole(role: string | null | undefined): JobTeamRole {
 export function jobTeamRoleValue(role: JobTeamRole): string | null {
   return role === "Other" ? null : role;
 }
+
+// Job-team roles a staff member can also be assigned as (staff_users.job_roles),
+// whatever their main title: an owner who also runs jobs as Project Manager.
+export const STAFF_JOB_ROLES = ["Project Manager", "Superintendent"] as const;
+export function cleanJobRoles(v: unknown): string[] {
+  const list = Array.isArray(v) ? v.map(String) : [];
+  return STAFF_JOB_ROLES.filter((r) => list.includes(r));
+}

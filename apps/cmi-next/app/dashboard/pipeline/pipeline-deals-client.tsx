@@ -19,7 +19,8 @@ import type { Deal, DealStage, Activity, ActivityType, DealTask, DealStageHistor
 import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
 import { DealActions, ShareDialog } from "./deal-actions";
 import { BulkBar } from "./bulk-bar";
-import { TextCell, MoneyCell, OwnerCell, StageCell, type CellEdit } from "./editable-cells";
+import type { CellEdit } from "./editable-cells";
+import { SheetInput, SheetSelect } from "./sheet-cells";
 import { PIPELINE_ORDER_KEY } from "@/lib/deals/order";
 import { DuplicateWarning, useDuplicateCheck } from "@/components/contacts/duplicate-warning";
 
@@ -424,7 +425,7 @@ export function PipelineDealsClient({
             {deals.length === 0 ? <>No deals yet. {canWrite && "Use “Add Deal” or “Add to Pipeline” to get started."}</> : "No deals match the current filters."}
           </div>
         ) : view === "list" ? (
-          <ListView deals={ordered} ownerName={ownerName} onOpen={openDeal} renderActions={renderActions} reorder={reorder} sortState={sortState} selection={selection} edit={cellEdit} owners={owners} />
+          <ListView deals={ordered} ownerName={ownerName} onOpen={openDeal} renderActions={renderActions} reorder={reorder} sortState={sortState} selection={selection} />
         ) : view === "table" ? (
           <TableView deals={ordered} ownerName={ownerName} onOpen={openDeal} renderActions={renderActions} reorder={reorder} sortState={sortState} selection={selection} edit={cellEdit} owners={owners} />
         ) : view === "kanban" ? (
@@ -625,29 +626,8 @@ function HeadCheck({ selection }: { selection?: Selection }) {
 }
 
 
-/**
- * Opening a deal moved here when cells became editable: clicking the title now
- * edits it, so the row can no longer double as a link. Shows on hover, and is
- * always present for keyboard users.
- */
-function OpenCell({ id, onOpen }: { id: string; onOpen: (id: string) => void }) {
-  return (
-    <td className="w-9 px-1" onClick={(e) => e.stopPropagation()}>
-      <button
-        type="button"
-        onClick={() => onOpen(id)}
-        aria-label="Open deal"
-        title="Open deal"
-        className="rounded p-1 text-muted-foreground opacity-0 transition hover:bg-muted hover:text-foreground focus-visible:opacity-100 group-hover/row:opacity-100"
-      >
-        <Maximize2 className="h-3.5 w-3.5" />
-      </button>
-    </td>
-  );
-}
-
 // ─── List view (roomy rows) ───────────────────────────────────────
-function ListView({ deals, ownerName, onOpen, renderActions, reorder, sortState, selection, edit, owners }: { deals: Deal[]; ownerName: (id: string | null) => string; onOpen: (id: string) => void; renderActions: (d: Deal) => React.ReactNode; reorder: Reorder | null; sortState?: SortState; selection?: Selection; edit?: CellEdit; owners?: OwnerOption[] }) {
+function ListView({ deals, ownerName, onOpen, renderActions, reorder, sortState, selection }: { deals: Deal[]; ownerName: (id: string | null) => string; onOpen: (id: string) => void; renderActions: (d: Deal) => React.ReactNode; reorder: Reorder | null; sortState?: SortState; selection?: Selection }) {
   const today = new Date().toISOString().slice(0, 10);
   const { dragId, overId, rowProps } = useRowDrag(reorder);
   return (
@@ -663,7 +643,6 @@ function ListView({ deals, ownerName, onOpen, renderActions, reorder, sortState,
             <SortableTh label="Owner" sortKey="owner" state={sortState} />
             <SortableTh label="Last activity" sortKey="activity" state={sortState} />
             <th className="px-3 py-2 font-medium">Next action</th>
-            <th className="w-9 px-1 py-2"><span className="sr-only">Open</span></th>
             <th className="w-10 px-3 py-2"><span className="sr-only">Actions</span></th>
           </tr>
         </thead>
@@ -671,11 +650,17 @@ function ListView({ deals, ownerName, onOpen, renderActions, reorder, sortState,
           {deals.map((d, i) => {
             const overdue = d.next_action_due && d.next_action_due < today;
             return (
+              // The whole row opens the deal; edits happen in the detail view or the Table view.
               <tr
                 key={d.id}
                 {...rowProps(d.id)}
+                role="link"
+                tabIndex={0}
+                aria-label={`Open ${d.title}`}
+                onClick={() => onOpen(d.id)}
+                onKeyDown={(e) => { if (e.key === "Enter" && e.target === e.currentTarget) onOpen(d.id); }}
                 className={cn(
-                  "group/row border-t border-border transition hover:bg-muted/40",
+                  "group/row cursor-pointer border-t border-border transition hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:outline-none",
                   dragId === d.id && "opacity-40",
                   overId === d.id && dragId !== d.id && "border-t-2 border-t-accent",
                 )}
@@ -683,21 +668,18 @@ function ListView({ deals, ownerName, onOpen, renderActions, reorder, sortState,
                 <RowCheck id={d.id} selection={selection} />
                 {reorder && <td className="px-2 py-2.5"><ReorderCell id={d.id} index={i} reorder={reorder} /></td>}
                 <td className="px-3 py-2.5">
-                  {edit ? <TextCell deal={d} field="title" value={d.title} edit={edit} className="font-medium" /> : <div className="font-medium">{d.title}</div>}
-                  {edit ? <TextCell deal={d} field="job_number" value={d.job_number} placeholder="No job number" edit={edit} className="font-mono text-[11px] text-muted-foreground" mono />
-                        : d.job_number && <div className="font-mono text-[11px] text-muted-foreground">{d.job_number}</div>}
+                  <div className="font-medium group-hover/row:text-accent">{d.title}</div>
+                  {d.job_number && <div className="font-mono text-[11px] text-muted-foreground">{d.job_number}</div>}
                 </td>
-                <td className="px-3 py-2.5">{edit ? <StageCell deal={d} edit={edit} badge={<StageBadge stage={d.stage} />} /> : <StageBadge stage={d.stage} />}</td>
-                <td className="px-3 py-2.5 text-right tabular-nums">{edit ? <MoneyCell deal={d} value={d.estimated_value} edit={edit} /> : money(d.estimated_value)}</td>
-                <td className="px-3 py-2.5 text-muted-foreground">{edit && owners ? <OwnerCell deal={d} owners={owners} edit={edit} /> : ownerName(d.owner_id)}</td>
+                <td className="px-3 py-2.5"><StageBadge stage={d.stage} /></td>
+                <td className="px-3 py-2.5 text-right tabular-nums">{money(d.estimated_value)}</td>
+                <td className="px-3 py-2.5 text-muted-foreground">{ownerName(d.owner_id)}</td>
                 <td className="px-3 py-2.5 text-muted-foreground">{d.last_activity_at ? `${daysSince(d.last_activity_at)}d ago` : "—"}</td>
                 <td className="max-w-[240px] px-3 py-2.5">
-                  {edit ? <TextCell deal={d} field="next_action" value={d.next_action} placeholder="Add a next action" edit={edit} />
-                        : d.next_action ? <div className="max-w-[220px] truncate">{d.next_action}</div> : <span className="text-muted-foreground">—</span>}
-                  {d.next_action_due && <div className={cn("px-1.5 text-[11px]", overdue ? "text-destructive" : "text-muted-foreground")}>{fmtDate(d.next_action_due)}{overdue ? " · overdue" : ""}</div>}
+                  {d.next_action ? <div className="max-w-[220px] truncate">{d.next_action}</div> : <span className="text-muted-foreground">—</span>}
+                  {d.next_action_due && <div className={cn("text-[11px]", overdue ? "text-destructive" : "text-muted-foreground")}>{fmtDate(d.next_action_due)}{overdue ? " · overdue" : ""}</div>}
                 </td>
-                <OpenCell id={d.id} onOpen={onOpen} />
-                <td className="px-3 py-2.5 text-right">{renderActions(d)}</td>
+                <td className="px-3 py-2.5 text-right" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>{renderActions(d)}</td>
               </tr>
             );
           })}
@@ -707,53 +689,73 @@ function ListView({ deals, ownerName, onOpen, renderActions, reorder, sortState,
   );
 }
 
-// ─── Table view (compact, more columns) ───────────────────────────
-function TableView({ deals, ownerName, onOpen, renderActions, reorder, sortState, selection, edit, owners }: { deals: Deal[]; ownerName: (id: string | null) => string; onOpen: (id: string) => void; renderActions: (d: Deal) => React.ReactNode; reorder: Reorder | null; sortState?: SortState; selection?: Selection; edit?: CellEdit; owners?: OwnerOption[] }) {
-  const { dragId, overId, rowProps } = useRowDrag(reorder);
+// ─── Table view (a spreadsheet: edit in place, Tab between cells) ──
+const SOURCE_OPTIONS = [{ value: "", label: "—" }, ...DEAL_SOURCES.map((s) => ({ value: s, label: s.replace(/_/g, " ") }))];
+const JOB_TYPE_OPTIONS = [{ value: "", label: "—" }, ...JOB_TYPES.map((t) => ({ value: t, label: t }))];
+const STAGE_OPTIONS = DEAL_STAGES.map((st) => ({ value: st, label: DEAL_STAGE_META[st]?.label ?? st }));
+
+function TableView({ deals, ownerName, onOpen, renderActions, reorder, sortState, selection, edit, owners }: { deals: Deal[]; ownerName: (id: string | null) => string; onOpen: (id: string) => void; renderActions: (d: Deal) => React.ReactNode; reorder: Reorder | null; sortState?: SortState; selection?: Selection; edit: CellEdit; owners: OwnerOption[] }) {
+  const ownerOptions = [{ value: "", label: "Unassigned" }, ...owners.map((o) => ({ value: o.id, label: o.name }))];
+  const ro = !edit.canWrite;
+  const text = (d: Deal, field: keyof Deal) => (raw: string) => edit.patch(d.id, { [field]: raw.trim() || null } as Partial<Deal>);
+  const num = (d: Deal, field: "estimated_value" | "probability", max?: number) => async (raw: string) => {
+    const clean = raw.replace(/[^0-9.]/g, "");
+    const n = clean === "" ? null : Number(clean);
+    if (n !== null && (!Number.isFinite(n) || (max != null && n > max))) return max != null ? `Enter 0–${max}.` : "Not a number.";
+    return edit.patch(d.id, { [field]: n } as Partial<Deal>);
+  };
+  const th = "border-b border-r border-border px-2 py-2 font-medium last:border-r-0";
+  const td = "border-b border-r border-border p-0 align-middle";
   return (
-    <div className="overflow-x-auto rounded-lg border border-border">
-      <table className="w-full text-sm">
+    <div className="overflow-x-auto rounded-lg border border-border" data-sheet>
+      {edit.canWrite ? <div className="border-b border-border bg-muted/30 px-3 py-1.5 text-[11px] text-muted-foreground">Click a cell to edit. Tab / Shift+Tab move across, Enter or ↑/↓ move down and up, Esc undoes. Changes save when you leave the cell.</div> : null}
+      <table className="w-full min-w-[1180px] border-collapse text-sm">
         <thead className="bg-muted/50 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
           <tr>
             <HeadCheck selection={selection} />
             {reorder && <th className="w-14 px-2 py-2"><span className="sr-only">Reorder</span></th>}
-            <SortableTh label="Deal" sortKey="title" state={sortState} />
-            <SortableTh label="Stage" sortKey="stage" state={sortState} />
-            <SortableTh label="Owner" sortKey="owner" state={sortState} />
-            <th className="px-3 py-2 font-medium">Job type</th>
-            <SortableTh label="Value" sortKey="value" state={sortState} className="text-right" align="right" />
-            <th className="px-3 py-2 font-medium text-right">Prob.</th>
-            <SortableTh label="Close" sortKey="close" state={sortState} />
-            <th className="px-3 py-2 font-medium">Source</th>
-            <th className="w-9 px-1 py-2"><span className="sr-only">Open</span></th>
-            <th className="w-10 px-3 py-2"><span className="sr-only">Actions</span></th>
+            <th className={cn(th, "w-20")}>No.</th>
+            <SortableTh label="Deal" sortKey="title" state={sortState} className={cn(th, "min-w-[220px]")} />
+            <SortableTh label="Stage" sortKey="stage" state={sortState} className={cn(th, "w-40")} />
+            <SortableTh label="Owner" sortKey="owner" state={sortState} className={cn(th, "w-40")} />
+            <th className={cn(th, "w-40")}>Job type</th>
+            <SortableTh label="Value" sortKey="value" state={sortState} className={cn(th, "w-32 text-right")} align="right" />
+            <th className={cn(th, "w-20 text-right")}>Prob. %</th>
+            <SortableTh label="Close" sortKey="close" state={sortState} className={cn(th, "w-36")} />
+            <th className={cn(th, "w-36")}>Source</th>
+            <th className={cn(th, "min-w-[180px]")}>Next action</th>
+            <th className={cn(th, "w-36")}>Due</th>
+            <th className="w-9 border-b border-border px-1 py-2"><span className="sr-only">Open</span></th>
+            <th className="w-10 border-b border-border px-3 py-2"><span className="sr-only">Actions</span></th>
           </tr>
         </thead>
         <tbody>
-          {deals.map((d, i) => (
-            <tr
-              key={d.id}
-              {...rowProps(d.id)}
-              className={cn(
-                "group/row border-t border-border transition hover:bg-muted/40",
-                dragId === d.id && "opacity-40",
-                overId === d.id && dragId !== d.id && "border-t-2 border-t-accent",
-              )}
-            >
-              <RowCheck id={d.id} selection={selection} />
-              {reorder && <td className="px-2 py-2"><ReorderCell id={d.id} index={i} reorder={reorder} /></td>}
-              <td className="px-3 py-2 font-medium">{edit ? <TextCell deal={d} field="title" value={d.title} edit={edit} className="font-medium" /> : d.title}</td>
-              <td className="px-3 py-2">{edit ? <StageCell deal={d} edit={edit} badge={<StageBadge stage={d.stage} />} /> : <StageBadge stage={d.stage} />}</td>
-              <td className="px-3 py-2 text-muted-foreground">{edit && owners ? <OwnerCell deal={d} owners={owners} edit={edit} /> : ownerName(d.owner_id)}</td>
-              <td className="px-3 py-2 text-muted-foreground">{d.job_type || "—"}</td>
-              <td className="px-3 py-2 text-right tabular-nums">{edit ? <MoneyCell deal={d} value={d.estimated_value} edit={edit} /> : money(d.estimated_value)}</td>
-              <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{d.probability != null ? `${d.probability}%` : "—"}</td>
-              <td className="px-3 py-2 text-muted-foreground">{fmtDate(d.expected_close_date)}</td>
-              <td className="px-3 py-2 text-muted-foreground">{d.source ? `${d.source.replace(/_/g, " ")}${d.referral_source ? ` · ${d.referral_source}` : ""}` : "—"}</td>
-              <OpenCell id={d.id} onOpen={onOpen} />
-              <td className="px-3 py-2 text-right">{renderActions(d)}</td>
-            </tr>
-          ))}
+          {deals.map((d, i) => {
+            const base = { row: i, disabled: ro };
+            return (
+              <tr key={d.id} className="group/row transition hover:bg-muted/20">
+                <RowCheck id={d.id} selection={selection} />
+                {reorder && <td className="border-b border-border px-2 py-1"><ReorderCell id={d.id} index={i} reorder={reorder} /></td>}
+                <td className={cn(td, "px-2 font-mono text-[11px] text-muted-foreground")}>{d.job_number ?? "—"}</td>
+                <td className={td}><SheetInput {...base} col={0} label={`Deal name, ${d.title}`} value={d.title ?? ""} save={async (raw) => (raw.trim() ? edit.patch(d.id, { title: raw.trim() }) : "A deal needs a name.")} /></td>
+                <td className={td}><SheetSelect {...base} col={1} label="Stage" value={d.stage} options={STAGE_OPTIONS} save={(raw) => edit.setStage(d.id, raw as DealStage)} /></td>
+                <td className={td}>{ro ? <span className="px-2 text-muted-foreground">{ownerName(d.owner_id)}</span> : <SheetSelect {...base} col={2} label="Owner" value={d.owner_id ?? ""} options={ownerOptions} save={(raw) => edit.patch(d.id, { owner_id: raw || null })} />}</td>
+                <td className={td}><SheetSelect {...base} col={3} label="Job type" value={d.job_type ?? ""} options={JOB_TYPE_OPTIONS} save={(raw) => edit.patch(d.id, { job_type: raw || null })} /></td>
+                <td className={td}><SheetInput {...base} col={4} label="Value" type="number" align="right" value={d.estimated_value == null ? "" : String(d.estimated_value)} save={num(d, "estimated_value")} placeholder="$" /></td>
+                <td className={td}><SheetInput {...base} col={5} label="Probability" type="number" align="right" value={d.probability == null ? "" : String(d.probability)} save={num(d, "probability", 100)} /></td>
+                <td className={td}><SheetInput {...base} col={6} label="Expected close" type="date" value={d.expected_close_date ?? ""} save={text(d, "expected_close_date")} /></td>
+                <td className={td}><SheetSelect {...base} col={7} label="Source" value={d.source ?? ""} options={SOURCE_OPTIONS} save={(raw) => edit.patch(d.id, { source: raw || null })} /></td>
+                <td className={td}><SheetInput {...base} col={8} label="Next action" value={d.next_action ?? ""} save={text(d, "next_action")} /></td>
+                <td className={td}><SheetInput {...base} col={9} label="Next action due" type="date" value={d.next_action_due ?? ""} save={text(d, "next_action_due")} /></td>
+                <td className="border-b border-border px-1">
+                  <button type="button" onClick={() => onOpen(d.id)} aria-label={`Open ${d.title}`} title="Open deal" className="rounded p-1 text-muted-foreground transition hover:bg-muted hover:text-foreground">
+                    <Maximize2 className="h-3.5 w-3.5" />
+                  </button>
+                </td>
+                <td className="border-b border-border px-3 py-1 text-right">{renderActions(d)}</td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

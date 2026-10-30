@@ -41,6 +41,7 @@ export function normalizeUser(row: Record<string, unknown>): ManagedUser {
     company_name: row.company_name ? String(row.company_name) : null,
     job_title: row.job_title ? String(row.job_title) : row.title ? String(row.title) : null,
     title: row.title ? String(row.title) : row.job_title ? String(row.job_title) : null,
+    job_roles: Array.isArray(row.job_roles) ? (row.job_roles as unknown[]).map(String) : [],
     avatar_url: row.avatar_url ? String(row.avatar_url) : null,
     notes: row.notes ? String(row.notes) : null,
     invited_at: row.invited_at ? String(row.invited_at) : null,

@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { requireAdmin, AuthError } from "@/lib/auth/require-admin";
 import { normalizeUser } from "@/lib/users/data";
 import type { UserInput, UserRole, UserStatus } from "@/lib/users/types";
+import { cleanJobRoles } from "@/lib/jobs/team-roles";
 
 const contactRoleTypes: Partial<Record<UserRole, "Client" | "Vendor" | "Sub Contractor" | "Lead">> = {
   client: "Client",
@@ -83,6 +84,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       company_name: body.company_name ?? existing.company_name,
       title: body.job_title ?? existing.title,
       job_title: body.job_title ?? existing.job_title,
+      ...(body.job_roles !== undefined ? { job_roles: cleanJobRoles(body.job_roles) } : {}),
       avatar_url: body.avatar_url ?? existing.avatar_url,
       notes: body.notes ?? existing.notes,
       disabled_at: nextStatus === "disabled" ? timestamp : action === "reactivate" ? null : existing.disabled_at,

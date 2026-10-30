@@ -94,6 +94,8 @@ export const DASHBOARD_GUIDE: GuideEntry[] = [
       "Add a deal: Pipeline → New deal → title, contact, value → Save. The next number is added to the title for you (or keep one you typed, if no other deal has it).",
       "Add people to a deal: open the deal → Lead / Contact details → type first/last name, phone, email and relation in the Primary contact block; use + Add contact for more. Fields save as you leave them; partial details are fine.",
       "Move a deal: open it → click the next stage in the stage bar (or Closed Won / Closed Lost at the top).",
+      "List view: click a deal's row to open it. Edit there, or switch to the Table view.",
+      "Table view works like a spreadsheet: click a cell and type (deal name, stage, owner, job type, value, probability, close date, source, next action and due date). Tab / Shift+Tab move across, Enter or ↑/↓ move down and up, Esc undoes; each change saves when you leave the cell.",
       "Find a won deal: it leaves the Pipeline and lives in Pre-Con (Sidebar → Pre-Con). On the kanban, drag a card onto Closed Won to send it there.",
       "Add a task: open the deal → Tasks → Add Task (the assignee gets an email with the deal, job number and due date).",
     ],
@@ -134,6 +136,7 @@ export const DASHBOARD_GUIDE: GuideEntry[] = [
     summary: "All construction jobs (list, table, card, kanban, calendar). Open a job for its own menu: Summary, Job Info, Price Summary, Client Portal, Schedule, Daily Logs, Projects & Tasks, Documents, Files, Messages, Communications, Change Orders, Invoices, Selections, Warranty, Notes and Activity. The Summary has stat cards (Documents, Contracts, Daily Logs, Selections, Change Orders, Invoices…) that link to each area.",
     steps: [
       "Open a job: Jobs → click the job.",
+      "Filter jobs by status, type or project manager. The PM list shows every CMI staff member; anyone set up as a Project Manager on a job (including owners who also run jobs) appears under their name.",
       "On a phone, the job's menu is the row under All jobs / Edit Job Info; swipe it sideways.",
     ],
     keywords: ["jobs", "projects", "construction", "job info", "summary", "job number"],
@@ -184,6 +187,8 @@ export const DASHBOARD_GUIDE: GuideEntry[] = [
     id: "schedules", name: "Schedules", path: "/dashboard/schedules", nav: "Sidebar → Jobs → Schedules",
     summary: "Schedules across all jobs (Gantt, timeline, list, table, card, calendar, kanban and resource views), with templates and client-facing dates. Templates include New Construction (76 tasks from the initial site visit to the final walkthrough, in 9 phases).",
     steps: [
+      "Add a schedule from the Schedules page: Add Schedule (top right) → pick the job → name it → choose a source (template, copy or blank) → Create. You're taken to that job's schedule.",
+      "Sort the Schedules list by clicking any column header (click again to reverse). Tick schedules to get quick actions at the bottom of the screen: set Status, set Health, Archive, or Delete (Project Manager and up).",
       "Start a schedule from a template: open the job → Schedule → Add Schedule → name it → Source: Use a template → pick one (e.g. New Construction) → choose the Start date. Every task is laid out from that date with the template's spacing in working days, and the Estimated finish shows before you create it.",
       "In the same step choose what happens when a date changes: 'Move the tasks that follow it' (linked tasks shift automatically) or 'I'll adjust dates myself' (only the task you edit moves).",
       "Change any single task by dragging it on the Gantt or opening it and editing its dates.",
@@ -295,8 +300,11 @@ export const DASHBOARD_GUIDE: GuideEntry[] = [
     id: "users", name: "User Management", path: "/dashboard/users", nav: "Sidebar → User Management",
     roles: "Super Admin, Admin",
     summary: "Staff accounts, roles and invites. Open a person to edit them, Preview Invite, or Resend Invite.",
-    steps: ["Invite someone: User Management → add the user → open them → Preview Invite → Resend Invite."],
-    keywords: ["users", "staff", "invite", "roles", "permissions", "user management", "add employee"],
+    steps: [
+      "Invite someone: User Management → add the user → open them → Preview Invite → Resend Invite.",
+      "Give someone a second job title: open them → Edit → 'Also works on jobs as' → tick Project Manager and/or Superintendent → Save. They're then offered when a job's PM or Superintendent is picked, e.g. an owner who also runs jobs.",
+    ],
+    keywords: ["users", "staff", "invite", "roles", "permissions", "user management", "add employee", "job title", "project manager", "superintendent"],
   },
   {
     id: "team", name: "Team (website profiles)", path: "/dashboard/team", nav: "Sidebar → Site Content → Team",

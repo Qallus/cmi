@@ -14,6 +14,7 @@ import { ResourceView } from "./views/resource-view";
 import { ItemDrawer } from "./item-drawer";
 import { AddScheduleWizard, type ScheduleSource } from "./add-schedule-wizard";
 import { ShiftDialog } from "./shift-dialog";
+import { createScheduleFromWizard } from "./create-schedule";
 import type { JobSchedule, ScheduleItem, SchedulePhase, ScheduleDependency, ScheduleView, ScheduleDraft, DependencyType, ScheduleType } from "@/lib/schedules/types";
 
 type Staff = { id: string; name: string };
@@ -47,9 +48,15 @@ export function SchedulesWorkspace({ jobId, jobLabel, initialSchedules, initialH
     fetch("/api/schedule-templates").then((r) => r.json()).then((d) => { setTemplates(d.templates ?? []); setPackages(d.packages ?? []); }).catch(() => {});
   }, []);
 
+  const applyingPkg = React.useRef(false);
   async function applyPackage(packageId: string) {
     setPkgMenu(false);
+    if (applyingPkg.current) return; // a second click while one is running would create every schedule twice
     if (!confirm("Apply this package? It creates several schedules with phases, items, and milestones.")) return;
+    applyingPkg.current = true;
+    try { await runPackage(packageId); } finally { applyingPkg.current = false; }
+  }
+  async function runPackage(packageId: string) {
     setBanner("Applying package…");
     const res = await fetch(`/api/jobs/${jobId}/schedule-packages`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ packageId, startDate: pkgStart || null }) });
     if (res.ok) { await refreshSchedules(); const d = await res.json(); if (d.created?.[0]) { setSelected(new Set([d.created[0].id])); await loadBundle(d.created[0].id); } setBanner("Package applied."); }
@@ -157,29 +164,13 @@ export function SchedulesWorkspace({ jobId, jobLabel, initialSchedules, initialH
   }
 
   async function createSchedule(draft: ScheduleDraft, source: ScheduleSource) {
-    const res = await fetch(`/api/jobs/${jobId}/schedules`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(draft) });
-    if (!res.ok) { setBanner("Could not create the schedule."); return; }
-    const created: JobSchedule = await res.json();
-    // Copy items from an existing schedule if requested.
-    if (source.mode === "copy" && source.copyFromId) {
-      const src = bundles[source.copyFromId] ?? (await fetch(`/api/schedules/${source.copyFromId}`).then((r) => r.json()));
-      const srcItems: ScheduleItem[] = src.items ?? [];
-      for (const it of srcItems) {
-        const { id: _id, schedule_id: _s, phase_id: _p, created_at: _c, updated_at: _u, ...rest } = it;
-        await fetch(`/api/schedules/${created.id}/items`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(rest) });
-      }
-    } else if (source.mode === "template" && source.templateId) {
-      const res = await fetch(`/api/schedules/${created.id}/apply-template`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ templateId: source.templateId, startDate: draft.start_date || null, autoCascade: source.autoCascade !== false }) }).catch(() => null);
-      const d = res ? await res.json().catch(() => ({})) : {};
-      if (res?.ok) {
-        const missing = d.unmatched_assignees?.length ? ` Not assigned (no staff account by that name): ${d.unmatched_assignees.join(", ")}.` : "";
-        setBanner(`${d.items} items added, ${fmtDate(d.start)} to ${fmtDate(d.finish)}.${missing}`);
-      } else setBanner(d.error ? `Template not applied: ${d.error}` : "Could not apply the template.");
-    }
+    const { schedule, message } = await createScheduleFromWizard(jobId, draft, source);
+    setBanner(message);
+    if (!schedule) return;
     setWizardOpen(false);
     await refreshSchedules();
-    setSelected(new Set([created.id]));
-    await loadBundle(created.id);
+    setSelected(new Set([schedule.id]));
+    await loadBundle(schedule.id);
   }
 
   const newItem = (kind: "task" | "milestone") => setEditing({ kind, schedule_id: primaryId ?? undefined, status: "not_started", priority: "normal", percent_complete: 0, all_day: true });

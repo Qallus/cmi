@@ -68,18 +68,21 @@ export async function listSchedules(jobId: string, opts: { includeArchived?: boo
   let q = sb.from("job_schedules").select("*").eq("job_id", jobId).order("is_master", { ascending: false }).order("sort_order").order("created_at");
   if (!opts.includeArchived) q = q.neq("status", "archived");
   const [{ data: rows }, names] = await Promise.all([q, staffNames()]);
-  const schedules = (rows ?? []).map((r) => mapSchedule(r, names));
-  // Aggregate item counts.
+  return withCounts((rows ?? []).map((r) => mapSchedule(r, names)));
+}
+
+// Task / milestone / overdue counts for a set of schedules.
+async function withCounts<T extends JobSchedule>(schedules: T[]): Promise<T[]> {
   const ids = schedules.map((s) => s.id);
-  if (ids.length) {
-    const { data: items } = await sb.from("schedule_items").select("id, schedule_id, kind, status, end_date").in("schedule_id", ids);
-    const today = fmtISO(new Date());
-    for (const s of schedules) {
-      const its = (items ?? []).filter((i) => i.schedule_id === s.id);
-      s.item_count = its.filter((i) => i.kind === "task").length;
-      s.milestone_count = its.filter((i) => i.kind === "milestone").length;
-      s.overdue_count = its.filter((i) => i.status !== "complete" && i.status !== "cancelled" && i.end_date && i.end_date < today).length;
-    }
+  if (!ids.length) return schedules;
+  const sb = getSupabaseAdmin();
+  const { data: items } = await sb.from("schedule_items").select("schedule_id, kind, status, end_date").in("schedule_id", ids).limit(20000);
+  const today = fmtISO(new Date());
+  for (const s of schedules) {
+    const its = (items ?? []).filter((i) => i.schedule_id === s.id);
+    s.item_count = its.filter((i) => i.kind === "task").length;
+    s.milestone_count = its.filter((i) => i.kind === "milestone").length;
+    s.overdue_count = its.filter((i) => i.status !== "complete" && i.status !== "cancelled" && i.end_date && i.end_date < today).length;
   }
   return schedules;
 }
@@ -648,7 +651,7 @@ export async function listAllSchedules(opts: { includeArchived?: boolean; limit?
   let q = sb.from("job_schedules").select("*, job:jobs(job_number, job_name)").order("updated_at", { ascending: false }).limit(opts.limit ?? 500);
   if (!opts.includeArchived) q = q.neq("status", "archived");
   const [{ data }, names] = await Promise.all([q, staffNames()]);
-  return (data ?? []).map((r: any) => ({ ...mapSchedule(r, names), job_number: r.job?.job_number ?? null, job_name: r.job?.job_name ?? "Job", client: null }));
+  return withCounts((data ?? []).map((r: any) => ({ ...mapSchedule(r, names), job_number: r.job?.job_number ?? null, job_name: r.job?.job_name ?? "Job", client: null })));
 }
 
 // All items across every schedule (for the global dashboard), decorated with

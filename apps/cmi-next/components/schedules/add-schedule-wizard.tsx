@@ -29,19 +29,22 @@ const DAYS: { k: keyof Workdays; l: string }[] = [
   { k: "mon", l: "Mon" }, { k: "tue", l: "Tue" }, { k: "wed", l: "Wed" }, { k: "thu", l: "Thu" }, { k: "fri", l: "Fri" }, { k: "sat", l: "Sat" }, { k: "sun", l: "Sun" },
 ];
 
-export function AddScheduleWizard({ open, staff, templates, existing, onClose, onCreate }: {
-  open: boolean; staff: Staff[]; templates: TemplateOpt[]; existing: JobSchedule[];
-  onClose: () => void; onCreate: (draft: ScheduleDraft, source: ScheduleSource) => Promise<void>;
+// `jobs` (the global Schedules page): the first step also asks which job the schedule is for.
+export function AddScheduleWizard({ open, staff, templates, existing, jobs, onClose, onCreate }: {
+  open: boolean; staff: Staff[]; templates: TemplateOpt[]; existing: JobSchedule[]; jobs?: { id: string; label: string }[];
+  onClose: () => void; onCreate: (draft: ScheduleDraft, source: ScheduleSource, jobId?: string) => Promise<void>;
 }) {
   const [step, setStep] = React.useState(0);
   const [saving, setSaving] = React.useState(false);
   const [draft, setDraft] = React.useState<ScheduleDraft>({ name: "", type: "construction", workdays: { ...DEFAULT_WORKDAYS }, priority: "normal", visibility: "internal", status: "active" });
   const [source, setSource] = React.useState<ScheduleSource>({ mode: "scratch" });
+  const [jobId, setJobId] = React.useState("");
 
-  React.useEffect(() => { if (open) { setStep(0); setDraft({ name: "", type: "construction", workdays: { ...DEFAULT_WORKDAYS }, priority: "normal", visibility: "internal", status: "active" }); setSource({ mode: "scratch" }); } }, [open]);
+  React.useEffect(() => { if (open) { setStep(0); setDraft({ name: "", type: "construction", workdays: { ...DEFAULT_WORKDAYS }, priority: "normal", visibility: "internal", status: "active" }); setSource({ mode: "scratch" }); setJobId(""); } }, [open]);
   if (!open) return null;
   const set = <K extends keyof ScheduleDraft>(k: K, v: ScheduleDraft[K]) => setDraft((d) => ({ ...d, [k]: v }));
-  const canNext = step !== 0 || draft.name.trim().length > 0;
+  const canNext = step !== 0 || (draft.name.trim().length > 0 && (!jobs || !!jobId));
+  const jobSchedules = jobs ? existing.filter((s) => s.job_id === jobId) : existing;
   const template = source.mode === "template" ? templates.find((t) => t.id === source.templateId) : undefined;
   const finish = templateFinish(template, draft.start_date, draft.workdays ?? DEFAULT_WORKDAYS);
 
@@ -53,7 +56,7 @@ export function AddScheduleWizard({ open, staff, templates, existing, onClose, o
 
   async function create() {
     setSaving(true);
-    try { await onCreate(draft, source); } finally { setSaving(false); }
+    try { await onCreate(draft, source, jobId || undefined); } finally { setSaving(false); }
   }
 
   return (
@@ -82,7 +85,15 @@ export function AddScheduleWizard({ open, staff, templates, existing, onClose, o
       <div className="space-y-3 pb-4">
         {step === 0 ? (
           <>
-            <Field label="Schedule name" required><Input value={draft.name} onChange={(e) => set("name", e.target.value)} placeholder="e.g. Construction, Procurement, Primary Bath" autoFocus /></Field>
+            {jobs ? (
+              <Field label="Job" required>
+                <Select value={jobId} onChange={(e) => { setJobId(e.target.value); if (source.mode === "copy") setSource({ mode: "scratch" }); }} autoFocus>
+                  <option value="">Choose a job…</option>
+                  {jobs.map((j) => <option key={j.id} value={j.id}>{j.label}</option>)}
+                </Select>
+              </Field>
+            ) : null}
+            <Field label="Schedule name" required><Input value={draft.name} onChange={(e) => set("name", e.target.value)} placeholder="e.g. Construction, Procurement, Primary Bath" autoFocus={!jobs} /></Field>
             <div className="grid grid-cols-2 gap-3">
               <Field label="Type"><Select value={draft.type} onChange={(e) => set("type", e.target.value as ScheduleType)}>{Object.entries(SCHEDULE_TYPE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</Select></Field>
               <Field label="Priority"><Select value={draft.priority} onChange={(e) => set("priority", e.target.value as ScheduleDraft["priority"])}><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option><option value="critical">Critical</option></Select></Field>
@@ -127,9 +138,9 @@ export function AddScheduleWizard({ open, staff, templates, existing, onClose, o
                 </div>
               </div>
             ) : null}
-            <SourceRow active={source.mode === "copy"} title="Copy an existing schedule" desc="Duplicate another schedule on this job." disabled={!existing.length} onClick={() => setSource({ mode: "copy", copyFromId: existing[0]?.id })} />
+            <SourceRow active={source.mode === "copy"} title="Copy an existing schedule" desc="Duplicate another schedule on this job." disabled={!jobSchedules.length} onClick={() => setSource({ mode: "copy", copyFromId: jobSchedules[0]?.id })} />
             {source.mode === "copy" ? (
-              <Select value={source.copyFromId ?? ""} onChange={(e) => setSource({ mode: "copy", copyFromId: e.target.value })}>{existing.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</Select>
+              <Select value={source.copyFromId ?? ""} onChange={(e) => setSource({ mode: "copy", copyFromId: e.target.value })}>{jobSchedules.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</Select>
             ) : null}
           </>
         ) : step === 2 ? (
@@ -150,6 +161,7 @@ export function AddScheduleWizard({ open, staff, templates, existing, onClose, o
           </>
         ) : (
           <div className="space-y-2 rounded-lg border border-border p-3 text-sm">
+            {jobs ? <Row k="Job" v={jobs.find((j) => j.id === jobId)?.label ?? "—"} /> : null}
             <Row k="Name" v={draft.name || "—"} />
             <Row k="Type" v={SCHEDULE_TYPE_LABELS[draft.type]} />
             <Row k="Master" v={draft.is_master ? "Yes" : "No"} />

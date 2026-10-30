@@ -12,7 +12,7 @@ import { Select } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { ALL_JOB_STATUSES, JOB_STATUS_META } from "@/lib/jobs/status";
 import type { JobListRow } from "@/lib/jobs/data";
-import type { JobType, JobGroup, JobStatus } from "@/lib/jobs/types";
+import type { JobType, JobStatus } from "@/lib/jobs/types";
 import type { JobReport } from "@/lib/jobs/reporting";
 import { JobStatusBadge, JobColorDot, money, formatDate } from "./job-ui";
 import { RecordsImportModal } from "@/components/dashboard/records-import-modal";
@@ -32,15 +32,18 @@ const VIEWS: { key: ViewMode; label: string; icon: typeof ListIcon }[] = [
 ];
 
 const STATUS_OPTIONS = ALL_JOB_STATUSES.map((s) => ({ value: s, label: JOB_STATUS_META[s].label }));
+// The Status filter leaves out statuses that belong to the Pipeline / Pre-Con stage or to dead leads.
+const FILTER_STATUSES = ALL_JOB_STATUSES.filter((s) => !["draft", "opportunity", "long_lead", "not_moving_forward"].includes(s));
 
 type Sel = { selected: Set<string>; setSelected: React.Dispatch<React.SetStateAction<Set<string>>> };
 
 export function JobsListClient({
-  initialRows, types, groups, report, role = null,
+  initialRows, types, staffNames, report, role = null,
 }: {
   initialRows: JobListRow[];
   types: JobType[];
-  groups: JobGroup[];
+  /** Every CMI staff member, for the PM filter. */
+  staffNames: string[];
   report: JobReport;
   role?: string | null;
 }) {
@@ -53,7 +56,6 @@ export function JobsListClient({
   const [statusFilter, setStatusFilter] = React.useState("all");
   const [typeFilter, setTypeFilter] = React.useState("all");
   const [pmFilter, setPmFilter] = React.useState("all");
-  const [groupFilter, setGroupFilter] = React.useState("all");
   const [activeOnly, setActiveOnly] = React.useState(false);
   const [sort, setSort] = React.useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "updated_at", dir: "desc" });
   const [newMenu, setNewMenu] = React.useState(false);
@@ -61,7 +63,8 @@ export function JobsListClient({
   const [importOpen, setImportOpen] = React.useState(false);
   const [showArchived, setShowArchived] = React.useState(false);
 
-  const pms = React.useMemo(() => Array.from(new Set(rows.flatMap((r) => r.project_managers))).sort(), [rows]);
+  // All CMI staff, plus any manually typed PM names already on jobs.
+  const pms = React.useMemo(() => Array.from(new Set([...staffNames, ...rows.flatMap((r) => r.project_managers)])).sort((a, b) => a.localeCompare(b)), [rows, staffNames]);
 
   // Status tabs apply to every view except Kanban (which shows all columns).
   const filtered = React.useMemo(() => {
@@ -72,7 +75,6 @@ export function JobsListClient({
       if (showArchived ? !r.archived_at : r.archived_at) return false;
       if (view !== "kanban" && statusFilter !== "all" && r.status !== statusFilter) return false;
       if (typeFilter !== "all" && r.job_type_id !== typeFilter) return false;
-      if (groupFilter !== "all" && r.job_group_id !== groupFilter) return false;
       if (pmFilter !== "all" && !r.project_managers.includes(pmFilter)) return false;
       if (activeOnly && !JOB_STATUS_META[r.status].open) return false;
       if (q) {
@@ -83,7 +85,7 @@ export function JobsListClient({
     });
     const dir = sort.dir === "asc" ? 1 : -1;
     return out.sort((a, b) => String(a[sort.key] ?? "").localeCompare(String(b[sort.key] ?? "")) * dir);
-  }, [rows, view, search, statusFilter, typeFilter, groupFilter, pmFilter, activeOnly, sort, showArchived]);
+  }, [rows, view, search, statusFilter, typeFilter, pmFilter, activeOnly, sort, showArchived]);
 
   function toggleSort(key: SortKey) {
     setSort((s) => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
@@ -187,7 +189,7 @@ export function JobsListClient({
           {view !== "kanban" && (
             <div className="w-36"><Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
               <option value="all">All statuses</option>
-              {ALL_JOB_STATUSES.map((s) => <option key={s} value={s}>{JOB_STATUS_META[s].label}</option>)}
+              {FILTER_STATUSES.map((s) => <option key={s} value={s}>{JOB_STATUS_META[s].label}</option>)}
             </Select></div>
           )}
           <div className="w-36"><Select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
@@ -198,12 +200,6 @@ export function JobsListClient({
             <option value="all">All PMs</option>
             {pms.map((p) => <option key={p} value={p}>{p}</option>)}
           </Select></div>
-          {groups.length > 0 && (
-            <div className="w-36"><Select value={groupFilter} onChange={(e) => setGroupFilter(e.target.value)}>
-              <option value="all">All groups</option>
-              {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
-            </Select></div>
-          )}
           <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <input type="checkbox" checked={activeOnly} onChange={(e) => setActiveOnly(e.target.checked)} /> Active only
           </label>

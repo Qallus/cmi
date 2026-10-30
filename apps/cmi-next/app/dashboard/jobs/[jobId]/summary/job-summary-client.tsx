@@ -18,7 +18,7 @@ import {
   PastDueCard, DueTodayCard, ActionItemsCard, AgendaCard, ActivityCard, LogsCard,
 } from "./summary-cards";
 
-type StaffOption = { id: string; label: string; email: string; role: string; job_title: string };
+type StaffOption = { id: string; label: string; email: string; role: string; job_title: string; job_roles?: string[] };
 type LeadRole = Exclude<JobTeamRole, "Other">;
 const ROLE_ORDER: Record<JobTeamRole, number> = { "Project Manager": 0, Superintendent: 1, Other: 2 };
 // Manual (non-staff) names live on the job row itself.
@@ -247,8 +247,8 @@ function AddLeadModal({ role, existingIds, onTeam, onManual, onClose }: { role: 
     return () => window.removeEventListener("keydown", h);
   }, [onClose]);
 
-  const isPm = (s: StaffOption) => s.role === "project_manager" || /project\s*manager|proj\s*mgr|\bpm\b/i.test(s.job_title);
-  const isSuper = (s: StaffOption) => s.role === "superintendent" || /superintendent|supervisor|foreman|\bsuper\b/i.test(s.job_title);
+  const isPm = (s: StaffOption) => s.role === "project_manager" || !!s.job_roles?.includes("Project Manager") || /project\s*manager|proj\s*mgr|\bpm\b/i.test(s.job_title);
+  const isSuper = (s: StaffOption) => s.role === "superintendent" || !!s.job_roles?.includes("Superintendent") || /superintendent|supervisor|foreman|\bsuper\b/i.test(s.job_title);
   const matches = role === "Superintendent" ? isSuper : isPm;
   const plural = role === "Superintendent" ? "superintendents" : "project managers";
   const available = (staff ?? []).filter((s) => !existingIds.has(s.id));

@@ -27,6 +27,8 @@ export type ManagedUser = {
   company_name: string | null;
   job_title: string | null;
   title: string | null;
+  /** Job-team roles this person can be assigned as on a job ("Project Manager", "Superintendent"). */
+  job_roles?: string[];
   avatar_url: string | null;
   notes: string | null;
   invited_at: string | null;
@@ -61,6 +63,7 @@ export type UserInput = {
   status: UserStatus;
   company_name?: string;
   job_title?: string;
+  job_roles?: string[];
   avatar_url?: string;
   notes?: string;
   send_invite?: boolean;

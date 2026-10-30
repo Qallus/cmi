@@ -2,7 +2,12 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Search, CalendarClock, AlertTriangle, Clock, Flag, TriangleAlert, CircleCheck, Timer } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Search, CalendarClock, AlertTriangle, Clock, Flag, TriangleAlert, CircleCheck, Timer, Plus, Archive, Trash2, Activity, CircleDot } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useSort, SortableTh, useRowSelection, HeaderCheckbox, RowCheckbox, SelectionBar, BarAction } from "@/components/ui/data-table";
+import { AddScheduleWizard, type ScheduleSource } from "@/components/schedules/add-schedule-wizard";
+import { createScheduleFromWizard } from "@/components/schedules/create-schedule";
 import { Select } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { HealthChip, TypeBadge, Progress, fmtDate, scheduleColor, VIEWS } from "@/components/schedules/shared";
@@ -10,16 +15,34 @@ import { ListView } from "@/components/schedules/views/list-view";
 import { CalendarView } from "@/components/schedules/views/calendar-view";
 import { BoardView } from "@/components/schedules/views/board-view";
 import { ResourceView } from "@/components/schedules/views/resource-view";
-import { SCHEDULE_TYPE_LABELS } from "@/lib/schedules/types";
+import { SCHEDULE_TYPE_LABELS, HEALTH_LABELS, SCHEDULE_STATUS_LABELS, type ScheduleDraft, type ScheduleHealth, type ScheduleType } from "@/lib/schedules/types";
 import type { GlobalScheduleRow, DashboardMetrics, GlobalItem } from "@/lib/schedules/data";
 import type { ScheduleView } from "@/lib/schedules/types";
+
+// A job number already ends with the job name ("26_012_26_027_Lindquist…"), so it's the whole label.
+const jobLabel = (s: { job_number: string | null; job_name: string }) => s.job_number || s.job_name;
+
+const COLUMNS = [["Schedule", "name"], ["Job", "job"], ["Type", "type"], ["Health", "health"], ["Progress", "progress"], ["Items", "items"], ["Overdue", "overdue"], ["Projected", "projected"]] as const;
 
 // GlobalItem re-declared for the client boundary (matches lib type).
 type Item = GlobalItem & { job_number?: string | null; job_name?: string | null };
 
-export function SchedulesDashboardClient({ schedules, metrics, items }: {
+const HEALTH_RANK: Record<string, number> = { on_track: 0, watch: 1, at_risk: 2, delayed: 3, critical: 4 };
+
+export function SchedulesDashboardClient({ schedules, metrics, items, staff, jobs: jobOptions, canEdit, canManage }: {
   schedules: GlobalScheduleRow[]; metrics: DashboardMetrics; items: Item[]; staff: { id: string; name: string }[];
+  jobs: { id: string; label: string }[]; canEdit: boolean; canManage: boolean;
 }) {
+  const router = useRouter();
+  const [wizardOpen, setWizardOpen] = React.useState(false);
+  const [templates, setTemplates] = React.useState<{ id: string; name: string; type: ScheduleType; description?: string }[]>([]);
+  const [panel, setPanel] = React.useState<"status" | "health" | null>(null);
+  const [busy, setBusy] = React.useState(false);
+  const [notice, setNotice] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    if (!wizardOpen || templates.length) return;
+    fetch("/api/schedule-templates").then((r) => r.json()).then((d) => setTemplates(d.templates ?? [])).catch(() => {});
+  }, [wizardOpen, templates.length]);
   const [tab, setTab] = React.useState<"schedules" | "items">("schedules");
   const [view, setView] = React.useState<ScheduleView>("list");
   const [q, setQ] = React.useState("");
@@ -29,7 +52,7 @@ export function SchedulesDashboardClient({ schedules, metrics, items }: {
 
   const jobs = React.useMemo(() => {
     const m = new Map<string, string>();
-    for (const s of schedules) if (s.job_id) m.set(s.job_id, [s.job_number, s.job_name].filter(Boolean).join(" · ") || s.job_name);
+    for (const s of schedules) if (s.job_id) m.set(s.job_id, jobLabel(s));
     return Array.from(m, ([id, label]) => ({ id, label }));
   }, [schedules]);
 
@@ -43,6 +66,42 @@ export function SchedulesDashboardClient({ schedules, metrics, items }: {
       return true;
     });
   }, [schedules, q, jobFilter, typeFilter, healthFilter]);
+
+  const { sorted: sortedSchedules, sort } = useSort(filteredSchedules, {
+    name: (s) => s.name,
+    job: (s) => jobLabel(s),
+    type: (s) => SCHEDULE_TYPE_LABELS[s.type] ?? s.type,
+    health: (s) => HEALTH_RANK[s.health] ?? 0,
+    progress: (s) => s.progress,
+    items: (s) => s.item_count ?? 0,
+    overdue: (s) => s.overdue_count ?? 0,
+    projected: (s) => s.projected_completion || s.target_completion,
+  });
+  const visibleIds = React.useMemo(() => sortedSchedules.map((s) => s.id), [sortedSchedules]);
+  const selection = useRowSelection(visibleIds);
+
+  async function createFromWizard(draft: ScheduleDraft, source: ScheduleSource, jobId?: string) {
+    if (!jobId) return;
+    const { schedule, message } = await createScheduleFromWizard(jobId, draft, source);
+    setNotice(message);
+    if (!schedule) return;
+    setWizardOpen(false);
+    router.push(`/dashboard/jobs/${jobId}/schedule`);
+  }
+
+  // Quick actions on the selected schedules.
+  async function bulk(patch: Record<string, unknown> | "delete", label: string) {
+    const n = selection.count;
+    if (patch === "delete" && !confirm(`Delete ${n} schedule${n === 1 ? "" : "s"} and all their items? This can't be undone. Archive keeps them instead.`)) return;
+    setBusy(true);
+    const results = await Promise.all(selection.list.map((id) => fetch(`/api/schedules/${id}`, patch === "delete"
+      ? { method: "DELETE" }
+      : { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) }).then((r) => r.ok).catch(() => false)));
+    const failed = results.filter((ok) => !ok).length;
+    setNotice(failed ? `${label}: ${failed} of ${results.length} failed.` : `${label}: ${results.length} schedule${results.length === 1 ? "" : "s"}.`);
+    setBusy(false); setPanel(null); selection.clear();
+    router.refresh();
+  }
 
   const filteredItems = React.useMemo(() => {
     const term = q.trim().toLowerCase();
@@ -71,8 +130,14 @@ export function SchedulesDashboardClient({ schedules, metrics, items }: {
   return (
     <div className="flex h-[calc(100vh-56px)] flex-col">
       <div className="border-b border-border bg-card px-4 py-4 md:px-6">
-        <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Operations</div>
-        <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight">Schedules</h1>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Operations</div>
+            <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight">Schedules</h1>
+          </div>
+          {canEdit ? <Button variant="accent" size="sm" onClick={() => setWizardOpen(true)}><Plus className="h-3.5 w-3.5" /> Add Schedule</Button> : null}
+        </div>
+        {notice ? <div className="mt-2 flex items-center justify-between rounded-md bg-accent/10 px-3 py-1.5 text-xs text-accent"><span>{notice}</span><button type="button" onClick={() => setNotice(null)} className="font-medium">Dismiss</button></div> : null}
 
         {/* Metric cards — single slidable row on mobile */}
         <div className="mt-3 flex snap-x gap-3 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] sm:grid sm:grid-cols-5 sm:overflow-visible sm:pb-0 [&::-webkit-scrollbar]:hidden [&>*]:min-w-[44%] [&>*]:shrink-0 sm:[&>*]:min-w-0">
@@ -117,13 +182,15 @@ export function SchedulesDashboardClient({ schedules, metrics, items }: {
             <div className="overflow-x-auto rounded-lg border border-border">
               <table className="w-full min-w-[820px] border-collapse text-sm">
                 <thead className="bg-muted/40"><tr className="border-b border-border text-left">
-                  {["Schedule", "Job", "Type", "Health", "Progress", "Items", "Overdue", "Projected"].map((h) => <th key={h} className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{h}</th>)}
+                  {canEdit ? <HeaderCheckbox selection={selection} label="Select all schedules" /> : null}
+                  {COLUMNS.map(([label, key]) => <SortableTh key={key} label={label} sortKey={key} sort={sort} />)}
                 </tr></thead>
                 <tbody className="divide-y divide-border">
-                  {filteredSchedules.map((s) => (
-                    <tr key={s.id} className="hover:bg-muted/30">
+                  {sortedSchedules.map((s) => (
+                    <tr key={s.id} className={cn("hover:bg-muted/30", selection.ids.has(s.id) && "bg-accent/5")}>
+                      {canEdit ? <RowCheckbox id={s.id} selection={selection} label={`Select ${s.name}`} /> : null}
                       <td className="px-3 py-2"><Link href={`/dashboard/jobs/${s.job_id}/schedule`} className="flex items-center gap-2 font-medium hover:text-accent"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: scheduleColor(s.id, s.color) }} />{s.is_master ? "★ " : ""}{s.name}</Link></td>
-                      <td className="px-3 py-2 text-muted-foreground">{[s.job_number, s.job_name].filter(Boolean).join(" · ")}</td>
+                      <td className="px-3 py-2 text-muted-foreground">{jobLabel(s)}</td>
                       <td className="px-3 py-2"><TypeBadge type={s.type} /></td>
                       <td className="px-3 py-2"><HealthChip health={s.health} /></td>
                       <td className="px-3 py-2"><div className="flex items-center gap-2"><Progress value={s.progress} className="w-16" /><span className="text-xs tabular-nums text-muted-foreground">{s.progress}%</span></div></td>
@@ -143,6 +210,28 @@ export function SchedulesDashboardClient({ schedules, metrics, items }: {
           <ListView items={filteredItems} mode={view === "table" ? "table" : "list"} showSchedule />
         )}
       </div>
+
+      {tab === "schedules" ? (
+        <SelectionBar count={selection.count} noun="schedule" onClear={() => { selection.clear(); setPanel(null); }} panel={
+          panel === "status" ? (
+            <div className="flex flex-wrap items-center gap-1 border-b border-border px-2 pb-2">
+              <span className="mr-1 text-xs font-medium text-muted-foreground">Set status</span>
+              {(["active", "on_hold", "complete"] as const).map((st) => <button key={st} type="button" disabled={busy} onClick={() => void bulk({ status: st }, `Status set to ${SCHEDULE_STATUS_LABELS[st]}`)} className="rounded-md border border-border px-2 py-1 text-xs hover:bg-muted disabled:opacity-50">{SCHEDULE_STATUS_LABELS[st]}</button>)}
+            </div>
+          ) : panel === "health" ? (
+            <div className="flex flex-wrap items-center gap-1 border-b border-border px-2 pb-2">
+              <span className="mr-1 text-xs font-medium text-muted-foreground">Set health</span>
+              {(Object.keys(HEALTH_LABELS) as ScheduleHealth[]).map((h) => <button key={h} type="button" disabled={busy} onClick={() => void bulk({ health: h }, `Health set to ${HEALTH_LABELS[h]}`)} className="rounded-md border border-border px-2 py-1 text-xs hover:bg-muted disabled:opacity-50">{HEALTH_LABELS[h]}</button>)}
+            </div>
+          ) : null
+        }>
+          <BarAction icon={CircleDot} label="Status" active={panel === "status"} onClick={() => setPanel((p) => (p === "status" ? null : "status"))} disabled={busy} />
+          <BarAction icon={Activity} label="Health" active={panel === "health"} onClick={() => setPanel((p) => (p === "health" ? null : "health"))} disabled={busy} />
+          <BarAction icon={Archive} label="Archive" onClick={() => void bulk({ status: "archived" }, "Archived")} disabled={busy} />
+          {canManage ? <BarAction icon={Trash2} label="Delete" danger onClick={() => void bulk("delete", "Deleted")} disabled={busy} /> : null}
+        </SelectionBar>
+      ) : null}
+      <AddScheduleWizard open={wizardOpen} staff={staff} templates={templates} existing={schedules} jobs={jobOptions} onClose={() => setWizardOpen(false)} onCreate={createFromWizard} />
     </div>
   );
 }

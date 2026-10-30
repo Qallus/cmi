@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input, Select, Textarea } from "@/components/ui/input";
 import { cn, initials } from "@/lib/utils";
 import type { ManagedUser, UserInput, UserRole, UsersData, UserStatus } from "@/lib/users/types";
+import { STAFF_JOB_ROLES } from "@/lib/jobs/team-roles";
 
 type Draft = UserInput & { id?: string };
 
@@ -49,6 +50,7 @@ function emptyDraft(role: UserRole = "client"): Draft {
     status: "pending",
     company_name: "",
     job_title: "",
+    job_roles: [],
     avatar_url: "",
     notes: "",
     send_invite: true,
@@ -67,6 +69,7 @@ function draftFromUser(user: ManagedUser): Draft {
     status: user.status,
     company_name: user.company_name || "",
     job_title: user.job_title || user.title || "",
+    job_roles: user.job_roles ?? [],
     avatar_url: user.avatar_url || "",
     notes: user.notes || "",
     send_invite: false,
@@ -316,6 +319,7 @@ export function UsersClient({ initialData, demoMode, setupMessage }: { initialDa
                   <Info label="Phone" value={selected.phone || "-"} />
                   <Info label="Company" value={selected.company_name || "-"} />
                   <Info label="Job Title" value={selected.job_title || selected.title || "-"} />
+                  {selected.job_roles?.length ? <Info label="Also works as" value={selected.job_roles.join(", ")} /> : null}
                   <Info label="Last Login" value={formatDate(selected.last_login_at)} />
                   <Info label="Invite Sent" value={formatDate(selected.invite_email_sent_at)} />
                 </div>
@@ -388,6 +392,21 @@ export function UsersClient({ initialData, demoMode, setupMessage }: { initialDa
                 </Field>
                 <Field label="Company / Organization"><Input value={draft.company_name || ""} onChange={event => setDraft({ ...draft, company_name: event.target.value })} /></Field>
                 <Field label="Job Title"><Input value={draft.job_title || ""} onChange={event => setDraft({ ...draft, job_title: event.target.value })} /></Field>
+                <div className="block text-sm font-medium md:col-span-2">
+                  <span className="mb-1 block text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Also works on jobs as</span>
+                  <div className="flex flex-wrap gap-2">
+                    {STAFF_JOB_ROLES.map(jobRole => {
+                      const on = (draft.job_roles ?? []).includes(jobRole);
+                      return (
+                        <label key={jobRole} className={cn("flex items-center gap-2 rounded-lg border px-3 py-2 text-sm", on ? "border-accent bg-accent/10" : "border-border")}>
+                          <input type="checkbox" checked={on} onChange={() => setDraft({ ...draft, job_roles: on ? (draft.job_roles ?? []).filter(r => r !== jobRole) : [...(draft.job_roles ?? []), jobRole] })} />
+                          {jobRole}
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">They&apos;ll be offered when a job&apos;s Project Manager or Superintendent is picked, whatever their main title.</p>
+                </div>
                 <Field label="Profile Photo URL" className="md:col-span-2">
                   <div className="grid gap-3 md:grid-cols-[72px_1fr] md:items-center">
                     <UserAvatar user={draftToManagedUser(draft)} size="lg" />
@@ -474,6 +493,7 @@ function draftToManagedUser(draft: Draft): ManagedUser {
     company_name: draft.company_name || null,
     job_title: draft.job_title || null,
     title: draft.job_title || null,
+    job_roles: draft.job_roles ?? [],
     avatar_url: draft.avatar_url || null,
     notes: draft.notes || null,
     invited_at: draft.send_invite ? now : null,
