@@ -11,7 +11,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const { id } = await params;
     const body = await request.json().catch(() => ({}));
     if (!body.packageId) return NextResponse.json({ error: "packageId is required." }, { status: 400 });
-    const created = await applyPackage(id, body.packageId, { id: staff.id });
+    const created = await applyPackage(id, body.packageId, { id: staff.id }, {
+      startDate: typeof body.startDate === "string" ? body.startDate : null,
+      autoCascade: body.autoCascade !== false,
+    });
     return NextResponse.json({ ok: true, created });
   } catch (err) { const e = err as AuthError; return NextResponse.json({ error: e.message }, { status: e.status ?? 500 }); }
 }

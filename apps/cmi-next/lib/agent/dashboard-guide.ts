@@ -75,6 +75,7 @@ export const DASHBOARD_GUIDE: GuideEntry[] = [
       "Set insurance minimums: Trade Partners → Setup → Insurance minimums → set the default (e.g. general liability $2,000,000), then Add a category for a trade or partner type that needs more or less (or a line not required) → Save. A partner matching several categories gets the strictest. Check a partner previews what someone must carry. The application, the Become a Trade Partner page and Claude's certificate check all use these.",
       "Clean up duplicates: Trade Partners → Directory → Duplicates → Keep first / Keep second (the other is archived, not deleted).",
       "See companies that were only a contact's employer: Trade Partners → Directory → tick Show non-partner companies.",
+      "Add a trade partner through Claude (CMI connector): \"add Desert Sparks Electric, an electrical sub in Scottsdale, contact Maria Lopez maria@desertsparks.com\" — it's added to the directory as a prospect (or Claude shows the existing record if they're already in CMI). Then \"invite them to apply\": Claude previews the email and sends the pre-filled qualification form only after you say yes; replies come back to you.",
       "Claude reads each uploaded COI, W-9 and license automatically: open the application → Documents shows the coverage lines, limits, expiry and anything below our minimums. Check it, then Verify. Re-read runs it again.",
       "Download the master insurance list (every coverage line, soonest expiry first): Trade Partners → Directory → Insurance tracking (top right).",
       "Switch Directory views with the icons at the right of the filter bar: Table, List, Cards, Kanban (grouped by qualification status), Calendar (insurance/license expiries and yearly renewals) and Map (partners placed by address, colored by status). Click a partner in any view to open their application. Duplicates, Insurance tracking, Export to Excel and Requalify are at the top right of the page.",
@@ -88,11 +89,12 @@ export const DASHBOARD_GUIDE: GuideEntry[] = [
   {
     id: "pipeline", name: "Pipeline (Deals)", path: "/dashboard/pipeline", nav: "Sidebar → Pipeline",
     roles: "Super Admin, Admin, Project Manager, Estimator",
-    summary: "Early sales deals from New/Working to Closed Won, as a list, table, kanban board, calendar or map. Each deal has contacts (primary, secondary and more, each with a role), key fields, to-do items, tasks, an activity timeline and stage history. Closed Won moves the deal into Pre-Con.",
+    summary: "Early sales deals from New/Working to Closed Won, as a list, table, kanban board, calendar or map. Each deal has contacts (primary, secondary and more, each with a role), key fields, to-do items, tasks, an activity timeline and stage history. Every deal gets its job (pipeline) number, e.g. 26_059, the moment it enters the Pipeline, at the front of its title; Pre-Con and the job keep it (the job reads 26_014_26_059_Name). Closed Won moves the deal into Pre-Con and off the Pipeline board.",
     steps: [
-      "Add a deal: Pipeline → New deal → title, contact, value → Save.",
+      "Add a deal: Pipeline → New deal → title, contact, value → Save. The next number is added to the title for you (or keep one you typed, if no other deal has it).",
       "Add people to a deal: open the deal → Lead / Contact details → type first/last name, phone, email and relation in the Primary contact block; use + Add contact for more. Fields save as you leave them; partial details are fine.",
       "Move a deal: open it → click the next stage in the stage bar (or Closed Won / Closed Lost at the top).",
+      "Find a won deal: it leaves the Pipeline and lives in Pre-Con (Sidebar → Pre-Con). On the kanban, drag a card onto Closed Won to send it there.",
       "Add a task: open the deal → Tasks → Add Task (the assignee gets an email with the deal, job number and due date).",
     ],
     keywords: ["pipeline", "deals", "sales", "crm", "opportunity", "stage", "closed won", "deal contacts", "tasks", "follow up"],
@@ -156,6 +158,7 @@ export const DASHBOARD_GUIDE: GuideEntry[] = [
       "Share with the client (Jobs only): list menu → Edit list → Visible to the client.",
       "Save as template: list menu → Save as template.",
       "Ask Bolt: “add a punch list to the Lillie job: touch up hallway paint, missing outlet cover in the primary bath” — Bolt shows the items and you tap Save.",
+      "Ask Claude (CMI connector) the same way: create a list on a job, add items, or check them off (\"mark the outlet cover done on the Lillie punch list\").",
     ],
     keywords: ["punch list", "punch lists", "punchlist", "punch", "walkthrough", "walk-through", "checklist", "check list", "closeout", "pre-drywall", "to do", "fix list", "deficiency"],
   },
@@ -179,12 +182,24 @@ export const DASHBOARD_GUIDE: GuideEntry[] = [
   },
   {
     id: "schedules", name: "Schedules", path: "/dashboard/schedules", nav: "Sidebar → Jobs → Schedules",
-    summary: "Schedules across all jobs (Gantt, list, table, calendar, kanban, resource views), with templates and client-facing dates.",
-    keywords: ["schedule", "schedules", "gantt", "calendar", "timeline", "look ahead"],
+    summary: "Schedules across all jobs (Gantt, timeline, list, table, card, calendar, kanban and resource views), with templates and client-facing dates. Templates include New Construction (76 tasks from the initial site visit to the final walkthrough, in 9 phases).",
+    steps: [
+      "Start a schedule from a template: open the job → Schedule → Add Schedule → name it → Source: Use a template → pick one (e.g. New Construction) → choose the Start date. Every task is laid out from that date with the template's spacing in working days, and the Estimated finish shows before you create it.",
+      "In the same step choose what happens when a date changes: 'Move the tasks that follow it' (linked tasks shift automatically) or 'I'll adjust dates myself' (only the task you edit moves).",
+      "Change any single task by dragging it on the Gantt or opening it and editing its dates.",
+      "Move a whole schedule: select it → Shift dates → pick the new start date. The preview shows how many working days it moves and the new finish; locked and complete tasks stay put.",
+      "Packages (several schedules at once): Package → set the Start date → pick a package.",
+      "Ask Claude (CMI connector): \"start a New Construction schedule on 26_014 beginning Nov 3\", \"push the Olson schedule back to Dec 1\" (Claude shows how far it moves and the new finish first), \"what's late on the Lillie job?\", or \"make Drywall wait for Insulation\".",
+    ],
+    keywords: ["schedule", "schedules", "gantt", "calendar", "timeline", "look ahead", "schedule template", "new construction", "start date", "shift dates", "push back"],
   },
   {
     id: "selections", name: "Selections", path: "/dashboard/selections", nav: "Sidebar → Jobs → Selections",
     summary: "Product and finish selections for clients, built from vendor pages into selection cards.",
+    steps: [
+      "Ask Claude (CMI connector): \"add a Kohler matte black faucet to the kitchen on the Olson job\", \"what selections on the Lillie job still need a decision?\", or \"mark the kitchen faucet ordered\". Claude can also duplicate a selection or reuse one on another job.",
+      "Send selections to the client through Claude: \"send the kitchen selections to the client to approve by Nov 15\" — Claude shows which ones and sends only after you say yes; the client is notified and sees them in the portal.",
+    ],
     keywords: ["selections", "finishes", "fixtures", "products", "vendors", "selection cards"],
   },
   {

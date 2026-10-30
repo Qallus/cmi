@@ -6,10 +6,23 @@ import { Button } from "@/components/ui/button";
 import { Input, Select, Textarea } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { SCHEDULE_TYPE_LABELS, DEFAULT_WORKDAYS, type ScheduleType, type ScheduleDraft, type Workdays, type JobSchedule } from "@/lib/schedules/types";
+import { addWorkdays, fmtISO, parseISO } from "@/lib/schedules/workdays";
+import { fmtDate } from "./shared";
 
 type Staff = { id: string; name: string };
-export type ScheduleSource = { mode: "scratch" | "template" | "copy"; templateId?: string; copyFromId?: string };
-type TemplateOpt = { id: string; name: string; type: ScheduleType; description?: string };
+// autoCascade: moving a template task moves the tasks linked after it (default), or the PM moves each date by hand.
+export type ScheduleSource = { mode: "scratch" | "template" | "copy"; templateId?: string; copyFromId?: string; autoCascade?: boolean };
+type TemplateOpt = { id: string; name: string; type: ScheduleType; description?: string; items?: number; phases?: number; span_days?: number; unit?: "calendar" | "workdays" };
+
+const todayISO = () => fmtISO(new Date(Date.now() - new Date().getTimezoneOffset() * 60000));
+// Where a template lands when it starts on `start`, in the same units the server uses.
+function templateFinish(t: TemplateOpt | undefined, start: string | null | undefined, workdays: Workdays): string | null {
+  const s = parseISO(start ?? null);
+  if (!t?.span_days || !s) return null;
+  if (t.unit === "workdays") return fmtISO(addWorkdays(addWorkdays(s, 0, workdays), t.span_days - 1, workdays));
+  s.setUTCDate(s.getUTCDate() + t.span_days - 1);
+  return fmtISO(s);
+}
 
 const STEPS = ["Basics", "Source", "Work Calendar", "Visibility", "Review"];
 const DAYS: { k: keyof Workdays; l: string }[] = [
@@ -29,6 +42,14 @@ export function AddScheduleWizard({ open, staff, templates, existing, onClose, o
   if (!open) return null;
   const set = <K extends keyof ScheduleDraft>(k: K, v: ScheduleDraft[K]) => setDraft((d) => ({ ...d, [k]: v }));
   const canNext = step !== 0 || draft.name.trim().length > 0;
+  const template = source.mode === "template" ? templates.find((t) => t.id === source.templateId) : undefined;
+  const finish = templateFinish(template, draft.start_date, draft.workdays ?? DEFAULT_WORKDAYS);
+
+  // Picking a template fills a blank start date with today; the PM changes it here.
+  function pickTemplate(id: string | undefined) {
+    setSource((s) => ({ mode: "template", templateId: id, autoCascade: s.autoCascade ?? true }));
+    if (!draft.start_date) set("start_date", todayISO());
+  }
 
   async function create() {
     setSaving(true);
@@ -84,9 +105,27 @@ export function AddScheduleWizard({ open, staff, templates, existing, onClose, o
           <>
             <p className="text-xs text-muted-foreground">How should this schedule start?</p>
             <SourceRow active={source.mode === "scratch"} title="Start from scratch" desc="An empty schedule you build up." onClick={() => setSource({ mode: "scratch" })} />
-            <SourceRow active={source.mode === "template"} title="Use a template" desc="Seed phases, items, and milestones from a built-in template." onClick={() => setSource({ mode: "template", templateId: templates[0]?.id })} />
+            <SourceRow active={source.mode === "template"} title="Use a template" desc="Seed phases, items, and milestones from a built-in template." onClick={() => pickTemplate(templates[0]?.id)} />
             {source.mode === "template" ? (
-              <Select value={source.templateId ?? ""} onChange={(e) => setSource({ mode: "template", templateId: e.target.value })}>{templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</Select>
+              <div className="space-y-3 rounded-lg border border-border p-3">
+                <Select value={source.templateId ?? ""} onChange={(e) => pickTemplate(e.target.value)}>{templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</Select>
+                {template ? (
+                  <p className="text-xs text-muted-foreground">
+                    {template.description}
+                    {template.items ? ` ${template.items} items in ${template.phases ?? 0} phase${template.phases === 1 ? "" : "s"}.` : ""}
+                  </p>
+                ) : null}
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Start date"><Input type="date" value={draft.start_date ?? ""} onChange={(e) => set("start_date", e.target.value || null)} /></Field>
+                  <Field label="Estimated finish"><div className="flex h-9 items-center text-sm font-medium">{finish ? fmtDate(finish) : "—"}</div></Field>
+                </div>
+                <p className="text-xs text-muted-foreground">Every task is laid out from this date with the template&apos;s spacing{template?.unit === "workdays" ? " in working days (the Work Calendar step sets which days count)" : ""}. You can change any date once the schedule is created, or shift the whole schedule later.</p>
+                <div className="space-y-1.5">
+                  <div className="text-xs font-medium text-muted-foreground">When a task&apos;s dates change</div>
+                  <SourceRow active={source.autoCascade !== false} title="Move the tasks that follow it" desc="Linked tasks shift automatically, keeping the template's order and gaps." onClick={() => setSource((s) => ({ ...s, autoCascade: true }))} />
+                  <SourceRow active={source.autoCascade === false} title="I'll adjust dates myself" desc="Only the task you change moves. Links stay on each task for reference." onClick={() => setSource((s) => ({ ...s, autoCascade: false }))} />
+                </div>
+              </div>
             ) : null}
             <SourceRow active={source.mode === "copy"} title="Copy an existing schedule" desc="Duplicate another schedule on this job." disabled={!existing.length} onClick={() => setSource({ mode: "copy", copyFromId: existing[0]?.id })} />
             {source.mode === "copy" ? (
@@ -115,7 +154,8 @@ export function AddScheduleWizard({ open, staff, templates, existing, onClose, o
             <Row k="Type" v={SCHEDULE_TYPE_LABELS[draft.type]} />
             <Row k="Master" v={draft.is_master ? "Yes" : "No"} />
             <Row k="Source" v={source.mode === "template" ? `Template: ${templates.find((t) => t.id === source.templateId)?.name ?? ""}` : source.mode === "copy" ? `Copy: ${existing.find((s) => s.id === source.copyFromId)?.name ?? ""}` : "From scratch"} />
-            <Row k="Dates" v={`${draft.start_date || "—"} → ${draft.target_completion || "—"}`} />
+            <Row k="Dates" v={`${draft.start_date || "—"} → ${draft.target_completion || (finish ? `${finish} (estimated)` : "—")}`} />
+            {source.mode === "template" ? <Row k="Date changes" v={source.autoCascade === false ? "Adjust by hand" : "Move following tasks"} /> : null}
             <Row k="Workdays" v={DAYS.filter((d) => draft.workdays?.[d.k] !== false).map((d) => d.l).join(", ")} />
             <Row k="Visibility" v={String(draft.visibility)} />
           </div>

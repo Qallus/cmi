@@ -10,7 +10,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const { id } = await params;
     const body = await request.json().catch(() => ({}));
     if (!body.templateId) return NextResponse.json({ error: "templateId is required." }, { status: 400 });
-    await applyTemplate(id, body.templateId, { id: staff.id });
-    return NextResponse.json({ ok: true });
+    const result = await applyTemplate(id, body.templateId, { id: staff.id }, {
+      startDate: typeof body.startDate === "string" ? body.startDate : null,
+      autoCascade: body.autoCascade !== false,
+    });
+    return NextResponse.json({ ok: true, ...result });
   } catch (err) { const e = err as AuthError; return NextResponse.json({ error: e.message }, { status: e.status ?? 500 }); }
 }

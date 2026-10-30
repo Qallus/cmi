@@ -235,8 +235,7 @@ export async function getJobStats(job: JobWithRelations): Promise<JobStats> {
 
 // ─── Create / update / archive ─────────────────────────────────
 // Creating a job mints its YY_###_Name job number (via the DB trigger), unless
-// `numberPrefix` carries the YY_### its deal/opportunity already holds, so a
-// won deal's job keeps the number it has had since the first pipeline stage.
+// `numberPrefix` supplies the YY_### (imports that already have one).
 // Default job_settings and job_insurance rows are created so the Info tabs
 // always have a record to edit.
 export async function createJob(draft: JobDraft, actor?: Actor, opts?: { numberPrefix?: string | null }): Promise<Job> {
@@ -464,14 +463,17 @@ export async function convertOpportunityToJob(
     internal_notes: opp.notes ?? null,
     ...overrides,
   };
-  // A YY_### number came from the deal: the job carries it rather than taking
-  // the next one. Legacy CM-YYYY-#### numbers still get a fresh job number.
-  const inherited = /^\d{2}_\d{3}$/.test(opp.job_number ?? "") ? opp.job_number : null;
-  const job = await createJob(draft, actor, { numberPrefix: inherited });
+  // The job takes its own YY_### in front of its name, and the name starts with
+  // the pipeline number (YY_###) it has had since the deal entered the
+  // Pipeline: 26_014 + 26_059_Smith Residence. Legacy CM-YYYY-#### aren't added.
+  const pipelineNo = /^\d{2}_\d{3}$/.test(opp.job_number ?? "") ? (opp.job_number as string) : null;
+  if (pipelineNo && !draft.job_name.trim().startsWith(pipelineNo)) {
+    draft.job_name = `${pipelineNo}_${draft.job_name.trim().replace(/^\d{2}_\d{3}[\s_\-–—]*/, "")}`;
+  }
+  const job = await createJob(draft, actor);
 
-  // Thread the pre-construction number (CM-YYYY-####) onto the job so the lead →
-  // opportunity → job chain shares one traceable number, alongside the job's own
-  // YY_###_JobName.
+  // Keep the pipeline number (or a legacy CM-YYYY-####) on the job too, so the
+  // deal → Pre-Con → job chain shares one traceable number.
   if (opp.job_number) {
     await sb.from("jobs").update({ lead_number: opp.job_number }).eq("id", job.id);
     (job as Job).lead_number = opp.job_number;

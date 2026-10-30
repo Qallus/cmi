@@ -45,8 +45,8 @@ export async function createOpportunity(
 ): Promise<Opportunity> {
   const supabase = getSupabaseAdmin();
   const stage = (draft.stage ?? "opportunity") as PipelineStage;
-  // When promoted from a lead, inherit the lead's pre-construction number
-  // (CM-YYYY-####). The trigger only mints a new one when job_number is blank.
+  // When promoted from a deal, inherit its number (YY_###). The trigger only
+  // mints a new one when job_number is blank.
   const insert: Record<string, unknown> = { ...sanitizeDraft(draft), stage };
   if (explicitJobNumber) insert.job_number = explicitJobNumber;
   const { data, error } = await supabase

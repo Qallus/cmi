@@ -140,6 +140,8 @@ export function PipelineDealsClient({
   const filtered = React.useMemo(() => {
     const q = query.trim().toLowerCase();
     return deals.filter((d) => {
+      // Closed Won deals have moved on to Pre-Con and leave the Pipeline.
+      if (d.stage === "closed_won") return false;
       if (ownerFilter !== "all" && d.owner_id !== ownerFilter) return false;
       if (stageFilter !== "all" && d.stage !== stageFilter) return false;
       if (jobTypeFilter !== "all" && (d.job_type ?? "") !== jobTypeFilter) return false;
@@ -387,7 +389,7 @@ export function PipelineDealsClient({
         <div className="flex flex-wrap items-center gap-2">
           <Select value={stageFilter} onChange={(e) => setStageFilter(e.target.value as DealStage | "all")} className="w-auto min-w-[130px]">
             <option value="all">All Stages</option>
-            {DEAL_STAGES.map((s) => <option key={s} value={s}>{DEAL_STAGE_META[s].label}</option>)}
+            {DEAL_STAGES.filter((s) => s !== "closed_won").map((s) => <option key={s} value={s}>{DEAL_STAGE_META[s].label}</option>)}
           </Select>
           <Select value={ownerFilter} onChange={(e) => setOwnerFilter(e.target.value)} className="w-auto min-w-[130px]">
             <option value="all">All Owners</option>
@@ -776,7 +778,7 @@ function KanbanView({ deals, onOpen, canWrite, onMove, renderActions }: { deals:
             className={cn("flex w-64 shrink-0 flex-col rounded-lg border bg-muted/20", overStage === s ? "border-accent ring-1 ring-accent" : "border-border")}>
             <div className="flex items-center justify-between border-b border-border px-3 py-2">
               <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", TONE_CLASS[m.tone])}>{m.label}</span>
-              <span className="text-[11px] text-muted-foreground">{items.length} · {money(total)}</span>
+              {s !== "closed_won" && <span className="text-[11px] text-muted-foreground">{items.length} · {money(total)}</span>}
             </div>
             <div className="flex-1 space-y-2 p-2">
               {items.map((d) => (
@@ -793,7 +795,7 @@ function KanbanView({ deals, onOpen, canWrite, onMove, renderActions }: { deals:
                   </div>
                 </div>
               ))}
-              {items.length === 0 && <div className="rounded-md border border-dashed border-border py-6 text-center text-[11px] text-muted-foreground">Drop here</div>}
+              {items.length === 0 && <div className="rounded-md border border-dashed border-border px-2 py-6 text-center text-[11px] text-muted-foreground">{s === "closed_won" ? "Drop here to send to Pre-Con" : "Drop here"}</div>}
             </div>
           </div>
         );

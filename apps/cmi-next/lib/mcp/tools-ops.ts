@@ -1,14 +1,16 @@
-// Phase D MCP tools: operations. Schedules (dates cascade through
-// dependencies the same way the dashboard does), punch lists, Cloud files
+// Phase D MCP tools: operations. Schedules (create from a template on a start
+// date, shift a whole schedule, link tasks; dates cascade through dependencies
+// the same way the dashboard does), punch lists, Cloud files
 // (search, read the text of PDFs and text files, a short download link, save
 // a text file, rename/move, trash), Workspace documents (Super Admin), and
 // Trade Partners (directory, compliance, document verification, approve /
 // decline / requalify behind cmi_confirm). Thin wrappers over lib/*.
 import { Readable } from "node:stream";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { listSchedules, listItems, getItem, updateItem, createItem, jobScheduleHeader } from "@/lib/schedules/data";
-import { canEditSchedules, canViewSchedules } from "@/lib/schedules/permissions";
-import type { ScheduleItem } from "@/lib/schedules/types";
+import { listSchedules, listItems, getItem, updateItem, createItem, jobScheduleHeader, getSchedule, createSchedule, updateSchedule, applyTemplate, applyPackage, shiftSchedule, createDependency } from "@/lib/schedules/data";
+import { canEditSchedules, canManageSchedules, canViewSchedules } from "@/lib/schedules/permissions";
+import { SCHEDULE_TEMPLATES, SCHEDULE_PACKAGES, getTemplate, getPackage, templateSummary } from "@/lib/schedules/templates";
+import { DEFAULT_WORKDAYS, SCHEDULE_TYPE_LABELS, type ScheduleItem, type ScheduleType } from "@/lib/schedules/types";
 import { loadLists, getList, createList, addItems, updateItem as updatePunchItem, listTemplates } from "@/lib/punch/data";
 import { canWritePunch, type PunchParentType, type PunchItemDraft } from "@/lib/punch/types";
 import { canModify, getFile, insertFile, listFiles, searchFiles, updateFile } from "@/lib/files/data";
@@ -18,6 +20,18 @@ import { loadComplianceWorklist, loadDirectory, type ComplianceState } from "@/l
 import { getApplicationDetail, updateDocument as updateCompanyDocument } from "@/lib/prequal/review";
 import { approve, decline } from "@/lib/prequal/decisions";
 import { startRequalification } from "@/lib/prequal/requalify";
+import { FORM_VERSION, PARTNER_TYPES, SERVICE_AREAS, TRADES } from "@/lib/prequal/form";
+import { INVITE_SOURCE, newToken, partnerTypeToContactType, type Application } from "@/lib/prequal/data";
+import { sendApplicantEmail } from "@/lib/prequal/mail";
+import { TP_FOOTER } from "@/lib/prequal/msa";
+import { findCompanyByName, findOrCreateCompany } from "@/lib/companies/data";
+import { queueLocate } from "@/lib/companies/locate";
+import { findDuplicateContacts } from "@/lib/contacts/duplicates";
+import { isSuppressed } from "@/lib/messaging/consent";
+import { logMessage } from "@/lib/communications/data";
+import { notificationEmailHtml } from "@/lib/email/notification-email";
+import { replyToFor } from "@/lib/messaging/ai-send";
+import { publicAppUrl } from "@/lib/twilio";
 import { canUsePrequal, canDecidePrequal } from "@/lib/prequal/access";
 import type { McpCaller } from "./auth";
 import type { Preview } from "./actions";
@@ -123,6 +137,133 @@ const scheduleTools: McpTool[] = [
         assignees: (staff ?? []).map((p) => ({ id: p.id as string, name: (p.display_name as string) || (p.email as string), type: "staff" as const })),
       }, actorOf(c));
       return { result: { created: brief(item) }, entity: "schedule_item", recordId: item.id, before: null, after: item };
+    },
+  },
+  {
+    name: "cmi_schedule_templates",
+    title: "Schedule templates",
+    description: "The built-in schedule templates (e.g. New Construction: 76 tasks from site visit to final walkthrough) and packages (several schedules at once), with how many items and working days each spans. Use before cmi_schedule_create.",
+    risk: "read",
+    available: (c) => canViewSchedules(c.ctx.role),
+    inputSchema: () => obj({}),
+    run: async () => ({ result: { templates: SCHEDULE_TEMPLATES.map(templateSummary), packages: SCHEDULE_PACKAGES } }),
+  },
+  {
+    name: "cmi_schedule_create",
+    title: "Create a schedule",
+    description: "Add a schedule to a job, empty or from a template (cmi_schedule_templates). With a template, start_date lays out every task with the template's spacing (working days), and auto_cascade (default true) decides whether moving a task later moves the tasks linked after it, or whether the PM adjusts dates by hand. Returns the item count and the finish date. Ask for the start date if the person didn't give one.",
+    risk: "write",
+    available: (c) => canEditSchedules(c.ctx.role),
+    inputSchema: () => obj({
+      job: str("Job id, number or name"), name: str("Schedule name (defaults to the template's name)"),
+      template_id: str("Template id from cmi_schedule_templates (optional)"), start_date: str("First day, YYYY-MM-DD"),
+      auto_cascade: { type: "boolean", description: "Template links move following tasks automatically (default true)" },
+      type: { type: "string", enum: Object.keys(SCHEDULE_TYPE_LABELS) }, description: str("Description"),
+      is_master: { type: "boolean", description: "Make it the job's Master Schedule (Project Manager and up)" },
+      manager: str("Schedule manager (staff email or id)"),
+      work_saturdays: { type: "boolean", description: "Count Saturdays as working days (default Mon–Fri)" },
+    }, ["job"]),
+    run: async (a, c) => {
+      const job = await resolveJobId(a.job);
+      const tpl = s(a.template_id) ? getTemplate(s(a.template_id)) : undefined;
+      if (s(a.template_id) && !tpl) return { result: { error: `No template "${s(a.template_id)}". Use cmi_schedule_templates.` } };
+      if (s(a.start_date) && !/^\d{4}-\d{2}-\d{2}$/.test(s(a.start_date))) return { result: { error: "start_date must be YYYY-MM-DD." } };
+      if (a.is_master === true && !canManageSchedules(c.ctx.role)) return { result: { error: "Only a Project Manager, Admin or Super Admin can set the Master Schedule." } };
+      const type = (Object.keys(SCHEDULE_TYPE_LABELS).includes(s(a.type)) ? s(a.type) : tpl?.type ?? "construction") as ScheduleType;
+      const schedule = await createSchedule(job.id, {
+        name: s(a.name) || tpl?.name || "Untitled Schedule", type, description: s(a.description) || tpl?.description || null,
+        start_date: s(a.start_date) || null, is_master: a.is_master === true,
+        manager_id: s(a.manager) ? await staffIdFor(a.manager) : null,
+        workdays: { ...DEFAULT_WORKDAYS, sat: a.work_saturdays === true },
+      }, actorOf(c));
+      const applied = tpl ? await applyTemplate(schedule.id, tpl.id, actorOf(c), { startDate: s(a.start_date) || null, autoCascade: a.auto_cascade !== false }) : null;
+      return {
+        result: { job: job.label, schedule: { id: schedule.id, name: schedule.name, type: schedule.type, is_master: schedule.is_master }, template: tpl?.name ?? null, ...(applied ?? {}), auto_cascade: tpl ? a.auto_cascade !== false : undefined },
+        entity: "job_schedule", recordId: schedule.id, before: null, after: { ...schedule, template: tpl?.id ?? null },
+      };
+    },
+  },
+  {
+    name: "cmi_schedule_apply_template",
+    title: "Add a template to a schedule",
+    description: "Add a template's phases, tasks and links to an existing schedule, laid out from start_date (default: the schedule's start date). auto_cascade as in cmi_schedule_create.",
+    risk: "write",
+    available: (c) => canEditSchedules(c.ctx.role),
+    inputSchema: () => obj({ schedule_id: str("Schedule id"), template_id: str("Template id"), start_date: str("YYYY-MM-DD"), auto_cascade: { type: "boolean" } }, ["schedule_id", "template_id"]),
+    run: async (a, c) => {
+      if (!getTemplate(s(a.template_id))) return { result: { error: `No template "${s(a.template_id)}". Use cmi_schedule_templates.` } };
+      const applied = await applyTemplate(s(a.schedule_id), s(a.template_id), actorOf(c), { startDate: s(a.start_date) || null, autoCascade: a.auto_cascade !== false });
+      return { result: applied, entity: "job_schedule", recordId: s(a.schedule_id), before: null, after: { template: s(a.template_id), ...applied } };
+    },
+  },
+  {
+    name: "cmi_schedule_apply_package",
+    title: "Add a schedule package",
+    description: "Create every schedule in a package (cmi_schedule_templates → packages) on a job at once, all starting on start_date.",
+    risk: "write",
+    available: (c) => canEditSchedules(c.ctx.role),
+    inputSchema: () => obj({ job: str("Job id, number or name"), package_id: str("Package id"), start_date: str("YYYY-MM-DD"), auto_cascade: { type: "boolean" } }, ["job", "package_id"]),
+    run: async (a, c) => {
+      const job = await resolveJobId(a.job);
+      if (!getPackage(s(a.package_id))) return { result: { error: `No package "${s(a.package_id)}". Use cmi_schedule_templates.` } };
+      const created = await applyPackage(job.id, s(a.package_id), actorOf(c), { startDate: s(a.start_date) || null, autoCascade: a.auto_cascade !== false });
+      return { result: { job: job.label, created: created.map((x) => ({ id: x.id, name: x.name, type: x.type })) }, entity: "job_schedule", recordId: created[0]?.id, before: null, after: { package: s(a.package_id), schedules: created.map((x) => x.id) } };
+    },
+  },
+  {
+    name: "cmi_schedule_shift",
+    title: "Shift a schedule's dates",
+    description: "Move a whole schedule to a new start date: every task moves by the same number of working days and keeps its length. Locked tasks stay put, and so do complete ones unless include_complete. Run with dry_run first and tell the person how far it moves and the new finish date; assignees get one notice when it's applied.",
+    risk: "write",
+    available: (c) => canEditSchedules(c.ctx.role),
+    inputSchema: () => obj({ schedule_id: str("Schedule id"), start_date: str("New first day, YYYY-MM-DD"), include_complete: { type: "boolean" }, dry_run: { type: "boolean", description: "Only return the plan" } }, ["schedule_id", "start_date"]),
+    run: async (a, c) => {
+      const before = await getSchedule(s(a.schedule_id));
+      if (!before) return { result: { error: "No schedule with that id." } };
+      const plan = await shiftSchedule(before.id, s(a.start_date), actorOf(c), { includeComplete: a.include_complete === true, dryRun: a.dry_run === true });
+      const result = { schedule: before.name, dry_run: a.dry_run === true, from: plan.from, to: plan.to, working_days: plan.workdays, moved: plan.moved, finish: plan.finish, skipped: plan.skipped, changes: plan.changes.slice(0, 40), more: Math.max(0, plan.changes.length - 40) };
+      if (a.dry_run === true) return { result };
+      return { result, entity: "job_schedule", recordId: before.id, before: { start_date: plan.from }, after: { start_date: plan.to, finish: plan.finish, moved: plan.moved } };
+    },
+  },
+  {
+    name: "cmi_schedule_link",
+    title: "Link two schedule tasks",
+    description: "Make one task depend on another (type FS finish→start, SS, FF or SF; lag_days in working days, may be negative). With auto-cascade on, moving the first task later moves the second.",
+    risk: "write",
+    available: (c) => canEditSchedules(c.ctx.role),
+    inputSchema: () => obj({ before_item_id: str("The task that comes first"), after_item_id: str("The task that depends on it"), type: { type: "string", enum: ["FS", "SS", "FF", "SF"] }, lag_days: { type: "integer" } }, ["before_item_id", "after_item_id"]),
+    run: async (a, c) => {
+      const [src, tgt] = await Promise.all([getItem(s(a.before_item_id)), getItem(s(a.after_item_id))]);
+      if (!src || !tgt) return { result: { error: "Both tasks must exist (ids from cmi_schedule_items)." } };
+      if (src.id === tgt.id) return { result: { error: "A task can't depend on itself." } };
+      const type = ({ FS: "finish_to_start", SS: "start_to_start", FF: "finish_to_finish", SF: "start_to_finish" } as const)[s(a.type) as "FS"] ?? "finish_to_start";
+      const dep = await createDependency({ jobId: tgt.job_id, sourceItemId: src.id, targetItemId: tgt.id, type, lagDays: typeof a.lag_days === "number" ? Math.round(a.lag_days) : 0 }, actorOf(c));
+      return { result: { linked: `${src.title} → ${tgt.title}`, type: s(a.type) || "FS", lag_days: dep.lag_days }, entity: "schedule_dependency", recordId: dep.id, before: null, after: dep };
+    },
+  },
+  {
+    name: "cmi_schedule_update",
+    title: "Update a schedule",
+    description: "Change a schedule's name, description, status (active, on_hold, complete), priority, target_completion, manager or Master flag. To move its dates use cmi_schedule_shift.",
+    risk: "write",
+    available: (c) => canEditSchedules(c.ctx.role),
+    inputSchema: () => obj({
+      schedule_id: str("Schedule id"), name: str("Name"), description: str("Description"),
+      status: { type: "string", enum: ["active", "on_hold", "complete"] }, priority: { type: "string", enum: ["low", "normal", "high", "urgent", "critical"] },
+      target_completion: str("YYYY-MM-DD"), manager: str("Staff email or id"), is_master: { type: "boolean" },
+    }, ["schedule_id"]),
+    run: async (a, c) => {
+      const before = await getSchedule(s(a.schedule_id));
+      if (!before) return { result: { error: "No schedule with that id." } };
+      if (a.is_master !== undefined && !canManageSchedules(c.ctx.role)) return { result: { error: "Only a Project Manager, Admin or Super Admin can set the Master Schedule." } };
+      const patch: Record<string, unknown> = {};
+      for (const k of ["name", "description", "status", "priority", "target_completion"] as const) if (s(a[k])) patch[k] = s(a[k]);
+      if (s(a.manager)) patch.manager_id = await staffIdFor(a.manager);
+      if (typeof a.is_master === "boolean") patch.is_master = a.is_master;
+      if (!Object.keys(patch).length) return { result: { error: "Nothing to change." } };
+      const after = await updateSchedule(before.id, patch, actorOf(c));
+      return { result: { updated: { id: after.id, name: after.name, status: after.status, priority: after.priority, target_completion: after.target_completion, is_master: after.is_master } }, entity: "job_schedule", recordId: after.id, before, after };
     },
   },
 ];
@@ -412,6 +553,28 @@ const workspaceTools: McpTool[] = [
 
 // ─── Trade partners ─────────────────────────────────────────────────────────
 
+type InviteCompany = { id: string; name: string; partner_type: string | null; website: string | null; phone: string | null; email: string | null;
+  trades: string[] | null; service_areas: string[] | null; qualification_status: string; archived_at: string | null };
+
+/** Who an invitation goes to: the named contact, else the partner's most recent contact with an email. */
+async function inviteTarget(a: Json): Promise<{ company: InviteCompany; to: { contact_id: string | null; name: string | null; email: string; phone: string | null } }> {
+  const { data } = await sb().from("companies").select("id, name, partner_type, website, phone, email, trades, service_areas, qualification_status, archived_at").eq("id", s(a.company_id)).maybeSingle();
+  const company = data as InviteCompany | null;
+  if (!company || company.archived_at) throw new Error("No trade partner with that id.");
+  if (["approved", "preferred", "qualified"].includes(company.qualification_status)) {
+    throw new Error(`${company.name} is already ${company.qualification_status}. To refresh their documents, use cmi_trade_partner_requalify.`);
+  }
+  let q = sb().from("contacts").select("id, first_name, last_name, email, phone").not("email", "is", null);
+  q = s(a.contact_id) ? q.eq("id", s(a.contact_id)) : q.eq("company_id", company.id).order("last_activity", { ascending: false, nullsFirst: false });
+  const { data: ct } = await q.limit(1).maybeSingle();
+  const row = ct as { id: string; first_name: string; last_name: string; email: string; phone: string | null } | null;
+  if (s(a.contact_id) && !row) throw new Error("That contact has no email address.");
+  const email = row?.email ?? company.email;
+  if (!email) throw new Error(`${company.name} has no contact with an email. Add one (cmi_contacts_create with their company) first.`);
+  if (await isSuppressed("email", email)) throw new Error(`${email} has opted out of email.`);
+  return { company, to: { contact_id: row?.id ?? null, name: row ? [row.first_name, row.last_name].filter(Boolean).join(" ") : null, email, phone: row?.phone ?? null } };
+}
+
 const tradeTools: McpTool[] = [
   {
     name: "cmi_trade_partners_search",
@@ -509,6 +672,152 @@ const tradeTools: McpTool[] = [
     execute: async (a, c) => {
       const out = await startRequalification((a.company_ids as string[]) ?? [], { message: s(a.message) || null, includeMsa: a.include_msa === true, actorId: c.ctx.id });
       return { result: out };
+    },
+  },
+  {
+    name: "cmi_trade_partner_add",
+    title: "Add a trade partner",
+    description: `Add a trade partner (subcontractor, supplier, designer…) to the directory as a prospect, with its main contact. name is required. partner_type: ${PARTNER_TYPES.join(", ")}. trades and service_areas are lists (e.g. ["Electrical"], ["Scottsdale"]). If a company with that name already exists, nothing is created and it comes back instead: use cmi_companies_update to change it. To ask them to fill in the qualification form, follow with cmi_trade_partner_invite.`,
+    risk: "write",
+    available: (c) => canUsePrequal(c.ctx.role),
+    inputSchema: () => obj({
+      name: str("Company name"), partner_type: { type: "string", enum: [...PARTNER_TYPES] },
+      trades: { type: "array", items: { type: "string" } }, service_areas: { type: "array", items: { type: "string" } },
+      website: str("Website"), phone: str("Office phone"), email: str("Office email"),
+      street_address: str("Street"), city: str("City"), state: str("State"), zip: str("ZIP"), notes: str("Internal notes"),
+      contact: { type: "object", description: "Main contact: first_name, last_name, email, phone, title", additionalProperties: true },
+    }, ["name"]),
+    run: async (a) => {
+      const name = s(a.name);
+      if (!name) return { result: { error: "Give the company's name." } };
+      const existing = await findCompanyByName(name);
+      if (existing) {
+        return { result: { created: false, duplicate: true, message: `${existing.name} is already in CMI.`,
+          existing: { id: existing.id, name: existing.name, type: existing.partner_type, status: existing.qualification_status, trades: existing.trades } } };
+      }
+      const partnerType = s(a.partner_type);
+      if (partnerType && !(PARTNER_TYPES as readonly string[]).includes(partnerType)) return { result: { error: `partner_type must be one of: ${PARTNER_TYPES.join(", ")}.` } };
+      // Match the form's spelling so directory filters find them; keep anything else as given.
+      const canon = (list: unknown, known: readonly string[]) => {
+        const out: string[] = [];
+        const unknown: string[] = [];
+        for (const raw of Array.isArray(list) ? list : []) {
+          const v = s(raw);
+          if (!v) continue;
+          const hit = known.find((k) => k.toLowerCase() === v.toLowerCase());
+          if (!hit) unknown.push(v);
+          out.push(hit ?? v);
+        }
+        return { out, unknown };
+      };
+      const trades = canon(a.trades, TRADES);
+      const areas = canon(a.service_areas, SERVICE_AREAS);
+      const company = await findOrCreateCompany(name, {
+        partner_type: partnerType || "Subcontractor", trades: trades.out.length ? trades.out : null, service_areas: areas.out.length ? areas.out : null,
+        website: s(a.website) || null, phone: s(a.phone) || null, email: s(a.email).toLowerCase() || null,
+        street_address: s(a.street_address) || null, city: s(a.city) || null, state: s(a.state) || null, zip: s(a.zip) || null,
+        internal_notes: s(a.notes) || null, qualification_status: "prospect",
+      });
+      if (company.street_address || company.city) queueLocate(company.id);
+
+      let contact: { id: string; name: string; linked_existing: boolean } | null = null;
+      const ct = (a.contact ?? {}) as Json;
+      const first = s(ct.first_name);
+      if (first) {
+        const email = s(ct.email).toLowerCase() || null;
+        const phone = s(ct.phone) || null;
+        const fullName = [first, s(ct.last_name)].filter(Boolean).join(" ");
+        const matches = await findDuplicateContacts({ first, last: s(ct.last_name), email: email ?? "", phone: phone ?? "" });
+        const exact = matches.find((m) => m.score >= 90);
+        if (exact) {
+          await sb().from("contacts").update({ company_id: company.id, company: company.name, updated_at: new Date().toISOString() }).eq("id", exact.id);
+          contact = { id: exact.id, name: fullName, linked_existing: true };
+        } else {
+          const { data, error } = await sb().from("contacts").insert({
+            first_name: first, last_name: s(ct.last_name) || first, email, phone, company: company.name, company_id: company.id,
+            type: partnerTypeToContactType(company.partner_type ?? ""), status: "active", source: "Claude", tags: ["trade-partner"],
+            notes: s(ct.title) ? `Title: ${s(ct.title)}` : null, last_activity: new Date().toISOString(),
+          }).select("id").single();
+          if (error) throw new Error(`The company was added, but the contact wasn't: ${error.message}`);
+          contact = { id: (data as { id: string }).id, name: fullName, linked_existing: false };
+        }
+      }
+      const warnings = [
+        ...(trades.unknown.length ? [`Not on the standard trade list (kept as written): ${trades.unknown.join(", ")}`] : []),
+        ...(areas.unknown.length ? [`Not on the standard service-area list (kept as written): ${areas.unknown.join(", ")}`] : []),
+      ];
+      return {
+        result: { created: true, partner: { id: company.id, name: company.name, type: company.partner_type, status: company.qualification_status, trades: company.trades, areas: company.service_areas },
+          contact, warnings, next: "Invite them to fill in the qualification form with cmi_trade_partner_invite." },
+        entity: "company", recordId: company.id, before: null, after: company,
+      };
+    },
+  },
+  {
+    name: "cmi_trade_partner_invite",
+    title: "Invite a trade partner to apply",
+    description: "Email a trade partner the qualification form (insurance, W-9, license, MSA), pre-filled with what CMI already has, with an optional personal note. Replies come back to you. For partners already approved, use cmi_trade_partner_requalify instead. Previews first; runs with cmi_confirm.",
+    risk: "high",
+    openWorld: true,
+    capGroup: "email",
+    available: (c) => canUsePrequal(c.ctx.role),
+    inputSchema: () => obj({ company_id: str("Trade partner (company) id"), contact_id: str("Send to this contact (optional; defaults to their most recent contact)"), message: str("Optional note to include") }, ["company_id"]),
+    preview: async (a): Promise<Preview> => {
+      const { company, to } = await inviteTarget(a);
+      return {
+        summary: `Email ${to.name ? `${to.name} <${to.email}>` : to.email} at ${company.name} our trade partner qualification form, pre-filled with what we have. Replies come back to you.`,
+        details: { partner: company.name, to: to.email, message: s(a.message) || null }, entity: "company", recordId: company.id,
+      };
+    },
+    execute: async (a, c) => {
+      const { company, to } = await inviteTarget(a);
+      const message = s(a.message) || null;
+      const [first, ...rest] = (to.name ?? "").split(" ");
+      const answers: Json = Object.fromEntries(Object.entries({
+        company_name: company.name, partner_type: company.partner_type, website: company.website, company_phone: company.phone, company_email: company.email,
+        contact_first_name: first || null, contact_last_name: rest.join(" ") || null, contact_email: to.email, contact_phone: to.phone,
+        trades: company.trades?.length ? company.trades : null, service_areas: company.service_areas?.length ? company.service_areas : null,
+      }).filter(([, v]) => v !== null && v !== undefined && v !== ""));
+
+      // Re-inviting keeps the partner's open form (and their progress).
+      const { data: open } = await sb().from("prequal_applications").select("*").eq("company_id", company.id).eq("status", "draft").is("archived_at", null).limit(1).maybeSingle();
+      let app = open as Application | null;
+      if (!app) {
+        const { data, error } = await sb().from("prequal_applications").insert({
+          token: newToken(), form_version: FORM_VERSION, source: INVITE_SOURCE, company_id: company.id, contact_id: to.contact_id,
+          answers, company_name: company.name, partner_type: company.partner_type, contact_first_name: first || null, contact_last_name: rest.join(" ") || null,
+          contact_email: to.email, contact_phone: to.phone, requal_message: message, requested_by: c.ctx.id,
+        }).select().single();
+        if (error || !data) throw new Error(error?.message ?? "Couldn't create the form.");
+        app = data as Application;
+      }
+
+      const subject = "Become a Constructed Matter trade partner";
+      const paragraphs = [
+        first ? `Hi ${first},` : "Hello,",
+        `${c.ctx.displayName} at Constructed Matter would like to add ${company.name} to our trade partner list. Please take a few minutes to fill in our qualification form: company details, insurance certificate, W-9 and license. We've filled in what we already know.`,
+        ...(message ? [message] : []),
+        "Your progress saves as you go, so you can come back to it with the same link.",
+      ];
+      const html = notificationEmailHtml({
+        audience: "external", footerNote: TP_FOOTER, eyebrow: "Trade partner invitation", heading: "You're invited to work with Constructed Matter",
+        paragraphs, cta: { label: "Start the form", url: `${publicAppUrl()}/prequalification?t=${app.token}` },
+      });
+      const sent = await sendApplicantEmail({ to: to.email, subject, html, replyTo: replyToFor(c.ctx.email) });
+      if (!sent.sent && !sent.held) throw new Error(sent.error ?? "The email didn't send.");
+      try {
+        await logMessage({
+          direction: "outbound", channel: "email", contact_id: to.contact_id, to_address: to.email, from_address: "info@constructedmatter.com",
+          subject, body: paragraphs.join("\n\n"), status: sent.sent ? "sent" : "queued", project_id: null, quote_id: null, provider: "resend",
+          provider_id: null, error_message: sent.held ? "Held: not production" : null, duration_seconds: null, recording_url: null, sent_at: new Date().toISOString(),
+        });
+      } catch (err) {
+        console.error("[mcp] logging the invite failed", err);
+      }
+      return {
+        result: { sent: sent.sent, held: !!sent.held, to: to.email, partner: company.name, application_id: app.id, reused_open_form: !!open },
+        entity: "company", recordId: company.id, after: { invited: to.email, application_id: app.id }, capGroup: "email",
+      };
     },
   },
 ];

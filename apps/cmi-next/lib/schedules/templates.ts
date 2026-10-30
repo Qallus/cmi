@@ -1,26 +1,31 @@
 // Built-in Schedule Templates + Job Schedule Packages. Items use relative day
-// offsets from the schedule's start date; dependencies reference item keys.
+// offsets from the schedule's start date (calendar days, or working days when
+// the template says so); dependencies reference item keys.
 import type { ScheduleType, DependencyType } from "./types";
+import { NEW_CONSTRUCTION_TEMPLATE } from "./template-new-construction";
 
 export type TemplateItem = {
   key: string;
   title: string;
   phaseKey?: string;
   kind?: "task" | "milestone";
-  offset: number;      // calendar days from schedule start
-  duration?: number;   // calendar days (tasks); milestones ignore this
-  deps?: { on: string; type?: DependencyType }[];
+  offset: number;      // days from schedule start (see ScheduleTemplate.unit)
+  duration?: number;   // days (tasks); milestones ignore this
+  deps?: { on: string; type?: DependencyType; lag?: number }[];
+  assignees?: string[]; // staff display names, matched when the template is applied
 };
 export type ScheduleTemplate = {
   id: string;
   name: string;
   type: ScheduleType;
   description: string;
+  unit?: "calendar" | "workdays"; // default calendar
   phases: { key: string; name: string }[];
   items: TemplateItem[];
 };
 
 export const SCHEDULE_TEMPLATES: ScheduleTemplate[] = [
+  NEW_CONSTRUCTION_TEMPLATE,
   {
     id: "construction",
     name: "Construction",
@@ -153,6 +158,12 @@ export const SCHEDULE_TEMPLATES: ScheduleTemplate[] = [
 
 export function getTemplate(id: string): ScheduleTemplate | undefined {
   return SCHEDULE_TEMPLATES.find((t) => t.id === id);
+}
+
+/** What the template picker shows: size and length of each template. */
+export function templateSummary(t: ScheduleTemplate) {
+  const span = Math.max(1, ...t.items.map((i) => i.offset + (i.kind === "milestone" ? 1 : i.duration ?? 1)));
+  return { id: t.id, name: t.name, type: t.type, description: t.description, items: t.items.length, phases: t.phases.length, span_days: span, unit: t.unit ?? "calendar" };
 }
 
 export type SchedulePackage = { id: string; name: string; description: string; templateIds: string[] };

@@ -222,8 +222,9 @@ export async function loadStageHistory(dealId: string): Promise<DealStageHistory
 
 // ─── Pre-Con handoff ──────────────────────────────────────────────
 // On closed_won, create the pipeline_opportunities (Pre-Con) record via the
-// existing pipeline layer (which mints the CM-YYYY-#### number), then back-link
-// it onto the deal along with the number for quick reference.
+// existing pipeline layer, then back-link it onto the deal. A deal is numbered
+// when it is created (DB trigger), and Pre-Con keeps that number so the deal,
+// opportunity and job share one. Older deals without one get a fresh number.
 export async function closeWonToPreCon(deal: Deal, actor?: Actor): Promise<Deal> {
   const opp = await createOpportunity(
     {
@@ -232,12 +233,13 @@ export async function closeWonToPreCon(deal: Deal, actor?: Actor): Promise<Deal>
       estimated_project_value: deal.estimated_value ?? null,
       estimated_budget_range: null,
       source: deal.source ?? null,
-      notes: deal.notes ?? null,
       referral_source: deal.referral_source ?? null,
+      notes: deal.notes ?? null,
       assigned_owner_id: deal.owner_id ?? null,
       stage: "opportunity",
     },
     actor,
+    deal.job_number,
   );
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase

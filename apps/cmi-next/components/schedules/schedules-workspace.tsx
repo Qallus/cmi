@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Plus, GitBranch, Flag, Layers, CalendarClock, FileText, Star, Archive, ChevronDown } from "lucide-react";
+import { Plus, GitBranch, Flag, Layers, CalendarClock, CalendarRange, FileText, Star, Archive, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -13,6 +13,7 @@ import { BoardView } from "./views/board-view";
 import { ResourceView } from "./views/resource-view";
 import { ItemDrawer } from "./item-drawer";
 import { AddScheduleWizard, type ScheduleSource } from "./add-schedule-wizard";
+import { ShiftDialog } from "./shift-dialog";
 import type { JobSchedule, ScheduleItem, SchedulePhase, ScheduleDependency, ScheduleView, ScheduleDraft, DependencyType, ScheduleType } from "@/lib/schedules/types";
 
 type Staff = { id: string; name: string };
@@ -39,6 +40,8 @@ export function SchedulesWorkspace({ jobId, jobLabel, initialSchedules, initialH
   const [templates, setTemplates] = React.useState<{ id: string; name: string; type: ScheduleType; description?: string }[]>([]);
   const [packages, setPackages] = React.useState<{ id: string; name: string; description: string; templateIds: string[] }[]>([]);
   const [pkgMenu, setPkgMenu] = React.useState(false);
+  const [pkgStart, setPkgStart] = React.useState("");
+  const [shiftOpen, setShiftOpen] = React.useState(false);
 
   React.useEffect(() => {
     fetch("/api/schedule-templates").then((r) => r.json()).then((d) => { setTemplates(d.templates ?? []); setPackages(d.packages ?? []); }).catch(() => {});
@@ -48,7 +51,7 @@ export function SchedulesWorkspace({ jobId, jobLabel, initialSchedules, initialH
     setPkgMenu(false);
     if (!confirm("Apply this package? It creates several schedules with phases, items, and milestones.")) return;
     setBanner("Applying package…");
-    const res = await fetch(`/api/jobs/${jobId}/schedule-packages`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ packageId }) });
+    const res = await fetch(`/api/jobs/${jobId}/schedule-packages`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ packageId, startDate: pkgStart || null }) });
     if (res.ok) { await refreshSchedules(); const d = await res.json(); if (d.created?.[0]) { setSelected(new Set([d.created[0].id])); await loadBundle(d.created[0].id); } setBanner("Package applied."); }
     else setBanner("Could not apply the package.");
   }
@@ -166,7 +169,12 @@ export function SchedulesWorkspace({ jobId, jobLabel, initialSchedules, initialH
         await fetch(`/api/schedules/${created.id}/items`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(rest) });
       }
     } else if (source.mode === "template" && source.templateId) {
-      await fetch(`/api/schedules/${created.id}/apply-template`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ templateId: source.templateId }) }).catch(() => {});
+      const res = await fetch(`/api/schedules/${created.id}/apply-template`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ templateId: source.templateId, startDate: draft.start_date || null, autoCascade: source.autoCascade !== false }) }).catch(() => null);
+      const d = res ? await res.json().catch(() => ({})) : {};
+      if (res?.ok) {
+        const missing = d.unmatched_assignees?.length ? ` Not assigned (no staff account by that name): ${d.unmatched_assignees.join(", ")}.` : "";
+        setBanner(`${d.items} items added, ${fmtDate(d.start)} to ${fmtDate(d.finish)}.${missing}`);
+      } else setBanner(d.error ? `Template not applied: ${d.error}` : "Could not apply the template.");
     }
     setWizardOpen(false);
     await refreshSchedules();
@@ -199,6 +207,9 @@ export function SchedulesWorkspace({ jobId, jobLabel, initialSchedules, initialH
                   <div className="fixed inset-0 z-40" onClick={() => setPkgMenu(false)} />
                   <div className="absolute right-0 z-50 mt-1 w-72 rounded-lg border border-border bg-card p-1 shadow-lg">
                     <div className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Job Schedule Packages</div>
+                    <label className="flex items-center gap-2 px-2 py-1 text-xs text-muted-foreground">Start date
+                      <input type="date" value={pkgStart} onChange={(e) => setPkgStart(e.target.value)} className="h-7 flex-1 rounded border border-border bg-background px-2 text-xs text-foreground" />
+                    </label>
                     {packages.map((p) => (
                       <button key={p.id} type="button" onClick={() => applyPackage(p.id)} className="block w-full rounded px-2 py-1.5 text-left hover:bg-muted/50">
                         <div className="text-sm font-medium">{p.name}</div><div className="text-xs text-muted-foreground">{p.description}</div>
@@ -284,6 +295,7 @@ export function SchedulesWorkspace({ jobId, jobLabel, initialSchedules, initialH
               </div>
             ) : null}
             <div className="flex-1" />
+            {primarySchedule && canEdit && !overlay ? <Button size="sm" variant="ghost" onClick={() => setShiftOpen(true)}><CalendarRange className="h-3.5 w-3.5" /> Shift dates</Button> : null}
             {primarySchedule ? <Button size="sm" variant="ghost" onClick={() => window.open(`/api/schedules/${primarySchedule.id}/pdf`, "_blank")}><FileText className="h-3.5 w-3.5" /> PDF</Button> : null}
             {primarySchedule && canManage ? (
               <div className="flex items-center gap-1">
@@ -313,6 +325,12 @@ export function SchedulesWorkspace({ jobId, jobLabel, initialSchedules, initialH
         </>
       )}
 
+      {shiftOpen ? <ShiftDialog key={primarySchedule?.id} open schedule={primarySchedule} onClose={() => setShiftOpen(false)} onShifted={async (p) => {
+        setShiftOpen(false);
+        setBanner(`${p.moved} item${p.moved === 1 ? "" : "s"} moved ${Math.abs(p.workdays)} working day${Math.abs(p.workdays) === 1 ? "" : "s"} ${p.workdays > 0 ? "later" : "earlier"}. Now ${fmtDate(p.to)} to ${fmtDate(p.finish)}.`);
+        if (primaryId) await loadBundle(primaryId);
+        void refreshSchedules();
+      }} /> : null}
       <AddScheduleWizard open={wizardOpen} staff={staff} templates={templates} existing={schedules} onClose={() => setWizardOpen(false)} onCreate={createSchedule} />
       <ItemDrawer
         open={!!editing} item={editing} phases={phases.length ? phases : (primaryId ? bundles[primaryId]?.phases ?? [] : [])} staff={staff}

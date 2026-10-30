@@ -3,6 +3,7 @@
 // happen; "due soon" rows are generated lazily when the feed/count is read.
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { sendPushToStaff } from "@/lib/push/web-push";
+import { canSendOutbound } from "@/lib/notifications/dispatch";
 import { fmtISO } from "./workdays";
 import type { Assignee } from "./types";
 
@@ -32,6 +33,8 @@ export async function notifyScheduleEvent(opts: {
       job_id: opts.jobId, schedule_id: opts.scheduleId, item_id: opts.itemId,
     })));
   } catch { /* notifications must never block the operation */ }
+  // Push reaches real phones, so it's held outside production like other notifications.
+  if (!canSendOutbound()) return;
   try {
     await sendPushToStaff(recipients, { title: opts.title, body: opts.subtitle, url: scheduleHref(opts.jobId), tag: `sched-${opts.itemId}` });
   } catch { /* push is best-effort */ }

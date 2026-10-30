@@ -1,7 +1,7 @@
 // CMI Multi-Schedule Builder — repository. All access is server-side via the
 // service-role client (RLS bypass); the API layer gates by role.
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { addWorkdays, parseISO, fmtISO, durationDays } from "./workdays";
+import { addWorkdays, parseISO, fmtISO, workdaysBetween, workdayDiff } from "./workdays";
 import { notifyScheduleEvent, assigneeStaffIds } from "./notify";
 import { DEFAULT_WORKDAYS } from "./types";
 import type {
@@ -346,7 +346,7 @@ export async function computeCascade(jobId: string, changedItemId: string): Prom
       const srcStart = parseISO(src.start_date), srcEnd = parseISO(src.end_date);
       const tgtStart = parseISO(tgt.start_date), tgtEnd = parseISO(tgt.end_date);
       if (!srcStart || !srcEnd || !tgtStart || !tgtEnd) continue;
-      const dur = durationDays(tgt.start_date, tgt.end_date) ?? 1;
+      const dur = Math.max(1, workdaysBetween(tgtStart, tgtEnd, wd)); // working days, the unit the cascade moves in
       let newStart = tgtStart;
       const lag = dep.lag_days ?? 0;
       if (dep.dependency_type === "finish_to_start") newStart = addWorkdays(srcEnd, 1 + lag, wd);
@@ -386,58 +386,187 @@ function addCalDays(iso: string, n: number): string {
   return fmtISO(d);
 }
 
+export type ApplyTemplateOptions = {
+  /** First day of the schedule (YYYY-MM-DD); every task keeps its spacing from it. Defaults to the schedule's start date, else today. */
+  startDate?: string | null;
+  /** true (default): moving a task moves the tasks linked after it. false: links are kept for reference and the PM moves dates by hand. */
+  autoCascade?: boolean;
+};
+export type ApplyTemplateResult = { items: number; start: string; finish: string; assigned: string[]; unmatched_assignees: string[] };
+
+const phaseRange = (rows: { start_date: string | null; end_date: string | null }[]) => {
+  const dated = rows.filter((r) => r.start_date);
+  if (!dated.length) return null;
+  return {
+    start_date: dated.reduce((m, r) => (r.start_date! < m ? r.start_date! : m), dated[0].start_date!),
+    end_date: dated.reduce((m, r) => ((r.end_date ?? r.start_date!) > m ? (r.end_date ?? r.start_date!) : m), dated[0].end_date ?? dated[0].start_date!),
+  };
+};
+
 /** Seed a schedule's phases, items, and dependencies from a built-in template. */
-export async function applyTemplate(scheduleId: string, templateId: string, actor?: Actor): Promise<void> {
+export async function applyTemplate(scheduleId: string, templateId: string, actor?: Actor, opts: ApplyTemplateOptions = {}): Promise<ApplyTemplateResult> {
   const { getTemplate } = await import("./templates");
   const tpl = getTemplate(templateId);
   if (!tpl) throw new Error("Unknown template.");
   const sb = getSupabaseAdmin();
-  const { data: sched } = await sb.from("job_schedules").select("id, job_id, start_date").eq("id", scheduleId).maybeSingle();
-  const base = sched?.start_date || fmtISO(new Date());
+  const { data: sched } = await sb.from("job_schedules").select("id, job_id, start_date, target_completion, workdays").eq("id", scheduleId).maybeSingle();
+  if (!sched) throw new Error("Schedule not found.");
+  const wd = (sched.workdays ?? DEFAULT_WORKDAYS) as Workdays;
+  const byWorkdays = tpl.unit === "workdays";
+  const requested = opts.startDate && parseISO(opts.startDate) ? opts.startDate : null;
+  let base: string = requested || sched.start_date || fmtISO(new Date());
+  if (byWorkdays) base = fmtISO(addWorkdays(parseISO(base)!, 0, wd)); // a weekend start moves to the next workday
 
-  const phaseIdByKey = new Map<string, string>();
-  let sort = 0;
-  for (const ph of tpl.phases) {
-    const { data } = await sb.from("schedule_phases").insert({ schedule_id: scheduleId, name: ph.name, sort_order: sort++ }).select("id").single();
-    if (data) phaseIdByKey.set(ph.key, data.id);
-  }
-
-  const itemIdByKey = new Map<string, string>();
-  let isort = 0;
-  for (const it of tpl.items) {
-    const start = addCalDays(base, it.offset);
-    const end = it.kind === "milestone" ? start : addCalDays(start, Math.max(0, (it.duration ?? 1) - 1));
-    const { data } = await sb.from("schedule_items").insert({
-      schedule_id: scheduleId, job_id: sched?.job_id ?? null, phase_id: it.phaseKey ? phaseIdByKey.get(it.phaseKey) ?? null : null,
-      kind: it.kind ?? "task", title: it.title, start_date: start, end_date: end, duration_days: it.duration ?? null,
-      sort_order: isort++, created_by: actor?.id ?? null, updated_by: actor?.id ?? null,
-    }).select("id").single();
-    if (data) itemIdByKey.set(it.key, data.id);
-  }
-
-  for (const it of tpl.items) {
-    for (const dep of it.deps ?? []) {
-      const src = itemIdByKey.get(dep.on); const tgt = itemIdByKey.get(it.key);
-      if (src && tgt) await sb.from("schedule_dependencies").insert({ job_id: sched?.job_id ?? null, source_item_id: src, target_item_id: tgt, dependency_type: dep.type ?? "finish_to_start", created_by: actor?.id ?? null }).select("id").maybeSingle();
+  // Template assignees are staff names; match them to staff accounts.
+  const names = Array.from(new Set(tpl.items.flatMap((i) => i.assignees ?? [])));
+  const staffByName = new Map<string, { id: string; name: string }>();
+  if (names.length) {
+    const norm = (v: string) => v.replace(/\s+/g, " ").trim().toLowerCase();
+    const { data: staff } = await sb.from("staff_users").select("id, display_name");
+    const all = new Map<string, { id: string; name: string }>();
+    for (const p of staff ?? []) if (p.display_name) all.set(norm(p.display_name), { id: p.id, name: p.display_name });
+    // Exact name first, then same last name and first initial ("Joe Ballard" → "Joseph Ballard") when only one person fits.
+    const parts = (v: string) => { const w = norm(v).split(" "); return { first: w[0], last: w[w.length - 1] }; };
+    for (const n of names) {
+      const hit = all.get(norm(n));
+      if (hit) { staffByName.set(n, hit); continue; }
+      const want = parts(n);
+      const close = Array.from(all.entries()).filter(([k]) => { const p = parts(k); return p.last === want.last && p.first[0] === want.first[0]; });
+      if (close.length === 1) staffByName.set(n, close[0][1]);
     }
   }
-  await logActivity({ jobId: sched?.job_id ?? null, scheduleId, action: "template_applied", detail: { template: templateId, items: tpl.items.length }, actor });
+
+  const { count: phaseCount } = await sb.from("schedule_phases").select("id", { count: "exact", head: true }).eq("schedule_id", scheduleId);
+  const firstPhase = phaseCount ?? 0;
+  const { data: phaseRows, error: phaseErr } = await sb.from("schedule_phases")
+    .insert(tpl.phases.map((ph, i) => ({ schedule_id: scheduleId, name: ph.name, sort_order: firstPhase + i })))
+    .select("id, sort_order");
+  if (phaseErr) throw new Error(phaseErr.message);
+  const phaseIdByKey = new Map<string, string>();
+  for (const r of phaseRows ?? []) phaseIdByKey.set(tpl.phases[r.sort_order - firstPhase].key, r.id);
+
+  const { count: itemCount } = await sb.from("schedule_items").select("id", { count: "exact", head: true }).eq("schedule_id", scheduleId);
+  const firstSort = itemCount ?? 0;
+  const rows = tpl.items.map((it, i) => {
+    const days = it.kind === "milestone" ? 1 : Math.max(1, it.duration ?? 1);
+    const start = byWorkdays ? fmtISO(addWorkdays(parseISO(base)!, it.offset, wd)) : addCalDays(base, it.offset);
+    const end = byWorkdays ? fmtISO(addWorkdays(parseISO(start)!, days - 1, wd)) : addCalDays(start, days - 1);
+    const people = (it.assignees ?? []).flatMap((n) => staffByName.get(n) ?? []);
+    return {
+      schedule_id: scheduleId, job_id: sched.job_id ?? null, phase_id: it.phaseKey ? phaseIdByKey.get(it.phaseKey) ?? null : null,
+      kind: it.kind ?? "task", title: it.title, start_date: start, end_date: end, duration_days: it.kind === "milestone" ? null : it.duration ?? null,
+      assignees: people.map((p) => ({ id: p.id, name: p.name, type: "staff" })),
+      sort_order: firstSort + i, created_by: actor?.id ?? null, updated_by: actor?.id ?? null,
+    };
+  });
+  const { data: itemRows, error: itemErr } = await sb.from("schedule_items").insert(rows).select("id, sort_order");
+  if (itemErr) throw new Error(itemErr.message);
+  const itemIdByKey = new Map<string, string>();
+  for (const r of itemRows ?? []) itemIdByKey.set(tpl.items[r.sort_order - firstSort].key, r.id);
+
+  const deps = tpl.items.flatMap((it) => (it.deps ?? []).flatMap((dep) => {
+    const src = itemIdByKey.get(dep.on), tgt = itemIdByKey.get(it.key);
+    return src && tgt ? [{
+      job_id: sched.job_id ?? null, source_item_id: src, target_item_id: tgt, dependency_type: dep.type ?? "finish_to_start",
+      lag_days: dep.lag ?? 0, auto_cascade: opts.autoCascade !== false, created_by: actor?.id ?? null,
+    }] : [];
+  }));
+  if (deps.length) { const { error } = await sb.from("schedule_dependencies").insert(deps); if (error) throw new Error(error.message); }
+
+  // Phase date ranges, and the schedule's own dates when they're blank or a start was picked.
+  const finish = rows.reduce((m, r) => (r.end_date > m ? r.end_date : m), base);
+  await Promise.all(Array.from(phaseIdByKey.values()).map((pid) => {
+    const range = phaseRange(rows.filter((r) => r.phase_id === pid));
+    return range ? sb.from("schedule_phases").update(range).eq("id", pid) : null;
+  }));
+  const schedPatch: Record<string, unknown> = {};
+  if (requested || !sched.start_date) schedPatch.start_date = base;
+  if (requested || !sched.target_completion) schedPatch.target_completion = finish;
+  if (Object.keys(schedPatch).length) await sb.from("job_schedules").update(schedPatch).eq("id", scheduleId);
+
+  // One notification per assigned person, not one per task.
+  const assignedIds = Array.from(new Set(rows.flatMap((r) => r.assignees.map((a) => a.id))));
+  const firstItem = itemRows?.find((r) => r.sort_order === firstSort);
+  if (assignedIds.length && firstItem) {
+    await notifyScheduleEvent({ kind: "assigned", recipientIds: assignedIds, jobId: sched.job_id ?? null, scheduleId, itemId: firstItem.id, title: `Assigned on the ${tpl.name} schedule`, subtitle: `Schedule starts ${base}`, actorId: actor?.id });
+  }
+  await logActivity({ jobId: sched.job_id ?? null, scheduleId, action: "template_applied", detail: { template: templateId, items: rows.length, start: base, finish, auto_cascade: opts.autoCascade !== false }, actor });
+  return { items: rows.length, start: base, finish, assigned: Array.from(staffByName.keys()), unmatched_assignees: names.filter((n) => !staffByName.has(n)) };
 }
 
 /** Apply a Job Schedule Package: create each template as its own schedule. */
-export async function applyPackage(jobId: string, packageId: string, actor?: Actor): Promise<JobSchedule[]> {
+export async function applyPackage(jobId: string, packageId: string, actor?: Actor, opts: ApplyTemplateOptions = {}): Promise<JobSchedule[]> {
   const { getPackage, getTemplate } = await import("./templates");
   const pkg = getPackage(packageId);
   if (!pkg) throw new Error("Unknown package.");
   const created: JobSchedule[] = [];
   for (const tid of pkg.templateIds) {
     const tpl = getTemplate(tid); if (!tpl) continue;
-    const schedule = await createSchedule(jobId, { name: tpl.name, type: tpl.type, description: tpl.description, is_master: tid === "construction" }, actor);
-    await applyTemplate(schedule.id, tid, actor);
+    const schedule = await createSchedule(jobId, { name: tpl.name, type: tpl.type, description: tpl.description, is_master: tid === "construction", start_date: opts.startDate || null }, actor);
+    await applyTemplate(schedule.id, tid, actor, opts);
     created.push(schedule);
   }
   await logActivity({ jobId, action: "package_applied", detail: { package: packageId, schedules: created.length }, actor });
   return created;
+}
+
+export type ShiftResult = {
+  from: string | null; to: string; workdays: number; moved: number; finish: string | null;
+  skipped: { id: string; title: string; reason: "locked" | "complete" }[];
+  changes: { id: string; title: string; from: { start: string | null; end: string | null }; to: { start: string; end: string } }[];
+};
+
+/** Move a whole schedule so it starts on `newStart`: every task moves by the same
+ *  number of working days and keeps its length. Locked tasks stay put, and so do
+ *  complete/cancelled ones unless includeComplete. dryRun returns the plan only. */
+export async function shiftSchedule(scheduleId: string, newStart: string, actor?: Actor, opts: { includeComplete?: boolean; dryRun?: boolean } = {}): Promise<ShiftResult> {
+  const sb = getSupabaseAdmin();
+  const target = parseISO(newStart);
+  if (!target) throw new Error("Pick a valid start date (YYYY-MM-DD).");
+  const { data: sched } = await sb.from("job_schedules").select("id, job_id, name, start_date, target_completion, workdays").eq("id", scheduleId).maybeSingle();
+  if (!sched) throw new Error("Schedule not found.");
+  const wd = (sched.workdays ?? DEFAULT_WORKDAYS) as Workdays;
+  const items = (await listItems({ scheduleId })).filter((i) => i.start_date);
+  const anchor = items.reduce<string | null>((m, i) => (!m || i.start_date! < m ? i.start_date! : m), null) ?? sched.start_date;
+  const to = fmtISO(addWorkdays(target, 0, wd));
+  const result: ShiftResult = { from: anchor, to, workdays: 0, moved: 0, finish: null, skipped: [], changes: [] };
+  if (!anchor) return result;
+  const delta = workdayDiff(addWorkdays(parseISO(anchor)!, 0, wd), parseISO(to)!, wd);
+  result.workdays = delta;
+
+  for (const i of items) {
+    if (i.is_locked) { result.skipped.push({ id: i.id, title: i.title, reason: "locked" }); continue; }
+    if (!opts.includeComplete && (i.status === "complete" || i.status === "cancelled")) { result.skipped.push({ id: i.id, title: i.title, reason: "complete" }); continue; }
+    if (!delta) continue;
+    const s0 = parseISO(i.start_date)!, e0 = parseISO(i.end_date) ?? s0;
+    const start = addWorkdays(s0, delta, wd);
+    const end = i.kind === "milestone" ? start : addWorkdays(start, Math.max(1, workdaysBetween(s0, e0, wd)) - 1, wd);
+    result.changes.push({ id: i.id, title: i.title, from: { start: i.start_date, end: i.end_date }, to: { start: fmtISO(start), end: fmtISO(end) } });
+  }
+  result.moved = result.changes.length;
+  const moved = new Map(result.changes.map((c) => [c.id, c]));
+  const after = items.map((i) => ({ ...i, start_date: moved.get(i.id)?.to.start ?? i.start_date, end_date: moved.get(i.id)?.to.end ?? i.end_date }));
+  result.finish = phaseRange(after)?.end_date ?? null;
+  if (opts.dryRun || !result.moved) return result;
+
+  const now = new Date().toISOString();
+  await Promise.all(result.changes.map((c) => sb.from("schedule_items").update({ start_date: c.to.start, end_date: c.to.end, updated_at: now, updated_by: actor?.id ?? null }).eq("id", c.id)));
+  const { data: phases } = await sb.from("schedule_phases").select("id").eq("schedule_id", scheduleId);
+  await Promise.all((phases ?? []).map((ph) => {
+    const range = phaseRange(after.filter((i) => i.phase_id === ph.id));
+    return range ? sb.from("schedule_phases").update(range).eq("id", ph.id) : null;
+  }));
+  const schedPatch: Record<string, unknown> = { start_date: to, updated_at: now };
+  if (sched.target_completion) schedPatch.target_completion = fmtISO(addWorkdays(parseISO(sched.target_completion)!, delta, wd));
+  await sb.from("job_schedules").update(schedPatch).eq("id", scheduleId);
+  await logActivity({ jobId: sched.job_id, scheduleId, action: "schedule_shifted", detail: { from: anchor, to, workdays: delta, moved: result.moved, skipped: result.skipped.length }, actor });
+
+  // One heads-up per assigned person rather than one per task.
+  const recipients = Array.from(new Set(items.filter((i) => moved.has(i.id)).flatMap((i) => assigneeStaffIds(i.assignees))));
+  if (recipients.length) {
+    await notifyScheduleEvent({ kind: "moved", recipientIds: recipients, jobId: sched.job_id, scheduleId, itemId: result.changes[0].id, title: `Rescheduled: ${sched.name}`, subtitle: `Now starts ${to}${result.finish ? `, finishes ${result.finish}` : ""}`, actorId: actor?.id });
+  }
+  return result;
 }
 
 // ---- participants ----

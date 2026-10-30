@@ -60,6 +60,9 @@ export type Application = {
   updated_at: string;
 };
 
+/** prequal_applications.source for a form the office sent a new partner. */
+export const INVITE_SOURCE = "staff_invite";
+
 export class PrequalError extends Error {
   status: number;
   constructor(message: string, status = 400) { super(message); this.status = status; }
@@ -160,6 +163,8 @@ export async function submitApplication(token: string, audit: Audit = {}): Promi
   // A requalification re-signs only when asked, or when the current version
   // was never signed by this company.
   const requal = app.source === REQUAL_SOURCE && !!app.company_id;
+  // An office invite (Claude's cmi_trade_partner_invite) already made the company.
+  const invited = app.source === INVITE_SOURCE && !!app.company_id;
   if (msa && !signature && (await msaRequiredFor(app, msa.id))) {
     throw new PrequalError("Please review and sign the Master Subcontractor Agreement on the last step before submitting.");
   }
@@ -175,14 +180,16 @@ export async function submitApplication(token: string, audit: Audit = {}): Promi
   // The company gets everything the form maps to a column, so the profile is
   // searchable the moment it lands.
   // A requalification updates the partner it was sent to and keeps their status.
-  const company = requal
+  const company = requal || invited
     ? { id: app.company_id as string }
     : await findOrCreateCompany(companyName, {
       ...(answersToCompany(answers) as Partial<Company>),
       qualification_status: "applicant",
     });
-  if (requal) {
-    await supabase.from("companies").update({ ...answersToCompany(answers), updated_at: new Date().toISOString() }).eq("id", company.id);
+  if (requal || invited) {
+    await supabase.from("companies").update({
+      ...answersToCompany(answers), ...(invited ? { qualification_status: "applicant" } : {}), updated_at: new Date().toISOString(),
+    }).eq("id", company.id);
   }
 
   queueLocate(company.id);
@@ -273,7 +280,7 @@ async function linkContact(app: Application, answers: Answers, companyId: string
 }
 
 /** The form's partner types onto the contacts_type_check values. */
-function partnerTypeToContactType(partnerType: string): string {
+export function partnerTypeToContactType(partnerType: string): string {
   switch (partnerType) {
     case "Subcontractor": return "Sub Contractor";
     case "Vendor":

@@ -18,17 +18,29 @@ export function isWorkday(d: Date, workdays: Workdays, holidays: Set<string> = n
   return workdays[DOW[d.getUTCDay()]] !== false;
 }
 
-/** Add N working days to a date (N may be 0). Skips non-workdays/holidays. */
+/** Add N working days to a date (N may be 0 or negative, e.g. a negative lag).
+ *  Skips non-workdays/holidays. */
 export function addWorkdays(start: Date, days: number, workdays: Workdays, holidays?: Set<string>): Date {
   const d = new Date(start);
-  let remaining = Math.max(0, Math.round(days));
+  if (!DOW.some((k) => workdays[k] !== false)) return d; // no working days at all
+  let remaining = Math.round(days);
+  const step = remaining < 0 ? -1 : 1;
   // Ensure the start itself lands on a workday.
   while (!isWorkday(d, workdays, holidays)) d.setUTCDate(d.getUTCDate() + 1);
-  while (remaining > 0) {
-    d.setUTCDate(d.getUTCDate() + 1);
-    if (isWorkday(d, workdays, holidays)) remaining -= 1;
+  while (remaining !== 0) {
+    d.setUTCDate(d.getUTCDate() + step);
+    if (isWorkday(d, workdays, holidays)) remaining -= step;
   }
   return d;
+}
+
+/** Signed working days from `from` to `to` (0 when they're the same workday). */
+export function workdayDiff(from: Date, to: Date, workdays: Workdays, holidays?: Set<string>): number {
+  if (to.getTime() === from.getTime()) return 0;
+  const later = to > from;
+  const [a, b] = later ? [from, to] : [to, from];
+  const n = workdaysBetween(a, b, workdays, holidays) - (isWorkday(a, workdays, holidays) ? 1 : 0);
+  return later ? n : -n;
 }
 
 /** Inclusive count of working days between two dates. */

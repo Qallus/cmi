@@ -45,7 +45,7 @@ type Prefs = { email_enabled: boolean; push_enabled: boolean };
  * the whole path stays testable locally; only the outbound leg is held back.
  * Set NOTIFY_FORCE_SEND=true to deliberately send a real one.
  */
-function canSendOutbound(): boolean {
+export function canSendOutbound(): boolean {
   if (process.env.NOTIFY_FORCE_SEND === "true") return true;
   return process.env.NODE_ENV === "production";
 }
