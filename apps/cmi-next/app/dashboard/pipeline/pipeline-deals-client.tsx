@@ -216,7 +216,7 @@ export function PipelineDealsClient({
           return natural(a.job_number, b.job_number);
         }
         case "job_number": return natural(a.job_number, b.job_number) || txt(a.title).localeCompare(txt(b.title));
-        case "title": return txt(a.title).localeCompare(txt(b.title));
+        case "title": return txt(dealName(a)).localeCompare(txt(dealName(b))) || natural(a.job_number, b.job_number);
         case "stage": return DEAL_STAGES.indexOf(a.stage) - DEAL_STAGES.indexOf(b.stage) || natural(a.job_number, b.job_number);
         case "value": return (dealValueMid(b) ?? 0) - (dealValueMid(a) ?? 0);
         // By name, not id, so the order matches what the column shows.
@@ -431,8 +431,8 @@ export function PipelineDealsClient({
           </Select>
           <div className="ml-auto flex items-center gap-2">
             {view === "table"
-              ? <ViewOptions all={TABLE_COLUMNS} columns={tableCols.columns} onChange={tableCols.setColumns} defaults={tableCols.defaults} pinned={["No.", "Deal"]} />
-              : <ViewOptions all={LIST_COLUMNS} columns={listCols.columns} onChange={listCols.setColumns} defaults={listCols.defaults} pinned={["Name / Job #"]} disabled={view !== "list"} disabledHint="View options apply to the List and Table views" />}
+              ? <ViewOptions all={TABLE_COLUMNS} columns={tableCols.columns} onChange={tableCols.setColumns} defaults={tableCols.defaults} pinned={["Job #", "Job name"]} />
+              : <ViewOptions all={LIST_COLUMNS} columns={listCols.columns} onChange={listCols.setColumns} defaults={listCols.defaults} pinned={["Job #", "Job name"]} disabled={view !== "list"} disabledHint="View options apply to the List and Table views" />}
             <ViewSwitcher views={VIEWS} value={view} onChange={setView} />
           </div>
         </div>
@@ -660,7 +660,8 @@ function ListView({ deals, ownerName, onOpen, renderActions, reorder, sortState,
           <tr>
             <HeadCheck selection={selection} />
             {reorder && <th className="w-14 px-2 py-2"><span className="sr-only">Reorder</span></th>}
-            <SortableTh label="Deal" sortKey="job_number" state={sortState} />
+            <SortableTh label="Job #" sortKey="job_number" state={sortState} className="w-28" />
+            <SortableTh label="Job name" sortKey="title" state={sortState} />
             {show("stage") && <SortableTh label="Stage" sortKey="stage" state={sortState} />}
             {show("value") && <SortableTh label="Value" sortKey="value" state={sortState} className="text-right" align="right" />}
             {show("owner") && <SortableTh label="Owner" sortKey="owner" state={sortState} />}
@@ -694,11 +695,9 @@ function ListView({ deals, ownerName, onOpen, renderActions, reorder, sortState,
               >
                 <RowCheck id={d.id} selection={selection} />
                 {reorder && <td className="px-2 py-2.5"><ReorderCell id={d.id} index={i} reorder={reorder} /></td>}
-                <td className="px-3 py-2.5">
-                  {/* The name on top, the job number under it (the title starts with the number). */}
-                  <div className="font-medium group-hover/row:text-accent">{dealName(d)}</div>
-                  {d.job_number && <div className="font-mono text-[11px] text-muted-foreground">{d.job_number}</div>}
-                </td>
+                {/* Job number, then the name (the title starts with the number, so it's trimmed off). */}
+                <td className="whitespace-nowrap px-3 py-2.5 font-mono text-xs text-muted-foreground">{d.job_number ?? "—"}</td>
+                <td className="px-3 py-2.5"><div className="font-medium group-hover/row:text-accent">{dealName(d)}</div></td>
                 {show("stage") && <td className="px-3 py-2.5"><StageBadge stage={d.stage} /></td>}
                 {show("value") && (
                   <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">
@@ -760,8 +759,8 @@ function TableView({ deals, ownerName, onOpen, renderActions, reorder, sortState
           <tr>
             <HeadCheck selection={selection} />
             {reorder && <th className="w-14 px-2 py-2"><span className="sr-only">Reorder</span></th>}
-            <th className={cn(th, "w-20")}>No.</th>
-            <SortableTh label="Deal" sortKey="title" state={sortState} className={cn(th, "min-w-[220px]")} />
+            <SortableTh label="Job #" sortKey="job_number" state={sortState} className={cn(th, "w-24")} />
+            <SortableTh label="Job name" sortKey="title" state={sortState} className={cn(th, "min-w-[220px]")} />
             {show("stage") && <SortableTh label="Stage" sortKey="stage" state={sortState} className={cn(th, "w-40")} />}
             {show("owner") && <SortableTh label="Owner" sortKey="owner" state={sortState} className={cn(th, "w-40")} />}
             {show("job_type") && <th className={cn(th, "w-40")}>Job type</th>}
