@@ -47,7 +47,6 @@ export const NAV_ITEMS: NavItem[] = [
     ],
   },
   { href: "/dashboard/pipeline",       label: "Pipeline",       icon: Workflow,       roles: ["super_admin", "admin", "project_manager", "estimator"] },
-  { href: "/dashboard/sales",          label: "Pre-Con",        icon: BriefcaseBusiness, roles: ["super_admin", "admin", "project_manager", "estimator"] },
   { href: "/dashboard/projections",    label: "Projections",    icon: TrendingUp,     roles: ["super_admin", "admin"], flag: "projections" },
   {
     href: "/dashboard/reporting",      label: "Reporting",      icon: FileBarChart,   roles: ["super_admin", "admin", "project_manager", "estimator"], flag: "reporting",
@@ -59,6 +58,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     href: "/dashboard/jobs",           label: "Jobs",           icon: HardHat,        roles: ["super_admin", "admin", "project_manager", "estimator", "superintendent", "designer"],
     children: [
+      { href: "/dashboard/sales",                  label: "Pre-Con",          icon: BriefcaseBusiness, roles: ["super_admin", "admin", "project_manager", "estimator"] },
       { href: "/dashboard/jobs/map",               label: "Jobs Map",         icon: LayoutGrid, roles: ["super_admin", "admin", "project_manager", "estimator", "superintendent", "designer"] },
       { href: "/dashboard/jobs/new-from-template",  label: "Templates",        icon: FileText,   roles: ["super_admin", "admin", "project_manager"] },
       { href: "/dashboard/schedules",               label: "Schedules",        icon: CalendarClock, roles: ["super_admin", "admin", "project_manager", "superintendent", "estimator", "designer", "staff"] },
