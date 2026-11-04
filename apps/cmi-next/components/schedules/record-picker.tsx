@@ -6,6 +6,7 @@
 import * as React from "react";
 import { Search, X, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { AutoTooltip } from "@/components/ui/tooltip";
 import { LINK_LABELS, type LinkType } from "@/lib/schedules/types";
 
 export type PickedRecord = { type: LinkType; id: string; label: string };
@@ -39,7 +40,7 @@ export function RecordPicker({ types, value, onChange, placeholder = "Search rec
       <div className="flex items-center gap-2 rounded-md border border-border bg-background px-2.5 py-1.5 text-sm">
         <span className="rounded bg-accent/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent">{LINK_LABELS[value.type]}</span>
         <span className="min-w-0 flex-1 truncate font-medium">{value.label}</span>
-        <a href={`/api/schedule-links/open?type=${value.type}&id=${value.id}`} target="_blank" rel="noreferrer" title="Open" className="text-muted-foreground hover:text-foreground"><ExternalLink className="h-3.5 w-3.5" /></a>
+        <AutoTooltip content="Open the record"><a href={`/api/schedule-links/open?type=${value.type}&id=${value.id}`} target="_blank" rel="noreferrer" aria-label="Open the record" className="text-muted-foreground hover:text-foreground"><ExternalLink className="h-3.5 w-3.5" /></a></AutoTooltip>
         {!disabled ? <button type="button" onClick={() => onChange(null)} aria-label="Clear" className="text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button> : null}
       </div>
     );

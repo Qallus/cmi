@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import { AutoTooltip } from "@/components/ui/tooltip";
 import { StatusChip, PriorityDot, Progress, fmtDate, scheduleColor } from "../shared";
 import type { ScheduleItem } from "@/lib/schedules/types";
 
@@ -85,9 +86,11 @@ function Empty() {
 function LinkTag({ item }: { item: { link_type?: string | null; link_id?: string | null; link_label?: string | null } }) {
   if (!item.link_type || !item.link_id) return null;
   return (
-    <a href={`/api/schedule-links/open?type=${item.link_type}&id=${item.link_id}`} onClick={(e) => e.stopPropagation()}
-      className="ml-1 inline-flex max-w-[180px] items-center truncate rounded bg-accent/10 px-1.5 py-0.5 text-[10px] font-medium text-accent hover:bg-accent/20" title="Open the linked record">
-      ↗ {item.link_label ?? "Linked record"}
-    </a>
+    <AutoTooltip content="Open the linked record">
+      <a href={`/api/schedule-links/open?type=${item.link_type}&id=${item.link_id}`} onClick={(e) => e.stopPropagation()}
+        className="ml-1 inline-flex max-w-[180px] items-center truncate rounded bg-accent/10 px-1.5 py-0.5 text-[10px] font-medium text-accent hover:bg-accent/20">
+        ↗ {item.link_label ?? "Linked record"}
+      </a>
+    </AutoTooltip>
   );
 }

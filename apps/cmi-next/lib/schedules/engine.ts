@@ -20,7 +20,7 @@ export class ScheduleRuleError extends Error {
 
 export const ENGINE_FLAG = "schedule_engine";
 
-const ITEM_COLS = "id, schedule_id, phase_id, title, kind, status, start_date, end_date, duration_days, duration_unit, is_locked, constraint_type, constraint_date, actual_start, actual_finish, activity_id, early_start, early_finish, late_start, late_finish, total_float, free_float, is_critical, assignees";
+const ITEM_COLS = "id, schedule_id, phase_id, title, kind, status, start_date, end_date, duration_days, duration_unit, is_locked, constraint_type, constraint_date, actual_start, actual_finish, activity_id, early_start, early_finish, late_start, late_finish, total_float, free_float, is_critical, milestone_type, contract_date, assignees";
 const SCHED_COLS = "id, job_id, name, scheduling_mode, workdays, start_date, target_completion, scope_type, scope_id, status";
 
 /** The schedule's mode when the engine applies to it, else null (flag off or legacy). */

@@ -49,6 +49,12 @@ const config: Config = {
         sm: "var(--shadow-sm)",
         md: "var(--shadow-md)",
         lg: "var(--shadow-lg)"
+      },
+      keyframes: {
+        "tooltip-in": { from: { opacity: "0", transform: "scale(0.96)" }, to: { opacity: "1", transform: "scale(1)" } }
+      },
+      animation: {
+        "tooltip-in": "tooltip-in 120ms ease-out"
       }
     }
   },

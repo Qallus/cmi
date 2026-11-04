@@ -5,23 +5,14 @@ import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { runCpm } from "./cpm.ts";
 import { CALENDAR_DAYS, dayNum, spanW } from "./calendar.ts";
 import { buildInput, blockedMove, calendarFor, wouldLoop, type NetDep } from "./engine-core.ts";
-import { scheduleRows, type PredEdit } from "./grid.ts";
+import { scheduleRows, type GridOps } from "./grid.ts";
 import { ITEM_FIELDS, mapItem, logActivity, applyCascade } from "./data";
 import { engineModeFor, loadNetwork, recalcSchedule } from "./engine";
 import { DEPENDENCY_ABBR, type ScheduleItem, type SchedulePhase } from "./types";
 
 type Actor = { id?: string | null; name?: string | null };
 
-export type GridOps = {
-  updates?: { id: string; patch: Partial<ScheduleItem> }[];
-  /** New rows. tempId lets predecessors in the same batch point at them. */
-  creates?: { tempId: string; row: Partial<ScheduleItem> }[];
-  deletes?: string[];
-  /** Same-schedule predecessors for each item (replaces them; links from other schedules are kept). */
-  predecessors?: PredEdit[];
-  /** Renumber every activity ID by tens in display order. */
-  renumber?: boolean;
-};
+export type { GridOps };
 
 export type GridResult = {
   created: Record<string, string>;

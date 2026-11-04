@@ -84,3 +84,15 @@ test("clipboard from Excel, with a header row", () => {
   assert.deepEqual(h.unknown, ["Colour"]);
   assert.equal(headerMap(["10", "Frame", "8"]), null, "data rows map by position");
 });
+
+test("milestone type, contract date and variance", () => {
+  const m = item("m", { kind: "milestone", activity_id: 10 });
+  const c = { ...ctx([m]), varianceOf: (id) => (id === "m" ? 5 : null) };
+  assert.deepEqual(parseCell(m, "mtype", "Client decision", c).patch, { milestone_type: "client_decision" });
+  assert.deepEqual(parseCell(m, "mtype", "contract", c).patch, { milestone_type: "contract" });
+  assert.match(parseCell(m, "mtype", "big", c).error, /Contract, Inspection/);
+  assert.deepEqual(parseCell(m, "contract", "12/15/26", c).patch, { contract_date: "2026-12-15" });
+  assert.equal(cellText(m, "variance", c), "+5 wd");
+  assert.equal(cellText(m, "variance", { ...c, varianceOf: () => 0 }), "on date");
+  assert.equal(cellText(m, "variance", ctx([m])), "");
+});

@@ -4,6 +4,7 @@ import * as React from "react";
 import { Diamond } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { AutoTooltip } from "@/components/ui/tooltip";
 import {
   ITEM_STATUS_LABELS, ITEM_STATUS_TONE, HEALTH_LABELS, HEALTH_TONE,
   SCHEDULE_TYPE_LABELS, PRIORITY_LABELS,
@@ -38,7 +39,7 @@ const PRIORITY_DOT: Record<SchedulePriority, string> = {
   low: "bg-muted-foreground/40", normal: "bg-info", high: "bg-warning", urgent: "bg-orange-500", critical: "bg-destructive",
 };
 export function PriorityDot({ priority }: { priority: SchedulePriority }) {
-  return <span title={PRIORITY_LABELS[priority]} className={cn("inline-block h-2 w-2 rounded-full", PRIORITY_DOT[priority] ?? "bg-muted-foreground/40")} />;
+  return <AutoTooltip content={PRIORITY_LABELS[priority]}><span aria-label={PRIORITY_LABELS[priority]} className={cn("inline-block h-2 w-2 rounded-full", PRIORITY_DOT[priority] ?? "bg-muted-foreground/40")} /></AutoTooltip>;
 }
 
 export function MilestoneMark({ className }: { className?: string }) {

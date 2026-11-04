@@ -2,11 +2,14 @@ import { NextResponse } from "next/server";
 import { requireAdmin, AuthError } from "@/lib/auth/require-admin";
 import { canEditSchedules, canManageSchedules, canViewSchedules } from "@/lib/schedules/permissions";
 import { isFeatureEnabled } from "@/lib/flags";
-import { ENGINE_FLAG, recalcSchedule, switchMode } from "@/lib/schedules/engine";
+import { ENGINE_FLAG, loadNetwork, recalcSchedule, switchMode } from "@/lib/schedules/engine";
+import { contractVariance } from "@/lib/schedules/whatif";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import type { SchedulingMode } from "@/lib/schedules/types";
 
 const MODES: SchedulingMode[] = ["legacy", "auto", "manual"];
+
+type ContractRow = { id: string; title: string; contract_date: string; milestone_type: string | null; forecast: string | null; variance: number | null };
 
 // GET: is the engine available, this schedule's mode, and (on the engine) its
 // finish and critical tasks as of the last save.
@@ -20,10 +23,24 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     if (!data) return NextResponse.json({ error: "Schedule not found." }, { status: 404 });
     const mode = (data.scheduling_mode ?? "legacy") as SchedulingMode;
     // Read what the last save stored rather than re-running the engine (fast).
-    let summary: { finish: string | null; critical: { id: string }[]; loops: number } | null = null;
+    let summary: { finish: string | null; critical: { id: string }[]; loops: number; contract: ContractRow[] } | null = null;
     if (enabled && mode !== "legacy") {
-      const { data: crit } = await getSupabaseAdmin().from("schedule_items").select("id").eq("schedule_id", id).eq("is_critical", true).not("total_float", "is", null);
-      summary = { finish: data.engine_finish ?? null, critical: (crit ?? []) as { id: string }[], loops: 0 };
+      const sb = getSupabaseAdmin();
+      const [{ data: crit }, { data: dated }] = await Promise.all([
+        sb.from("schedule_items").select("id").eq("schedule_id", id).eq("is_critical", true).not("total_float", "is", null),
+        sb.from("schedule_items").select("id, schedule_id, title, kind, start_date, end_date, contract_date, milestone_type").eq("schedule_id", id).not("contract_date", "is", null),
+      ]);
+      // Variance needs the work calendar, so only load it when something has a contract date.
+      let contract: ContractRow[] = [];
+      if (dated?.length) {
+        const net = await loadNetwork(id);
+        contract = dated.map((m) => ({
+          id: m.id, title: m.title, contract_date: m.contract_date, milestone_type: m.milestone_type,
+          forecast: m.kind === "milestone" ? m.start_date : m.end_date ?? m.start_date,
+          variance: contractVariance(net, m),
+        }));
+      }
+      summary = { finish: data.engine_finish ?? null, critical: (crit ?? []) as { id: string }[], loops: 0, contract };
     }
     return NextResponse.json({ enabled, mode, ...data, summary, canSwitch: canManageSchedules(staff.role_slug) });
   } catch (err) { const e = err as AuthError; return NextResponse.json({ error: e.message }, { status: e.status ?? 500 }); }

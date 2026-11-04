@@ -5,6 +5,7 @@ import { Plus, GitBranch, Flag, Layers, CalendarClock, CalendarRange, FileText, 
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { Tooltip, AutoTooltip } from "@/components/ui/tooltip";
 import { VIEWS, HealthChip, TypeBadge, Progress, fmtDate, scheduleColor, scheduleTree } from "./shared";
 import { GanttView } from "./views/gantt-view";
 import { ListView } from "./views/list-view";
@@ -21,7 +22,8 @@ import { SCHEDULING_MODE_LABELS, type JobSchedule, type ScheduleItem, type Sched
 
 type Staff = { id: string; name: string };
 type Bundle = { schedule: JobSchedule; phases: SchedulePhase[]; items: ScheduleItem[]; dependencies: ScheduleDependency[] };
-type EngineState = { enabled: boolean; mode: SchedulingMode; canSwitch: boolean; summary: { finish: string | null; critical: { id: string }[]; loops: number } | null };
+type ContractRow = { id: string; title: string; contract_date: string; milestone_type: string | null; forecast: string | null; variance: number | null };
+type EngineState = { enabled: boolean; mode: SchedulingMode; canSwitch: boolean; summary: { finish: string | null; critical: { id: string }[]; loops: number; contract?: ContractRow[] } | null };
 type Header = { schedule_count: number; active_count: number; overall_progress: number; health: string; projected_completion: string | null; next_milestone: { title: string; date: string | null; schedule_name: string } | null };
 
 // `scope`: whose schedules these are (a job, or with the Schedule Builder a deal,
@@ -299,9 +301,9 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
             {/* View switcher */}
             <div className="flex items-center gap-0.5 rounded-md border border-border p-0.5">
               {VIEWS.map((v) => (
-                <button key={v.key} type="button" onClick={() => setView(v.key)} title={v.label} className={cn("inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium transition", view === v.key ? "bg-accent/15 text-accent" : "text-muted-foreground hover:bg-muted")}>
+                <AutoTooltip key={v.key} content={v.label}><button type="button" onClick={() => setView(v.key)} aria-label={v.label} className={cn("inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium transition", view === v.key ? "bg-accent/15 text-accent" : "text-muted-foreground hover:bg-muted")}>
                   <v.icon className="h-3.5 w-3.5" /><span className="hidden lg:inline">{v.label}</span>
-                </button>
+                </button></AutoTooltip>
               ))}
             </div>
           </div>
@@ -331,11 +333,18 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
               </div>
             ) : null}
             <div className="flex-1" />
-            {builder && primarySchedule && canEdit && !overlay ? <Button size="sm" variant="ghost" onClick={() => { setParentForNew(primarySchedule.id); setWizardOpen(true); }} title="Add a schedule inside this one"><CornerDownRight className="h-3.5 w-3.5" /> Add inside</Button> : null}
+            {builder && primarySchedule && canEdit && !overlay ? <AutoTooltip content="Add a schedule inside this one"><Button size="sm" variant="ghost" onClick={() => { setParentForNew(primarySchedule.id); setWizardOpen(true); }}><CornerDownRight className="h-3.5 w-3.5" /> Add inside</Button></AutoTooltip> : null}
             {engine?.enabled && primarySchedule && !overlay ? (
               <>
-                {engine.summary ? <span className="text-xs text-muted-foreground" title="Worked out from the links, the work calendar and holidays">Finish <span className="font-medium text-foreground">{fmtDate(engine.summary.finish)}</span> · {engine.summary.critical.length} critical{engine.summary.loops ? <span className="text-destructive"> · {engine.summary.loops} loop{engine.summary.loops === 1 ? "" : "s"} ignored</span> : null}</span> : null}
-                <Button size="sm" variant="ghost" onClick={() => setEngineOpen(true)} disabled={!engine.canSwitch} title={engine.canSwitch ? "How this schedule's dates are worked out" : "Admins and Project Managers change this"}><Route className="h-3.5 w-3.5" /> {SCHEDULING_MODE_LABELS[engine.mode]}</Button>
+                {engine.summary ? <AutoTooltip content="Worked out from the links, the work calendar and holidays"><span className="text-xs text-muted-foreground">Finish <span className="font-medium text-foreground">{fmtDate(engine.summary.finish)}</span> · {engine.summary.critical.length} critical{engine.summary.loops ? <span className="text-destructive"> · {engine.summary.loops} loop{engine.summary.loops === 1 ? "" : "s"} ignored</span> : null}</span></AutoTooltip> : null}
+                {(() => {
+                  // The contract milestone furthest behind (Spec R2 §7.2: "vs. contract +5 wd").
+                  const worst = (engine.summary?.contract ?? []).filter((c) => c.variance != null).sort((a, b) => (b.variance ?? 0) - (a.variance ?? 0))[0];
+                  if (!worst) return null;
+                  const v = worst.variance!;
+                  return <AutoTooltip content={`${worst.title}: contract ${fmtDate(worst.contract_date)}, forecast ${fmtDate(worst.forecast)}`}><span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", v > 0 ? "bg-destructive/10 text-destructive" : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400")}>vs contract {v === 0 ? "on date" : `${v > 0 ? "+" : ""}${v} wd`}</span></AutoTooltip>;
+                })()}
+                <Tooltip label={engine.canSwitch ? "How this schedule's dates are worked out" : "Admins and Project Managers change this"} side="bottom" className="inline-block"><Button size="sm" variant="ghost" onClick={() => setEngineOpen(true)} disabled={!engine.canSwitch}><Route className="h-3.5 w-3.5" /> {SCHEDULING_MODE_LABELS[engine.mode]}</Button></Tooltip>
               </>
             ) : null}
             {primarySchedule && canEdit && !overlay ? <Button size="sm" variant="ghost" onClick={() => setShiftOpen(true)}><CalendarRange className="h-3.5 w-3.5" /> Shift dates</Button> : null}
@@ -367,6 +376,7 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
                 canEdit={canEdit} zoom={zoom} showBaseline={showBaseline} linkMode={linkMode}
                 onOpenItem={setEditing} onBanner={setBanner} onDatesChange={ganttDates} onLink={(s, t) => addDependency(s, t)}
                 onReload={async () => { const b = await loadBundle(primarySchedule.id); void refreshEngine(); return b?.items ?? null; }}
+                mode={engine.mode} contractVariances={new Map((engine.summary?.contract ?? []).map((c) => [c.id, c.variance]))}
               />
             ) : (
               <ListView items={items} mode={view === "table" ? "table" : view === "card" ? "card" : "list"} showSchedule={overlay} onOpenItem={setEditing} />

@@ -53,7 +53,8 @@ export function scheduleRows(items: ScheduleItem[], phases: SchedulePhase[] | un
 
 export type ColumnKey =
   | "id" | "name" | "duration" | "start" | "finish" | "preds" | "succs" | "pct"
-  | "float" | "constraint" | "cdate" | "calendar" | "assigned" | "status" | "cost_code" | "notes";
+  | "float" | "constraint" | "cdate" | "calendar" | "assigned" | "status" | "cost_code" | "notes"
+  | "mtype" | "contract" | "variance";
 
 export type Column = { key: ColumnKey; label: string; width: number; editable: boolean; align?: "right"; aliases?: string[] };
 
@@ -74,6 +75,9 @@ export const GRID_COLUMNS: Column[] = [
   { key: "status", label: "Status", width: 100, editable: false },
   { key: "cost_code", label: "Cost code", width: 84, editable: true, aliases: ["cost", "code"] },
   { key: "notes", label: "Notes", width: 200, editable: true, aliases: ["note", "internal notes", "comments"] },
+  { key: "mtype", label: "Milestone type", width: 112, editable: true, aliases: ["milestone type", "type"] },
+  { key: "contract", label: "Contract date", width: 100, editable: true, aliases: ["contract", "contract date"] },
+  { key: "variance", label: "vs contract", width: 84, editable: false, align: "right", aliases: ["variance", "variance to contract"] },
 ];
 export const COLUMN = Object.fromEntries(GRID_COLUMNS.map((c) => [c.key, c])) as Record<ColumnKey, Column>;
 
@@ -81,6 +85,7 @@ export const GRID_LAYOUTS: Record<string, ColumnKey[]> = {
   "PM view": ["id", "name", "duration", "start", "finish", "preds", "succs", "pct", "float", "constraint", "assigned", "notes"],
   "Super view": ["id", "name", "duration", "start", "finish", "pct", "float", "assigned", "notes"],
   "Client print": ["name", "start", "finish", "pct"],
+  "Milestones": ["id", "name", "start", "mtype", "contract", "variance", "float", "notes"],
 };
 
 // ---- reading cells ----------------------------------------------------------
@@ -95,6 +100,8 @@ export type GridCtx = {
   succsOf: (itemId: string) => LinkRef[];
   /** Cross-schedule predecessors (shown, not edited here). */
   otherPredCount: (itemId: string) => number;
+  /** Working days past (+) or ahead of (−) the contract date, when known. */
+  varianceOf?: (itemId: string) => number | null | undefined;
 };
 
 export const CONSTRAINT_TEXT: Record<string, string> = { snet: "SNET", mfo: "MFO", alap: "ALAP", locked: "Locked" };
@@ -122,12 +129,33 @@ export function cellText(item: ScheduleItem, key: ColumnKey, ctx: GridCtx): stri
     case "status": return item.status ?? "";
     case "cost_code": return item.cost_code ?? "";
     case "notes": return item.internal_notes ?? "";
+    case "mtype": return item.milestone_type ? MILESTONE_TEXT[item.milestone_type] ?? item.milestone_type : "";
+    case "contract": return item.contract_date ?? "";
+    case "variance": {
+      const v = ctx.varianceOf?.(item.id);
+      return v == null ? "" : v === 0 ? "on date" : `${v > 0 ? "+" : ""}${v} wd`;
+    }
   }
 }
+
+export const MILESTONE_TEXT: Record<string, string> = { contract: "Contract", inspection: "Inspection", client_decision: "Client decision", internal: "Internal" };
 
 // ---- writing cells ----------------------------------------------------------
 
 export type PredEdit = { itemId: string; links: { sourceItemId: string; type: DependencyType; lag: number }[] };
+
+/** A batch of grid edits (saved by lib/schedules/grid-data.ts, or tried out
+ *  locally by lib/schedules/whatif.ts). */
+export type GridOps = {
+  updates?: { id: string; patch: Partial<ScheduleItem> }[];
+  /** New rows. tempId lets predecessors in the same batch point at them. */
+  creates?: { tempId: string; row: Partial<ScheduleItem> }[];
+  deletes?: string[];
+  /** Same-schedule predecessors for each item (replaces them; links from other schedules are kept). */
+  predecessors?: PredEdit[];
+  /** Renumber every activity ID by tens in display order. */
+  renumber?: boolean;
+};
 export type CellChange = { patch?: Partial<ScheduleItem>; preds?: PredEdit; error?: string };
 
 /** "2026-11-04", "11/4/2026", "11/4/26", "Nov 4, 2026", or an Excel serial day. */
@@ -217,6 +245,16 @@ export function parseCell(item: ScheduleItem, key: ColumnKey, text: string, ctx:
       return { error: "Calendar is Working days or Calendar days." };
     }
     case "cost_code": return { patch: { cost_code: t || null } };
+    case "mtype": {
+      if (!t) return { patch: { milestone_type: null } };
+      const hit = Object.entries(MILESTONE_TEXT).find(([k, v]) => k === t.toLowerCase().replace(/\s+/g, "_") || v.toLowerCase() === t.toLowerCase());
+      return hit ? { patch: { milestone_type: hit[0] as ScheduleItem["milestone_type"] } } : { error: "Milestone type is Contract, Inspection, Client decision or Internal." };
+    }
+    case "contract": {
+      if (!t) return { patch: { contract_date: null } };
+      const d = parseDateCell(t);
+      return d ? { patch: { contract_date: d } } : { error: `"${t}" isn't a date.` };
+    }
     case "notes": return { patch: { internal_notes: t || null } };
     default: return { error: "That column is worked out for you." };
   }

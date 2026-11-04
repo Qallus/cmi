@@ -23,6 +23,7 @@ export type NetItem = {
   actual_start?: string | null; actual_finish?: string | null; activity_id?: number | null;
   early_start?: string | null; early_finish?: string | null; late_start?: string | null; late_finish?: string | null;
   total_float?: number | null; free_float?: number | null; is_critical?: boolean;
+  milestone_type?: string | null; contract_date?: string | null;
   assignees?: unknown;
 };
 export type NetDep = { source_item_id: string; target_item_id: string; dependency_type: DependencyType; lag_days: number };

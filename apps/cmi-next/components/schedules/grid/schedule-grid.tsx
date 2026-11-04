@@ -5,26 +5,41 @@
 // Every change goes to /api/schedules/[id]/grid as one batch; the engine
 // recalculates and the cells it moved flash.
 import * as React from "react";
-import { ChevronDown, ChevronRight, GripVertical, Maximize2, Undo2, Redo2, Columns3, ListOrdered, Plus, History, Loader2 } from "lucide-react";
+import { createPortal } from "react-dom";
+import { ChevronDown, ChevronRight, ChevronLeft, GripVertical, Maximize2, Undo2, Redo2, Columns3, ListOrdered, Plus, History, Loader2, FlaskConical, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Tooltip, AutoTooltip } from "@/components/ui/tooltip";
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle, type ImperativePanelHandle } from "@/components/ui/resizable";
 import { cn } from "@/lib/utils";
 import { GanttView, ROW_H, HEAD_H } from "../views/gantt-view";
 import {
   GRID_COLUMNS, COLUMN, GRID_LAYOUTS, scheduleRows, cellText, parseCell, parseClipboard, headerMap,
-  type ColumnKey, type GridCtx, type PredEdit, type CellChange,
+  type ColumnKey, type GridCtx, type GridOps, type PredEdit, type CellChange,
 } from "@/lib/schedules/grid";
 import { idBetween, type LinkRef } from "@/lib/schedules/predecessors";
-import type { GridOps } from "@/lib/schedules/grid-data";
-import type { JobSchedule, ScheduleItem, SchedulePhase, ScheduleDependency } from "@/lib/schedules/types";
+import { applyWhatIf, scheduleFinish, contractVariance, type WhatIfOp } from "@/lib/schedules/whatif";
+import { calendarFor, type Network } from "@/lib/schedules/engine-core";
+import { addW, dayNum, isoOf } from "@/lib/schedules/calendar";
+import { fmtDate } from "../shared";
+import type { JobSchedule, ScheduleItem, SchedulePhase, ScheduleDependency, SchedulingMode } from "@/lib/schedules/types";
 
 type Cell = { id: string; col: ColumnKey };
 type Entry = { label: string; undo: GridOps | null; redo: GridOps | null };
 type Slot = { id: string; phaseId: string | null };
+type WhatIf = { base: Network; ops: WhatIfOp[] };
+
+// What the sandbox can change, and what Apply sends (outputs like early dates
+// and float come back from the server's own recalculation).
+const SANDBOX_FIELDS = ["start_date", "end_date", "duration_days", "duration_unit", "kind", "constraint_type", "constraint_date", "is_locked", "actual_start", "actual_finish", "status"] as const;
+const INPUT_FIELDS = ["duration_days", "duration_unit", "kind", "constraint_type", "constraint_date", "is_locked", "actual_start", "actual_finish", "status"] as const;
+const SHOWN_FIELDS = [...SANDBOX_FIELDS, "early_start", "early_finish", "late_start", "late_finish", "total_float", "free_float", "is_critical"] as const;
 
 const GUTTER_W = 34;
 const MAX_HISTORY = 50;
 const SELECT_OPTIONS: Partial<Record<ColumnKey, string[]>> = {
   constraint: ["", "SNET", "MFO", "ALAP", "Locked"],
+  mtype: ["", "Contract", "Inspection", "Client decision", "Internal"],
   calendar: ["Working days", "Calendar days"],
 };
 
@@ -36,8 +51,8 @@ function store(key: string, value: unknown) {
 }
 
 export function ScheduleGrid({
-  schedule, items: allItems, phases, dependencies, canEdit, zoom, showBaseline, linkMode,
-  onOpenItem, onReload, onBanner, onDatesChange, onLink,
+  schedule, items: allItems, phases, dependencies: realDeps, canEdit, zoom, showBaseline, linkMode,
+  onOpenItem, onReload, onBanner, onDatesChange, onLink, mode = "legacy", contractVariances,
 }: {
   schedule: JobSchedule;
   items: ScheduleItem[];
@@ -53,9 +68,36 @@ export function ScheduleGrid({
   onBanner: (message: string) => void;
   onDatesChange?: (id: string, start: string, end: string, gesture: "move" | "resize") => void;
   onLink?: (sourceId: string, targetId: string) => void;
+  /** How this schedule's dates are worked out; what-if needs "auto". */
+  mode?: SchedulingMode;
+  /** Working days past (+) / ahead of (−) contract, by item id (from the server). */
+  contractVariances?: Map<string, number | null>;
 }) {
-  const items = React.useMemo(() => allItems.filter((i) => i.schedule_id === schedule.id), [allItems, schedule.id]);
-  const [split, setSplit] = React.useState<boolean>(() => stored(`cmi.schedgrid.split.${schedule.id}`, true));
+  const realItems = React.useMemo(() => allItems.filter((i) => i.schedule_id === schedule.id), [allItems, schedule.id]);
+  // ---- what-if sandbox ----
+  const [whatIf, setWhatIf] = React.useState<WhatIf | null>(null);
+  const [wiLoading, setWiLoading] = React.useState(false);
+  const [wiShift, setWiShift] = React.useState("10");
+  const wiBase = React.useMemo(() => (whatIf ? applyWhatIf(whatIf.base, schedule.id, []) : null), [whatIf, schedule.id]);
+  const wi = React.useMemo(() => (whatIf ? applyWhatIf(whatIf.base, schedule.id, whatIf.ops) : null), [whatIf, schedule.id]);
+  const items = React.useMemo(() => {
+    if (!wi) return realItems;
+    const net = new Map(wi.net.items.map((i) => [i.id, i as unknown as Record<string, unknown>]));
+    return realItems.map((it) => {
+      const n = net.get(it.id);
+      if (!n) return it;
+      const over: Record<string, unknown> = {};
+      for (const f of SHOWN_FIELDS) if (f in n) over[f] = n[f];
+      return { ...it, ...over } as ScheduleItem;
+    });
+  }, [wi, realItems]);
+  const dependencies = React.useMemo<ScheduleDependency[]>(() => (wi
+    ? wi.net.deps.map((d, i) => ({ id: `wi-${i}`, job_id: null, source_item_id: d.source_item_id, target_item_id: d.target_item_id, dependency_type: d.dependency_type, lag_days: d.lag_days, is_cross_schedule: false, auto_cascade: true, is_locked: false, notes: null }))
+    : realDeps), [wi, realDeps]);
+  // Grid | Gantt split (shadcn Resizable). Either side collapses to nothing.
+  const gridPanel = React.useRef<ImperativePanelHandle>(null);
+  const ganttPanel = React.useRef<ImperativePanelHandle>(null);
+  const [hidden, setHidden] = React.useState<"grid" | "gantt" | null>(null);
   const [layout, setLayout] = React.useState<string>(() => stored("cmi.schedgrid.layout", "PM view"));
   const [cols, setCols] = React.useState<ColumnKey[]>(() => stored("cmi.schedgrid.columns", GRID_LAYOUTS["PM view"]));
   const [collapsed, setCollapsed] = React.useState<Set<string>>(new Set());
@@ -99,8 +141,12 @@ export function ScheduleGrid({
     return {
       idByActivity, activityById: act,
       predsOf: (id) => preds.get(id) ?? [], succsOf: (id) => succs.get(id) ?? [], otherPredCount: (id) => other.get(id) ?? 0,
+      varianceOf: (id) => {
+        if (wi) { const it = wi.net.items.find((i) => i.id === id); return it ? contractVariance(wi.net, it) : null; }
+        return contractVariances?.get(id);
+      },
     };
-  }, [items, dependencies]);
+  }, [items, dependencies, wi, contractVariances]);
 
   const rows = React.useMemo(() => scheduleRows(items, phases, { collapsed }), [items, phases, collapsed]);
   const itemRows = React.useMemo(() => rows.flatMap((r) => (r.kind === "item" ? [r.item] : [])), [rows]);
@@ -131,6 +177,7 @@ export function ScheduleGrid({
   // ---- saving ----
   const sig = (i: ScheduleItem) => ({ start: i.start_date, end: i.end_date, float: i.total_float ?? null });
   function run(ops: GridOps, entry?: Entry): Promise<{ created?: Record<string, string> } | null> {
+    if (whatIf) { tryOps(ops); return Promise.resolve(null); }
     if (entry) { setPast((p) => [...p.slice(-(MAX_HISTORY - 1)), entry]); setFuture([]); }
     const next = queue.current.then(async () => {
       const before = new Map(itemsRef.current.map((i) => [i.id, sig(i)]));
@@ -158,6 +205,99 @@ export function ScheduleGrid({
     });
     queue.current = next.catch(() => null);
     return next;
+  }
+
+  /** What-if: apply edits to the sandbox only. */
+  function tryOps(ops: WhatIfOp) {
+    if (!whatIf) return;
+    if (ops.creates?.length || ops.deletes?.length || ops.renumber) {
+      onBanner("Adding, deleting or renumbering tasks waits until you Apply or Discard the what-if.");
+      return;
+    }
+    const dropped = new Set<string>();
+    const updates = (ops.updates ?? []).map((u) => {
+      const patch: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(u.patch)) {
+        if ((SANDBOX_FIELDS as readonly string[]).includes(k)) patch[k] = v;
+        else if (k !== "sort_order" && k !== "phase_id") dropped.add(k);
+      }
+      return { id: u.id, patch: patch as Partial<ScheduleItem> };
+    }).filter((u) => Object.keys(u.patch).length);
+    const step: WhatIfOp = { updates, predecessors: ops.predecessors, shift: ops.shift };
+    if (!updates.length && !step.predecessors?.length && !step.shift) {
+      if (dropped.size) onBanner("What-if tries dates, durations, constraints and links. Names, notes and IDs change after you leave it.");
+      return;
+    }
+    const nextOps = [...whatIf.ops, step];
+    const next = applyWhatIf(whatIf.base, schedule.id, nextOps);
+    const before = new Map(items.map((i) => [i.id, sig(i)]));
+    const cells = new Set<string>();
+    for (const n of next.net.items) {
+      const b = before.get(n.id); if (!b) continue;
+      if (b.start !== n.start_date) cells.add(`${n.id}:start`);
+      if (b.end !== n.end_date) cells.add(`${n.id}:finish`);
+      if (b.float !== (n.total_float ?? null)) cells.add(`${n.id}:float`);
+    }
+    if (cells.size) { setFlash(cells); window.setTimeout(() => setFlash(new Set()), 1800); }
+    const newRefusals = next.refused.slice(wi?.refused.length ?? 0);
+    if (newRefusals.length) onBanner(newRefusals[0]);
+    setPending(new Map());
+    setWhatIf({ ...whatIf, ops: nextOps });
+  }
+
+  async function startWhatIf() {
+    setWiLoading(true);
+    try {
+      const res = await fetch(`/api/schedules/${schedule.id}/network`);
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok || !d.network) { onBanner(d.error ?? "Couldn't load the schedule for What-if."); return; }
+      setWhatIf({ base: d.network as Network, ops: [] });
+      setEdit(null); setErrors(new Map());
+    } finally { setWiLoading(false); }
+  }
+
+  /** Save the sandbox: a "start later" runs the real Shift dates first, then
+   *  everything else goes as one normal grid batch (the server recalculates). */
+  async function applyWhatIfToSchedule() {
+    if (!whatIf || !wi) return;
+    const totalShift = whatIf.ops.reduce((n, o) => n + (o.shift ?? 0), 0);
+    // Compare against the base with only the shift applied, so Apply sends
+    // just what the shift doesn't already do.
+    const ref = applyWhatIf(whatIf.base, schedule.id, totalShift ? [{ shift: totalShift }] : []);
+    const was = new Map(ref.net.items.map((i) => [i.id, i as unknown as Record<string, unknown>]));
+    const updates: { id: string; patch: Partial<ScheduleItem> }[] = [];
+    for (const n of wi.net.items) {
+      if (n.schedule_id !== schedule.id) continue;
+      const b = was.get(n.id); if (!b) continue;
+      const now = n as unknown as Record<string, unknown>;
+      const patch: Record<string, unknown> = {};
+      for (const f of INPUT_FIELDS) if (now[f] !== b[f]) patch[f] = now[f];
+      if (Object.keys(patch).length) {
+        // Sending the constraint keeps the server from treating dates as typed.
+        patch.constraint_type = n.constraint_type ?? null; patch.constraint_date = n.constraint_date ?? null;
+        updates.push({ id: n.id, patch: patch as Partial<ScheduleItem> });
+      }
+    }
+    const mine = new Set(wi.net.items.filter((i) => i.schedule_id === schedule.id).map((i) => i.id));
+    const linksOf = (net: Network, id: string) => net.deps.filter((d) => d.target_item_id === id && mine.has(d.source_item_id))
+      .map((d) => `${d.source_item_id}|${d.dependency_type}|${d.lag_days}`).sort().join(",");
+    const predecessors: PredEdit[] = [...mine].filter((id) => linksOf(wi.net, id) !== linksOf(ref.net, id)).map((id) => ({
+      itemId: id,
+      links: wi.net.deps.filter((d) => d.target_item_id === id && mine.has(d.source_item_id)).map((d) => ({ sourceItemId: d.source_item_id, type: d.dependency_type, lag: d.lag_days })),
+    }));
+    setWhatIf(null);
+    if (totalShift) {
+      const starts = realItems.map((i) => i.start_date).filter(Boolean) as string[];
+      const anchor = starts.length ? starts.reduce((a, b) => (a < b ? a : b)) : null;
+      const sched = whatIf.base.schedules.find((s) => s.id === schedule.id);
+      if (anchor && sched) {
+        const to = isoOf(addW(calendarFor(whatIf.base, sched), dayNum(anchor), totalShift));
+        const res = await fetch(`/api/schedules/${schedule.id}/shift`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ startDate: to }) });
+        if (!res.ok) { const d = await res.json().catch(() => ({})); onBanner(d.error ?? "Couldn't shift the schedule."); return; }
+      }
+    }
+    if (!updates.length && !predecessors.length) { await onReload(); onBanner(totalShift ? `Schedule moved ${totalShift} working days.` : "Nothing to apply."); return; }
+    await run({ updates, predecessors }, { label: `Apply what-if (${updates.length + predecessors.length} change${updates.length + predecessors.length === 1 ? "" : "s"})`, undo: null, redo: null });
   }
 
   const beforePatch = (item: ScheduleItem, patch: Partial<ScheduleItem>): Partial<ScheduleItem> => {
@@ -475,6 +615,7 @@ export function ScheduleGrid({
 
   // ---- history ----
   function undo() {
+    if (whatIf) { if (whatIf.ops.length) setWhatIf({ ...whatIf, ops: whatIf.ops.slice(0, -1) }); return; }
     const e = past[past.length - 1];
     if (!e) return;
     if (!e.undo) { onBanner(`"${e.label}" can't be undone.`); return; }
@@ -482,6 +623,7 @@ export function ScheduleGrid({
     void run(e.undo);
   }
   function redo() {
+    if (whatIf) return;
     const e = future[future.length - 1];
     if (!e) return;
     if (!e.redo) { onBanner(`"${e.label}" can't be redone.`); return; }
@@ -490,7 +632,11 @@ export function ScheduleGrid({
   }
 
   // ---- layout ----
-  const setSplitStored = (v: boolean) => { setSplit(v); store(`cmi.schedgrid.split.${schedule.id}`, v); };
+  const showPanes = (which: "both" | "grid" | "gantt") => {
+    if (which === "grid") { gridPanel.current?.expand(); ganttPanel.current?.collapse(); }
+    else if (which === "gantt") { ganttPanel.current?.expand(); gridPanel.current?.collapse(); }
+    else { gridPanel.current?.expand(); ganttPanel.current?.expand(); }
+  };
   const chooseLayout = (name: string) => { setLayout(name); store("cmi.schedgrid.layout", name); if (GRID_LAYOUTS[name]) { setCols(GRID_LAYOUTS[name]); store("cmi.schedgrid.columns", GRID_LAYOUTS[name]); } };
   const toggleCol = (k: ColumnKey) => {
     const next = cols.includes(k) ? cols.filter((c) => c !== k) : GRID_COLUMNS.map((c) => c.key).filter((c) => c === k || cols.includes(c));
@@ -507,8 +653,9 @@ export function ScheduleGrid({
       {/* toolbar */}
       <div className="flex flex-wrap items-center gap-1.5">
         <div className="flex items-center gap-0.5 rounded-md border border-border p-0.5">
-          <button type="button" onClick={() => setSplitStored(true)} className={cn("rounded px-2 py-1 text-xs font-medium", split ? "bg-accent/15 text-accent" : "text-muted-foreground hover:bg-muted")}>Grid + Gantt</button>
-          <button type="button" onClick={() => setSplitStored(false)} className={cn("rounded px-2 py-1 text-xs font-medium", !split ? "bg-accent/15 text-accent" : "text-muted-foreground hover:bg-muted")}>Grid only</button>
+          {([["both", "Grid + Gantt", !hidden], ["grid", "Grid", hidden === "gantt"], ["gantt", "Gantt", hidden === "grid"]] as const).map(([k, label, on]) => (
+            <button key={k} type="button" onClick={() => showPanes(k)} className={cn("rounded px-2 py-1 text-xs font-medium", on ? "bg-accent/15 text-accent" : "text-muted-foreground hover:bg-muted")}>{label}</button>
+          ))}
         </div>
         <div className="relative">
           <Button size="sm" variant="ghost" onClick={() => setColMenu((o) => !o)}><Columns3 className="h-3.5 w-3.5" /> {layout}</Button>
@@ -531,11 +678,11 @@ export function ScheduleGrid({
         {canEdit ? (
           <>
             <Button size="sm" variant="ghost" onClick={() => { const last = active?.id ?? slots[slots.length - 1]?.id; if (last) insertRow(last, "below"); }} disabled={!slots.length}><Plus className="h-3.5 w-3.5" /> Task</Button>
-            <Button size="sm" variant="ghost" onClick={renumber} title="Renumber activity IDs 10, 20, 30… in this order"><ListOrdered className="h-3.5 w-3.5" /> Renumber by tens</Button>
-            <Button size="sm" variant="ghost" onClick={undo} disabled={!past.length} title="Undo (Ctrl+Z)"><Undo2 className="h-3.5 w-3.5" /></Button>
-            <Button size="sm" variant="ghost" onClick={redo} disabled={!future.length} title="Redo (Ctrl+Y)"><Redo2 className="h-3.5 w-3.5" /></Button>
+            <Tooltip label="Renumber activity IDs 10, 20, 30… in the order shown" side="bottom" className="inline-block"><Button size="sm" variant="ghost" onClick={renumber}><ListOrdered className="h-3.5 w-3.5" /> Renumber by tens</Button></Tooltip>
+            <Tooltip label="Undo (Ctrl+Z)" side="bottom" className="inline-block"><Button size="sm" variant="ghost" onClick={undo} disabled={!past.length} aria-label="Undo"><Undo2 className="h-3.5 w-3.5" /></Button></Tooltip>
+            <Tooltip label="Redo (Ctrl+Y)" side="bottom" className="inline-block"><Button size="sm" variant="ghost" onClick={redo} disabled={!future.length} aria-label="Redo"><Redo2 className="h-3.5 w-3.5" /></Button></Tooltip>
             <div className="relative">
-              <Button size="sm" variant="ghost" onClick={() => setHistMenu((o) => !o)} disabled={!past.length} title="Recent changes"><History className="h-3.5 w-3.5" /> {past.length || ""}</Button>
+              <Tooltip label="Recent changes" side="bottom" className="inline-block"><Button size="sm" variant="ghost" onClick={() => setHistMenu((o) => !o)} disabled={!past.length} aria-label="Recent changes"><History className="h-3.5 w-3.5" /> {past.length || ""}</Button></Tooltip>
               {histMenu ? (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setHistMenu(false)} />
@@ -548,18 +695,48 @@ export function ScheduleGrid({
             </div>
           </>
         ) : null}
+        {canEdit && mode === "auto" && !whatIf ? (
+          <Tooltip label="Try changes without saving them" side="bottom" className="inline-block"><Button size="sm" variant="ghost" onClick={() => void startWhatIf()} disabled={wiLoading}><FlaskConical className="h-3.5 w-3.5" /> {wiLoading ? "Loading…" : "What-if"}</Button></Tooltip>
+        ) : null}
         {busy ? <span className="inline-flex items-center gap-1 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Saving…</span> : null}
         {errors.size ? <span className="text-xs text-destructive">{errors.size} cell{errors.size === 1 ? "" : "s"} need fixing</span> : null}
         <div className="flex-1" />
         <span className="hidden text-[11px] text-muted-foreground xl:inline">Type to edit · Enter / Tab move · Ctrl+D fill down · Ctrl+Z undo · paste from Excel · Alt+Shift+↑↓ move rows · right-click for more · double-click opens the task</span>
       </div>
 
-      <div className="flex items-start gap-3">
+      {whatIf && wi && wiBase ? (() => {
+        const before = scheduleFinish(wiBase.net, schedule.id).finish;
+        const now = scheduleFinish(wi.net, schedule.id, before);
+        const realById = new Map(realItems.map((i) => [i.id, i]));
+        const moved = wi.net.items.filter((n) => n.schedule_id === schedule.id && (realById.get(n.id)?.start_date !== n.start_date || realById.get(n.id)?.end_date !== n.end_date)).length;
+        return (
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm dark:border-amber-700 dark:bg-amber-950/40">
+            <FlaskConical className="h-4 w-4 text-amber-700 dark:text-amber-400" />
+            <span className="font-medium">What-if</span>
+            <span className="text-muted-foreground">nothing is saved until you Apply.</span>
+            <span>Finish <strong>{fmtDate(before)}</strong> → <strong>{fmtDate(now.finish)}</strong>{now.delta ? <span className={now.delta > 0 ? "text-destructive" : "text-emerald-700 dark:text-emerald-400"}> ({now.delta > 0 ? "+" : ""}{now.delta} wd)</span> : null}</span>
+            <span className="text-muted-foreground">· {moved} task{moved === 1 ? "" : "s"} differ · {whatIf.ops.length} step{whatIf.ops.length === 1 ? "" : "s"}</span>
+            <span className="flex items-center gap-1 text-xs">Start
+              <Input type="number" value={wiShift} onChange={(e) => setWiShift(e.target.value)} className="h-7 w-16 px-1.5 text-right" aria-label="Working days later" />
+              working days later
+              <Button size="sm" variant="outline" onClick={() => { const n = Math.round(Number(wiShift)); if (n) tryOps({ shift: n }); }}>Try</Button>
+            </span>
+            <div className="flex-1" />
+            <Button size="sm" variant="ghost" onClick={undo} disabled={!whatIf.ops.length}><Undo2 className="h-3.5 w-3.5" /> Step back</Button>
+            <Button size="sm" variant="outline" onClick={() => setWhatIf(null)}>Discard</Button>
+            <Button size="sm" variant="accent" onClick={() => void applyWhatIfToSchedule()} disabled={!whatIf.ops.length}>Apply</Button>
+          </div>
+        );
+      })() : null}
+
+      {/* Height follows the rows so the page scrolls grid and Gantt together. */}
+      <ResizablePanelGroup direction="horizontal" autoSaveId="cmi.schedgrid.panels" style={{ height: "auto", overflow: "visible" }} className="items-stretch">
+        <ResizablePanel ref={gridPanel} id="grid" order={1} defaultSize={58} minSize={20} collapsible collapsedSize={0}
+          onCollapse={() => setHidden("grid")} onExpand={() => setHidden((h) => (h === "grid" ? null : h))} className="pr-1.5">
         {/* grid */}
         <div
           ref={gridRef} tabIndex={0} onKeyDown={onKeyDown} onPaste={onPaste}
-          className={cn("min-w-0 overflow-x-auto rounded-lg border border-border bg-card outline-none focus-visible:ring-1 focus-visible:ring-accent/40", split ? "shrink-0" : "flex-1")}
-          style={split ? { width: `min(${width + 2}px, 62%)` } : undefined}
+          className="w-full min-w-0 overflow-x-auto rounded-lg border border-border bg-card outline-none focus-visible:ring-1 focus-visible:ring-accent/40"
         >
           <div style={{ width }}>
             <div className="flex border-b border-border bg-muted/40 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground" style={{ height: HEAD_H }}>
@@ -582,7 +759,12 @@ export function ScheduleGrid({
                 dragging={dragId === r.item.id}
                 onCellDown={(cell, shift) => { finishEdit(true); if (shift && active) { if (!anchor) setAnchor(active); } else setAnchor(null); setActive(cell); gridRef.current?.focus(); }}
                 onOpen={() => onOpenItem(r.item)}
-                onMenu={(x, y) => { setActive((a) => (a && a.id === r.item.id ? a : { id: r.item.id, col: cols[0] })); setMenu({ x, y, id: r.item.id }); }}
+                onMenu={(x, y) => {
+                  // Right-click inside the selection keeps it (delete several rows); outside it starts over on this row.
+                  const idx = rowIndex.get(r.item.id) ?? -1;
+                  if (!range || idx < range.top || idx > range.bottom) { setAnchor(null); setActive({ id: r.item.id, col: cols[0] }); }
+                  setMenu({ x, y, id: r.item.id });
+                }}
                 onEditChange={(value) => { if (editRef.current) setEdit({ ...editRef.current, value }); }}
                 onEditKey={(e) => {
                   if (e.key === "Enter") { e.preventDefault(); finishEdit(true, [e.shiftKey ? -1 : 1, 0]); }
@@ -597,14 +779,36 @@ export function ScheduleGrid({
           </div>
         </div>
 
-        {split ? (
-          <div className="min-w-[320px] flex-1">
-            <GanttView items={items} dependencies={dependencies} phases={phases} zoom={zoom} showBaseline={showBaseline} canEdit={canEdit} linkMode={linkMode}
-              onOpenItem={onOpenItem} onDatesChange={onDatesChange} onLink={onLink}
-              hideLabels collapsed={collapsed} selectedId={active?.id ?? null} flashIds={new Set([...flash].map((c) => c.split(":")[0]))} />
+        </ResizablePanel>
+
+        <ResizableHandle withHandle className="mx-0.5">
+          {/* Collapse / reopen either side; stays in view while the rows scroll. */}
+          <div className="pointer-events-none absolute inset-y-0 left-1/2 z-20 w-5 -translate-x-1/2">
+          <div className="pointer-events-auto sticky top-16 mt-14 flex flex-col gap-1">
+            <Tooltip label={hidden === "gantt" ? "Show the Gantt" : "Hide the grid"} side="right">
+              <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={() => showPanes(hidden === "gantt" ? "both" : "gantt")}
+                className="flex h-5 w-5 items-center justify-center rounded border border-border bg-card text-muted-foreground shadow-xs hover:text-foreground" aria-label={hidden === "gantt" ? "Show the Gantt" : "Hide the grid"}>
+                <ChevronLeft className="h-3 w-3" />
+              </button>
+            </Tooltip>
+            <Tooltip label={hidden === "grid" ? "Show the grid" : "Hide the Gantt"} side="right">
+              <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={() => showPanes(hidden === "grid" ? "both" : "grid")}
+                className="flex h-5 w-5 items-center justify-center rounded border border-border bg-card text-muted-foreground shadow-xs hover:text-foreground" aria-label={hidden === "grid" ? "Show the grid" : "Hide the Gantt"}>
+                <ChevronRight className="h-3 w-3" />
+              </button>
+            </Tooltip>
           </div>
-        ) : null}
-      </div>
+          </div>
+        </ResizableHandle>
+
+        <ResizablePanel ref={ganttPanel} id="gantt" order={2} defaultSize={42} minSize={20} collapsible collapsedSize={0}
+          onCollapse={() => setHidden("gantt")} onExpand={() => setHidden((h) => (h === "gantt" ? null : h))} className="pl-1.5">
+          <GanttView items={items} dependencies={dependencies} phases={phases} zoom={zoom} showBaseline={showBaseline} canEdit={canEdit} linkMode={linkMode}
+            onOpenItem={onOpenItem} onLink={whatIf ? undefined : onLink}
+            onDatesChange={whatIf ? (id, start, end, gesture) => tryOps({ updates: [{ id, patch: gesture === "move" ? { start_date: start } : { end_date: end } }] }) : onDatesChange}
+            hideLabels={hidden !== "grid"} collapsed={collapsed} selectedId={active?.id ?? null} flashIds={new Set([...flash].map((c) => c.split(":")[0]))} />
+        </ResizablePanel>
+      </ResizablePanelGroup>
 
       {menu && menuItem ? (
         <>
@@ -661,7 +865,7 @@ const GridRowView = React.memo(function GridRowView({
       onDoubleClick={onOpen} onContextMenu={(e) => { e.preventDefault(); onMenu(e.clientX, e.clientY); }}
       onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
       <div className="flex shrink-0 items-center justify-center border-r border-border/60 text-muted-foreground" style={{ width: GUTTER_W }}>
-        {canEdit ? <span draggable onDragStart={onDragStart} onDragEnd={onDragEnd} className="cursor-grab" title="Drag to reorder"><GripVertical className="h-3.5 w-3.5" /></span> : null}
+        {canEdit ? <Tooltip label="Drag to reorder" side="right"><span draggable onDragStart={onDragStart} onDragEnd={onDragEnd} className="cursor-grab" aria-label="Drag to reorder"><GripVertical className="h-3.5 w-3.5" /></span></Tooltip> : null}
       </div>
       {cols.map((k, c) => {
         const key = `${item.id}:${k}`;
@@ -670,10 +874,10 @@ const GridRowView = React.memo(function GridRowView({
         const err = errors.get(key);
         let text = pending.get(key) ?? cellText(item, k, ctx);
         if (k === "preds" && ctx.otherPredCount(item.id)) text = `${text}${text ? " " : ""}(+${ctx.otherPredCount(item.id)} other)`;
-        return (
+        const tip = err ?? (k === "start" && item.constraint_type === "snet" ? `Start No Earlier Than ${item.constraint_date}` : null);
+        const cell = (
           <div key={k} id={`cell-${item.id}-${k}`}
             onMouseDown={(e) => { if (e.button === 0 && !isEditing) onCellDown({ id: item.id, col: k }, e.shiftKey); }}
-            title={err ?? (k === "start" && item.constraint_type === "snet" ? `Start No Earlier Than ${item.constraint_date}` : undefined)}
             className={cn(
               "relative shrink-0 truncate border-r border-border/60 px-1.5 leading-[33px] transition-colors duration-700",
               COLUMN[k].align === "right" && "text-right tabular-nums",
@@ -690,10 +894,7 @@ const GridRowView = React.memo(function GridRowView({
           >
             {isEditing ? (
               SELECT_OPTIONS[k] ? (
-                <select autoFocus value={editing!.value} onChange={(e) => onEditCommit(e.target.value)} onKeyDown={onEditKey} onBlur={() => onEditCommit()}
-                  className="absolute inset-0 h-full w-full border-0 bg-background px-1 text-sm outline-none ring-2 ring-accent">
-                  {SELECT_OPTIONS[k]!.map((o) => <option key={o} value={o}>{o || "None"}</option>)}
-                </select>
+                <CellOptions options={SELECT_OPTIONS[k]!} value={editing!.value} onPick={(v) => onEditCommit(v)} onCancel={() => onEditKey({ key: "Escape", preventDefault() {} } as React.KeyboardEvent)} />
               ) : (
                 <input autoFocus value={editing!.value} onChange={(e) => onEditChange(e.target.value)} onKeyDown={onEditKey} onBlur={() => onEditCommit()}
                   className={cn("absolute inset-0 h-full w-full border-0 bg-background px-1.5 text-sm outline-none ring-2 ring-accent", COLUMN[k].align === "right" && "text-right")} />
@@ -702,13 +903,57 @@ const GridRowView = React.memo(function GridRowView({
               <>
                 {k === "name" && item.kind === "milestone" ? <span className="mr-1 text-accent">◆</span> : null}
                 {k === "start" && item.constraint_type === "snet" ? <span className="mr-0.5 text-[10px] text-muted-foreground">⇥</span> : null}
-                {k === "name" && critical ? <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-foreground align-middle" title="Critical" /> : null}
+                {k === "name" && critical ? <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-foreground align-middle" aria-label="Critical" /> : null}
                 {text}
               </>
             )}
           </div>
         );
+        return tip && !isEditing ? <AutoTooltip key={k} content={tip} className={err ? "bg-destructive text-destructive-foreground" : undefined}>{cell}</AutoTooltip> : cell;
       })}
     </div>
   );
 });
+
+/** Inline option list for Constraint, Milestone type and Calendar cells: themed
+ *  (no native select), arrow keys + Enter, click to pick, Esc to cancel. */
+function CellOptions({ options, value, onPick, onCancel }: { options: string[]; value: string; onPick: (v: string) => void; onCancel: () => void }) {
+  const ref = React.useRef<HTMLDivElement>(null);
+  const [hi, setHi] = React.useState(() => Math.max(0, options.findIndex((o) => o.toLowerCase() === value.toLowerCase())));
+  const [rect, setRect] = React.useState<DOMRect | null>(null);
+  const listId = React.useId();
+  React.useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.focus();
+    setRect(el.getBoundingClientRect());
+  }, []);
+  const below = rect ? window.innerHeight - rect.bottom > options.length * 30 + 12 : true;
+  return (
+    <div ref={ref} tabIndex={0} role="combobox" aria-expanded={true} aria-controls={listId} aria-label="Choose a value"
+      onKeyDown={(e) => {
+        if (e.key === "ArrowDown") { e.preventDefault(); setHi((h) => Math.min(options.length - 1, h + 1)); }
+        else if (e.key === "ArrowUp") { e.preventDefault(); setHi((h) => Math.max(0, h - 1)); }
+        else if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); onPick(options[hi]); }
+        else if (e.key === "Escape") { e.preventDefault(); onCancel(); }
+      }}
+      onBlur={(e) => { if (!e.relatedTarget || !(e.relatedTarget as HTMLElement).closest("[data-cell-options]")) onCancel(); }}
+      className="absolute inset-0 flex items-center bg-background px-1.5 text-sm outline-none ring-2 ring-accent">
+      {options[hi] || "None"}
+      {rect && typeof document !== "undefined" ? createPortal(
+        <div id={listId} data-cell-options role="listbox" className="fixed z-[9999] min-w-[140px] rounded-md border border-border bg-popover p-1 text-sm text-popover-foreground shadow-md"
+          style={{ left: rect.left, width: Math.max(rect.width, 140), ...(below ? { top: rect.bottom + 4 } : { bottom: window.innerHeight - rect.top + 4 }) }}>
+          {options.map((o, i) => (
+            <button key={o || "none"} type="button" role="option" aria-selected={i === hi} tabIndex={-1}
+              onMouseDown={(e) => { e.preventDefault(); onPick(o); }} onMouseEnter={() => setHi(i)}
+              className={cn("flex w-full items-center justify-between gap-2 rounded px-2 py-1.5 text-left", i === hi ? "bg-accent/15 text-foreground" : "hover:bg-muted/60")}>
+              <span>{o || "None"}</span>
+              {o.toLowerCase() === value.toLowerCase() ? <Check className="h-3.5 w-3.5 text-accent" /> : null}
+            </button>
+          ))}
+        </div>,
+        document.body,
+      ) : null}
+    </div>
+  );
+}

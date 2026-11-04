@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
-import { scheduleColor } from "../shared";
+import { scheduleColor, fmtShort } from "../shared";
+import { AutoTooltip } from "@/components/ui/tooltip";
 import { scheduleRows, type GridRow } from "@/lib/schedules/grid";
 import type { ScheduleItem, ScheduleDependency, SchedulePhase } from "@/lib/schedules/types";
 
@@ -251,10 +252,21 @@ function Bar({ item, x, dayW, drag, color, showBaseline, linkSource, onBody, onR
   const width = Math.max(dayW, (durDays + grow) * dayW);
 
   if (item.kind === "milestone") {
+    // A contract date shows as a dashed marker; the gap to the diamond is the variance.
+    const late = item.contract_date && item.start_date ? item.start_date > item.contract_date : false;
     return (
-      <div className="absolute top-1/2 z-30 -translate-y-1/2" style={{ left: left - 7 }} onClick={onClick} title={item.title}>
-        <span onMouseDown={onBody} className={cn("block h-3.5 w-3.5 rotate-45 cursor-pointer border", item.status === "complete" ? "bg-accent" : "bg-card", linkSource ? "ring-2 ring-accent" : "")} style={{ borderColor: color }} />
-      </div>
+      <>
+        {item.contract_date ? (
+          <AutoTooltip prefer="horizontal" disabled={!!drag} content={<TipBody item={item} heading="Contract date" />}>
+            <div className={cn("absolute inset-y-1 z-20 w-2 -translate-x-1/2 cursor-help", "after:absolute after:inset-y-0 after:left-1/2 after:border-l-2 after:border-dashed", late ? "after:border-destructive/70" : "after:border-foreground/50")} style={{ left: x(item.contract_date) }} />
+          </AutoTooltip>
+        ) : null}
+        <AutoTooltip prefer="horizontal" disabled={!!drag} content={<TipBody item={item} />}>
+          <div className="absolute top-1/2 z-30 -translate-y-1/2" style={{ left: left - 7 }} onClick={onClick}>
+            <span onMouseDown={onBody} className={cn("block h-3.5 w-3.5 rotate-45 cursor-pointer border", item.status === "complete" ? "bg-accent" : "bg-card", linkSource ? "ring-2 ring-accent" : "")} style={{ borderColor: color }} />
+          </div>
+        </AutoTooltip>
+      </>
     );
   }
 
@@ -263,6 +275,7 @@ function Bar({ item, x, dayW, drag, color, showBaseline, linkSource, onBody, onR
       {showBaseline && item.baseline_start ? (
         <div className="absolute top-1/2 z-10 h-1.5 -translate-y-1/2 rounded bg-muted-foreground/25" style={{ left: x(item.baseline_start), width: Math.max(dayW, ((diffDays(parse(item.baseline_start)!, parse(item.baseline_end) ?? parse(item.baseline_start)!) + 1)) * dayW), marginTop: 9 }} />
       ) : null}
+      <AutoTooltip disabled={!!drag} content={<TipBody item={item} />}>
       <div
         onMouseDown={onBody}
         onClick={onClick}
@@ -270,13 +283,47 @@ function Bar({ item, x, dayW, drag, color, showBaseline, linkSource, onBody, onR
           // Engine-worked critical path in charcoal; a hand-ticked "critical" keeps the red ring.
           item.is_critical && (item.total_float != null ? "ring-2 ring-foreground/80" : "ring-1 ring-destructive"), linkSource && "ring-2 ring-accent")}
         style={{ left, width, background: item.status === "complete" ? `${color}aa` : color }}
-        title={`${item.activity_id ? `${item.activity_id} · ` : ""}${item.title} · ${item.percent_complete}%${item.total_float != null ? ` · float ${item.total_float} wd${item.is_critical ? " (critical)" : ""}` : ""}${item.constraint_type === "snet" && item.constraint_date ? ` · starts no earlier than ${item.constraint_date}` : ""}`}
       >
         {item.percent_complete > 0 ? <span className="absolute inset-y-0 left-0 bg-black/20" style={{ width: `${item.percent_complete}%` }} /> : null}
         {item.constraint_type === "snet" ? <span className="relative z-10 pl-1 text-[10px] opacity-80" aria-label="Start No Earlier Than">⇥</span> : null}
         <span className="relative z-10 truncate px-1.5">{item.title}</span>
         <span onMouseDown={onResize} className="absolute right-0 top-0 z-20 h-full w-1.5 cursor-ew-resize opacity-0 group-hover:opacity-100" style={{ background: "rgba(255,255,255,0.5)" }} />
       </div>
+      </AutoTooltip>
     </>
+  );
+}
+
+/** What a bar's tooltip shows: ID and name, dates, length, progress, float,
+ *  constraint and contract date. */
+function TipBody({ item, heading }: { item: ScheduleItem; heading?: string }) {
+  const milestone = item.kind === "milestone";
+  const len = item.duration_days ?? (item.start_date && item.end_date ? diffDays(parse(item.start_date)!, parse(item.end_date)!) + 1 : null);
+  const tf = item.total_float;
+  const rows: [string, React.ReactNode][] = [];
+  rows.push([milestone ? "Date" : "Dates", milestone ? fmtShort(item.start_date) : `${fmtShort(item.start_date)} → ${fmtShort(item.end_date)}`]);
+  if (!milestone && len != null) rows.push(["Length", `${len} ${item.duration_unit === "calendar" ? "calendar" : "working"} day${len === 1 ? "" : "s"}`]);
+  if (!milestone) rows.push(["Progress", `${item.percent_complete ?? 0}%`]);
+  if (tf != null) rows.push(["Float", tf <= 0 ? <span key="f" className="font-semibold">{tf} wd · critical</span> : `${tf} wd${tf <= 3 ? " · near-critical" : ""}`]);
+  if (item.is_locked) rows.push(["Constraint", "Locked"]);
+  else if (item.constraint_type && item.constraint_date) rows.push(["Constraint", `${item.constraint_type === "snet" ? "Start no earlier than" : item.constraint_type === "mfo" ? "Must finish on" : "As late as possible"} ${item.constraint_type === "alap" ? "" : fmtShort(item.constraint_date)}`.trim()]);
+  if (item.contract_date) {
+    const late = item.start_date && item.start_date > item.contract_date;
+    rows.push(["Contract", <span key="c">{fmtShort(item.contract_date)}{late ? <span className="ml-1 font-semibold">· forecast is later</span> : null}</span>]);
+  }
+  if ((item.assignees ?? []).length) rows.push(["Assigned", item.assignees.map((a) => a.name).join(", ")]);
+  return (
+    <div className="space-y-1.5 py-0.5">
+      {heading ? <div className="text-[10px] font-semibold uppercase tracking-wide opacity-70">{heading}</div> : null}
+      <div className="font-semibold">{item.activity_id != null ? <span className="mr-1 tabular-nums opacity-70">{item.activity_id}</span> : null}{milestone ? "◆ " : ""}{item.title}</div>
+      <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 font-normal">
+        {rows.map(([k, v]) => (
+          <React.Fragment key={k}>
+            <span className="opacity-70">{k}</span>
+            <span className="tabular-nums">{v}</span>
+          </React.Fragment>
+        ))}
+      </div>
+    </div>
   );
 }

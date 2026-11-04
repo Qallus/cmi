@@ -3,6 +3,7 @@
 import * as React from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { AutoTooltip } from "@/components/ui/tooltip";
 import { scheduleColor } from "../shared";
 import type { ScheduleItem } from "@/lib/schedules/types";
 
@@ -76,9 +77,9 @@ function weekStart(d: Date) { return addDays(d, -d.getUTCDay()); }
 
 function EventChip({ it, onOpenItem }: { it: ScheduleItem; onOpenItem?: (i: ScheduleItem) => void }) {
   return (
-    <button type="button" onClick={() => onOpenItem?.(it)} title={it.title} className="block w-full truncate rounded px-1 py-0.5 text-left text-[11px] text-white" style={{ background: it.kind === "milestone" ? "#9e6f2e" : scheduleColor(it.schedule_id, it.schedule_color) }}>
+    <AutoTooltip content={it.title}><button type="button" onClick={() => onOpenItem?.(it)} className="block w-full truncate rounded px-1 py-0.5 text-left text-[11px] text-white" style={{ background: it.kind === "milestone" ? "#9e6f2e" : scheduleColor(it.schedule_id, it.schedule_color) }}>
       {it.kind === "milestone" ? "◆ " : ""}{it.title}
-    </button>
+    </button></AutoTooltip>
   );
 }
 
