@@ -7,7 +7,7 @@ import {
   Mic, Sparkles, Package, CalendarClock, Users2, MapPin, ScanLine, CheckCircle2,
   Circle, ArrowRight, Clock, TrendingUp, Trophy, CalendarDays, ListChecks,
   List as ListIcon, Table2, Columns3, Map as MapIcon, ChevronLeft, ChevronRight,
-  ChevronUp, ChevronDown, GripVertical, ArrowUp, ArrowDown, ArrowUpDown, Maximize2, PanelTopClose, PanelTopOpen, Archive,
+  ChevronUp, ChevronDown, GripVertical, ArrowUp, ArrowDown, ArrowUpDown, Maximize2, PanelTopClose, PanelTopOpen, SlidersHorizontal,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -370,8 +370,6 @@ export function PipelineDealsClient({
     allChecked: orderedIds.length > 0 && visibleSelected.length === orderedIds.length,
   };
 
-  const filtersActive = ownerFilter !== "all" || stageFilter !== "all" || jobTypeFilter !== "all" || !!dateFrom || !!dateTo || !!query;
-  function clearFilters() { setOwnerFilter("all"); setStageFilter("all"); setJobTypeFilter("all"); setDateFrom(""); setDateTo(""); setQuery(""); }
 
   // Kanban drag-to-move: optimistic stage update, then persist + refresh.
   const moveStage = React.useCallback(async (id: string, to: DealStage) => {
@@ -429,35 +427,20 @@ export function PipelineDealsClient({
 
       {/* Toolbar: view switcher + filters */}
       <div className="shrink-0 border-b border-border px-4 py-2.5 md:px-6">
-        <div className="flex flex-wrap items-center gap-2 xl:flex-nowrap">
+        <div className="flex flex-wrap items-center gap-2 lg:flex-nowrap">
           <div className="relative w-[200px] shrink-0">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search deals, job #…" aria-label="Search deals"
               className="h-8 w-full rounded-md border border-border bg-background pl-8 pr-3 text-sm outline-none focus:border-accent" />
           </div>
-          <Select value={stageFilter} onChange={(e) => setStageFilter(e.target.value as DealStage | "all")} className="w-[124px] [&>button]:h-8" aria-label="Stage">
-            <option value="all">All Stages</option>
-            {DEAL_STAGES.filter((s) => s !== "closed_won").map((s) => <option key={s} value={s}>{DEAL_STAGE_META[s].label}</option>)}
-          </Select>
-          <Select value={ownerFilter} onChange={(e) => setOwnerFilter(e.target.value)} className="w-[124px] [&>button]:h-8" aria-label="Owner">
-            <option value="all">All Owners</option>
-            {owners.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-          </Select>
-          <Select value={jobTypeFilter} onChange={(e) => setJobTypeFilter(e.target.value)} className="w-[132px] [&>button]:h-8" aria-label="Job type">
-            <option value="all">All Job Types</option>
-            {JOB_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-          </Select>
-          <CloseDateFilter from={dateFrom} to={dateTo} onFrom={setDateFrom} onTo={setDateTo} />
+          <FiltersMenu
+            stage={stageFilter} onStage={setStageFilter} owner={ownerFilter} onOwner={setOwnerFilter} owners={owners}
+            jobType={jobTypeFilter} onJobType={setJobTypeFilter} from={dateFrom} to={dateTo} onFrom={setDateFrom} onTo={setDateTo}
+            archived={showArchived} onArchived={setShowArchived} onClear={() => { setOwnerFilter("all"); setStageFilter("all"); setJobTypeFilter("all"); setDateFrom(""); setDateTo(""); setShowArchived(false); }}
+          />
           <Select value={sort} onChange={(e) => setSort(e.target.value as SortKey)} className="w-[132px] [&>button]:h-8" aria-label="Sort deals">
             {SORT_OPTIONS.map(([key, label]) => <option key={key} value={key}>Sort: {label}</option>)}
           </Select>
-          <Tooltip label={showArchived ? "Hide archived deals" : "Show archived deals"} side="bottom" className="inline-block">
-            <button type="button" onClick={() => setShowArchived((v) => !v)} aria-pressed={showArchived} aria-label="Show archived deals"
-              className={cn("inline-flex h-8 w-8 items-center justify-center rounded-md border transition", showArchived ? "border-accent bg-accent/10 text-accent" : "border-border text-muted-foreground hover:bg-muted hover:text-foreground")}>
-              <Archive className="h-3.5 w-3.5" />
-            </button>
-          </Tooltip>
-          {filtersActive && <button type="button" onClick={clearFilters} className="whitespace-nowrap text-xs text-muted-foreground hover:text-foreground">Clear</button>}
           <span className="whitespace-nowrap text-xs text-muted-foreground">{filtered.length} deal{filtered.length === 1 ? "" : "s"}</span>
           <div className="ml-auto flex items-center gap-2">
             {view === "table"
@@ -1027,45 +1010,83 @@ function MapView({
   );
 }
 
-/** Expected-close range as one compact button; From / To in a small panel. */
-function CloseDateFilter({ from, to, onFrom, onTo }: { from: string; to: string; onFrom: (v: string) => void; onTo: (v: string) => void }) {
+/** One "Filters" button with a mega-menu panel: Stage, Owner, Job type,
+ *  Expected close and archived, each in its own column. */
+function FiltersMenu({
+  stage, onStage, owner, onOwner, owners, jobType, onJobType, from, to, onFrom, onTo, archived, onArchived, onClear,
+}: {
+  stage: DealStage | "all"; onStage: (v: DealStage | "all") => void;
+  owner: string; onOwner: (v: string) => void; owners: OwnerOption[];
+  jobType: string; onJobType: (v: string) => void;
+  from: string; to: string; onFrom: (v: string) => void; onTo: (v: string) => void;
+  archived: boolean; onArchived: (v: boolean) => void; onClear: () => void;
+}) {
   const [open, setOpen] = React.useState(false);
   const ref = React.useRef<HTMLDivElement>(null);
   React.useEffect(() => {
     if (!open) return;
-    // The date pickers open in a portal, so only close on clicks outside both.
-    function onDoc(e: MouseEvent) {
-      const el = e.target as HTMLElement;
-      if (ref.current?.contains(el) || el.closest("[data-radix-popper-content-wrapper], [role='dialog'], [data-date-popover]")) return;
-      setOpen(false);
-    }
+    function onDoc(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); }
     function onKey(e: KeyboardEvent) { if (e.key === "Escape") setOpen(false); }
     document.addEventListener("mousedown", onDoc);
     document.addEventListener("keydown", onKey);
     return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
   }, [open]);
-  const short = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
-  const label = from && to ? `${short(from)} – ${short(to)}` : from ? `From ${short(from)}` : to ? `Until ${short(to)}` : "Close date";
-  const active = Boolean(from || to);
+  const count = [stage !== "all", owner !== "all", jobType !== "all", Boolean(from || to), archived].filter(Boolean).length;
+  const stages: [DealStage | "all", string][] = [["all", "All stages"], ...DEAL_STAGES.filter((s) => s !== "closed_won").map((s) => [s, DEAL_STAGE_META[s].label] as [DealStage, string])];
+  const ownerOpts: [string, string][] = [["all", "All owners"], ...owners.map((o) => [o.id, o.name] as [string, string])];
+  const jobOpts: [string, string][] = [["all", "All job types"], ...JOB_TYPES.map((j) => [j, j] as [string, string])];
   return (
     <div ref={ref} className="relative">
       <button type="button" onClick={() => setOpen((v) => !v)} aria-haspopup="dialog" aria-expanded={open}
-        className={cn("inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-md border bg-background px-2.5 text-sm transition hover:bg-muted", active ? "border-accent text-accent" : "border-border text-foreground")}>
-        <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
-        {label}
+        className={cn("inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-md border bg-background px-2.5 text-sm transition hover:bg-muted", count ? "border-accent text-accent" : "border-border text-foreground")}>
+        <SlidersHorizontal className="h-3.5 w-3.5" />
+        Filters
+        {count ? <span className="rounded-full bg-accent px-1.5 text-[11px] font-semibold text-accent-foreground">{count}</span> : null}
         <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
       </button>
       {open && (
-        <div className="absolute left-0 z-30 mt-1 w-64 space-y-2 rounded-lg border border-border bg-card p-3 shadow-lg">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Expected close</div>
-          <label className="block space-y-1 text-xs text-muted-foreground">From<Input type="date" value={from} onChange={(e) => onFrom(e.target.value)} /></label>
-          <label className="block space-y-1 text-xs text-muted-foreground">To<Input type="date" value={to} onChange={(e) => onTo(e.target.value)} /></label>
-          <div className="flex justify-between pt-1">
-            <button type="button" className="text-xs font-medium text-accent hover:underline disabled:opacity-40" disabled={!active} onClick={() => { onFrom(""); onTo(""); }}>Clear</button>
-            <button type="button" className="text-xs font-medium text-muted-foreground hover:text-foreground" onClick={() => setOpen(false)}>Done</button>
+        <div role="dialog" aria-label="Filter deals" className="absolute left-0 z-30 mt-1 w-[min(760px,calc(100vw-2rem))] rounded-lg border border-border bg-card shadow-lg">
+          <div className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-4">
+            <FilterColumn title="Stage" options={stages} value={stage} onPick={(v) => onStage(v as DealStage | "all")} />
+            <FilterColumn title="Owner" options={ownerOpts} value={owner} onPick={onOwner} />
+            <FilterColumn title="Job type" options={jobOpts} value={jobType} onPick={onJobType} />
+            <div className="space-y-2">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Expected close</div>
+              <label className="block space-y-1 text-xs text-muted-foreground">From<Input type="date" value={from} onChange={(e) => onFrom(e.target.value)} /></label>
+              <label className="block space-y-1 text-xs text-muted-foreground">To<Input type="date" value={to} onChange={(e) => onTo(e.target.value)} /></label>
+              <div className="pt-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Archived</div>
+              <button type="button" role="switch" aria-checked={archived} onClick={() => onArchived(!archived)}
+                className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-sm hover:bg-muted">
+                <span>Show archived deals</span>
+                <span className={cn("relative h-5 w-9 rounded-full transition", archived ? "bg-accent" : "bg-muted-foreground/30")}>
+                  <span className={cn("absolute top-0.5 h-4 w-4 rounded-full bg-card shadow transition-all", archived ? "left-[18px]" : "left-0.5")} />
+                </span>
+              </button>
+            </div>
+          </div>
+          <div className="flex items-center justify-between border-t border-border px-4 py-2.5">
+            <button type="button" className="text-xs font-medium text-accent hover:underline disabled:opacity-40" disabled={!count} onClick={onClear}>Clear all</button>
+            <Button size="sm" variant="accent" onClick={() => setOpen(false)}>Done</Button>
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function FilterColumn<V extends string>({ title, options, value, onPick }: { title: string; options: [V, string][]; value: V; onPick: (v: V) => void }) {
+  return (
+    <div className="min-w-0 space-y-1">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">{title}</div>
+      <div role="radiogroup" aria-label={title} className="max-h-56 space-y-0.5 overflow-y-auto pr-1">
+        {options.map(([v, label]) => (
+          <button key={v} type="button" role="radio" aria-checked={value === v} onClick={() => onPick(v)}
+            className={cn("flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm transition", value === v ? "bg-accent/10 text-accent" : "hover:bg-muted")}>
+            <span className="truncate">{label}</span>
+            {value === v ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> : null}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
