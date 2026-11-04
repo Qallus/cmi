@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { COLOR_SWATCHES } from "./item-colors-panel";
 import { Trash2, Link2, X, Plus } from "lucide-react";
 import { ScheduleModal } from "./schedule-modal";
 import { Button } from "@/components/ui/button";
@@ -229,9 +230,12 @@ const HISTORY_LABEL: Record<string, string> = {
   title: "Name", start_date: "Start", end_date: "Finish", duration_days: "Duration", duration_unit: "Counts", status: "Status",
   percent_complete: "% complete", kind: "Kind", constraint_type: "Constraint", constraint_date: "Constraint date", is_locked: "Locked",
   actual_start: "Actual start", actual_finish: "Actual finish", milestone_type: "Milestone type", contract_date: "Contract date",
-  cost_code: "Cost code", phase_id: "Phase", activity_id: "Activity ID",
+  cost_code: "Cost code", phase_id: "Phase", activity_id: "Activity ID", remaining_duration: "Remaining", bar_color: "Bar color",
 };
-const shown = (v: unknown) => (v == null || v === "" ? "—" : typeof v === "boolean" ? (v ? "yes" : "no") : String(v));
+// Colours read as their swatch name ("Green"), custom ones as the hex.
+const SWATCH_NAME = new Map(COLOR_SWATCHES.map(([hex, name]) => [hex.toLowerCase(), name]));
+const shown = (v: unknown) => (v == null || v === "" ? "—" : typeof v === "boolean" ? (v ? "yes" : "no")
+  : typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v) ? SWATCH_NAME.get(v.toLowerCase()) ?? v : String(v));
 
 /** Every change to this task: who, when, what (before → after), and moves the schedule made. */
 function TaskHistory({ itemId }: { itemId: string }) {

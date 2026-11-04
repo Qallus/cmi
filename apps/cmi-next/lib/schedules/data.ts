@@ -50,7 +50,7 @@ export function mapItem(r: any): ScheduleItem {
 const HISTORY_FIELDS = [
   "title", "start_date", "end_date", "duration_days", "duration_unit", "status", "percent_complete", "kind",
   "constraint_type", "constraint_date", "is_locked", "actual_start", "actual_finish", "milestone_type", "contract_date",
-  "cost_code", "phase_id", "activity_id",
+  "cost_code", "phase_id", "activity_id", "remaining_duration", "bar_color",
 ] as const;
 export function fieldChanges(before: Record<string, unknown> | null | undefined, after: Record<string, unknown> | null | undefined): Record<string, [unknown, unknown]> {
   const out: Record<string, [unknown, unknown]> = {};
