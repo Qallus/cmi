@@ -5,12 +5,18 @@
 //
 // These do NOT check consent — callers that message a person rather than an
 // internal staff member must call isSuppressed() first.
+//
+// Outside production they send nothing and return false (canSendOutbound), so
+// testing Executive Summaries, shares or AI messages locally never reaches a
+// real client. NOTIFY_FORCE_SEND=true overrides.
 import { normalizePhone } from "@/lib/twilio";
 import { fromAddress } from "@/lib/email/from";
+import { canSendOutbound, logHeld } from "@/lib/notifications/outbound";
 
 export async function sendEmail(to: string, subject: string, html: string): Promise<boolean> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) return false;
+  if (!canSendOutbound()) { logHeld("email", to, subject); return false; }
   const from = fromAddress();
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -30,6 +36,7 @@ export async function sendSms(to: string, body: string): Promise<boolean> {
   const token = process.env.TWILIO_AUTH_TOKEN;
   const from = process.env.TWILIO_PHONE_NUMBER;
   if (!sid || !token || !from) return false;
+  if (!canSendOutbound()) { logHeld("sms", to, body); return false; }
   const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
     method: "POST",
     headers: {

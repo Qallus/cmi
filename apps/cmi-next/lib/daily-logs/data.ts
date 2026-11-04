@@ -43,6 +43,19 @@ export async function updateDailyLog(id: string, patch: Partial<DailyLogDraft>):
   return data as DailyLog;
 }
 
+export async function getDailyLog(id: string): Promise<DailyLog | null> {
+  const { data, error } = await getSupabaseAdmin().from("daily_logs").select("*").eq("id", id).maybeSingle();
+  if (error) throw new Error(error.message);
+  return (data as DailyLog | null) ?? null;
+}
+
+/** The log, if it belongs to this job and this person may see it (private logs are the author's). */
+export async function getJobLogFor(jobId: string, logId: string, viewerId: string): Promise<DailyLog | null> {
+  const log = await getDailyLog(logId);
+  if (!log || log.job_id !== jobId || !visibleTo(viewerId)(log)) return null;
+  return log;
+}
+
 export async function deleteDailyLog(id: string): Promise<void> {
   const { error } = await getSupabaseAdmin().from("daily_logs").delete().eq("id", id);
   if (error) throw new Error(error.message);

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdmin, AuthError } from "@/lib/auth/require-admin";
-import { updateDailyLog, deleteDailyLog, autoTitle } from "@/lib/daily-logs/data";
+import { updateDailyLog, deleteDailyLog, autoTitle, getJobLogFor } from "@/lib/daily-logs/data";
 import { sanitizeHtmlServer } from "@/lib/html/sanitize-server";
 
 const WRITE_ROLES = ["super_admin", "admin", "project_manager", "superintendent"];
@@ -9,7 +9,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   try {
     const { staff } = await requireAdmin(request);
     if (!WRITE_ROLES.includes(staff.role_slug)) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
-    const { logId } = await params;
+    const { id, logId } = await params;
+    // Only a log on this job, and only the author's when it's private.
+    if (!(await getJobLogFor(id, logId, staff.id))) return NextResponse.json({ error: "Daily log not found." }, { status: 404 });
     const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
     const patch: Record<string, unknown> = {};
     if (typeof body.notes === "string") { patch.notes = sanitizeHtmlServer(body.notes) || null; patch.title = autoTitle({ notes: patch.notes as string | null }); }
@@ -24,7 +26,8 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   try {
     const { staff } = await requireAdmin(request);
     if (!WRITE_ROLES.includes(staff.role_slug)) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
-    const { logId } = await params;
+    const { id, logId } = await params;
+    if (!(await getJobLogFor(id, logId, staff.id))) return NextResponse.json({ error: "Daily log not found." }, { status: 404 });
     await deleteDailyLog(logId);
     return new NextResponse(null, { status: 204 });
   } catch (err) { const e = err as AuthError; return NextResponse.json({ error: e.message }, { status: e.status ?? 500 }); }

@@ -2,6 +2,7 @@
 // out to email (Resend) and SMS (Twilio) per the client's channel preferences.
 // SMS additionally requires a non-suppressed number (messaging consent). All
 // delivery is best-effort — a failed channel never blocks the primary write.
+import { canSendOutbound, logHeld } from "@/lib/notifications/outbound";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { isSuppressed } from "@/lib/messaging/consent";
 import { logMessage } from "@/lib/communications/data";
@@ -50,8 +51,11 @@ export async function notifyClient(contactId: string, jobId: string | null, payl
     sb.from("contacts").select("email, phone, first_name").eq("id", contactId).maybeSingle(),
     sb.from("client_notification_prefs").select("*").eq("contact_id", contactId).maybeSingle(),
   ]);
-  const emailEnabled = prefs?.email_enabled ?? true;   // default on
-  const smsEnabled = prefs?.sms_enabled ?? false;      // default off (opt-in)
+  // Outside production the in-app notice is still written; email and SMS are held.
+  const outbound = canSendOutbound();
+  if (!outbound) { if (contact?.email) logHeld("email", contact.email, payload.title); }
+  const emailEnabled = outbound && (prefs?.email_enabled ?? true);   // default on
+  const smsEnabled = outbound && (prefs?.sms_enabled ?? false);      // default off (opt-in)
 
   // 2) Email via Resend.
   if (emailEnabled && contact?.email) {

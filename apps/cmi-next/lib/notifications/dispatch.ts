@@ -6,6 +6,7 @@
 // subscription, and emails if it matters enough — in that order, so the in-app
 // record exists even when the outbound channels are down.
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { canSendOutbound } from "./outbound";
 import { sendPushToStaff } from "@/lib/push/web-push";
 import { sendEmail } from "@/lib/messaging/send";
 import { notificationEmailHtml, type NotificationEmail } from "@/lib/email/notification-email";
@@ -45,10 +46,7 @@ type Prefs = { email_enabled: boolean; push_enabled: boolean };
  * the whole path stays testable locally; only the outbound leg is held back.
  * Set NOTIFY_FORCE_SEND=true to deliberately send a real one.
  */
-export function canSendOutbound(): boolean {
-  if (process.env.NOTIFY_FORCE_SEND === "true") return true;
-  return process.env.NODE_ENV === "production";
-}
+export { canSendOutbound } from "./outbound";
 
 /**
  * Tell people something happened.
