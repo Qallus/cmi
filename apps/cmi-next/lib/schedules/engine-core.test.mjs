@@ -95,3 +95,21 @@ test("loop check", () => {
   assert.equal(wouldLoop(deps, "a", "c"), false);
   assert.equal(wouldLoop(deps, "a", "a"), true);
 });
+
+test("a finished task moves onto its actual dates and drops its float (Phase 2)", () => {
+  const net = {
+    schedules: [{ ...sched("S", "auto"), status_date: "2026-11-04" }],
+    items: [
+      item("a", "S", "2026-11-17", "2026-11-17", { status: "complete", percent_complete: 100, actual_start: "2026-11-04", actual_finish: "2026-11-04", duration_days: 1 }),
+      item("b", "S", "2026-11-18", "2026-11-18", { duration_days: 1 }),
+    ],
+    deps: [fs("a", "b")],
+  };
+  const changes = diffResult(net, runCpm(buildInput(net)));
+  const a = changes.find((c) => c.id === "a");
+  assert.equal(a.fields.start_date, "2026-11-04");
+  assert.equal(a.fields.end_date, "2026-11-04");
+  assert.equal(a.fields.total_float, null);
+  // b can't start before the status date, so it lands the day after it.
+  assert.equal(changes.find((c) => c.id === "b").fields.start_date, "2026-11-05");
+});

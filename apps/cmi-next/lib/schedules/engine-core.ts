@@ -146,7 +146,11 @@ export function diffResult(net: Network, result: CpmResult, opts: BuildOptions =
       fields.constraint_type = "snet"; fields.constraint_date = pin;
     }
     let moved = false;
-    if (mode === "auto" && !DONE.has(i.status) && !i.is_locked && (r.start !== i.start_date || r.finish !== i.end_date)) {
+    // Finished work has no float to speak of.
+    if (i.actual_finish) { fields.total_float = null; fields.free_float = null; fields.is_critical = false; }
+    // Done tasks stay put, except that a recorded actual finish moves the bar onto its actual dates.
+    const followsActuals = DONE.has(i.status) && !!i.actual_finish;
+    if (mode === "auto" && (!DONE.has(i.status) || followsActuals) && !i.is_locked && (r.start !== i.start_date || r.finish !== i.end_date)) {
       fields.start_date = r.start; fields.end_date = r.finish; moved = true;
     }
     const changed = Object.entries(fields).filter(([k, v]) => (i as Record<string, unknown>)[k] !== v);
