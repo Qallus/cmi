@@ -42,7 +42,7 @@ Critical path (only when the schedule engine is switched on): an Admin or Projec
   },
   views: {
     title: "Views",
-    body: `Gantt (drag to move or resize, links drawn, milestones, today line, baseline, critical items), Timeline (Gantt by month, grouped by schedule), List, Table, Cards, Calendar (day/week/month/year), Kanban (by status or priority) and Resource (by assignee, flags double-booking). Tick several schedules in the schedule picker to overlay them. PDF prints a branded schedule.`,
+    body: `Gantt (drag to move or resize, links drawn, milestones, today line, baseline, critical items), Grid (with the schedule engine on, the Table view is a spreadsheet beside the Gantt: activity IDs by tens, duration as 8 or 7cd, predecessor shorthand like 120FS+2, float; type to edit, Enter/Tab to move, paste from Excel, Ctrl+D fill down, Ctrl+Z undo, right-click to insert or delete rows), Timeline (Gantt by month, grouped by schedule), List, Table, Cards, Calendar (day/week/month/year), Kanban (by status or priority) and Resource (by assignee, flags double-booking). Tick several schedules in the schedule picker to overlay them. PDF prints a branded schedule.`,
   },
   inside: {
     title: "Schedules inside schedules (Schedule Builder)",

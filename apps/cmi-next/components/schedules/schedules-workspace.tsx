@@ -15,6 +15,7 @@ import { ItemDrawer } from "./item-drawer";
 import { AddScheduleWizard, type ScheduleSource } from "./add-schedule-wizard";
 import { ShiftDialog } from "./shift-dialog";
 import { EngineDialog } from "./engine-dialog";
+import { ScheduleGrid } from "./grid/schedule-grid";
 import { createScheduleFromWizard } from "./create-schedule";
 import { SCHEDULING_MODE_LABELS, type JobSchedule, type ScheduleItem, type SchedulePhase, type ScheduleDependency, type ScheduleView, type ScheduleDraft, type DependencyType, type ScheduleType, type ScheduleScope, type SchedulingMode } from "@/lib/schedules/types";
 
@@ -94,11 +95,13 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
     return () => { live = false; };
   }, [primaryId]);
 
-  const loadBundle = React.useCallback(async (id: string) => {
+  const loadBundle = React.useCallback(async (id: string): Promise<Bundle | null> => {
     const res = await fetch(`/api/schedules/${id}`);
-    if (!res.ok) return;
+    if (!res.ok) return null;
     const b = await res.json();
-    setBundles((prev) => ({ ...prev, [id]: { schedule: b.schedule, phases: b.phases, items: b.items, dependencies: b.dependencies } }));
+    const bundle: Bundle = { schedule: b.schedule, phases: b.phases, items: b.items, dependencies: b.dependencies };
+    setBundles((prev) => ({ ...prev, [id]: bundle }));
+    return bundle;
   }, []);
 
   React.useEffect(() => {
@@ -358,6 +361,13 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
               <BoardView items={items} groupBy={kanbanGroup} canEdit={canEdit} onOpenItem={setEditing} onChange={boardChange} />
             ) : view === "resource" ? (
               <ResourceView items={items} onOpenItem={setEditing} />
+            ) : view === "table" && engine?.enabled && primarySchedule && !overlay ? (
+              <ScheduleGrid
+                key={primarySchedule.id} schedule={primarySchedule} items={items} phases={phases} dependencies={dependencies}
+                canEdit={canEdit} zoom={zoom} showBaseline={showBaseline} linkMode={linkMode}
+                onOpenItem={setEditing} onBanner={setBanner} onDatesChange={ganttDates} onLink={(s, t) => addDependency(s, t)}
+                onReload={async () => { const b = await loadBundle(primarySchedule.id); void refreshEngine(); return b?.items ?? null; }}
+              />
             ) : (
               <ListView items={items} mode={view === "table" ? "table" : view === "card" ? "card" : "list"} showSchedule={overlay} onOpenItem={setEditing} />
             )}
@@ -382,6 +392,7 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
       <ItemDrawer
         open={!!editing} item={editing} phases={phases.length ? phases : (primaryId ? bundles[primaryId]?.phases ?? [] : [])} staff={staff}
         allItems={items} dependencies={dependencies} isMasterSchedule={primarySchedule?.is_master} canEdit={canEdit} linkable={builder}
+        engine={!!engine?.enabled}
         onClose={() => setEditing(null)} onSave={saveItem} onDelete={editing?.id ? deleteItem : undefined}
         onAddDependency={(sourceId, type, lag) => { if (editing?.id) void addDependency(sourceId, editing.id, type, lag); }}
         onRemoveDependency={removeDependency}

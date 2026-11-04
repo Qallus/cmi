@@ -31,7 +31,7 @@ function mapSchedule(r: any, names?: Map<string, string>): JobSchedule {
     manager_name: r.manager_id ? names?.get(r.manager_id) ?? null : null,
   } as JobSchedule;
 }
-function mapItem(r: any): ScheduleItem {
+export function mapItem(r: any): ScheduleItem {
   return {
     ...r,
     assignees: (r.assignees ?? []) as Assignee[],
@@ -194,7 +194,7 @@ export async function deletePhase(id: string): Promise<void> {
 }
 
 // ---- items ----
-const ITEM_FIELDS = [
+export const ITEM_FIELDS = [
   "phase_id", "kind", "title", "description", "status", "priority", "start_date", "end_date",
   "start_time", "end_time", "all_day", "duration_days", "percent_complete", "assignees",
   "responsible_company", "client_visible", "confirmation_required", "tags", "location",

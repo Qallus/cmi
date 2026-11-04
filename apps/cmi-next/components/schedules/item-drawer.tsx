@@ -8,15 +8,15 @@ import { Input, Select, Textarea } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { RecordPicker } from "./record-picker";
 import {
-  ITEM_STATUS_LABELS, PRIORITY_LABELS, DEPENDENCY_LABELS, DEPENDENCY_ABBR,
-  type ScheduleItem, type SchedulePhase, type ScheduleDependency, type ItemStatus,
+  ITEM_STATUS_LABELS, PRIORITY_LABELS, DEPENDENCY_LABELS, DEPENDENCY_ABBR, MILESTONE_TYPE_LABELS,
+  type MilestoneType, type ScheduleItem, type SchedulePhase, type ScheduleDependency, type ItemStatus,
   type SchedulePriority, type MasterDisplay, type DependencyType, type Assignee,
 } from "@/lib/schedules/types";
 
 type Staff = { id: string; name: string };
 
 export function ItemDrawer({
-  open, item, phases, staff, allItems, dependencies, isMasterSchedule, canEdit, linkable = false,
+  open, item, phases, staff, allItems, dependencies, isMasterSchedule, canEdit, linkable = false, engine = false,
   onClose, onSave, onDelete, onAddDependency, onRemoveDependency,
 }: {
   open: boolean;
@@ -29,6 +29,8 @@ export function ItemDrawer({
   canEdit?: boolean;
   /** Schedule Builder: the item can point at a dashboard record. */
   linkable?: boolean;
+  /** Schedule engine on: activity ID, duration, constraint, actuals, float. */
+  engine?: boolean;
   onClose: () => void;
   onSave: (patch: Partial<ScheduleItem>) => void | Promise<void>;
   onDelete?: () => void;
@@ -57,8 +59,9 @@ export function ItemDrawer({
     try { await onSave(draft); } finally { setSaving(false); }
   }
 
-  // Predecessors of this item (deps where target = item).
+  // Predecessors of this item (deps where target = item), and what follows it.
   const predecessors = item?.id ? dependencies.filter((d) => d.target_item_id === item.id) : [];
+  const successors = item?.id ? dependencies.filter((d) => d.source_item_id === item.id) : [];
   const itemName = (id: string) => allItems.find((i) => i.id === id)?.title ?? "Item";
 
   return (
@@ -99,6 +102,40 @@ export function ItemDrawer({
           <Field label="Start"><Input type="date" value={draft.start_date ?? ""} disabled={!canEdit} onChange={(e) => set("start_date", e.target.value || null)} /></Field>
           <Field label={kind === "milestone" ? "Date" : "Finish"}><Input type="date" value={kind === "milestone" ? (draft.start_date ?? "") : (draft.end_date ?? "")} disabled={!canEdit || kind === "milestone"} onChange={(e) => set("end_date", e.target.value || null)} /></Field>
         </div>
+
+        {engine ? (
+          <div className="space-y-3 rounded-lg border border-border p-3">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Scheduling</div>
+            <div className="grid grid-cols-3 gap-3">
+              <Field label="Activity ID"><Input type="number" value={draft.activity_id ?? ""} disabled={!canEdit} onChange={(e) => set("activity_id", e.target.value ? Number(e.target.value) : null)} /></Field>
+              {kind === "task" ? (
+                <>
+                  <Field label="Duration"><Input type="number" min={1} value={draft.duration_days ?? ""} disabled={!canEdit} onChange={(e) => set("duration_days", e.target.value ? Math.max(1, Math.round(Number(e.target.value))) : null)} /></Field>
+                  <Field label="Counts"><Select value={draft.duration_unit ?? "workdays"} disabled={!canEdit} onChange={(e) => set("duration_unit", e.target.value as "workdays" | "calendar")}><option value="workdays">Working days</option><option value="calendar">Calendar days</option></Select></Field>
+                </>
+              ) : (
+                <Field label="Milestone type"><Select value={draft.milestone_type ?? ""} disabled={!canEdit} onChange={(e) => set("milestone_type", (e.target.value || null) as MilestoneType | null)}><option value="">—</option>{Object.entries(MILESTONE_TYPE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</Select></Field>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Constraint"><Select value={draft.constraint_type ?? ""} disabled={!canEdit || !!draft.is_locked} onChange={(e) => { const v = (e.target.value || null) as ScheduleItem["constraint_type"]; setDraft((d) => ({ ...d, constraint_type: v, constraint_date: v ? d.constraint_date ?? d.start_date ?? null : null })); }}>
+                <option value="">None</option><option value="snet">Start No Earlier Than</option><option value="mfo">Must Finish On</option><option value="alap">As Late As Possible</option>
+              </Select></Field>
+              <Field label="Constraint date"><Input type="date" value={draft.constraint_date ?? ""} disabled={!canEdit || !draft.constraint_type || draft.constraint_type === "alap"} onChange={(e) => set("constraint_date", e.target.value || null)} /></Field>
+              <Field label="Actual start"><Input type="date" value={draft.actual_start ?? ""} disabled={!canEdit} onChange={(e) => set("actual_start", e.target.value || null)} /></Field>
+              <Field label="Actual finish"><Input type="date" value={draft.actual_finish ?? ""} disabled={!canEdit} onChange={(e) => set("actual_finish", e.target.value || null)} /></Field>
+              {kind === "milestone" ? <Field label="Contract date"><Input type="date" value={draft.contract_date ?? ""} disabled={!canEdit} onChange={(e) => set("contract_date", e.target.value || null)} /></Field> : null}
+              <Field label="Cost code"><Input value={draft.cost_code ?? ""} disabled={!canEdit} onChange={(e) => set("cost_code", e.target.value || null)} placeholder="Budget line" /></Field>
+            </div>
+            {item?.early_start ? (
+              <div className="grid grid-cols-3 gap-x-3 gap-y-1 rounded bg-muted/40 px-2 py-1.5 text-xs">
+                <span className="text-muted-foreground">Early</span><span className="col-span-2 tabular-nums">{item.early_start} → {item.early_finish}</span>
+                <span className="text-muted-foreground">Late</span><span className="col-span-2 tabular-nums">{item.late_start} → {item.late_finish}</span>
+                <span className="text-muted-foreground">Float</span><span className="col-span-2 tabular-nums">{item.total_float} total · {item.free_float} free (working days){item.total_float != null && item.total_float <= 0 ? <strong className="ml-1">critical</strong> : null}</span>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
 
         {kind === "task" ? (
           <Field label={`Progress — ${draft.percent_complete ?? 0}%`}>
@@ -167,6 +204,9 @@ export function ItemDrawer({
               ))}
               {!predecessors.length ? <p className="text-xs text-muted-foreground">No predecessors.</p> : null}
             </div>
+            {engine && successors.length ? (
+              <div className="mt-2 text-xs text-muted-foreground">Followed by: {successors.map((d) => `${itemName(d.target_item_id)} (${DEPENDENCY_ABBR[d.dependency_type]}${d.lag_days ? `${d.lag_days > 0 ? "+" : ""}${d.lag_days}` : ""})`).join(", ")}</div>
+            ) : null}
             {canEdit && onAddDependency ? (
               <div className="mt-2 flex items-center gap-1.5">
                 <Select value={depSource} onChange={(e) => setDepSource(e.target.value)} className="flex-1 text-xs"><option value="">Add predecessor…</option>{allItems.filter((i) => i.id !== item?.id).map((i) => <option key={i.id} value={i.id}>{i.schedule_name ? `${i.schedule_name}: ` : ""}{i.title}</option>)}</Select>

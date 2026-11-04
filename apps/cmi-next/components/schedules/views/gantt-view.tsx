@@ -3,15 +3,17 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 import { scheduleColor } from "../shared";
+import { scheduleRows, type GridRow } from "@/lib/schedules/grid";
 import type { ScheduleItem, ScheduleDependency, SchedulePhase } from "@/lib/schedules/types";
 
 type Zoom = "day" | "week" | "month";
 const DAY_W: Record<Zoom, number> = { day: 40, week: 20, month: 10 };
-const ROW_H = 34;
+// Exported so the grid beside it (split layout) lines up row for row.
+export const ROW_H = 34;
 const LABEL_W = 260;
 const HEAD_TOP = 22;   // month band
 const HEAD_TICK = 24;  // day / week ticks
-const HEAD_H = HEAD_TOP + HEAD_TICK;
+export const HEAD_H = HEAD_TOP + HEAD_TICK;
 
 function parse(iso?: string | null): Date | null { if (!iso) return null; const d = new Date(`${iso}T00:00:00Z`); return isNaN(d.getTime()) ? null : d; }
 function fmtISO(d: Date) { return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`; }
@@ -30,9 +32,16 @@ type Props = {
   onOpenItem?: (item: ScheduleItem) => void;
   onDatesChange?: (id: string, start: string, end: string, gesture: "move" | "resize") => void;
   onLink?: (sourceId: string, targetId: string) => void;
+  /** Split layout: the grid shows the names, so hide the label column. */
+  hideLabels?: boolean;
+  /** Phases whose tasks are folded away (same as the grid). */
+  collapsed?: Set<string>;
+  selectedId?: string | null;
+  /** Rows the last edit moved, briefly highlighted. */
+  flashIds?: Set<string>;
 };
 
-export function GanttView({ items, dependencies, phases, zoom, groupBySchedule, showBaseline, canEdit, linkMode, onOpenItem, onDatesChange, onLink }: Props) {
+export function GanttView({ items, dependencies, phases, zoom, groupBySchedule, showBaseline, canEdit, linkMode, onOpenItem, onDatesChange, onLink, hideLabels, collapsed, selectedId, flashIds }: Props) {
   const dayW = DAY_W[zoom];
   const [linkSource, setLinkSource] = React.useState<string | null>(null);
   const [drag, setDrag] = React.useState<{ id: string; mode: "move" | "resize"; startX: number; origStart: Date; origEnd: Date; deltaDays: number } | null>(null);
@@ -55,31 +64,10 @@ export function GanttView({ items, dependencies, phases, zoom, groupBySchedule, 
   const boardW = totalDays * dayW;
 
   // Ordered rows: group by schedule (overlay) or phase (single schedule).
-  type Row = { kind: "group"; label: string; color?: string } | { kind: "item"; item: ScheduleItem };
-  const rows: Row[] = React.useMemo(() => {
-    const out: Row[] = [];
-    if (groupBySchedule) {
-      const groups = new Map<string, ScheduleItem[]>();
-      for (const i of items) { const k = i.schedule_id; if (!groups.has(k)) groups.set(k, []); groups.get(k)!.push(i); }
-      for (const [sid, its] of groups) {
-        out.push({ kind: "group", label: its[0]?.schedule_name ?? "Schedule", color: scheduleColor(sid, its[0]?.schedule_color) });
-        its.sort(sortItems).forEach((item) => out.push({ kind: "item", item }));
-      }
-    } else if (phases && phases.length) {
-      const byPhase = new Map<string, ScheduleItem[]>();
-      for (const i of items) { const k = i.phase_id ?? "none"; if (!byPhase.has(k)) byPhase.set(k, []); byPhase.get(k)!.push(i); }
-      for (const ph of phases) {
-        const its = byPhase.get(ph.id) ?? [];
-        out.push({ kind: "group", label: ph.name, color: ph.color ?? undefined });
-        its.sort(sortItems).forEach((item) => out.push({ kind: "item", item }));
-      }
-      const orphan = byPhase.get("none") ?? [];
-      if (orphan.length) { out.push({ kind: "group", label: "Unphased" }); orphan.sort(sortItems).forEach((item) => out.push({ kind: "item", item })); }
-    } else {
-      items.slice().sort(sortItems).forEach((item) => out.push({ kind: "item", item }));
-    }
-    return out;
-  }, [items, phases, groupBySchedule]);
+  const rows: GridRow[] = React.useMemo(
+    () => scheduleRows(items, phases, { groupBySchedule, collapsed, scheduleColor }),
+    [items, phases, groupBySchedule, collapsed],
+  );
 
   const rowIndexOf = React.useMemo(() => { const m = new Map<string, number>(); rows.forEach((r, idx) => { if (r.kind === "item") m.set(r.item.id, idx); }); return m; }, [rows]);
 
@@ -189,7 +177,7 @@ export function GanttView({ items, dependencies, phases, zoom, groupBySchedule, 
     <div className="overflow-hidden rounded-lg border border-border bg-card">
       <div className="flex">
         {/* Left labels */}
-        <div className="shrink-0 border-r border-border" style={{ width: LABEL_W }}>
+        <div className={cn("shrink-0 border-r border-border", hideLabels && "hidden")} style={{ width: LABEL_W }}>
           <div className="border-b border-border bg-muted/40" style={{ height: HEAD_H }} />
           {rows.map((r, idx) => r.kind === "group" ? (
             <div key={`g-${idx}`} className="flex items-center gap-2 border-b border-border bg-muted/30 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground" style={{ height: ROW_H }}>
@@ -235,7 +223,7 @@ export function GanttView({ items, dependencies, phases, zoom, groupBySchedule, 
 
               {/* rows + bars */}
               {rows.map((r, idx) => (
-                <div key={r.kind === "item" ? r.item.id : `g-${idx}`} className={cn("absolute left-0 right-0 border-b border-border/60", r.kind === "group" && "bg-muted/20")} style={{ top: idx * ROW_H, height: ROW_H }}>
+                <div key={r.kind === "item" ? r.item.id : `g-${idx}`} className={cn("absolute left-0 right-0 border-b border-border/60 transition-colors duration-700", r.kind === "group" && "bg-muted/20", r.kind === "item" && r.item.id === selectedId && "bg-accent/10", r.kind === "item" && flashIds?.has(r.item.id) && "bg-amber-200/40")} style={{ top: idx * ROW_H, height: ROW_H }}>
                   {r.kind === "item" ? <Bar item={r.item} x={x} dayW={dayW} drag={drag} color={r.kind === "item" ? (r.item.schedule_color ? scheduleColor(r.item.schedule_id, r.item.schedule_color) : "#9e6f2e") : "#9e6f2e"} showBaseline={showBaseline} linkSource={linkSource === r.item.id} onBody={(e) => startDrag(e, r.item, "move")} onResize={(e) => startDrag(e, r.item, "resize")} onClick={() => clickBar(r.item)} /> : null}
                 </div>
               ))}
@@ -246,11 +234,6 @@ export function GanttView({ items, dependencies, phases, zoom, groupBySchedule, 
       {linkMode ? <div className="border-t border-border bg-accent/5 px-3 py-1.5 text-xs text-accent">{linkSource ? "Now click the successor item to link it." : "Link mode: click a predecessor item, then its successor."}</div> : null}
     </div>
   );
-}
-
-function sortItems(a: ScheduleItem, b: ScheduleItem) {
-  if (a.sort_order !== b.sort_order) return a.sort_order - b.sort_order;
-  return (a.start_date ?? "") < (b.start_date ?? "") ? -1 : 1;
 }
 
 function Bar({ item, x, dayW, drag, color, showBaseline, linkSource, onBody, onResize, onClick }: {
