@@ -6,7 +6,7 @@ import { BadgeDollarSign, CalendarClock, Clock, Contact, FileSignature, FileText
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { StatsToggle, useStatsVisible } from "@/components/ui/page-header-bits";
+import { StatsToggle, JobHeaderStatsToggle, useStatsVisible } from "@/components/ui/page-header-bits";
 import type { JobWithRelations, JobStatus, JobInternalUser, JobStats } from "@/lib/jobs/types";
 import { JobStatusBadge, money, formatDate } from "../../job-ui";
 import { JobDetailNav } from "../job-detail-nav";
@@ -70,7 +70,9 @@ export function JobSummaryClient({ job, stats, forecast = null, feed = null }: {
                 </div>
                 <div className="flex items-center gap-2">
                   {/* Hides the stat tiles above (remembered per person). */}
-                  <StatsToggle shown={showStats} onToggle={toggleStats} />
+                  {/* Phones only: the job toolbar is a single menu there. Larger screens use the top bar. */}
+                  <StatsToggle shown={showStats} onToggle={toggleStats} className="md:hidden" />
+                  <JobHeaderStatsToggle shown={showStats} onToggle={toggleStats} />
                   <Link href={`/dashboard/jobs/${job.id}/info`}>
                     <Button size="sm" variant="outline"><Pencil className="h-3.5 w-3.5" /> Edit Job</Button>
                   </Link>

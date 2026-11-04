@@ -182,7 +182,13 @@ export const DASHBOARD_GUIDE: GuideEntry[] = [
   },
   {
     id: "jobs-map", name: "Jobs Map", path: "/dashboard/jobs/map", nav: "Sidebar → Jobs → Jobs Map",
-    summary: "Every job on a map.", keywords: ["map", "jobs map", "locations"],
+    summary: "Every job on a map as a pin in the job's colour, labelled with its job number (e.g. 027). Hover a pin for the name; click it for status, address, View job and Directions.",
+    steps: [
+      "Find a job on the map: Jobs Map → hover it in the list on the left (its pin grows) or click it (the map flies to it and opens its card).",
+      "Jobs close together group into a numbered bubble; click the bubble to zoom in. Turn grouping off or on with Cluster (top right; remembered for you).",
+      "Switch between the street map and Satellite, or click Map All to fit every job back into view.",
+    ],
+    keywords: ["map", "jobs map", "locations", "pins", "directions", "cluster", "satellite"],
   },
   {
     id: "job-templates", name: "Job Templates", path: "/dashboard/jobs/new-from-template", nav: "Sidebar → Jobs → Templates",

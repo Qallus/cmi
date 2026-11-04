@@ -4,6 +4,7 @@
 // everywhere: the live count pill beside the title, and the Hide / Show stats
 // toggle for pages with stat cards.
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { PanelTopClose, PanelTopOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -43,6 +44,33 @@ export function useStatsVisible(pageKey: string) {
     return !v;
   }), [key]);
   return { shown, toggle };
+}
+
+/** Hide stats / Show stats placed in the job toolbar (top bar, after Prints) on
+ *  medium screens and up. It renders nothing until that slot exists. */
+export function JobHeaderStatsToggle({ shown, onToggle }: { shown: boolean; onToggle: () => void }) {
+  const [slot, setSlot] = React.useState<HTMLElement | null>(null);
+  React.useEffect(() => {
+    let frame = 0, tries = 0;
+    const find = () => {
+      const el = document.getElementById("job-header-actions");
+      if (el) setSlot(el); else if (tries++ < 60) frame = requestAnimationFrame(find);
+    };
+    find();
+    return () => cancelAnimationFrame(frame);
+  }, []);
+  if (!slot) return null;
+  const label = shown ? "Hide the stat cards" : "Show the stat cards";
+  return createPortal(
+    <Tooltip label={label} side="bottom" className="inline-block">
+      <button type="button" onClick={onToggle} aria-label={label} aria-pressed={!shown}
+        className="flex h-8 items-center gap-1.5 rounded-md px-2 text-sm font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground">
+        {shown ? <PanelTopClose className="h-3.5 w-3.5" /> : <PanelTopOpen className="h-3.5 w-3.5" />}
+        <span className="hidden xl:inline">{shown ? "Hide stats" : "Show stats"}</span>
+      </button>
+    </Tooltip>,
+    slot,
+  );
 }
 
 /** The Hide stats / Show stats button for a page header. */

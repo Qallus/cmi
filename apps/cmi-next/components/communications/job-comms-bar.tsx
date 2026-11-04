@@ -24,6 +24,9 @@ type CommsData = { job: { id: string; name: string }; recipients: JobRecipient[]
 type Tool = "call" | "sms" | "email" | "notes" | "prints" | "summary";
 
 /** Renders nothing unless the current page is inside one job. */
+/** Id of the spot in the job toolbar where a job page can add its own buttons. */
+export const JOB_HEADER_SLOT = "job-header-actions";
+
 export function JobCommsBar() {
   const pathname = usePathname();
   const jobId = pathname.match(JOB_PATH)?.[1] ?? null;
@@ -100,6 +103,8 @@ function JobCommsBarInner({ jobId, pathname }: { jobId: string; pathname: string
             </div>
           );
         })}
+        {/* Page-level actions for job pages (e.g. Hide stats on Summary) render here, after Prints. */}
+        <div id={JOB_HEADER_SLOT} className="flex items-center" />
         <span className="mx-1 h-5 w-px bg-border" />
       </nav>
 
