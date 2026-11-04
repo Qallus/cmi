@@ -70,6 +70,16 @@ export type MasterDisplay = "inherit" | "do_not_show" | "milestone_only" | "show
 
 export type Workdays = { mon: boolean; tue: boolean; wed: boolean; thu: boolean; fri: boolean; sat: boolean; sun: boolean };
 
+export type SchedulingMode = "legacy" | "auto" | "manual";
+export const SCHEDULING_MODE_LABELS: Record<SchedulingMode, string> = {
+  legacy: "Push later only", auto: "Critical path (auto)", manual: "Manual (float advisory)",
+};
+
+export type MilestoneType = "contract" | "inspection" | "client_decision" | "internal";
+export const MILESTONE_TYPE_LABELS: Record<MilestoneType, string> = {
+  contract: "Contract", inspection: "Inspection", client_decision: "Client decision", internal: "Internal",
+};
+
 export type Assignee = { id: string; name: string; type?: "staff" | "vendor" | "contractor" | "client" };
 
 // What a schedule belongs to. Jobs are the main case; a Pipeline deal, a
@@ -109,6 +119,11 @@ export type JobSchedule = {
   is_master: boolean;
   visibility: string;
   workdays: Workdays;
+  /** Schedule engine (flag schedule_engine): legacy = forward push as before. */
+  scheduling_mode?: SchedulingMode;
+  status_date?: string | null;
+  engine_finish?: string | null;
+  engine_ran_at?: string | null;
   color: string | null;
   sort_order: number;
   archived_at: string | null;
@@ -172,6 +187,24 @@ export type ScheduleItem = {
   link_type?: LinkType | null;
   link_id?: string | null;
   link_label?: string | null;
+  // Schedule engine (2026-11-04_schedule_engine.sql):
+  activity_id?: number | null;
+  wbs?: string | null;
+  duration_unit?: "workdays" | "calendar";
+  constraint_type?: "snet" | "mfo" | "alap" | null;
+  constraint_date?: string | null;
+  actual_start?: string | null;
+  actual_finish?: string | null;
+  remaining_duration?: number | null;
+  early_start?: string | null;
+  early_finish?: string | null;
+  late_start?: string | null;
+  late_finish?: string | null;
+  total_float?: number | null;
+  free_float?: number | null;
+  milestone_type?: MilestoneType | null;
+  contract_date?: string | null;
+  cost_code?: string | null;
   sort_order: number;
   created_at: string;
   updated_at: string;
@@ -212,6 +245,8 @@ export type ScheduleBaseline = {
   schedule_id: string;
   name: string;
   snapshot: { item_id: string; start_date: string | null; end_date: string | null }[];
+  number?: number | null;
+  calendar_snapshot?: Record<string, unknown> | null;
   reason: string | null;
   approved_by: string | null;
   approved_at: string | null;
