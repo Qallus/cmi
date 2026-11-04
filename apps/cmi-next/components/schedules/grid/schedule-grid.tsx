@@ -6,7 +6,8 @@
 // recalculates and the cells it moved flash.
 import * as React from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, ChevronRight, ChevronLeft, GripVertical, Maximize2, Undo2, Redo2, Columns3, ListOrdered, Plus, History, Loader2, FlaskConical, Check } from "lucide-react";
+import { ChevronDown, ChevronRight, ChevronLeft, GripVertical, Maximize2, Undo2, Redo2, Columns3, ListOrdered, Plus, History, Loader2, FlaskConical, Check, FileSpreadsheet, Download, FileUp } from "lucide-react";
+import { ExcelImportDialog } from "./excel-import";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tooltip, AutoTooltip } from "@/components/ui/tooltip";
@@ -113,6 +114,8 @@ export function ScheduleGrid({
   const [menu, setMenu] = React.useState<{ x: number; y: number; id: string } | null>(null);
   const [colMenu, setColMenu] = React.useState(false);
   const [histMenu, setHistMenu] = React.useState(false);
+  const [xlMenu, setXlMenu] = React.useState(false);
+  const [importing, setImporting] = React.useState(false);
   const [dragId, setDragId] = React.useState<string | null>(null);
   const gridRef = React.useRef<HTMLDivElement>(null);
   // The open edit, readable synchronously so a blur after Enter doesn't save twice.
@@ -695,6 +698,23 @@ export function ScheduleGrid({
             </div>
           </>
         ) : null}
+        <div className="relative">
+          <Button size="sm" variant="ghost" onClick={() => setXlMenu((o) => !o)} aria-haspopup="menu" aria-expanded={xlMenu}><FileSpreadsheet className="h-3.5 w-3.5" /> Excel <ChevronDown className="h-3 w-3 opacity-60" /></Button>
+          {xlMenu ? (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setXlMenu(false)} />
+              <div role="menu" className="absolute left-0 z-50 mt-1 w-60 rounded-lg border border-border bg-card p-1 shadow-lg">
+                <a role="menuitem" href={`/api/schedules/${schedule.id}/excel`} onClick={() => setXlMenu(false)} className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted/50"><Download className="h-3.5 w-3.5 text-muted-foreground" /> Export to Excel</a>
+                <a role="menuitem" href={`/api/schedules/${schedule.id}/excel?kind=template`} onClick={() => setXlMenu(false)} className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted/50"><Download className="h-3.5 w-3.5 text-muted-foreground" /> Download blank template</a>
+                {canEdit ? (
+                  <button role="menuitem" type="button" disabled={!!whatIf} onClick={() => { setXlMenu(false); setImporting(true); }} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-muted/50 disabled:opacity-50">
+                    <FileUp className="h-3.5 w-3.5 text-muted-foreground" /> Import from Excel…{whatIf ? <span className="ml-auto text-[10px] text-muted-foreground">leave What-if first</span> : null}
+                  </button>
+                ) : null}
+              </div>
+            </>
+          ) : null}
+        </div>
         {canEdit && mode === "auto" && !whatIf ? (
           <Tooltip label="Try changes without saving them" side="bottom" className="inline-block"><Button size="sm" variant="ghost" onClick={() => void startWhatIf()} disabled={wiLoading}><FlaskConical className="h-3.5 w-3.5" /> {wiLoading ? "Loading…" : "What-if"}</Button></Tooltip>
         ) : null}
@@ -809,6 +829,11 @@ export function ScheduleGrid({
             hideLabels={hidden !== "grid"} collapsed={collapsed} selectedId={active?.id ?? null} flashIds={new Set([...flash].map((c) => c.split(":")[0]))} />
         </ResizablePanel>
       </ResizablePanelGroup>
+
+      {importing ? (
+        <ExcelImportDialog scheduleId={schedule.id} scheduleName={schedule.name} onClose={() => setImporting(false)}
+          onApply={async (ops, summary) => { await run(ops, { label: "Import from Excel", undo: null, redo: null }); onBanner(summary); }} />
+      ) : null}
 
       {menu && menuItem ? (
         <>

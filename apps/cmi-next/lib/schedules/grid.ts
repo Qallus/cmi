@@ -155,6 +155,9 @@ export type GridOps = {
   predecessors?: PredEdit[];
   /** Renumber every activity ID by tens in display order. */
   renumber?: boolean;
+  /** Where the batch came from, for the activity log (an Excel import). */
+  source?: "excel";
+  fileName?: string;
 };
 export type CellChange = { patch?: Partial<ScheduleItem>; preds?: PredEdit; error?: string };
 
@@ -283,6 +286,12 @@ export function parseClipboard(text: string): string[][] {
   return rows;
 }
 
+/** The grid column a spreadsheet header names (label, key or alias), or null. */
+export function columnForHeader(header: string): ColumnKey | null {
+  const h = header.trim().toLowerCase().replace(/\s+/g, " ");
+  return GRID_COLUMNS.find((c) => c.label.toLowerCase() === h || c.key === h || c.aliases?.includes(h))?.key ?? null;
+}
+
 /** If the first pasted row is a header row, the column for each pasted column
  *  (null = ignore). Otherwise null, and the paste maps by position. */
 export function headerMap(first: string[]): { columns: (ColumnKey | null)[]; unknown: string[] } | null {
@@ -292,4 +301,29 @@ export function headerMap(first: string[]): { columns: (ColumnKey | null)[]; unk
   const hits = columns.filter(Boolean).length;
   if (hits < Math.max(1, Math.ceil(first.length / 2))) return null;
   return { columns, unknown: first.filter((_, i) => !columns[i] && first[i].trim()) };
+}
+
+/** The lookups cells need (activity IDs, same-schedule links), from the rows. */
+export function buildGridCtx(
+  items: Pick<ScheduleItem, "id" | "activity_id">[],
+  deps: { source_item_id: string; target_item_id: string; dependency_type: DependencyType; lag_days: number }[],
+  varianceOf?: GridCtx["varianceOf"],
+): GridCtx {
+  const mine = new Set(items.map((i) => i.id));
+  const act = new Map(items.map((i) => [i.id, i.activity_id ?? null]));
+  const idByActivity = new Map<number, string>();
+  for (const i of items) if (i.activity_id != null) idByActivity.set(i.activity_id, i.id);
+  const preds = new Map<string, LinkRef[]>(), succs = new Map<string, LinkRef[]>(), other = new Map<string, number>();
+  for (const d of deps) {
+    if (mine.has(d.source_item_id) && mine.has(d.target_item_id)) {
+      const sa = act.get(d.source_item_id), ta = act.get(d.target_item_id);
+      if (sa != null) preds.set(d.target_item_id, [...(preds.get(d.target_item_id) ?? []), { id: sa, type: d.dependency_type, lag: d.lag_days }]);
+      if (ta != null) succs.set(d.source_item_id, [...(succs.get(d.source_item_id) ?? []), { id: ta, type: d.dependency_type, lag: d.lag_days }]);
+    } else if (mine.has(d.target_item_id)) other.set(d.target_item_id, (other.get(d.target_item_id) ?? 0) + 1);
+  }
+  return {
+    idByActivity, activityById: act,
+    predsOf: (id) => preds.get(id) ?? [], succsOf: (id) => succs.get(id) ?? [], otherPredCount: (id) => other.get(id) ?? 0,
+    varianceOf,
+  };
 }

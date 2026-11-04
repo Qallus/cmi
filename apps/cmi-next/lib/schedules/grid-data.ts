@@ -160,7 +160,12 @@ export async function applyGridOps(scheduleId: string, ops: GridOps, actor?: Act
       for (const id of datesChanged) result.moved += (await applyCascade(sched!.job_id, id, actor)).length;
     }
     const counts = { updated: ops.updates?.length ?? 0, created: ops.creates?.length ?? 0, deleted: ops.deletes?.length ?? 0, links: ops.predecessors?.length ?? 0, renumbered: !!ops.renumber };
-    if (Object.values(counts).some(Boolean)) await logActivity({ jobId: sched!.job_id, scheduleId, action: "grid_edit", detail: { ...counts, moved: result.moved, refused: result.refused.length }, actor });
+    if (Object.values(counts).some(Boolean)) {
+      await logActivity({
+        jobId: sched!.job_id, scheduleId, action: ops.source === "excel" ? "excel_import" : "grid_edit",
+        detail: { ...counts, moved: result.moved, refused: result.refused.length, ...(ops.fileName ? { file: ops.fileName.slice(0, 200) } : {}) }, actor,
+      });
+    }
     return result;
   }
 }
