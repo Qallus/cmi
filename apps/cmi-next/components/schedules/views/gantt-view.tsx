@@ -45,6 +45,9 @@ type Props = {
   showLinks?: boolean;
   /** Double-click a bar: open its colours (bar and link lines). */
   onStyleItem?: (item: ScheduleItem) => void;
+  /** Where the date header sticks, in px from the top of the scrolling area: 0 inside a
+   *  scrolling panel (the schedule workspace), 56 when the window scrolls under the top bar. */
+  stickyTop?: number;
 };
 
 // Link lines: how far a line runs out of a bar before it turns.
@@ -71,7 +74,7 @@ export function linkPath(type: string, src: { left: number; right: number; y: nu
   return `M ${sx} ${sy} H ${sx + out * LINK_GAP} V ${midY} H ${tx + into * LINK_GAP} V ${ty} H ${tx}`;
 }
 
-export function GanttView({ items, dependencies, phases, zoom, groupBySchedule, showBaseline, canEdit, linkMode, onOpenItem, onDatesChange, onLink, hideLabels, collapsed, selectedId, flashIds, showLinks = true, onStyleItem }: Props) {
+export function GanttView({ items, dependencies, phases, zoom, groupBySchedule, showBaseline, canEdit, linkMode, onOpenItem, onDatesChange, onLink, hideLabels, collapsed, selectedId, flashIds, showLinks = true, onStyleItem, stickyTop = 0 }: Props) {
   const dayW = DAY_W[zoom];
   const [linkSource, setLinkSource] = React.useState<string | null>(null);
   // The sticky date header scrolls sideways with the timeline body.
@@ -230,7 +233,7 @@ export function GanttView({ items, dependencies, phases, zoom, groupBySchedule, 
     // overflow-clip (not hidden) so the date header can stick to the page as it scrolls.
     <div className="overflow-clip rounded-lg border border-border bg-card">
       {/* Date header: stays under the top bar while the rows scroll, and follows the timeline sideways. */}
-      <div className="sticky top-14 z-40 flex border-b border-border bg-card">
+      <div className="sticky z-40 flex border-b border-border bg-card" style={{ top: stickyTop }}>
         <div className={cn("shrink-0 border-r border-border bg-muted/40", hideLabels && "hidden")} style={{ width: LABEL_W, height: HEAD_H - 1 }} />
         <div ref={headRef} className="min-w-0 flex-1 overflow-hidden bg-muted/40">
           {/* Header — month band (top) + day/week ticks (bottom) */}
