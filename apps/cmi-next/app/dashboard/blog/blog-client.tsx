@@ -12,6 +12,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { CountPill, TitleRow } from "@/components/ui/page-header-bits";
 import type { BlogDraft, BlogPost, BlogStatus } from "@/lib/blog/types";
 
 const STATUSES: BlogStatus[] = ["draft", "published", "scheduled", "archived"];
@@ -347,8 +348,10 @@ export function BlogClient({ initialPosts }: { initialPosts: BlogPost[] }) {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Content</div>
-              <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight">Blog</h1>
-              <p className="mt-1 text-sm text-muted-foreground">{posts.length} posts</p>
+              <TitleRow>
+                <h1 className="font-display text-2xl font-semibold tracking-tight">Blog</h1>
+                <CountPill count={posts.length} noun="post" />
+              </TitleRow>
             </div>
             <Button size="sm" variant="accent" onClick={openNew}><Plus className="h-3.5 w-3.5" /> New Post</Button>
           </div>

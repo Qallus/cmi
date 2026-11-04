@@ -95,7 +95,7 @@ function CallDirectionIcon({ direction, status }: { direction: string; status: s
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function CallsWorkspace({ onSmsTo, hideLog = false, initialNumber }: { onSmsTo?: (phone: string) => void; hideLog?: boolean; initialNumber?: string }) {
+export function CallsWorkspace({ onSmsTo, hideLog = false, initialNumber, showStats = true }: { onSmsTo?: (phone: string) => void; hideLog?: boolean; initialNumber?: string; showStats?: boolean }) {
   // Dialer state
   const [dialInput, setDialInput] = React.useState(initialNumber ?? "");
   const [deviceStatus, setDeviceStatus] = React.useState<DeviceStatus>("unregistered");
@@ -361,8 +361,8 @@ export function CallsWorkspace({ onSmsTo, hideLog = false, initialNumber }: { on
 
   return (
     <div className={cn("flex-1 px-5 py-5", !hideLog && "overflow-y-auto")}>
-      {/* Stats bar (hidden in the compact dialer) */}
-      {!hideLog && (
+      {/* Stats bar (hidden in the compact dialer, or when collapsed from the header) */}
+      {!hideLog && showStats && (
       <div className="mb-5 flex snap-x gap-3 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] sm:grid sm:grid-cols-4 sm:overflow-visible sm:pb-0 xl:grid-cols-5 [&::-webkit-scrollbar]:hidden">
         <StatCard icon={PhoneOutgoing} label="Outbound today" value={stats ? String(stats.outboundToday) : "—"} tint="text-blue-500" />
         <StatCard icon={PhoneIncoming} label="Inbound today" value={stats ? String(stats.inboundToday) : "—"} tint="text-emerald-500" />

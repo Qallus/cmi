@@ -4,6 +4,7 @@ import * as React from "react";
 import { ShieldCheck, RefreshCw, Search, MessageSquare, Mail, Check, Ban, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { CountPill, StatsToggle, TitleRow, useStatsVisible } from "@/components/ui/page-header-bits";
 
 type Person = {
   recordType: "contact" | "user" | "lead";
@@ -33,6 +34,7 @@ export function MessagingConsentClient() {
   const [typeFilter, setTypeFilter] = React.useState<"all" | "contact" | "user" | "lead">("all");
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [copied, setCopied] = React.useState<string | null>(null);
+  const { shown: showStats, toggle: toggleStats } = useStatsVisible("messaging-consent");
 
   const load = React.useCallback(async () => {
     setLoading(true); setError(null);
@@ -105,21 +107,28 @@ export function MessagingConsentClient() {
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
         <div>
           <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Compliance</div>
-          <h1 className="mt-0.5 flex items-center gap-2 font-display text-2xl font-semibold tracking-tight"><ShieldCheck className="h-5 w-5 text-accent" /> Messaging Consent</h1>
+          <TitleRow className="mt-0.5">
+            <h1 className="flex items-center gap-2 font-display text-2xl font-semibold tracking-tight"><ShieldCheck className="h-5 w-5 text-accent" /> Messaging Consent</h1>
+            {/* People shown in the table below (follows search and type filter). */}
+            <CountPill count={filtered.length} noun="person" plural="people" />
+          </TitleRow>
         </div>
-        <Button size="sm" variant="outline" onClick={load} disabled={loading}><RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} /> Refresh</Button>
+        <div className="flex items-center gap-2">
+          <StatsToggle shown={showStats} onToggle={toggleStats} />
+          <Button size="sm" variant="outline" onClick={load} disabled={loading}><RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} /> Refresh</Button>
+        </div>
       </div>
 
       <div className="p-5">
         {/* Counts */}
-        <div className="mb-4 flex gap-3 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&>*]:min-w-[42%] [&>*]:shrink-0 lg:grid lg:grid-cols-4 lg:overflow-visible lg:pb-0 lg:[&>*]:min-w-0 [&::-webkit-scrollbar]:hidden">
+        {showStats && <div className="mb-4 flex gap-3 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&>*]:min-w-[42%] [&>*]:shrink-0 lg:grid lg:grid-cols-4 lg:overflow-visible lg:pb-0 lg:[&>*]:min-w-0 [&::-webkit-scrollbar]:hidden">
           {tiles.map((t) => (
             <div key={t.label} className="rounded-xl border border-border bg-card px-4 py-3">
               <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"><t.icon className={cn("h-3.5 w-3.5", t.tint)} />{t.label}</div>
               <div className="mt-1 text-2xl font-semibold tabular-nums">{counts ? t.value : "—"}</div>
             </div>
           ))}
-        </div>
+        </div>}
 
         {/* Public page URLs */}
         <div className="mb-4 rounded-xl border border-border bg-card p-3">
@@ -143,7 +152,6 @@ export function MessagingConsentClient() {
           <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value as typeof typeFilter)} className="h-9 rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-accent">
             <option value="all">All records</option><option value="contact">Contacts</option><option value="user">Users</option><option value="lead">Leads</option>
           </select>
-          <span className="text-xs text-muted-foreground">{filtered.length} people</span>
         </div>
 
         {/* Bulk bar */}

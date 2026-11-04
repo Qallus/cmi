@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { StatsToggle, useStatsVisible } from "@/components/ui/page-header-bits";
 import type { BusinessCard } from "@/lib/business-cards/types";
 import type { CardAnalytics } from "@/lib/business-cards/data";
 
@@ -17,6 +18,7 @@ export function CardAnalyticsView({ card, onClose }: { card: BusinessCard; onClo
   const [range, setRange] = React.useState(30);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const { shown: showStats, toggle: toggleStats } = useStatsVisible("business-card-analytics");
 
   React.useEffect(() => {
     let cancelled = false;
@@ -54,6 +56,7 @@ export function CardAnalyticsView({ card, onClose }: { card: BusinessCard; onClo
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <StatsToggle shown={showStats} onToggle={toggleStats} />
           <div className="flex items-center rounded-lg border border-border bg-card p-0.5 text-xs">
             {[7, 30, 90].map((r) => (
               <button key={r} onClick={() => setRange(r)} className={cn("rounded-md px-3 py-1.5 font-medium", range === r ? "bg-accent/15 text-accent" : "text-muted-foreground")}>{r}d</button>
@@ -67,14 +70,14 @@ export function CardAnalyticsView({ card, onClose }: { card: BusinessCard; onClo
         {error && <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
 
         {/* Tiles */}
-        <div className="mb-5 flex snap-x gap-3 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] sm:grid sm:grid-cols-4 sm:overflow-visible sm:pb-0 xl:grid-cols-8 [&::-webkit-scrollbar]:hidden">
+        {showStats && <div className="mb-5 flex snap-x gap-3 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] sm:grid sm:grid-cols-4 sm:overflow-visible sm:pb-0 xl:grid-cols-8 [&::-webkit-scrollbar]:hidden">
           {tiles.map((t) => (
             <div key={t.label} className="min-w-[42%] shrink-0 snap-start rounded-xl border border-border bg-card px-4 py-3 sm:min-w-0">
               <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"><t.icon className={cn("h-3.5 w-3.5", t.tint)} />{t.label}</div>
               <div className="mt-1 text-2xl font-semibold tabular-nums">{loading ? "—" : (t.value ?? 0)}</div>
             </div>
           ))}
-        </div>
+        </div>}
 
         <div className="grid gap-5 lg:grid-cols-[1fr_360px]">
           {/* Activity chart */}

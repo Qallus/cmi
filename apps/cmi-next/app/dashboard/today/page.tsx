@@ -7,6 +7,7 @@ import { briefingSummary } from "@/lib/briefing/summary";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { CollapsibleStats, StatsProvider, StatsToggleButton } from "@/components/ui/page-header-bits";
 
 export const metadata = { title: "Today — CMI Dashboard" };
 export const dynamic = "force-dynamic";
@@ -20,11 +21,15 @@ export default async function TodayPage() {
   const t = briefing.tasks;
 
   return (
+    <StatsProvider pageKey="today">
     <div className="space-y-6 p-4 md:p-6">
-      <div>
-        <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Today · {briefing.dateLabel}</div>
-        <h1 className="mt-2 font-display text-2xl font-semibold tracking-tight">{briefing.greeting}, {briefing.staff.firstName}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Your meetings, tasks and what&apos;s waiting on you, in one place.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Today · {briefing.dateLabel}</div>
+          <h1 className="mt-2 font-display text-2xl font-semibold tracking-tight">{briefing.greeting}, {briefing.staff.firstName}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Your meetings, tasks and what&apos;s waiting on you, in one place.</p>
+        </div>
+        <StatsToggleButton />
       </div>
 
       {/* The AI summary streams in after the cards, so a slow model never holds up the page. */}
@@ -39,12 +44,14 @@ export default async function TodayPage() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Meetings" value={c.meetings} />
-        <Stat label="Overdue" value={c.overdue} alert />
-        <Stat label="Due today" value={c.dueToday} />
-        <Stat label="Waiting on you" value={c.attention} />
-      </div>
+      <CollapsibleStats>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Stat label="Meetings" value={c.meetings} />
+          <Stat label="Overdue" value={c.overdue} alert />
+          <Stat label="Due today" value={c.dueToday} />
+          <Stat label="Waiting on you" value={c.attention} />
+        </div>
+      </CollapsibleStats>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Section icon={CalendarClock} title="Today's meetings" count={c.meetings}>
@@ -73,6 +80,7 @@ export default async function TodayPage() {
         </Section>
       </div>
     </div>
+    </StatsProvider>
   );
 }
 

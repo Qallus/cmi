@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatsToggle, useStatsVisible } from "@/components/ui/page-header-bits";
 import { cn } from "@/lib/utils";
 import type { OverviewData } from "@/lib/overview/data";
 
@@ -98,6 +99,7 @@ function StatCardItem({ card }: { card: StatCard }) {
 export function OverviewClient({ data, demoMode, outlookCard = null }: { data: OverviewData; demoMode: boolean; outlookCard?: React.ReactNode }) {
   const { stats, recent, upcoming } = data;
 
+  const { shown: showStats, toggle: toggleStats } = useStatsVisible("overview");
   const statCards: StatCard[] = [
     { label: "Contacts", value: stats.contacts, icon: Users, href: "/dashboard/contacts" },
     { label: "Projects", value: stats.projects, icon: FolderKanban, href: "/dashboard/project-manager" },
@@ -115,12 +117,15 @@ export function OverviewClient({ data, demoMode, outlookCard = null }: { data: O
 
   return (
     <div className="space-y-6 p-4 md:p-6">
-      <div>
-        <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Dashboard</div>
-        <h1 className="mt-2 font-display text-2xl font-semibold tracking-tight">Overview</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          A snapshot of your business across all sections.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Dashboard</div>
+          <h1 className="mt-2 font-display text-2xl font-semibold tracking-tight">Overview</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            A snapshot of your business across all sections.
+          </p>
+        </div>
+        <StatsToggle shown={showStats} onToggle={toggleStats} />
       </div>
 
       {demoMode && (
@@ -132,11 +137,13 @@ export function OverviewClient({ data, demoMode, outlookCard = null }: { data: O
       )}
 
       {/* Stats — horizontal slider on mobile, grid on larger screens */}
-      <div className="flex snap-x gap-3 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] sm:grid sm:grid-cols-3 sm:overflow-visible sm:pb-0 lg:grid-cols-4 [&::-webkit-scrollbar]:hidden">
-        {statCards.map((card) => (
-          <StatCardItem key={card.label} card={card} />
-        ))}
-      </div>
+      {showStats && (
+        <div className="flex snap-x gap-3 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] sm:grid sm:grid-cols-3 sm:overflow-visible sm:pb-0 lg:grid-cols-4 [&::-webkit-scrollbar]:hidden">
+          {statCards.map((card) => (
+            <StatCardItem key={card.label} card={card} />
+          ))}
+        </div>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-3">
         {/* Recent activity */}

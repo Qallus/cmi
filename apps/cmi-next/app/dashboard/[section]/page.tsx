@@ -1,6 +1,7 @@
 import { ArrowRight, Construction } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { CollapsibleStats, StatsProvider, StatsToggleButton } from "@/components/ui/page-header-bits";
 
 const pages: Record<string, { title: string; eyebrow: string; description: string; stats: string[] }> = {
   overview: {
@@ -100,6 +101,7 @@ export default async function DashboardSectionPage({ params }: { params: Promise
   const page = pages[section] || pages.overview;
 
   return (
+    <StatsProvider pageKey={`section-${section}`}>
     <div className="space-y-5 p-4 md:p-6">
       <header className="flex items-start justify-between gap-4">
         <div>
@@ -107,23 +109,28 @@ export default async function DashboardSectionPage({ params }: { params: Promise
           <h1 className="mt-2 font-display text-2xl font-semibold tracking-tight">{page.title}</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">{page.description}</p>
         </div>
-        <Button variant="outline" size="sm">
-          Planned
-          <ArrowRight className="h-3.5 w-3.5" />
-        </Button>
+        <div className="flex items-center gap-2">
+          <StatsToggleButton />
+          <Button variant="outline" size="sm">
+            Planned
+            <ArrowRight className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       </header>
 
-      <section className="grid gap-3 md:grid-cols-4">
-        {page.stats.map(stat => (
-          <Card key={stat}>
-            <CardContent className="p-4">
-              <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{stat}</div>
-              <div className="mt-3 text-2xl font-semibold">0</div>
-              <div className="mt-2 text-xs text-muted-foreground">Migration placeholder</div>
-            </CardContent>
-          </Card>
-        ))}
-      </section>
+      <CollapsibleStats>
+        <section className="grid gap-3 md:grid-cols-4">
+          {page.stats.map(stat => (
+            <Card key={stat}>
+              <CardContent className="p-4">
+                <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{stat}</div>
+                <div className="mt-3 text-2xl font-semibold">0</div>
+                <div className="mt-2 text-xs text-muted-foreground">Migration placeholder</div>
+              </CardContent>
+            </Card>
+          ))}
+        </section>
+      </CollapsibleStats>
 
       <Card>
         <CardHeader>
@@ -142,5 +149,6 @@ export default async function DashboardSectionPage({ params }: { params: Promise
         </CardContent>
       </Card>
     </div>
+    </StatsProvider>
   );
 }

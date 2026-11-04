@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Select, Textarea } from "@/components/ui/input";
 import { cn, initials } from "@/lib/utils";
+import { StatsToggle, useStatsVisible } from "@/components/ui/page-header-bits";
 import type { AppointmentStatus, AppointmentType, BookingAppointment, BookingData, BookingEventPage, BookingInput, BookingSlot } from "@/lib/booking/types";
 
 type Draft = Partial<BookingInput>;
@@ -276,6 +277,7 @@ function eventPageToDraft(page: BookingEventPage): EventDraft {
 export function BookingsClient({ initialData, demoMode, setupMessage }: { initialData: BookingData; demoMode: boolean; setupMessage?: string }) {
   const [data, setData] = React.useState(initialData);
   const [mode, setMode] = React.useState<ViewMode>("list");
+  const { shown: showStats, toggle: toggleStats } = useStatsVisible("bookings");
   const [search, setSearch] = React.useState("");
   const [status, setStatus] = React.useState("all");
   const [selected, setSelected] = React.useState<BookingAppointment | null>(initialData.appointments[0] || null);
@@ -424,6 +426,7 @@ export function BookingsClient({ initialData, demoMode, setupMessage }: { initia
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <StatsToggle shown={showStats} onToggle={toggleStats} className="self-center" />
           <Button variant="outline" onClick={() => window.open("/book", "_blank")}>
             Public Booking
           </Button>
@@ -439,7 +442,7 @@ export function BookingsClient({ initialData, demoMode, setupMessage }: { initia
 
       {notice ? <div className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">{notice}</div> : null}
 
-      <section className="flex snap-x gap-3 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] md:grid md:grid-cols-3 md:overflow-visible md:pb-0 xl:grid-cols-6 [&::-webkit-scrollbar]:hidden">
+      {showStats && <section className="flex snap-x gap-3 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] md:grid md:grid-cols-3 md:overflow-visible md:pb-0 xl:grid-cols-6 [&::-webkit-scrollbar]:hidden">
         {[
           ["Total", metrics.total],
           ["Upcoming", metrics.upcoming],
@@ -455,7 +458,7 @@ export function BookingsClient({ initialData, demoMode, setupMessage }: { initia
             </CardContent>
           </Card>
         ))}
-      </section>
+      </section>}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex rounded-md border border-border bg-card p-1">

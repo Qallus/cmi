@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { AgentTrainingPanel } from "@/components/dashboard/agent-training-panel";
 import { PaperclipPanel } from "@/components/dashboard/paperclip-panel";
+import { StatsToggle, useStatsVisible } from "@/components/ui/page-header-bits";
 import type { PendingAction, ToolActivity } from "@/lib/agent/types";
 import { PunchConfirmCard } from "@/components/punch/punch-confirm-card";
 
@@ -44,6 +45,8 @@ export function AgentClient({ configured }: { configured: boolean }) {
   const [copied, setCopied] = React.useState(false);
   const [actionStatus, setActionStatus] = React.useState<Record<string, ActionStatus>>({});
   const [tab, setTab] = React.useState<"chat" | "paperclip" | "training">("chat");
+  // The Paperclip tab's stat cards can be hidden from the header.
+  const { shown: showPaperclipStats, toggle: togglePaperclipStats } = useStatsVisible("agent-paperclip");
   const bottomRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, loading]);
@@ -139,6 +142,7 @@ export function AgentClient({ configured }: { configured: boolean }) {
             <button type="button" onClick={() => setTab("training")} className={cn("inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium transition", tab === "training" ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground")}><BookOpen className="h-3.5 w-3.5" /> Training</button>
             <button type="button" onClick={() => setTab("paperclip")} className={cn("inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium transition", tab === "paperclip" ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground")}><Workflow className="h-3.5 w-3.5" /> Paperclip</button>
           </div>
+          {tab === "paperclip" && <StatsToggle shown={showPaperclipStats} onToggle={togglePaperclipStats} />}
           {tab === "chat" && messages.length > 0 && (
             <>
               <Button size="sm" variant="outline" onClick={handleCopy}>
@@ -172,7 +176,7 @@ export function AgentClient({ configured }: { configured: boolean }) {
             </a>
           </div>
           <div className="min-h-0 flex-1 overflow-hidden">
-            <PaperclipPanel />
+            <PaperclipPanel showStats={showPaperclipStats} />
           </div>
         </div>
       ) : (

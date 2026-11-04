@@ -6,6 +6,7 @@ import { BadgeDollarSign, CalendarClock, Clock, Contact, FileSignature, FileText
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { StatsToggle, useStatsVisible } from "@/components/ui/page-header-bits";
 import type { JobWithRelations, JobStatus, JobInternalUser, JobStats } from "@/lib/jobs/types";
 import { JobStatusBadge, money, formatDate } from "../../job-ui";
 import { JobDetailNav } from "../job-detail-nav";
@@ -31,6 +32,7 @@ export function JobSummaryClient({ job, stats, forecast = null, feed = null }: {
   const [team, setTeam] = React.useState<JobInternalUser[]>(job.internal_users.filter((u) => u.user));
   const [manual, setManual] = React.useState<Record<LeadRole, string | null>>({ "Project Manager": job.project_manager, Superintendent: job.superintendent });
   const [addRole, setAddRole] = React.useState<LeadRole | null>(null);
+  const { shown: showStats, toggle: toggleStats } = useStatsVisible("job-summary");
   const sortedTeam = [...team].sort((a, b) => ROLE_ORDER[jobTeamRole(a.role)] - ROLE_ORDER[jobTeamRole(b.role)]);
 
   async function addTeamMember(staff: StaffOption, role: LeadRole) {
@@ -55,9 +57,9 @@ export function JobSummaryClient({ job, stats, forecast = null, feed = null }: {
 
       <div className="flex-1 overflow-auto p-4 md:p-6">
         {/* Stat tiles aligned with the job — each links into its area */}
-        <JobStatsRow stats={stats} jobId={job.id} />
+        {showStats && <JobStatsRow stats={stats} jobId={job.id} />}
 
-        <div className="mt-4 grid gap-4 lg:grid-cols-3">
+        <div className={cn("grid gap-4 lg:grid-cols-3", showStats && "mt-4")}>
           {/* Summary card — job identity now lives here (moved out of the header) */}
           <div className="space-y-4 lg:col-span-1">
             <div className="rounded-lg border border-border bg-card p-4">
@@ -66,9 +68,13 @@ export function JobSummaryClient({ job, stats, forecast = null, feed = null }: {
                   <h1 className="font-display text-xl font-semibold tracking-tight">{job.job_name}</h1>
                   <JobStatusBadge status={job.status as JobStatus} />
                 </div>
-                <Link href={`/dashboard/jobs/${job.id}/info`}>
-                  <Button size="sm" variant="outline"><Pencil className="h-3.5 w-3.5" /> Edit Job</Button>
-                </Link>
+                <div className="flex items-center gap-2">
+                  {/* Hides the stat tiles above (remembered per person). */}
+                  <StatsToggle shown={showStats} onToggle={toggleStats} />
+                  <Link href={`/dashboard/jobs/${job.id}/info`}>
+                    <Button size="sm" variant="outline"><Pencil className="h-3.5 w-3.5" /> Edit Job</Button>
+                  </Link>
+                </div>
               </div>
               <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                 <span className="font-mono">{job.job_number ?? "—"}</span>

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Select, Textarea } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { StatsToggle, useStatsVisible } from "@/components/ui/page-header-bits";
 import type { Product, ProjectSelection, SelectionsData } from "@/lib/selections/types";
 import { SelectionCardModal } from "@/components/selections/selection-card-modal";
 
@@ -189,6 +190,7 @@ export function SelectionsClient({ initialData, demoMode = false, setupMessage }
   const [selectionDraft, setSelectionDraft] = React.useState<SelectionDraft | null>(null);
   const [shareDraft, setShareDraft] = React.useState<ShareDraft | null>(null);
   const [view, setView] = React.useState<"selections" | "catalog">("selections");
+  const { shown: showStats, toggle: toggleStats } = useStatsVisible("selections");
   const [projectFilter, setProjectFilter] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState("");
   const [search, setSearch] = React.useState("");
@@ -420,6 +422,7 @@ export function SelectionsClient({ initialData, demoMode = false, setupMessage }
           <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">Manage project products, rooms, vendors, approvals, procurement, install status, allowances, and related schedule tasks.</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <StatsToggle shown={showStats} onToggle={toggleStats} className="self-center" />
           <label className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-md border border-border px-3 text-sm font-medium hover:bg-muted">
             <Upload className="h-4 w-4" />
             Product CSV
@@ -447,14 +450,14 @@ export function SelectionsClient({ initialData, demoMode = false, setupMessage }
       {notice ? <div className="rounded-md border border-border bg-card px-4 py-3 text-sm text-muted-foreground">{notice}</div> : null}
       {viewing ? <SelectionCardModal selection={viewing} onClose={() => setViewing(null)} /> : null}
 
-      <section className="flex snap-x gap-3 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] md:grid md:grid-cols-3 md:overflow-visible md:pb-0 xl:grid-cols-6 [&::-webkit-scrollbar]:hidden">
+      {showStats && <section className="flex snap-x gap-3 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] md:grid md:grid-cols-3 md:overflow-visible md:pb-0 xl:grid-cols-6 [&::-webkit-scrollbar]:hidden">
         <MetricCard label="Total Selections" value={String(selections.length)} sub={`${products.length} catalog products`} />
         <MetricCard label="Pending Approval" value={String(metrics.pendingApproval)} sub="Client action needed" tone="warning" />
         <MetricCard label="Approved" value={String(metrics.approved)} sub="Client or internal" tone="success" />
         <MetricCard label="Over Budget" value={String(metrics.overBudget)} sub="Allowance review" tone="danger" />
         <MetricCard label="Ordered" value={String(metrics.ordered)} sub="Procurement active" />
         <MetricCard label="Installed" value={String(metrics.installed)} sub={`${metrics.delivered} delivered`} />
-      </section>
+      </section>}
 
       <Card>
         <CardHeader>

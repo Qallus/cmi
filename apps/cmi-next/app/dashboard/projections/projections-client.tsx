@@ -5,6 +5,7 @@ import Link from "next/link";
 import { AlertTriangle, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, FileDown, Grid3x3, LayoutGrid, List, Map as MapIcon, Plus, Settings2, Table2, Upload, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { StatsToggle, useStatsVisible } from "@/components/ui/page-header-bits";
 import { cn, formatMoney } from "@/lib/utils";
 import { addMonths, filterRows, monthLabel, monthOf, NO_FILTERS, summarize, type ProjectionFilters } from "@/lib/projections/calc";
 import { ACTIVE_JOB_STATUSES, PROJECTION_STATUS_META, type ProjectionBoard, type ProjectionRow, type ProjectionStatus, type AddableJob } from "@/lib/projections/types";
@@ -49,6 +50,7 @@ export function ProjectionsClient({ initialBoard, initialSettings, initialAction
     : null);
   const [importing, setImporting] = React.useState(false);
   const [menu, setMenu] = React.useState<"add" | "settings" | null>(null);
+  const { shown: showStats, toggle: toggleStats } = useStatsVisible("projections");
   const [view, setView] = React.useState<ViewKey>("grid");
   const [filters, setFilters] = React.useState<ProjectionFilters>(NO_FILTERS);
   const [editing, setEditing] = React.useState<Editing>(null);
@@ -116,6 +118,7 @@ export function ProjectionsClient({ initialBoard, initialSettings, initialAction
             <p className="mt-1 text-sm text-muted-foreground">12-month revenue forecast · {windowLabel}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <StatsToggle shown={showStats} onToggle={toggleStats} />
             <div className="flex items-center overflow-hidden rounded-md border border-border">
               <button type="button" aria-label="Previous month" disabled={loading} onClick={() => void load(addMonths(start, -1))} className="px-2 py-1.5 text-muted-foreground hover:text-foreground disabled:opacity-50"><ChevronLeft className="h-4 w-4" /></button>
               <button type="button" disabled={loading || start === board.currentMonth} onClick={() => void load(board.currentMonth)} className="border-x border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground disabled:opacity-50">This month</button>
@@ -149,14 +152,14 @@ export function ProjectionsClient({ initialBoard, initialSettings, initialAction
           </div>
         )}
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        {showStats && <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           <Tile label="12-Mo Projected" value={formatMoney(summary.projected12)} />
           <Tile label="12-Mo Actual" value={shown.anyActuals ? formatMoney(summary.actual12) : "—"} sub={shown.anyActuals ? undefined : "No billing recorded"} />
           <Tile label="Variance to Date" value={summary.varianceToDate === null ? "—" : formatMoney(summary.varianceToDate)} tone={summary.varianceToDate === null ? undefined : summary.varianceToDate < 0 ? "danger" : "success"} />
           <Tile label="Remaining Backlog" value={formatMoney(summary.remainingBacklog)} sub={`${formatMoney(summary.contractedBacklog, { compact: true })} contracted · ${formatMoney(summary.potentialBacklog, { compact: true })} potential`} />
           <Tile label="Beyond Window" value={formatMoney(summary.beyondBacklog)} sub={Object.keys(shown.beyondTotals).length ? Object.entries(shown.beyondTotals).map(([y, v]) => `${y}: ${formatMoney(v, { compact: true })}`).join(" · ") : "Nothing scheduled later"} />
           <Tile label="Projects" value={String(summary.activeProjects)} sub={`${summary.startingSoon} starting · ${summary.endingSoon} ending in 30 days`} />
-        </div>
+        </div>}
 
         {board.rows.length > 0 && (
           <div className="flex flex-wrap items-center gap-2">

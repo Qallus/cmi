@@ -51,7 +51,7 @@ function when(iso: string | null | undefined): string {
   return `${Math.round(hrs / 24)}d ago`;
 }
 
-export function PaperclipPanel() {
+export function PaperclipPanel({ showStats = true }: { showStats?: boolean } = {}) {
   const [data, setData] = React.useState<Overview | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -94,13 +94,13 @@ export function PaperclipPanel() {
   return (
     <div className="h-full space-y-4 overflow-y-auto">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap gap-2">
+        {showStats ? <div className="flex flex-wrap gap-2">
           <Stat label="Agents" value={data.agents.length} />
           <Stat label="Working" value={running} tone={running > 0 ? "accent" : undefined} />
           <Stat label="Errored" value={errored} tone={errored > 0 ? "danger" : undefined} />
           <Stat label="Open tasks" value={data.issues.length} />
           <Stat label="Awaiting approval" value={openApprovals} tone={openApprovals > 0 ? "accent" : undefined} />
-        </div>
+        </div> : <span />}
         <div className="flex items-center gap-2">
           <Button size="sm" variant="outline" onClick={() => void load()} disabled={loading}>
             {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />} Refresh

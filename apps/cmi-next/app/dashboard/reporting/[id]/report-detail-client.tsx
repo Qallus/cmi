@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { CountPill, TitleRow } from "@/components/ui/page-header-bits";
 import { Input, Select, Textarea } from "@/components/ui/input";
 import type { ReportActionItem, ReportDetail, ReportItem, ReportSection } from "@/lib/reporting/types";
 
@@ -96,9 +97,12 @@ export function ReportDetailClient({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Weekly workload meeting</div>
-            <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight">{report.title}</h1>
+            <TitleRow>
+              <h1 className="font-display text-2xl font-semibold tracking-tight">{report.title}</h1>
+              <CountPill count={totals.items} noun="item" />
+            </TitleRow>
             <p className="mt-1 text-sm text-muted-foreground">
-              {fmtDate(report.meeting_date)} · {totals.items} items · {totals.open} of {totals.actions} action items open
+              {fmtDate(report.meeting_date)} · {totals.open} of {totals.actions} action items open
               {report.compare_since && <> · changes since {fmtDate(report.compare_since)}</>}
             </p>
           </div>

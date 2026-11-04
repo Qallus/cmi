@@ -18,6 +18,7 @@ import type { ContactSubmission, ContactSubmissionStatus } from "@/lib/contact-s
 import { TemplateManager } from "@/components/email-builder/template-manager";
 import { PrintManager } from "@/components/print-builder/print-manager";
 import { ComposeDialog, type ComposeInit } from "@/components/communications/compose-dialog";
+import { StatsToggle, useStatsVisible } from "@/components/ui/page-header-bits";
 import { CallsWorkspace } from "./calls-workspace";
 import { SUBMISSION_ORDER_KEY } from "./submissions/[id]/submission-detail-client";
 
@@ -139,6 +140,8 @@ export function CommunicationsClient({
   const [messages, setMessages] = React.useState<Message[]>(initialMessages);
   const [submissions, setSubmissions] = React.useState<ContactSubmission[]>(initialSubmissions);
   const [tab, setTab] = React.useState<Tab>("all");
+  // The Calls tab's stat cards can be hidden from the header (remembered per person).
+  const { shown: showCallStats, toggle: toggleCallStats } = useStatsVisible("communications-calls");
   // Deep-open a panel from the mobile quick-nav, e.g. ?panel=dialer / ?panel=email.
   const [newPrint, setNewPrint] = React.useState(false);
   React.useEffect(() => {
@@ -388,6 +391,7 @@ export function CommunicationsClient({
           <h1 className="mt-0.5 font-display text-2xl font-semibold tracking-tight">Communications</h1>
         </div>
         <div className="flex items-center gap-2">
+          {tab === "call" ? <StatsToggle shown={showCallStats} onToggle={toggleCallStats} /> : null}
           <Button size="sm" variant="outline" onClick={() => setTab("call")}>
             <Phone className="h-3.5 w-3.5" /> New Call
           </Button>
@@ -440,7 +444,7 @@ export function CommunicationsClient({
           <PrintManager startNew={newPrint} />
         </div>
       ) : tab === "call" ? (
-        <CallsWorkspace onSmsTo={composeSmsTo} />
+        <CallsWorkspace onSmsTo={composeSmsTo} showStats={showCallStats} />
       ) : tab === "contact_form" ? (
         <div className="flex flex-1 overflow-hidden">
           <div className="flex-1 overflow-y-auto">

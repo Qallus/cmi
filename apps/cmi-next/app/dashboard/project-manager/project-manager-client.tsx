@@ -43,6 +43,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Select, Textarea } from "@/components/ui/input";
 import { addDays, cn, dateOnly, daysBetween, initials } from "@/lib/utils";
+import { CountPill, StatsToggle, TitleRow, useStatsVisible } from "@/components/ui/page-header-bits";
 import type { DependencyType, ProjectManagerData, ProjectScheduleDependency, ProjectScheduleItem, ProjectTemplate, ProjectTemplateTask, SchedulePriority, ScheduleStatus } from "@/lib/project-manager/types";
 
 type WebsiteEditStatus = "requested" | "in_progress" | "done";
@@ -381,6 +382,8 @@ export function ProjectManagerClient({ initialData, demoMode = false, boardId = 
   const [assetModal, setAssetModal] = React.useState<AssetModalState | null>(null);
   const [templateId, setTemplateId] = React.useState(templates[0]?.id || "");
   const [templateTitle, setTemplateTitle] = React.useState("Client Project Board 001");
+  // Embedded on a job's Projects & Tasks tab it remembers its own choice.
+  const { shown: showStats, toggle: toggleStats } = useStatsVisible(boardId === DEFAULT_BOARD_ID ? "project-manager" : "job-projects");
   const [templateStart, setTemplateStart] = React.useState(dateOnly(new Date()));
   const [saving, setSaving] = React.useState(false);
   const [notice, setNotice] = React.useState<string | null>(null);
@@ -1119,7 +1122,11 @@ export function ProjectManagerClient({ initialData, demoMode = false, boardId = 
       <header className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div>
           <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Project Management</div>
-          <h1 className="mt-2 font-display text-2xl font-semibold tracking-tight">Projects</h1>
+          <TitleRow className="mt-2">
+            <h1 className="font-display text-2xl font-semibold tracking-tight">Projects</h1>
+            {/* Items shown below (follows the filters). */}
+            <CountPill count={filteredItems.length} noun="item" />
+          </TitleRow>
         </div>
         <div className="flex flex-wrap justify-end gap-2">
           {filterOptions.projects.slice(0, 6).map(project => (
@@ -1135,6 +1142,7 @@ export function ProjectManagerClient({ initialData, demoMode = false, boardId = 
               {project} <span className="text-[10px]">({items.filter(item => (item.schedule_group_key || item.project_title || "Ungrouped Project") === project).length})</span>
             </button>
           ))}
+          <StatsToggle shown={showStats} onToggle={toggleStats} />
           <Button variant="accent" onClick={() => setSelected(emptyDraft())}>
             <Plus className="h-4 w-4" />
             New Task
@@ -1142,7 +1150,7 @@ export function ProjectManagerClient({ initialData, demoMode = false, boardId = 
         </div>
       </header>
 
-      <section className="grid gap-3 xl:grid-cols-[1.2fr_repeat(5,minmax(120px,1fr))]">
+      {showStats && <section className="grid gap-3 xl:grid-cols-[1.2fr_repeat(5,minmax(120px,1fr))]">
         <Card className="xl:col-span-1">
           <CardHeader>
             <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Project Management Overview</div>
@@ -1160,7 +1168,7 @@ export function ProjectManagerClient({ initialData, demoMode = false, boardId = 
         <MetricCard label="Progress" value={`${metrics.progress}%`} sub={`${metrics.complete} complete, ${metrics.inProgress} active`} />
         <MetricCard label="Milestones" value={String(filteredItems.filter(item => item.type === "milestone").length)} sub={`${dependencies.length} dependency links`} />
         <MetricCard label="Client Visible" value={String(metrics.clientVisible)} sub="Shared timeline items" />
-      </section>
+      </section>}
 
       <div className="flex max-w-full gap-0.5 overflow-x-auto rounded-md border border-border bg-muted p-1 [-ms-overflow-style:none] [scrollbar-width:none] sm:inline-flex [&::-webkit-scrollbar]:hidden">
         {viewTabs.map(tab => {
@@ -1227,7 +1235,6 @@ export function ProjectManagerClient({ initialData, demoMode = false, boardId = 
             <Button size="sm" variant={filters.quick === "day" ? "accent" : "outline"} onClick={() => setFilters(current => ({ ...current, quick: current.quick === "day" ? null : "day" }))}>Day</Button>
             <Button size="sm" variant={filters.quick === "dependencies" ? "accent" : "outline"} onClick={() => setFilters(current => ({ ...current, quick: current.quick === "dependencies" ? null : "dependencies" }))}>Dependencies</Button>
             <Button size="sm" variant={filters.quick === "client_visible" ? "accent" : "outline"} onClick={() => setFilters(current => ({ ...current, quick: current.quick === "client_visible" ? null : "client_visible" }))}>Client View</Button>
-            <Badge>{filteredItems.length} shown</Badge>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">

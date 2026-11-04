@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AlertTriangle, Camera, Check, Clock, CloudSun, Eye, Lock, Mic, NotebookPen, Plus, Search, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { CountPill, TitleRow } from "@/components/ui/page-header-bits";
 import { Button } from "@/components/ui/button";
 import { AddDailyLogDialog } from "@/components/dashboard/add-daily-log";
 import { LogNotes } from "@/components/dashboard/log-notes";
@@ -58,7 +59,11 @@ export function AllDailyLogsClient({ logs }: { logs: DailyLogWithJob[] }) {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Jobs</div>
-            <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight">Daily Logs</h1>
+            <TitleRow>
+              <h1 className="font-display text-2xl font-semibold tracking-tight">Daily Logs</h1>
+              {/* Logs shown below (follows search and filters). */}
+              <CountPill count={filtered.length} noun="log" />
+            </TitleRow>
             <p className="mt-1 text-sm text-muted-foreground">Every Job and Pre-Con daily log in one place.</p>
           </div>
           <Button variant="accent" onClick={() => setAdding(true)}><Plus className="h-4 w-4" /> Add Log</Button>
@@ -81,7 +86,6 @@ export function AllDailyLogsClient({ logs }: { logs: DailyLogWithJob[] }) {
             <input type="checkbox" checked={delaysOnly} onChange={(e) => setDelaysOnly(e.target.checked)} className="h-4 w-4 accent-[var(--accent)]" />
             Only logs with delays
           </label>
-          <span className="ml-auto text-xs text-muted-foreground">{filtered.length} log{filtered.length === 1 ? "" : "s"}</span>
         </div>
 
         {flash && <p className="flex items-center gap-1.5 rounded-md bg-accent/10 px-3 py-2 text-sm font-medium text-accent"><Check className="h-4 w-4" /> {flash}</p>}

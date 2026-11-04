@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, Textarea, Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { CountPill, StatsToggle, TitleRow, useStatsVisible } from "@/components/ui/page-header-bits";
 import {
   ALL_STAGES, ALLOWED_TRANSITIONS, STAGE_META, requiredFieldsForStage,
 } from "@/lib/pipeline/stages";
@@ -130,6 +131,7 @@ export function PipelineClient({
   const [error, setError] = React.useState<string | null>(null);
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [importOpen, setImportOpen] = React.useState(false);
+  const { shown: showStats, toggle: toggleStats } = useStatsVisible("sales-pipeline");
   const [showArchived, setShowArchived] = React.useState(false);
 
   // Refresh the list + report from the server after a mutation.
@@ -260,12 +262,16 @@ export function PipelineClient({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Sales</div>
-            <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight">Sales Pipeline</h1>
+            <TitleRow>
+              <h1 className="font-display text-2xl font-semibold tracking-tight">Sales Pipeline</h1>
+              <CountPill count={opps.length} noun="opportunity" plural="opportunities" />
+            </TitleRow>
             <p className="mt-1 text-sm text-muted-foreground">
-              {opps.length} opportunities · Opportunity → Active Budget → Pre-Con → Active Project → Warranty → Closed
+              Opportunity → Active Budget → Pre-Con → Active Project → Warranty → Closed
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <StatsToggle shown={showStats} onToggle={toggleStats} />
             <div className="flex overflow-hidden rounded-md border border-border">
               <button type="button" onClick={() => setView("table")} className={cn("flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium", view === "table" ? "bg-accent/15 text-accent" : "text-muted-foreground hover:text-foreground")}>
                 <TableIcon className="h-3.5 w-3.5" /> Table
@@ -283,7 +289,7 @@ export function PipelineClient({
         </div>
 
         {/* Reporting strip */}
-        <ReportingStrip report={report} />
+        {showStats && <ReportingStrip report={report} />}
 
         {/* Stage tabs */}
         <div className="mt-3 flex flex-wrap gap-1.5">

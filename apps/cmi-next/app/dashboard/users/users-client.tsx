@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Select, Textarea } from "@/components/ui/input";
 import { cn, initials } from "@/lib/utils";
+import { StatsToggle, useStatsVisible } from "@/components/ui/page-header-bits";
 import type { ManagedUser, UserInput, UserRole, UsersData, UserStatus } from "@/lib/users/types";
 import { STAFF_JOB_ROLES } from "@/lib/jobs/team-roles";
 
@@ -81,6 +82,7 @@ export function UsersClient({ initialData, demoMode, setupMessage }: { initialDa
   const [usersState, setUsersState] = React.useState(initialData.users);
   const [search, setSearch] = React.useState("");
   const [roleFilter, setRoleFilter] = React.useState("all");
+  const { shown: showStats, toggle: toggleStats } = useStatsVisible("users");
   const [statusFilter, setStatusFilter] = React.useState("all");
   const [selected, setSelected] = React.useState<ManagedUser | null>(initialData.users[0] || null);
   const [draft, setDraft] = React.useState<Draft | null>(null);
@@ -182,6 +184,7 @@ export function UsersClient({ initialData, demoMode, setupMessage }: { initialDa
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <StatsToggle shown={showStats} onToggle={toggleStats} className="self-center" />
           <Button variant="outline" onClick={() => setDraft(emptyDraft("client"))}>
             <UserPlus className="h-4 w-4" />
             Invite User
@@ -199,7 +202,7 @@ export function UsersClient({ initialData, demoMode, setupMessage }: { initialDa
         </div>
       ) : null}
 
-      <section className="grid gap-3 md:grid-cols-4 xl:grid-cols-8">
+      {showStats && <section className="grid gap-3 md:grid-cols-4 xl:grid-cols-8">
         {[
           ["Total Users", metrics.total],
           ["Active", metrics.active],
@@ -217,7 +220,7 @@ export function UsersClient({ initialData, demoMode, setupMessage }: { initialDa
             </CardContent>
           </Card>
         ))}
-      </section>
+      </section>}
 
       <section className="grid gap-4 xl:grid-cols-[1fr_420px]">
         <Card>

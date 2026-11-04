@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PhotoField } from "@/components/ui/photo-field";
 import { cn } from "@/lib/utils";
+import { CountPill, TitleRow } from "@/components/ui/page-header-bits";
 import type { TeamMember, TeamMemberDraft } from "@/lib/team/types";
 
 type ViewMode = "grid" | "list" | "table" | "kanban";
@@ -245,8 +246,10 @@ export function TeamClient({ initialMembers }: { initialMembers: TeamMember[] })
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">People</div>
-          <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight">Team</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{active.length} active member{active.length !== 1 ? "s" : ""}</p>
+          <TitleRow>
+            <h1 className="font-display text-2xl font-semibold tracking-tight">Team</h1>
+            <CountPill count={active.length} noun="active member" />
+          </TitleRow>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex rounded-md border border-border bg-card p-0.5">

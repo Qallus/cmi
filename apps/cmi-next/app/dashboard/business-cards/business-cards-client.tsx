@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { StatsToggle, useStatsVisible } from "@/components/ui/page-header-bits";
 import type { BusinessCard, CardStats } from "@/lib/business-cards/types";
 import type { StaffOption } from "@/lib/business-cards/data";
 import { CardBuilder } from "./card-builder";
@@ -45,6 +46,7 @@ export function BusinessCardsClient() {
   const [editing, setEditing] = React.useState<BusinessCard | "new" | null>(null);
   const [analyticsCard, setAnalyticsCard] = React.useState<BusinessCard | null>(null);
   const [copied, setCopied] = React.useState<string | null>(null);
+  const { shown: showStats, toggle: toggleStats } = useStatsVisible("business-cards");
 
   const load = React.useCallback(async (which: "mine" | "all") => {
     setLoading(true);
@@ -134,6 +136,7 @@ export function BusinessCardsClient() {
               <button onClick={() => setScope("all")} className={cn("flex items-center gap-1 rounded-md px-3 py-1.5 font-medium", scope === "all" ? "bg-accent/15 text-accent" : "text-muted-foreground")}><Users className="h-3.5 w-3.5" />All staff</button>
             </div>
           )}
+          {view === "cards" && <StatsToggle shown={showStats} onToggle={toggleStats} />}
           {view === "cards" && (
             <Button size="sm" variant="outline" onClick={() => load(scope)} disabled={loading}>
               <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} /> Refresh
@@ -174,7 +177,7 @@ export function BusinessCardsClient() {
       ) : (
       <div className="p-5">
         {/* Stats */}
-        <div className="mb-5 flex snap-x gap-3 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] sm:grid sm:grid-cols-4 sm:overflow-visible sm:pb-0 xl:grid-cols-8 [&::-webkit-scrollbar]:hidden">
+        {showStats && <div className="mb-5 flex snap-x gap-3 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] sm:grid sm:grid-cols-4 sm:overflow-visible sm:pb-0 xl:grid-cols-8 [&::-webkit-scrollbar]:hidden">
           {STAT_TILES.map((t) => (
             <div key={t.key} className="min-w-[42%] shrink-0 snap-start rounded-xl border border-border bg-card px-4 py-3 sm:min-w-0">
               <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{t.label}</div>
@@ -182,7 +185,7 @@ export function BusinessCardsClient() {
               <div className="mt-0.5 text-[10px] text-muted-foreground">{t.hint}</div>
             </div>
           ))}
-        </div>
+        </div>}
 
         {/* Status filter */}
         <div className="mb-4 flex items-center gap-2">

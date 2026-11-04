@@ -4,6 +4,7 @@ import * as React from "react";
 import { ClipboardCheck, Loader2, Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { CountPill, TitleRow } from "@/components/ui/page-header-bits";
 import { PARENT_LABEL, type PunchList, type PunchParentType } from "@/lib/punch/types";
 import { api, loadPunchMeta, type PunchMeta } from "@/components/punch/shared";
 import { PunchListCard } from "@/components/punch/punch-list-card";
@@ -57,8 +58,11 @@ export function PunchListsClient() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Project Management</div>
-          <h1 className="mt-1 flex items-center gap-2 font-display text-2xl font-semibold tracking-tight"><ClipboardCheck className="h-6 w-6 text-accent" /> Punch Lists</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{shown.length} list{shown.length === 1 ? "" : "s"} · {openItems} open item{openItems === 1 ? "" : "s"}</p>
+          <TitleRow>
+            <h1 className="flex items-center gap-2 font-display text-2xl font-semibold tracking-tight"><ClipboardCheck className="h-6 w-6 text-accent" /> Punch Lists</h1>
+            <CountPill count={shown.length} noun="list" />
+          </TitleRow>
+          <p className="mt-1 text-sm text-muted-foreground">{openItems} open item{openItems === 1 ? "" : "s"}</p>
         </div>
         {meta?.canWrite && <Button size="sm" variant="accent" onClick={() => setCreating(true)}><Plus className="h-3.5 w-3.5" /> New punch list</Button>}
       </div>

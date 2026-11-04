@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { StatsToggle, useStatsVisible } from "@/components/ui/page-header-bits";
 import { SiteContentClient } from "./site-content-client";
 import { NoteDetailModal } from "@/components/dashboard/note-detail-modal";
 import { ConfirmDeleteDialog } from "@/components/dashboard/confirm-delete-dialog";
@@ -74,6 +75,7 @@ export function SiteContentHub({ initialBlocks }: { initialBlocks: ContentBlock[
   // Resolved starts on its list view; the two active tabs default to cards.
   const [resolvedView, setResolvedView] = React.useState<View>("list");
   const [blocksOpen, setBlocksOpen] = React.useState(false);
+  const { shown: showStats, toggle: toggleStats } = useStatsVisible("site-content");
   const [detailId, setDetailId] = React.useState<string | null>(null);
   const [confirmDel, setConfirmDel] = React.useState<Req | null>(null);
 
@@ -163,14 +165,17 @@ export function SiteContentHub({ initialBlocks }: { initialBlocks: ContentBlock[
 
   return (
     <div className="p-4 md:p-6">
-      <div className="mb-5">
-        <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Website Hub</div>
-        <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight">Site Content</h1>
-        <p className="mt-1 text-sm text-muted-foreground">The gateway for all website updates — frontend pages and the dashboard. Review requests, edit content, and hand work to Bolt.</p>
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Website Hub</div>
+          <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight">Site Content</h1>
+          <p className="mt-1 text-sm text-muted-foreground">The gateway for all website updates — frontend pages and the dashboard. Review requests, edit content, and hand work to Bolt.</p>
+        </div>
+        {isSuperAdmin && <StatsToggle shown={showStats} onToggle={toggleStats} />}
       </div>
 
       {/* Stats */}
-      {isSuperAdmin && (
+      {isSuperAdmin && showStats && (
         <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           <Stat label="Total requests" value={stats.total} />
           <Stat label="Open" value={stats.open} tone="info" />

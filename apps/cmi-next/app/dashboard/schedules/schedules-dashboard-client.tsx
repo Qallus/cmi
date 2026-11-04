@@ -10,6 +10,7 @@ import { AddScheduleWizard, type ScheduleSource } from "@/components/schedules/a
 import { createScheduleFromWizard } from "@/components/schedules/create-schedule";
 import { Select } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { StatsToggle, useStatsVisible } from "@/components/ui/page-header-bits";
 import { HealthChip, TypeBadge, Progress, fmtDate, scheduleColor, VIEWS } from "@/components/schedules/shared";
 import { ListView } from "@/components/schedules/views/list-view";
 import { CalendarView } from "@/components/schedules/views/calendar-view";
@@ -42,6 +43,7 @@ export function SchedulesDashboardClient({ schedules, metrics, items, staff, job
   const [panel, setPanel] = React.useState<"status" | "health" | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [notice, setNotice] = React.useState<string | null>(null);
+  const { shown: showStats, toggle: toggleStats } = useStatsVisible("schedules");
   React.useEffect(() => {
     if (!wizardOpen || templates.length) return;
     fetch("/api/schedule-templates").then((r) => r.json()).then((d) => setTemplates(d.templates ?? [])).catch(() => {});
@@ -138,19 +140,22 @@ export function SchedulesDashboardClient({ schedules, metrics, items, staff, job
             <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Operations</div>
             <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight">Schedules</h1>
           </div>
-          {canEdit ? <Button variant="accent" size="sm" onClick={() => setWizardOpen(true)}><Plus className="h-3.5 w-3.5" /> Add Schedule</Button> : null}
+          <div className="flex items-center gap-2">
+            <StatsToggle shown={showStats} onToggle={toggleStats} />
+            {canEdit ? <Button variant="accent" size="sm" onClick={() => setWizardOpen(true)}><Plus className="h-3.5 w-3.5" /> Add Schedule</Button> : null}
+          </div>
         </div>
         {notice ? <div className="mt-2 flex items-center justify-between rounded-md bg-accent/10 px-3 py-1.5 text-xs text-accent"><span>{notice}</span><button type="button" onClick={() => setNotice(null)} className="font-medium">Dismiss</button></div> : null}
 
         {/* Metric cards — single slidable row on mobile */}
-        <div className="mt-3 flex snap-x gap-3 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] sm:grid sm:grid-cols-5 sm:overflow-visible sm:pb-0 [&::-webkit-scrollbar]:hidden [&>*]:min-w-[44%] [&>*]:shrink-0 sm:[&>*]:min-w-0">
+        {showStats && <div className="mt-3 flex snap-x gap-3 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] sm:grid sm:grid-cols-5 sm:overflow-visible sm:pb-0 [&::-webkit-scrollbar]:hidden [&>*]:min-w-[44%] [&>*]:shrink-0 sm:[&>*]:min-w-0">
           {metricCards.map((m) => (
             <div key={m.label} className="snap-start rounded-xl border border-border bg-card p-3">
               <div className="flex items-center justify-between"><span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{m.label}</span><m.icon className="h-4 w-4 text-accent" /></div>
               <div className="mt-1 font-display text-2xl font-semibold tabular-nums">{m.value}</div>
             </div>
           ))}
-        </div>
+        </div>}
 
         {/* Tabs + filters */}
         <div className="mt-3 flex flex-wrap items-center gap-2">

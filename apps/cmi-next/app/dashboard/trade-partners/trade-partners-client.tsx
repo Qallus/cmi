@@ -10,6 +10,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input, Select, Textarea } from "@/components/ui/input";
+import { StatsToggle, useStatsVisible } from "@/components/ui/page-header-bits";
 import { TRADES, SERVICE_AREAS } from "@/lib/prequal/form";
 import type { ApplicationRow } from "@/lib/prequal/review";
 import type { DirectoryRow, ComplianceItem } from "@/lib/companies/directory";
@@ -47,6 +48,8 @@ export function TradePartnersClient({
   canManageTemplates: boolean;
 }) {
   const [tab, setTab] = React.useState<Tab>("applications");
+  // Stat cards (this page's and the Interviews tab's) can be hidden from the header.
+  const { shown: showStats, toggle: toggleStats } = useStatsVisible("trade-partners");
 
   // Restore after the first paint, so the server and client markup match.
   React.useEffect(() => {
@@ -95,8 +98,9 @@ export function TradePartnersClient({
             Prequalification applications, the partner directory, and what&apos;s missing or expiring.
           </p>
         </div>
-        {tab === "directory" && (
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <StatsToggle shown={showStats} onToggle={toggleStats} />
+          {tab === "directory" && (<>
             {canDecide && (
               <Button size="sm" variant="outline" onClick={() => togglePanel("dupes")}>
                 <GitMerge className="h-3.5 w-3.5" /> Duplicates
@@ -113,16 +117,16 @@ export function TradePartnersClient({
                 <RefreshCw className="h-3.5 w-3.5" /> Requalify{dirSelected.size ? ` (${dirSelected.size})` : ""}
               </Button>
             )}
-          </div>
-        )}
+          </>)}
+        </div>
       </header>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {showStats && <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Stat icon={Inbox} label="Awaiting review" value={stats.awaiting_review ?? 0} tone="text-info" />
         <Stat icon={ClipboardList} label="In review" value={(stats.in_review ?? 0) + (stats.info_requested ?? 0)} tone="text-amber-600" />
         <Stat icon={ShieldCheck} label="Approved partners" value={stats.approved ?? 0} tone="text-emerald-600" />
         <Stat icon={FileWarning} label="Compliance items" value={stats.compliance_items ?? 0} tone="text-destructive" />
-      </div>
+      </div>}
 
       <div className="flex gap-1 rounded-lg border border-border bg-card p-1 text-sm">
         {([
@@ -167,6 +171,7 @@ export function TradePartnersClient({
           meId={meId}
           canManageTemplates={canManageTemplates}
           isSuperAdmin={isSuperAdmin}
+          showStats={showStats}
         />
       )}
       {tab === "compliance" && <Compliance initial={initialCompliance} />}

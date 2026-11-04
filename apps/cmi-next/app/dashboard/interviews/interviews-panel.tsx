@@ -37,13 +37,15 @@ const VIEWS: { value: ViewMode; label: string; icon: typeof List }[] = [
  * staff come in as props because Trade Partners already has them.
  */
 export function InterviewsPanel({
-  companies: initialCompanies, staff, meId, canManageTemplates, isSuperAdmin,
+  companies: initialCompanies, staff, meId, canManageTemplates, isSuperAdmin, showStats = true,
 }: {
   companies: CompanyOption[];
   staff: StaffOption[];
   meId: string;
   canManageTemplates: boolean;
   isSuperAdmin: boolean;
+  /** Collapsed from the host page's Hide stats toggle. */
+  showStats?: boolean;
 }) {
   const [companies, setCompanies] = React.useState(initialCompanies);
   const [rows, setRows] = React.useState<InterviewRow[] | null>(null);
@@ -123,13 +125,13 @@ export function InterviewsPanel({
         <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      {showStats && <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <Stat icon={CalendarClock} label="Upcoming" value={stats.upcoming ?? 0} tone="text-info" />
         <Stat icon={CalendarDays} label="This week" value={stats.this_week ?? 0} tone="text-info" />
         <Stat icon={MessagesSquare} label="In progress" value={stats.in_progress ?? 0} tone="text-amber-600" />
         <Stat icon={FileWarning} label="Open follow-ups" value={stats.open_followups ?? 0} tone="text-destructive" />
         <Stat icon={CheckCircle2} label="Completed" value={stats.completed ?? 0} tone="text-emerald-600" />
-      </div>
+      </div>}
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-0.5 rounded-md border border-border p-0.5">

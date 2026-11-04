@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { StatsToggle, useStatsVisible } from "@/components/ui/page-header-bits";
 import { NotesPanel } from "@/components/notes/notes-panel";
 import { WorkspaceTab } from "./workspace-tab";
 import type { WorkspaceDocListItem, WorkspaceFolder } from "@/lib/workspace/types";
@@ -78,6 +79,8 @@ type DocTab = "workspace" | "all" | "contract" | "sow" | "notes";
 export function DocumentsClient({ initialDocs, workspace = null }: { initialDocs: Document[]; workspace?: WorkspaceBundle | null }) {
   const [docs, setDocs] = React.useState<Document[]>(initialDocs);
   const [tab, setTab] = React.useState<DocTab>(workspace ? "workspace" : "all");
+  // The Workspace tab's stat cards can be hidden from the header.
+  const { shown: showStats, toggle: toggleStats } = useStatsVisible("documents-workspace");
   const [search, setSearch] = React.useState("");
   const [modal, setModal] = React.useState<{ mode: "view" | "edit" | "new"; doc?: Document; docType?: "contract" | "sow" } | null>(null);
   const [draft, setDraft] = React.useState<Omit<Document, "id" | "created_at" | "updated_at">>(BASE_DRAFT);
@@ -147,7 +150,7 @@ export function DocumentsClient({ initialDocs, workspace = null }: { initialDocs
             <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight">Workspace</h1>
           </div>
           <div className="flex gap-2">
-            {tab === "workspace" ? null : tab === "notes" ? (
+            {tab === "workspace" ? <StatsToggle shown={showStats} onToggle={toggleStats} /> : tab === "notes" ? (
               <Button size="sm" variant="accent" onClick={() => setNotesAddNonce((n) => n + 1)}><Plus className="h-3.5 w-3.5" /> Add Note</Button>
             ) : (
               <>
@@ -188,7 +191,7 @@ export function DocumentsClient({ initialDocs, workspace = null }: { initialDocs
 
       {tab === "workspace" && workspace ? (
         <div className="flex-1 overflow-hidden">
-          <WorkspaceTab bundle={workspace} docs={docs} onOpenDoc={openView} onOpenNotes={() => setTab("notes")} />
+          <WorkspaceTab bundle={workspace} docs={docs} onOpenDoc={openView} onOpenNotes={() => setTab("notes")} showStats={showStats} />
         </div>
       ) : tab === "notes" ? (
         <div className="flex-1 overflow-hidden">

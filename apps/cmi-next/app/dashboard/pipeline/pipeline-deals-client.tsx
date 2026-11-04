@@ -7,7 +7,7 @@ import {
   Mic, Sparkles, Package, CalendarClock, Users2, MapPin, ScanLine, CheckCircle2,
   Circle, ArrowRight, Clock, TrendingUp, Trophy, CalendarDays, ListChecks,
   List as ListIcon, Table2, Columns3, Map as MapIcon, ChevronLeft, ChevronRight,
-  ChevronUp, ChevronDown, GripVertical, ArrowUp, ArrowDown, ArrowUpDown, Maximize2, PanelTopClose, PanelTopOpen, SlidersHorizontal,
+  ChevronUp, ChevronDown, GripVertical, ArrowUp, ArrowDown, ArrowUpDown, Maximize2, SlidersHorizontal,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -25,7 +25,7 @@ import { PIPELINE_ORDER_KEY } from "@/lib/deals/order";
 import { DuplicateWarning, useDuplicateCheck } from "@/components/contacts/duplicate-warning";
 import { ViewOptions, ViewSwitcher, useColumnPrefs, type ColumnDef } from "@/components/ui/view-options";
 import { formatDealValue, formatDealRange, dealValueMid, rangeError } from "@/lib/deals/value";
-import { Tooltip } from "@/components/ui/tooltip";
+import { CountPill, StatsToggle, TitleRow, useStatsVisible } from "@/components/ui/page-header-bits";
 
 export type OwnerOption = { id: string; name: string };
 export type SourceRow = { id: string; label: string; sub: string };
@@ -50,7 +50,6 @@ const TABLE_COLUMNS: ColumnDef<TableCol>[] = [
   { key: "source", label: "Source", default: true }, { key: "next_action", label: "Next action", default: true },
   { key: "due", label: "Next action due", default: true },
 ];
-const STATS_KEY = "cmi.pipeline.stats";
 
 /** Deal titles carry the job number ("25_026_Harris Residence"); the name is what follows it. */
 export function dealName(d: Pick<Deal, "title" | "job_number">): string {
@@ -146,18 +145,8 @@ export function PipelineDealsClient({
   const [showArchived, setShowArchived] = React.useState(false);
   const listCols = useColumnPrefs("cmi.pipeline.list-columns", LIST_COLUMNS);
   const tableCols = useColumnPrefs("cmi.pipeline.table-columns", TABLE_COLUMNS);
-  // Stat cards can be hidden to give the list more room (remembered per person).
-  const [showStats, setShowStats] = React.useState(true);
-  React.useEffect(() => {
-    try {
-      // eslint-disable-next-line -- one-time restore of the saved preference on mount
-      if (window.localStorage.getItem(STATS_KEY) === "hidden") setShowStats(false);
-    } catch { /* private window */ }
-  }, []);
-  const toggleStats = () => setShowStats((v) => {
-    try { window.localStorage.setItem(STATS_KEY, v ? "hidden" : "shown"); } catch { /* fine */ }
-    return !v;
-  });
+  // Stat cards can be hidden to give the list more room (remembered; collapsed on phones).
+  const { shown: showStats, toggle: toggleStats } = useStatsVisible("pipeline");
 
   const ownerName = React.useCallback((id: string | null) => owners.find((o) => o.id === id)?.name ?? "Unassigned", [owners]);
 
@@ -398,22 +387,15 @@ export function PipelineDealsClient({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">CRM</div>
-            <div className="mt-1 flex items-center gap-2.5">
+            <TitleRow>
               <h1 className="font-display text-2xl font-semibold tracking-tight">Pipeline</h1>
               {/* Live count of the deals shown (follows search and filters). */}
-              <span aria-live="polite" className="inline-flex items-center rounded-full border border-border bg-muted/50 px-2.5 py-0.5 text-[11px] font-medium tabular-nums text-muted-foreground">
-                {filtered.length} deal{filtered.length === 1 ? "" : "s"}
-              </span>
-            </div>
+              <CountPill count={filtered.length} noun="deal" />
+            </TitleRow>
             <p className="mt-1 text-sm text-muted-foreground">Leads and opportunities from first inquiry to Closed Won.</p>
           </div>
           <div className="flex items-center gap-2">
-            <Tooltip label={showStats ? "Hide the stat cards" : "Show the stat cards"} side="bottom" className="inline-block">
-              <Button variant="outline" size="sm" onClick={toggleStats} aria-label={showStats ? "Hide the stat cards" : "Show the stat cards"} aria-pressed={!showStats}>
-                {showStats ? <PanelTopClose className="h-4 w-4" /> : <PanelTopOpen className="h-4 w-4" />}
-                <span className="hidden sm:inline">{showStats ? "Hide stats" : "Show stats"}</span>
-              </Button>
-            </Tooltip>
+            <StatsToggle shown={showStats} onToggle={toggleStats} />
             {canWrite && (
               <>
                 <Button variant="outline" size="sm" onClick={() => setShowAdd(true)}><UserPlus className="h-4 w-4" /> Add to Pipeline</Button>

@@ -49,6 +49,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { CountPill, TitleRow } from "@/components/ui/page-header-bits";
 import type { Contact, ContactDraft, ContactStatus, ContactType } from "@/lib/contacts/types";
 import { DuplicateWarning, useDuplicateCheck } from "@/components/contacts/duplicate-warning";
 import { Merge } from "lucide-react";
@@ -715,12 +716,16 @@ export function ContactsClient({ initialContacts, role = null }: { initialContac
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">CRM</div>
-            <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight">
-              {tab === "all" ? "Contacts" : activeTab.label}
-            </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {countFor(tab)} total {tab === "all" ? "contacts" : activeTab.label.toLowerCase()}
-            </p>
+            <TitleRow>
+              <h1 className="font-display text-2xl font-semibold tracking-tight">
+                {tab === "all" ? "Contacts" : activeTab.label}
+              </h1>
+              <CountPill
+                count={countFor(tab)}
+                noun={activeTab.singular.toLowerCase()}
+                plural={tab === "all" ? "contacts" : activeTab.label.toLowerCase()}
+              />
+            </TitleRow>
           </div>
           <div className="flex items-center gap-2">
             <Button size="sm" variant="outline" onClick={() => setShowDuplicates(true)}>

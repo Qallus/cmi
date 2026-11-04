@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { CountPill, StatsToggle, TitleRow, useStatsVisible } from "@/components/ui/page-header-bits";
 import { ALL_JOB_STATUSES, JOB_STATUS_META } from "@/lib/jobs/status";
 import type { JobListRow } from "@/lib/jobs/data";
 import type { JobType, JobStatus } from "@/lib/jobs/types";
@@ -62,6 +63,7 @@ export function JobsListClient({
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [importOpen, setImportOpen] = React.useState(false);
   const [showArchived, setShowArchived] = React.useState(false);
+  const { shown: showStats, toggle: toggleStats } = useStatsVisible("jobs");
 
   // All CMI staff, plus any manually typed PM names already on jobs.
   const pms = React.useMemo(() => Array.from(new Set([...staffNames, ...rows.flatMap((r) => r.project_managers)])).sort((a, b) => a.localeCompare(b)), [rows, staffNames]);
@@ -138,10 +140,13 @@ export function JobsListClient({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Project Management</div>
-            <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight">Jobs</h1>
-            <p className="mt-1 text-sm text-muted-foreground">{report.total} jobs</p>
+            <TitleRow>
+              <h1 className="font-display text-2xl font-semibold tracking-tight">Jobs</h1>
+              <CountPill count={report.total} noun="job" />
+            </TitleRow>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <StatsToggle shown={showStats} onToggle={toggleStats} />
             <div className="flex overflow-hidden rounded-md border border-border">
               {VIEWS.map((v) => (
                 <button key={v.key} type="button" onClick={() => setView(v.key)} title={v.label}
@@ -171,14 +176,14 @@ export function JobsListClient({
         </div>
 
         {/* Stat tiles */}
-        <div className="mt-4 flex gap-2 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&>*]:min-w-[30%] [&>*]:shrink-0 sm:grid sm:grid-cols-6 sm:overflow-visible sm:pb-0 sm:[&>*]:min-w-0 [&::-webkit-scrollbar]:hidden">
+        {showStats && <div className="mt-4 flex gap-2 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&>*]:min-w-[30%] [&>*]:shrink-0 sm:grid sm:grid-cols-6 sm:overflow-visible sm:pb-0 sm:[&>*]:min-w-0 [&::-webkit-scrollbar]:hidden">
           {tiles.map((t) => (
             <div key={t.label} className="rounded-lg border border-border bg-background px-3 py-2">
               <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{t.label}</div>
               <div className="mt-0.5 text-sm font-semibold">{t.value}</div>
             </div>
           ))}
-        </div>
+        </div>}
 
         {/* Filters */}
         <div className="mt-3 flex flex-wrap items-center gap-2">

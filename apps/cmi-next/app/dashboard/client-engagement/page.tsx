@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { loadEngagementReport } from "@/lib/client-portal/reporting";
 import type { EngagementReport } from "@/lib/client-portal/reporting";
+import { CollapsibleStats, StatsProvider, StatsToggleButton } from "@/components/ui/page-header-bits";
 
 export const metadata = { title: "Client Engagement — CMI Dashboard" };
 export const dynamic = "force-dynamic";
@@ -26,21 +27,27 @@ export default async function ClientEngagementPage() {
   ];
 
   return (
+    <StatsProvider pageKey="client-engagement">
     <div className="space-y-5 p-4 md:p-6">
-      <div>
-        <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Client Portal</div>
-        <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight">Client Engagement</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Where clients need attention across all portal-enabled jobs.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Client Portal</div>
+          <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight">Client Engagement</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Where clients need attention across all portal-enabled jobs.</p>
+        </div>
+        <StatsToggleButton />
       </div>
 
-      <div className="flex gap-2 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&>*]:min-w-[30%] [&>*]:shrink-0 sm:grid sm:grid-cols-6 sm:overflow-visible sm:pb-0 sm:[&>*]:min-w-0 [&::-webkit-scrollbar]:hidden">
-        {tiles.map((tile) => (
-          <div key={tile.label} className="rounded-lg border border-border bg-card px-3 py-2">
-            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{tile.label}</div>
-            <div className="mt-0.5 text-xl font-semibold">{tile.value}</div>
-          </div>
-        ))}
-      </div>
+      <CollapsibleStats>
+        <div className="flex gap-2 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&>*]:min-w-[30%] [&>*]:shrink-0 sm:grid sm:grid-cols-6 sm:overflow-visible sm:pb-0 sm:[&>*]:min-w-0 [&::-webkit-scrollbar]:hidden">
+          {tiles.map((tile) => (
+            <div key={tile.label} className="rounded-lg border border-border bg-card px-3 py-2">
+              <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{tile.label}</div>
+              <div className="mt-0.5 text-xl font-semibold">{tile.value}</div>
+            </div>
+          ))}
+        </div>
+      </CollapsibleStats>
 
       <div className="overflow-x-auto rounded-lg border border-border">
         <table className="w-full min-w-[900px] border-collapse text-sm">
@@ -65,6 +72,7 @@ export default async function ClientEngagementPage() {
         </table>
       </div>
     </div>
+    </StatsProvider>
   );
 }
 

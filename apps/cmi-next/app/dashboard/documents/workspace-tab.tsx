@@ -13,6 +13,8 @@ type Props = {
   docs: Document[];
   onOpenDoc: (d: Document) => void;
   onOpenNotes: () => void;
+  /** Collapsed from the Documents page header's Hide stats toggle. */
+  showStats?: boolean;
 };
 
 type Hit =
@@ -22,7 +24,7 @@ type Hit =
 
 // The Workspace tab: a CMI overview (stat cards + unified search across every
 // document type) sitting above the full Quip/Notion-style Workspace home.
-export function WorkspaceTab({ bundle, docs, onOpenDoc, onOpenNotes }: Props) {
+export function WorkspaceTab({ bundle, docs, onOpenDoc, onOpenNotes, showStats = true }: Props) {
   const router = useRouter();
   const [q, setQ] = React.useState("");
   const [wsHits, setWsHits] = React.useState<{ id: string; title: string; snippet: string | null }[]>([]);
@@ -90,7 +92,7 @@ export function WorkspaceTab({ bundle, docs, onOpenDoc, onOpenNotes }: Props) {
   return (
     <div className="flex h-full flex-col overflow-y-auto p-4 md:p-6">
       {/* Stat cards — single slidable row on mobile */}
-      <div className="flex snap-x gap-3 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] sm:grid sm:grid-cols-5 sm:overflow-visible sm:pb-0 [&::-webkit-scrollbar]:hidden [&>*]:min-w-[42%] [&>*]:shrink-0 sm:[&>*]:min-w-0">
+      {showStats && <div className="flex snap-x gap-3 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] sm:grid sm:grid-cols-5 sm:overflow-visible sm:pb-0 [&::-webkit-scrollbar]:hidden [&>*]:min-w-[42%] [&>*]:shrink-0 sm:[&>*]:min-w-0">
         {stats.map((s) => (
           <div key={s.key} className="snap-start rounded-xl border border-border bg-card p-4">
             <div className="flex items-center justify-between">
@@ -100,7 +102,7 @@ export function WorkspaceTab({ bundle, docs, onOpenDoc, onOpenNotes }: Props) {
             <div className="mt-2 font-display text-2xl font-semibold tracking-tight tabular-nums">{s.value}</div>
           </div>
         ))}
-      </div>
+      </div>}
 
       {/* Unified search across every document type */}
       <div className="relative mt-4 max-w-xl">
