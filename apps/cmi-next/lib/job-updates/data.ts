@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { recordPhotos } from "@/lib/photos/data";
 import { notifyJobClients } from "@/lib/client-portal/notifications";
 import type { JobUpdate, JobUpdateDraft } from "./types";
 
@@ -14,6 +15,9 @@ export async function createJobUpdate(jobId: string, draft: JobUpdateDraft, acto
   const { data, error } = await sb.from("job_updates")
     .insert({ ...draft, job_id: jobId, posted_by: draft.posted_by ?? actor ?? null }).select().single();
   if (error) throw new Error(error.message);
+  // Field Reports: photos on an update also land in the job's Photos library.
+  const urls = [draft.photo_url, ...((draft.media ?? []) as { url?: string; type?: string }[]).filter((m) => m?.type === "image").map((m) => m.url)];
+  if (urls.some(Boolean)) await recordPhotos(jobId, urls, { source_type: "job_update", source_id: data.id, uploaded_by: draft.posted_by ?? actor ?? null, client_ok: (draft.visibility ?? "client_visible") === "client_visible" });
   // Bump the job's last client-update marker + notify clients when a
   // client-visible update posts (best-effort — never block the write).
   if ((draft.visibility ?? "client_visible") === "client_visible") {

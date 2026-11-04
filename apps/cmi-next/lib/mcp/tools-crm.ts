@@ -4,6 +4,8 @@
 // on top: the entity's write roles, the money gate (only admins write money
 // fields), before/after in the audit log, and high-risk steps (merge,
 // archive, close-won, client-visible posts, approvals) behind cmi_confirm.
+import { appendToDayLog, fieldReportsOn } from "@/lib/daily-logs/reports";
+import { todayAZ } from "@/lib/schedules/progress";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { getEntity } from "@/lib/agent/entities";
 import { canWrite, createRecord, getRecord, updateRecord } from "@/lib/agent/registry";
@@ -539,6 +541,12 @@ const jobTools: McpTool[] = [
     run: async (a, c) => {
       gateEntity(c, "daily_log");
       const job = await resolveJobId(a.job);
+      // Field Reports: one log per job per day; this adds to it, sorted into sections.
+      if (await fieldReportsOn()) {
+        const extra = [s(a.notes), a.delays ? `Delays: ${s(a.delays)}` : "", a.visitors ? `Visitors: ${s(a.visitors)}` : "", Array.isArray(a.crew) && a.crew.length ? `On site: ${a.crew.map(String).join(", ")}` : ""].filter(Boolean).join(". ");
+        const report = await appendToDayLog(job.id, s(a.log_date) || todayAZ(), { notes: extra }, { id: c.ctx.id, name: c.ctx.displayName });
+        return { result: { added_to: report.title, job: job.label, daily_log: { id: report.id, log_number: report.log_number, status: report.status, items: report.sections.items.length } }, entity: "daily_log", recordId: report.id, before: null, after: { id: report.id } };
+      }
       const log = await createDailyLog(job.id, {
         log_date: s(a.log_date) || new Date().toISOString().slice(0, 10), notes: s(a.notes), title: s(a.title) || null,
         crew: Array.isArray(a.crew) ? a.crew.map(String) : null, hours_worked: typeof a.hours_worked === "number" ? a.hours_worked : null,

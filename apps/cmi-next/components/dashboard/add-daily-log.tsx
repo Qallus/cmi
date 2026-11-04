@@ -59,6 +59,13 @@ export function AddDailyLogDialog({ onClose, onSaved, preselect }: {
   const [vis, setVis] = React.useState({ client: false, brief: false, team: true, private: false });
   const [saving, setSaving] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  // Field Reports: Jobs only, every capture lands in that day's log, logs stay internal.
+  const [fieldReports, setFieldReports] = React.useState(false);
+  React.useEffect(() => {
+    fetch("/api/flags").then((r) => r.json()).then((d: { flags?: Record<string, boolean> }) => {
+      if (d.flags?.field_reports) { setFieldReports(true); setKind((k) => k ?? "job"); }
+    }).catch(() => {});
+  }, []);
   const cameraRef = React.useRef<HTMLInputElement>(null);
   const uploadRef = React.useRef<HTMLInputElement>(null);
 
@@ -173,7 +180,7 @@ export function AddDailyLogDialog({ onClose, onSaved, preselect }: {
           targets: picked.map(({ kind: k, id }) => ({ kind: k, id })),
           notes: text ? notes : null,
           photos, attachments,
-          client_visible: anyJob && vis.client,
+          client_visible: !fieldReports && anyJob && vis.client,
           include_in_brief: vis.brief,
           visibility: vis.private ? "private" : "team",
         }),
@@ -213,8 +220,9 @@ export function AddDailyLogDialog({ onClose, onSaved, preselect }: {
           {/* 1. Add to */}
           <section>
             {step(1, "Add daily log to", !!kind)}
-            <div className="grid grid-cols-3 gap-2">
-              {KINDS.map(({ kind: k, label, icon: Icon }) => (
+            {fieldReports ? <p className="mb-2 text-xs text-muted-foreground">Everything you add today goes into this job&apos;s daily log, sorted into the standard sections.</p> : null}
+            <div className={cn("grid gap-2", fieldReports ? "grid-cols-1" : "grid-cols-3")}>
+              {KINDS.filter((x) => !fieldReports || x.kind === "job").map(({ kind: k, label, icon: Icon }) => (
                 <button key={k} type="button" onClick={() => chooseKind(k)}
                   className={cn("flex flex-col items-center gap-1 rounded-lg border px-2 py-3 text-sm font-medium transition",
                     kind === k ? "border-accent bg-accent/10 text-accent" : "border-border hover:bg-muted")}>
@@ -349,7 +357,7 @@ export function AddDailyLogDialog({ onClose, onSaved, preselect }: {
             {step(5, "Who sees it")}
             <div className="grid gap-2 sm:grid-cols-2">
               {([
-                ["client", "Client visible", anyJob ? "Shows on the client's portal" : "Jobs only", !anyJob || vis.private],
+                ...(fieldReports ? [] : [["client", "Client visible", anyJob ? "Shows on the client's portal" : "Jobs only", !anyJob || vis.private] as const]),
                 ["brief", "My Daily Brief", "Remind me in tomorrow's email", false],
                 ["team", "CMI Team", "Every CMI staff member", false],
                 ["private", "Private", "Only you", false],

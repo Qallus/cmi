@@ -1,4 +1,5 @@
 // Job files: list + multipart upload (to the shared cmi-media bucket).
+import { recordPhotos } from "@/lib/photos/data";
 import { NextResponse } from "next/server";
 import { requireAdmin, AuthError } from "@/lib/auth/require-admin";
 import { loadJobFiles, createJobFile } from "@/lib/job-files/data";
@@ -30,6 +31,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const record = await createJobFile(id, {
       folder, name: uploaded.name, file_url: uploaded.url, mime_type: uploaded.mime, size_bytes: uploaded.size, category,
     }, user.email);
+    // Field Reports: images also land in the job's Photos library.
+    if (uploaded.mime?.startsWith("image/")) await recordPhotos(id, [uploaded.url], { source_type: "job_file", source_id: (record as { id?: string }).id ?? null, uploaded_by: user.email ?? null, uploaded_by_id: staff.id, caption: uploaded.name });
     return NextResponse.json(record, { status: 201 });
   } catch (err) {
     const e = err as AuthError;

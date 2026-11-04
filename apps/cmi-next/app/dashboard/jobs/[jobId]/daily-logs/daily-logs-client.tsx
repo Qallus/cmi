@@ -31,7 +31,11 @@ function logKind(log: DailyLog): Exclude<LogTab, "all"> {
   return "standard";
 }
 
-export function DailyLogsClient({ jobId, jobName, initial }: { jobId: string; jobName: string; initial: DailyLog[] }) {
+export function DailyLogsClient({ jobId, jobName, initial, embedded = false }: {
+  jobId: string; jobName: string; initial: DailyLog[];
+  /** Shown under Field Reports as "Earlier logs": no page shell, no Add button. */
+  embedded?: boolean;
+}) {
   const [rows, setRows] = React.useState<DailyLog[]>(initial);
   const [modal, setModal] = React.useState<Modal>(null);
   const [saving, setSaving] = React.useState(false);
@@ -78,9 +82,8 @@ export function DailyLogsClient({ jobId, jobName, initial }: { jobId: string; jo
     if (res.ok || res.status === 204) setRows((r) => r.filter((x) => x.id !== id));
   }
 
-  return (
-    <JobModuleShell jobId={jobId} jobName={jobName} active="daily-logs" title="Daily Logs"
-      action={<Button size="sm" variant="accent" onClick={openAdd}><Plus className="h-3.5 w-3.5" /> Add Log</Button>}>
+  const body = (
+    <>
       <div role="tablist" className="mb-4 flex gap-1 overflow-x-auto border-b border-border">
         {TABS.map((t) => (
           <button key={t.key} type="button" role="tab" aria-selected={tab === t.key} onClick={() => setTab(t.key)}
@@ -139,6 +142,13 @@ export function DailyLogsClient({ jobId, jobName, initial }: { jobId: string; jo
           </div>
         </ModuleModal>
       )}
+    </>
+  );
+  if (embedded) return body;
+  return (
+    <JobModuleShell jobId={jobId} jobName={jobName} active="daily-logs" title="Daily Logs"
+      action={<Button size="sm" variant="accent" onClick={openAdd}><Plus className="h-3.5 w-3.5" /> Add Log</Button>}>
+      {body}
     </JobModuleShell>
   );
 }

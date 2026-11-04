@@ -1,6 +1,7 @@
 // Client-portal data layer. EVERY loader is scoped to a job the client is
 // associated with and returns only client-safe rows (client_visible +
 // permission-gated). Callers must have already run assertJobAccess.
+import { isFeatureEnabled } from "@/lib/flags";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { getJobPerms } from "./auth";
 import type { ClientContact } from "./auth";
@@ -112,8 +113,20 @@ export async function loadClientFiles(jobId: string) {
   const { data } = await getSupabaseAdmin().from("job_files")
     .select("*").eq("job_id", jobId).eq("client_visible", true).order("created_at", { ascending: false });
   const files = data ?? [];
+  const photos = files.filter((f) => IMAGE_RE.test(f.mime_type ?? ""));
+  // Field Reports: photos marked "client OK" in the job's Photos library too,
+  // grouped into albums by area (job Files albums keep working as before).
+  if (await isFeatureEnabled("field_reports")) {
+    const seen = new Set(photos.map((p) => p.file_url));
+    const { data: lib } = await getSupabaseAdmin().from("job_photos").select("id, url, caption, area, taken_at, created_at")
+      .eq("job_id", jobId).eq("client_ok", true).order("taken_at", { ascending: false }).limit(500);
+    for (const p of lib ?? []) {
+      if (seen.has(p.url)) continue;
+      photos.push({ id: p.id, job_id: jobId, file_url: p.url, name: p.caption ?? "", folder: p.area ?? "Photos", mime_type: "image/jpeg", client_visible: true, created_at: p.taken_at ?? p.created_at });
+    }
+  }
   return {
-    photos: files.filter((f) => IMAGE_RE.test(f.mime_type ?? "")),
+    photos,
     documents: files.filter((f) => !IMAGE_RE.test(f.mime_type ?? "")),
   };
 }

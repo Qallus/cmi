@@ -10,13 +10,14 @@ import { Sparkles } from "lucide-react";
 import { useSidebar } from "@/components/dashboard/sidebar-context";
 import { ExecSummaryDialog } from "@/components/exec-summary/exec-summary-button";
 
-const TABS: { slug: string; label: string; href: (id: string) => string }[] = [
+const TABS: { slug: string; label: string; href: (id: string) => string; flag?: string }[] = [
   { slug: "summary", label: "Summary", href: (id) => `/dashboard/jobs/${id}/summary` },
   { slug: "info", label: "Job Info", href: (id) => `/dashboard/jobs/${id}/info` },
   { slug: "price-summary", label: "Price Summary", href: (id) => `/dashboard/jobs/${id}/price-summary` },
   { slug: "client-portal", label: "Client Portal", href: (id) => `/dashboard/jobs/${id}/client-portal` },
   { slug: "schedule", label: "Schedule", href: (id) => `/dashboard/jobs/${id}/schedule` },
   { slug: "daily-logs", label: "Daily Logs", href: (id) => `/dashboard/jobs/${id}/daily-logs` },
+  { slug: "photos", label: "Photos", href: (id) => `/dashboard/jobs/${id}/photos`, flag: "field_reports" },
   { slug: "punch-list", label: "Punch List", href: (id) => `/dashboard/jobs/${id}/punch-list` },
   { slug: "projects", label: "Projects & Tasks", href: (id) => `/dashboard/jobs/${id}/projects` },
   { slug: "documents", label: "Documents", href: (id) => `/dashboard/jobs/${id}/documents` },
@@ -38,6 +39,12 @@ export function JobDetailNav({ jobId, active }: { jobId: string; active: string 
   const { collapsed } = useSidebar();
   const [summaryFor, setSummaryFor] = React.useState<string | null>(null);
   const [opening, setOpening] = React.useState(false);
+  // Tabs behind a feature flag (Photos = Field Reports) show once it's on.
+  const [flags, setFlags] = React.useState<Record<string, boolean>>({});
+  React.useEffect(() => {
+    fetch("/api/flags").then((r) => r.json()).then((d: { flags?: Record<string, boolean> }) => setFlags(d.flags ?? {})).catch(() => {});
+  }, []);
+  const tabs = TABS.filter((t) => !t.flag || flags[t.flag]);
 
   // The summary needs the job's name (it is printed on the document).
   async function openSummary() {
@@ -72,7 +79,7 @@ export function JobDetailNav({ jobId, active }: { jobId: string; active: string 
         {back}
       </div>
       <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto px-2 md:px-4 lg:px-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {TABS.map((t) => (
+        {tabs.map((t) => (
           <Link
             key={t.slug}
             ref={active === t.slug ? activeRef : undefined}
@@ -108,7 +115,7 @@ export function JobDetailNav({ jobId, active }: { jobId: string; active: string 
           <Link href="/dashboard/jobs" className="text-sm text-muted-foreground transition hover:text-foreground">← All jobs</Link>
         </div>
         <div className="flex-1 overflow-y-auto p-2">
-          {TABS.map((t) => (
+          {tabs.map((t) => (
             <Link
               key={t.slug}
               href={t.href(jobId)}

@@ -6,7 +6,7 @@
 // document, then email it, post it to the client portal (Jobs), or save a PDF.
 import * as React from "react";
 import {
-  ArrowLeft, Check, Copy, Download, Eye, FileText, Loader2, Mail, MessageSquare, Pencil, Plus, RefreshCw, Send, Sparkles, Trash2, Users, UserRound,
+  ArrowLeft, Check, Copy, Download, Eye, FileText, Loader2, Mail, MessageSquare, Pencil, Plus, RefreshCw, Save, Send, Sparkles, Trash2, Upload, Users, UserRound,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RichTextEditor } from "@/components/notes/rich-text-editor";
@@ -15,19 +15,27 @@ import { SidePanel } from "@/components/ui/side-panel";
 import { cn } from "@/lib/utils";
 import { htmlToText, sanitizeHtml } from "@/lib/notes/html";
 import { summaryDocumentHtml } from "@/lib/exec-summary/render";
+import { DateField } from "@/components/ui/date-field";
 
 type Target = "job" | "precon";
 type Audience = "team" | "client";
 type Fact = { label: string; value: string };
 type Coming = { item: string; when: string | null };
-type Photo = { url: string; caption: string | null; date?: string | null; clientVisible?: boolean; include: boolean };
+type Photo = { url: string; caption: string | null; date?: string | null; clientVisible?: boolean; include: boolean; /** Photos library id (Field Reports). */ id?: string };
+type Kept = { id: string; section: string; sectionLabel: string; text: string; date: string };
 type Draft = {
   headline: string; opening: string; facts: Fact[]; completed: string[]; coming_soon: Coming[];
   photos: Photo[]; firstNames: string[]; body_html: string;
   project: { name: string; number: string | null; kind: "Job" | "Pre-Con" };
+  period?: { start: string; end: string } | null;
+  keptInternal?: Kept[];
 };
 type Person = { id: string; name: string; email: string | null; phone?: string | null; onRecord?: boolean };
-type HistoryRow = { id: string; audience: Audience; headline: string; body_html: string; facts: Fact[]; content?: { opening?: string; completed?: string[]; coming_soon?: Coming[]; photos?: { url: string; caption: string | null }[] }; sent_to: { name: string }[]; posted_to_portal: boolean; created_by_name: string | null; sent_at: string | null; created_at: string };
+type HistoryRow = { id: string; audience: Audience; headline: string; body_html: string; facts: Fact[]; content?: { opening?: string; completed?: string[]; coming_soon?: Coming[]; photos?: { url: string; caption: string | null }[] }; sent_to: { name: string }[]; posted_to_portal: boolean; created_by_name: string | null; sent_at: string | null; created_at: string;
+  status?: "draft" | "sent"; period_start?: string | null; period_end?: string | null; sections?: { add_back?: string[] } | null; photo_ids?: string[] | null };
+
+const azToday = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Phoenix" });
+const daysBefore = (iso: string, n: number) => { const d = new Date(`${iso}T12:00:00Z`); d.setUTCDate(d.getUTCDate() - n); return d.toISOString().slice(0, 10); };
 
 async function json<T>(res: Response): Promise<T> {
   const j = await res.json().catch(() => ({}));
@@ -48,7 +56,11 @@ export function ExecSummaryButton({ target, id, name, className }: { target: Tar
 }
 
 // `asPanel` opens it as a right-hand slide-out (the job top bar) instead of a modal.
-export function ExecSummaryDialog({ target, id, name, onClose, asPanel = false }: { target: Target; id: string; name: string; onClose: () => void; asPanel?: boolean }) {
+export function ExecSummaryDialog({ target, id, name, onClose, asPanel = false, initialPhotoIds }: {
+  target: Target; id: string; name: string; onClose: () => void; asPanel?: boolean;
+  /** Photos picked on a job's Photos page; they start ticked (Field Reports). */
+  initialPhotoIds?: string[];
+}) {
   const Shell = asPanel ? SidePanel : Modal;
   const [audience, setAudience] = React.useState<Audience>("team");
   const [guidance, setGuidance] = React.useState("");
@@ -70,6 +82,20 @@ export function ExecSummaryDialog({ target, id, name, onClose, asPanel = false }
   const [postToPortal, setPostToPortal] = React.useState(false);
   const [result, setResult] = React.useState<string | null>(null);
   const [copied, setCopied] = React.useState(false);
+  // Field Reports (Jobs): a period, items kept internal (with Add back), library photos, drafts.
+  const [fieldReports, setFieldReports] = React.useState(false);
+  const [periodStart, setPeriodStart] = React.useState(() => daysBefore(azToday(), 6));
+  const [periodEnd, setPeriodEnd] = React.useState(azToday);
+  const [addBack, setAddBack] = React.useState<Set<string>>(new Set());
+  const [draftId, setDraftId] = React.useState<string | null>(null);
+  const [uploading, setUploading] = React.useState(false);
+  const photoInput = React.useRef<HTMLInputElement>(null);
+  React.useEffect(() => {
+    if (target !== "job") return;
+    fetch("/api/flags").then((r) => r.json()).then((d: { flags?: Record<string, boolean> }) => setFieldReports(!!d.flags?.field_reports)).catch(() => {});
+  }, [target]);
+  const fr = fieldReports && target === "job";
+  const pickedIds = React.useCallback((d: Draft | null) => [...new Set([...(initialPhotoIds ?? []), ...(d?.photos ?? []).filter((p) => p.include && p.id).map((p) => p.id!)])], [initialPhotoIds]);
 
   const q = `target=${target}&id=${id}`;
   React.useEffect(() => {
@@ -88,7 +114,7 @@ export function ExecSummaryDialog({ target, id, name, onClose, asPanel = false }
     try {
       const d = await json<Draft>(await fetch("/api/exec-summary/generate", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ target, id, audience, guidance }),
+        body: JSON.stringify({ target, id, audience, guidance, ...(fr ? { period_start: periodStart, period_end: periodEnd, add_back: [...addBack], photo_ids: pickedIds(draft) } : {}) }),
       }));
       setDraft(d); setVersion((v) => v + 1); setTab("preview"); setSendVia(null);
     } catch (e) {
@@ -100,6 +126,10 @@ export function ExecSummaryDialog({ target, id, name, onClose, asPanel = false }
 
   function openPast(h: HistoryRow) {
     setAudience(h.audience);
+    setDraftId(h.status === "draft" ? h.id : null);
+    if (h.period_start) setPeriodStart(h.period_start);
+    if (h.period_end) setPeriodEnd(h.period_end);
+    setAddBack(new Set(h.sections?.add_back ?? []));
     setDraft({
       headline: h.headline, opening: h.content?.opening ?? "", facts: h.facts ?? [],
       completed: h.content?.completed ?? [], coming_soon: h.content?.coming_soon ?? [],
@@ -168,6 +198,7 @@ export function ExecSummaryDialog({ target, id, name, onClose, asPanel = false }
           extra_emails: audience === "client" && sendVia === "email" ? extra.split(/[,\s;]+/).filter(Boolean) : [],
           extra_phones: audience === "client" && sendVia === "sms" ? extraPhones.split(/[,;]+/).map((x) => x.trim()).filter(Boolean) : [],
           post_to_portal: audience === "client" && target === "job" && postToPortal,
+          ...(fr ? { draft_id: draftId, period_start: periodStart, period_end: periodEnd, add_back: [...addBack], photo_ids: pickedIds(draft) } : {}),
         }),
       }));
       const parts = [
@@ -177,13 +208,50 @@ export function ExecSummaryDialog({ target, id, name, onClose, asPanel = false }
       ].filter(Boolean);
       setResult(parts.join("; ") + ".");
       setLink(r.link);
-      setSendVia(null);
+      setSendVia(null); setDraftId(null);
       fetch(`/api/exec-summary?${q}`).then((x) => json<HistoryRow[]>(x)).then(setHistory).catch(() => {});
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setBusy(null);
     }
+  }
+
+  async function saveDraftNow() {
+    if (!draft) return;
+    setBusy("send"); setError(null);
+    try {
+      const r = await json<{ id: string }>(await fetch("/api/exec-summary/draft", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          draft_id: draftId, target, id, audience, headline: draft.headline, opening: draft.opening, facts: draft.facts,
+          completed: draft.completed, coming_soon: draft.coming_soon,
+          photos: draft.photos.filter((p) => p.include).map((p) => ({ url: p.url, caption: p.caption })),
+          body_html: sanitizeHtml(draft.body_html), period_start: periodStart, period_end: periodEnd, add_back: [...addBack], photo_ids: pickedIds(draft),
+        }),
+      }));
+      setDraftId(r.id); setResult("Draft saved. Open it from the list below to pick up where you left off.");
+      fetch(`/api/exec-summary?${q}`).then((x) => json<HistoryRow[]>(x)).then(setHistory).catch(() => {});
+    } catch (e) { setError((e as Error).message); } finally { setBusy(null); }
+  }
+
+  // Upload photos into this job's Photos library and tick them for the summary.
+  async function uploadPhotos(files: FileList | null) {
+    if (!files?.length || !draft) return;
+    setUploading(true); setError(null);
+    try {
+      const urls: string[] = [];
+      for (const file of Array.from(files)) {
+        const fd = new FormData(); fd.append("file", file); fd.append("folder", `jobs/${id}`);
+        const up = await json<{ url: string }>(await fetch("/api/admin/uploads", { method: "POST", body: fd }));
+        urls.push(up.url);
+      }
+      const { photos } = await json<{ photos: { id: string; url: string; caption: string | null; client_ok: boolean }[] }>(await fetch(`/api/jobs/${id}/photos`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ urls, source_type: "exec_summary" }),
+      }));
+      const added: Photo[] = (photos.length ? photos.map((p) => ({ id: p.id, url: p.url, caption: p.caption, clientVisible: p.client_ok, include: true })) : urls.map((u) => ({ url: u, caption: null, include: true })));
+      setDraft((d) => (d ? { ...d, photos: [...added, ...d.photos.filter((p) => !added.some((a) => a.url === p.url))] } : d));
+    } catch (e) { setError((e as Error).message); } finally { setUploading(false); }
   }
 
   const toggle = (set: React.Dispatch<React.SetStateAction<Set<string>>>, key: string) =>
@@ -205,6 +273,15 @@ export function ExecSummaryDialog({ target, id, name, onClose, asPanel = false }
             </button>
           ))}
         </div>
+        {fr ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-medium text-muted-foreground">Period</span>
+            <DateField value={periodStart} onChange={(v) => v && setPeriodStart(v)} allowClear={false} className="h-8 w-36" />
+            <span className="text-xs text-muted-foreground">to</span>
+            <DateField value={periodEnd} onChange={(v) => v && setPeriodEnd(v)} allowClear={false} className="h-8 w-36" />
+            <span className="text-[11px] text-muted-foreground">Daily logs, schedule progress and photos from these dates (☆ items lead).</span>
+          </div>
+        ) : null}
         <textarea value={guidance} onChange={(e) => setGuidance(e.target.value)} rows={2} disabled={!!busy}
           placeholder="Anything Bolt should emphasize? (optional) e.g. “focus on the cabinet delay and the revised finish date”"
           className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent" />
@@ -223,6 +300,24 @@ export function ExecSummaryDialog({ target, id, name, onClose, asPanel = false }
           </div>
         )}
 
+        {fr && draft && audience === "client" && (draft.keptInternal ?? []).length > 0 && (
+          <div className="rounded-lg border border-border bg-muted/30 px-3 py-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Kept internal ({(draft.keptInternal ?? []).length}) · not in the client draft as written</div>
+              {addBack.size ? <button type="button" onClick={() => void generate()} className="text-xs font-medium text-accent hover:underline">Regenerate with {addBack.size} added back</button> : null}
+            </div>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">Delays, who was on site, action items and internal notes. Bolt may mention what they mean for the client in calm, client-ready words, but never quotes them. Tick one to use it as written.</p>
+            <ul className="mt-2 max-h-48 space-y-1 overflow-y-auto">
+              {(draft.keptInternal ?? []).map((k) => (
+                <li key={k.id} className="flex items-start gap-2 text-sm">
+                  <input type="checkbox" className="mt-0.5 h-4 w-4" checked={addBack.has(k.id)} onChange={() => toggle(setAddBack, k.id)} aria-label="Add back" />
+                  <span className="min-w-0"><span className="text-[11px] text-muted-foreground">{k.sectionLabel} · {k.date}</span><br />{k.text}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {/* Review */}
         {draft && (
           <div className="space-y-3 rounded-lg border border-border">
@@ -238,6 +333,7 @@ export function ExecSummaryDialog({ target, id, name, onClose, asPanel = false }
               <div className="flex flex-wrap gap-1.5">
                 <Button size="sm" variant="ghost" onClick={() => void copyText()}>{copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />} Copy</Button>
                 <Button size="sm" variant="ghost" onClick={downloadPdf}><Download className="h-3.5 w-3.5" /> PDF</Button>
+                {fr ? <Button size="sm" variant="ghost" onClick={() => void saveDraftNow()} disabled={!!busy}><Save className="h-3.5 w-3.5" /> {draftId ? "Save draft" : "Save as draft"}</Button> : null}
                 {audience === "client" && (
                   <Button size="sm" variant="outline" onClick={() => openSend("sms")} disabled={sendVia === "sms"}><MessageSquare className="h-3.5 w-3.5" /> Send SMS</Button>
                 )}
@@ -278,9 +374,19 @@ export function ExecSummaryDialog({ target, id, name, onClose, asPanel = false }
                   <button type="button" onClick={() => setDraft({ ...draft, coming_soon: [...draft.coming_soon, { item: "", when: null }] })}
                     className="flex items-center gap-1 text-xs text-accent hover:underline"><Plus className="h-3 w-3" /> Add item</button>
                 </div>
-                {draft.photos.length > 0 && (
+                {(draft.photos.length > 0 || fr) && (
                   <div className="space-y-1">
-                    <span className="text-xs font-medium text-muted-foreground">Photos <span className="font-normal">— tick the ones to include{audience === "client" ? "; internal photos start unticked" : ""}</span></span>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-medium text-muted-foreground">Photos <span className="font-normal">— tick the ones to include{audience === "client" ? "; internal photos start unticked" : ""}</span></span>
+                      {fr ? (
+                        <>
+                          <input ref={photoInput} type="file" accept="image/*" multiple hidden onChange={(e) => { void uploadPhotos(e.target.files); e.target.value = ""; }} />
+                          <button type="button" onClick={() => photoInput.current?.click()} disabled={uploading} className="inline-flex items-center gap-1 text-xs font-medium text-accent hover:underline">
+                            {uploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />} Upload
+                          </button>
+                        </>
+                      ) : null}
+                    </div>
                     <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
                       {draft.photos.map((p, i) => (
                         <button key={p.url} type="button" onClick={() => setDraft({ ...draft, photos: draft.photos.map((x, j) => (j === i ? { ...x, include: !x.include } : x)) })}
@@ -421,7 +527,7 @@ export function ExecSummaryDialog({ target, id, name, onClose, asPanel = false }
         {/* History */}
         {history && history.length > 0 && (
           <div className="space-y-1.5">
-            <div className="text-xs font-medium text-muted-foreground">Sent before</div>
+            <div className="text-xs font-medium text-muted-foreground">{history.some((h) => h.status === "draft") ? "Drafts and sent summaries" : "Sent before"}</div>
             {history.map((h) => (
               <button key={h.id} type="button" onClick={() => openPast(h)}
                 className="flex w-full items-start gap-2 rounded-md border border-border px-3 py-2 text-left hover:bg-muted">
@@ -429,7 +535,9 @@ export function ExecSummaryDialog({ target, id, name, onClose, asPanel = false }
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm">{h.headline}</span>
                   <span className="block text-[11px] text-muted-foreground">
+                    {h.status === "draft" ? <span className="mr-1 rounded bg-warning/15 px-1 text-warning">Draft</span> : null}
                     {h.audience === "team" ? "Team" : "Client"} · {new Date(h.sent_at ?? h.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                    {h.period_start && h.period_end ? ` · covers ${h.period_start} – ${h.period_end}` : ""}
                     {h.created_by_name ? ` · ${h.created_by_name}` : ""}
                     {h.sent_to?.length ? ` · to ${h.sent_to.map((s) => s.name).join(", ")}` : ""}
                     {h.posted_to_portal ? " · posted to portal" : ""}

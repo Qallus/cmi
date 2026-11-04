@@ -46,12 +46,19 @@ sections, in order (omit if empty):
 2. "Next Steps" — 2–4 short bullets.
 Key facts (3–5): status/stage, % complete, current phase, projected completion (or projected construction start for Pre-Con).`;
 
+// Field Reports (when the data carries a period and structured daily logs).
+const FIELD_CLIENT = `PERIOD & DAILY LOGS: this summary covers period.start – period.end. daily_log_highlights are the period's site facts; items with star:true matter most, so lead the opening and Completed with them. schedule_completed_in_period and lookahead_two_weeks drive Completed and Coming Soon. selections_decisions_due goes in "What We Need From You". change_orders_pending_signature: mention gently that a change order is ready for their review (no amounts).
+internal_context_for_client_wording holds internal notes (delays, who was on site, action items, internal notes). NEVER quote or list them, and never name companies, people, costs or fault. Where it genuinely helps the client, you MAY reflect what one means for them in a single calm, client-ready sentence (e.g. "The plumbing inspection is being rescheduled; we're coordinating the follow-up."), and only what the data supports.
+contract_milestones: mention forecast vs contract only when on or ahead, or neutrally; never alarm.`;
+const FIELD_TEAM = `PERIOD & DAILY LOGS: this summary covers period.start – period.end. field_reports holds every daily log item for the period (work, on site, inspections with results, delays with impact, action items with owner and due). Use delays and failed inspections in Watch List, action items in Next Steps (action + owner + due), starred items first. schedule_health, lookahead_two_weeks and contract_milestones (forecast vs contract) shape Key facts and Coming Soon. billing (billed and paid to date, latest invoice) and change_orders_pending_signature go in Budget & Financials.`;
+
 export async function generateSummary(snapshot: Snapshot, audience: Audience, guidance?: string | null): Promise<GeneratedSummary> {
   if (!hermesConfigured()) throw new Error("Bolt isn't configured on this server (HERMES_AGENT_URL).");
   const system = `You are Bolt, writing a polished executive summary for Constructed Matter, Inc. (CMI), a design-build construction company in Scottsdale, Arizona.
 ${VOICE}
 ${OPENING}
 ${audience === "client" ? CLIENT_RULES : TEAM_RULES}
+${snapshot.period ? (audience === "client" ? FIELD_CLIENT : FIELD_TEAM) : ""}
 GENERAL: Use only facts in the data. Never put a date in the past on a coming_soon item; if an item has no date, set "when" to null. Dates as "Oct 22" (add the year only if not this year). Money as "$465,000". Under ~350 words total.
 Reply with ONLY JSON:
 {"headline":"one specific line, e.g. 'The Waters Residence — framing underway, on track for November'","opening":"Hi {{first_name}},\\n…","facts":[{"label":"…","value":"…"}],"completed":["…"],"coming_soon":[{"item":"…","when":"…"}],"sections":[{"title":"…","paragraphs":["…"],"bullets":["…"]}]}`;

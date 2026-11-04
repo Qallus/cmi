@@ -16,6 +16,15 @@ import { createJobUpdate } from "@/lib/job-updates/data";
 import { htmlToText } from "@/lib/notes/html";
 import { sanitizeHtmlServer } from "@/lib/html/sanitize-server";
 import { summaryDocumentHtml } from "./render";
+import { createElement } from "react";
+import { isFeatureEnabled } from "@/lib/flags";
+import { canSendOutbound } from "@/lib/notifications/outbound";
+import { renderPdf } from "@/lib/pdf/render";
+import { getBrandLogoDataUri } from "@/lib/pdf/assets";
+import { uploadToMedia } from "@/lib/storage";
+import { createJobFile } from "@/lib/job-files/data";
+import { recordPhotos } from "@/lib/photos/data";
+import { ExecSummaryPdf, bodySections } from "@/components/pdf/exec-summary-pdf";
 import type { Audience, SummaryTarget } from "./snapshot";
 import type { ComingSoon, SummaryFact } from "./generate";
 
@@ -92,7 +101,65 @@ export type SendInput = {
   extra_emails?: string[];
   extra_phones?: string[];
   post_to_portal?: boolean;
+  /** Field Reports: send this saved draft (updates it instead of adding a row). */
+  draft_id?: string | null;
+  period_start?: string | null;
+  period_end?: string | null;
+  add_back?: string[];
+  photo_ids?: string[];
 };
+
+export type DraftInput = Omit<SendInput, "note" | "channel" | "staff_ids" | "contact_ids" | "extra_emails" | "extra_phones" | "post_to_portal">;
+
+const isoDay = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
+const uuids = (v: string[] | undefined) => (v ?? []).filter((x) => /^[0-9a-f-]{36}$/i.test(x)).slice(0, 50);
+const periodLabel = (s: string | null, e: string | null) => {
+  if (!s || !e) return null;
+  const f = (d: string) => new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }).format(new Date(`${d}T12:00:00Z`));
+  return `${f(s)} – ${f(e)}`;
+};
+
+/** Save an unsent summary (Field Reports). Returns its id; pass it back to update it or send it. */
+export async function saveDraft(input: DraftInput & { draft_id?: string | null }, actor: { id: string; name: string }): Promise<{ id: string }> {
+  const body = sanitizeHtmlServer(input.body_html ?? "");
+  const row = {
+    job_id: input.target === "job" ? input.id : null,
+    opportunity_id: input.target === "precon" ? input.id : null,
+    audience: input.audience, headline: (input.headline ?? "").slice(0, 200) || "Draft summary", body_html: body,
+    facts: (input.facts ?? []).slice(0, 6),
+    content: { opening: String(input.opening ?? "").slice(0, 1500), completed: (input.completed ?? []).slice(0, 10), coming_soon: (input.coming_soon ?? []).slice(0, 8), photos: (input.photos ?? []).slice(0, 8) },
+    status: "draft", period_start: isoDay(input.period_start), period_end: isoDay(input.period_end),
+    sections: { add_back: (input.add_back ?? []).slice(0, 200) }, photo_ids: uuids(input.photo_ids),
+    created_by: actor.id, created_by_name: actor.name,
+  };
+  const sb = getSupabaseAdmin();
+  if (input.draft_id) {
+    const { data, error } = await sb.from("executive_summaries").update(row).eq("id", input.draft_id).eq("status", "draft").select("id").maybeSingle();
+    if (error) throw new Error(error.message);
+    if (data) return { id: data.id as string };
+  }
+  const { data, error } = await sb.from("executive_summaries").insert(row).select("id").single();
+  if (error || !data) throw new Error(error?.message ?? "Couldn't save the draft.");
+  return { id: data.id as string };
+}
+
+/** The sent summary as a branded PDF in the job's Files (Field Reports). Best effort. */
+async function savePdfToFiles(input: { jobId: string; audience: Audience; projectName: string; projectNumber: string | null; headline: string; opening: string; facts: { label: string; value: string }[]; completed: string[]; comingSoon: { item: string; when: string | null }[]; bodyHtml: string; photos: { url: string; caption: string | null }[]; period: string | null; preparedBy: string }): Promise<string | null> {
+  try {
+    const dateLabel = new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "America/Phoenix" }).format(new Date());
+    const buffer = await renderPdf(createElement(ExecSummaryPdf, {
+      audience: input.audience, projectName: input.projectName, projectNumber: input.projectNumber, headline: input.headline,
+      opening: input.opening, firstName: null, facts: input.facts, completed: input.completed, comingSoon: input.comingSoon,
+      sections: bodySections(input.bodyHtml), photos: input.photos, dateLabel, periodLabel: input.period, preparedBy: input.preparedBy,
+      logo: await getBrandLogoDataUri(),
+    }));
+    const day = new Date().toLocaleDateString("en-CA", { timeZone: "America/Phoenix" });
+    const name = `${(input.projectNumber || input.projectName).replace(/[^a-z0-9._-]+/gi, "_")}_Executive_Summary_${input.audience === "team" ? "Internal_" : ""}${day}.pdf`;
+    const up = await uploadToMedia(new File([new Uint8Array(buffer)], name, { type: "application/pdf" }), `jobs/${input.jobId}`);
+    await createJobFile(input.jobId, { folder: "Executive Summaries", name, file_url: up.url, mime_type: "application/pdf", size_bytes: up.size, category: "executive_summary", client_visible: input.audience === "client" }, input.preparedBy);
+    return up.url;
+  } catch { return null; }
+}
 
 export async function projectInfo(target: SummaryTarget, id: string): Promise<{ name: string; number: string | null; kind: "Job" | "Pre-Con" } | null> {
   const sb = getSupabaseAdmin();
@@ -159,15 +226,25 @@ export async function sendSummary(input: SendInput, actor: { id: string; name: s
   const unique = [...new Map(to.map((t) => [t.address.toLowerCase(), t])).values()];
   if (!unique.length && !input.post_to_portal) throw Object.assign(new Error("Choose at least one recipient."), { status: 400 });
 
-  // Save first so a text can link to this exact summary.
-  const { data: saved, error: saveErr } = await getSupabaseAdmin().from("executive_summaries").insert({
+  // Save first so a text can link to this exact summary (a saved draft becomes the sent row).
+  const fieldReports = input.target === "job" && (await isFeatureEnabled("field_reports"));
+  const row = {
     job_id: input.target === "job" ? input.id : null,
     opportunity_id: input.target === "precon" ? input.id : null,
     audience: input.audience, headline, body_html: body, facts,
     content: { opening, completed, coming_soon: comingSoon, photos, channel },
     status: "sent", sent_to: [], posted_to_portal: false,
     created_by: actor.id, created_by_name: actor.name, sent_at: new Date().toISOString(),
-  }).select("id").single();
+    ...(fieldReports ? {
+      period_start: isoDay(input.period_start), period_end: isoDay(input.period_end),
+      sections: { add_back: (input.add_back ?? []).slice(0, 200) }, photo_ids: uuids(input.photo_ids),
+    } : {}),
+  };
+  const sb0 = getSupabaseAdmin();
+  const fromDraft = input.draft_id
+    ? await sb0.from("executive_summaries").update(row).eq("id", input.draft_id).eq("status", "draft").select("id").maybeSingle()
+    : null;
+  const { data: saved, error: saveErr } = fromDraft?.data ? fromDraft : await sb0.from("executive_summaries").insert(row).select("id").single();
   if (saveErr || !saved) throw new Error(saveErr?.message ?? "Couldn't save the summary.");
   const summaryId = saved.id as string;
 
@@ -182,11 +259,11 @@ export async function sendSummary(input: SendInput, actor: { id: string; name: s
     appUrl: app, note: input.note ?? null,
     cta: input.audience === "team"
       ? { label: `Open in the CMI Dashboard`, url: `${app}${href}` }
-      : input.target === "job" ? { label: "View your project portal", url: `${app}/client/jobs/${input.id}/overview` } : null,
+      : input.target === "job" ? { label: "View your project portal", url: `${app}/client/jobs/${input.id}` } : null,
   });
   const subject = `${input.audience === "team" ? "[Internal] " : ""}${project.name} — Executive Summary`;
 
-  const portalUrl = input.target === "job" ? `${app}/client/jobs/${input.id}/overview` : null;
+  const portalUrl = input.target === "job" ? `${app}/client/jobs/${input.id}` : null;
   const smsFor = (firstName: string | null, reader: string) => [
     input.note?.trim() || null,
     `Hi ${(firstName ?? "").trim() || "there"}, here's the latest update on ${project.name} from Constructed Matter: ${headline}`,
@@ -208,7 +285,7 @@ export async function sendSummary(input: SendInput, actor: { id: string; name: s
     const ok = channel === "email"
       ? await sendEmail(r.address, subject, content).catch(() => false)
       : await sendSms(r.address, content).catch(() => false);
-    if (!ok) { skipped.push({ name: r.name, reason: channel === "email" ? "email failed" : "text failed" }); continue; }
+    if (!ok) { skipped.push({ name: r.name, reason: !canSendOutbound() ? "held: not production" : channel === "email" ? "email failed" : "text failed" }); continue; }
     sent.push(r.name);
     delivered.push({ ...r, reader });
     // Record it with the job's other messages (Communications page / counts).
@@ -229,7 +306,7 @@ export async function sendSummary(input: SendInput, actor: { id: string; name: s
       title: headline,
       body: [opening.replace(/\{\{\s*first_name\s*\}\}/gi, "there"), completed.length ? `Completed:\n${completed.map((c) => `• ${c}`).join("\n")}` : "", comingSoon.length ? `Coming soon:\n${comingSoon.map((c) => `• ${c.item}${c.when ? ` (${c.when})` : ""}`).join("\n")}` : "", htmlToText(body)].filter(Boolean).join("\n\n"),
       media: photos.map((p) => ({ url: p.url, type: "image" as const, name: p.caption ?? undefined })),
-      update_type: "general",
+      update_type: fieldReports ? "executive_summary" : "general",
       visibility: "client_visible",
     }, actor.name);
     posted = true;
@@ -240,12 +317,22 @@ export async function sendSummary(input: SendInput, actor: { id: string; name: s
     posted_to_portal: posted,
   }).eq("id", summaryId);
 
-  return { sent, skipped, posted, channel, link: input.audience === "client" ? summaryLink(summaryId) : null };
+  // Field Reports: the PDF goes into the job's Files; photos used join the job's library.
+  let pdf: string | null = null;
+  if (fieldReports) {
+    pdf = await savePdfToFiles({
+      jobId: input.id, audience: input.audience, projectName: project.name, projectNumber: project.number, headline, opening, facts, completed, comingSoon,
+      bodyHtml: body, photos, period: periodLabel(isoDay(input.period_start), isoDay(input.period_end)), preparedBy: actor.name,
+    });
+    await recordPhotos(input.id, photos.map((p) => p.url), { source_type: "exec_summary", source_id: summaryId, uploaded_by: actor.name });
+  }
+
+  return { sent, skipped, posted, channel, link: input.audience === "client" ? summaryLink(summaryId) : null, pdf };
 }
 
 export async function loadHistory(target: SummaryTarget, id: string) {
   const { data } = await getSupabaseAdmin().from("executive_summaries")
-    .select("id,audience,headline,body_html,facts,content,sent_to,posted_to_portal,created_by_name,sent_at,created_at")
+    .select("*")
     .eq(target === "job" ? "job_id" : "opportunity_id", id)
     .order("created_at", { ascending: false }).limit(20);
   return data ?? [];

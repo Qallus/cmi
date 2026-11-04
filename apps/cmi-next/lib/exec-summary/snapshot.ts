@@ -17,13 +17,15 @@ import { loadLists } from "@/lib/punch/data";
 import { htmlToText } from "@/lib/notes/html";
 import { STAGE_META, ALL_STAGES } from "@/lib/pipeline/stages";
 import { JOB_STATUS_META } from "@/lib/jobs/status";
+import { isFeatureEnabled } from "@/lib/flags";
+import { fieldReportExtras, periodOf, type KeptItem, type Period } from "./field-data";
 
 export type SummaryTarget = "job" | "precon";
 export type Audience = "team" | "client";
 
 type Row = Record<string, any>;
 
-export type SummaryPhoto = { url: string; caption: string | null; date: string | null; clientVisible: boolean };
+export type SummaryPhoto = { url: string; caption: string | null; date: string | null; clientVisible: boolean; /** Photos library id (Field Reports). */ id?: string };
 
 export type Snapshot = {
   name: string;
@@ -36,7 +38,12 @@ export type Snapshot = {
   /** Recent photos staff can choose to include (client-visible ones first). */
   photos: SummaryPhoto[];
   data: Record<string, unknown>;
+  /** Field Reports: the period covered and the log items kept out of a client draft. */
+  period?: Period;
+  keptInternal?: KeptItem[];
 };
+
+export type SnapshotOptions = { periodStart?: string | null; periodEnd?: string | null; addBack?: string[]; photoIds?: string[] };
 
 const today = () => new Date().toISOString().slice(0, 10);
 const addDays = (iso: string, n: number) => { const d = new Date(`${iso}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
@@ -107,8 +114,20 @@ function progressOf(items: SchedItem[], currentPhase: string | null, t: string) 
   };
 }
 
-export async function buildSnapshot(target: SummaryTarget, id: string, audience: Audience): Promise<Snapshot | null> {
-  return target === "job" ? jobSnapshot(id, audience) : preconSnapshot(id, audience);
+export async function buildSnapshot(target: SummaryTarget, id: string, audience: Audience, opts: SnapshotOptions = {}): Promise<Snapshot | null> {
+  if (target !== "job") return preconSnapshot(id, audience);
+  const snap = await jobSnapshot(id, audience);
+  // Field Reports: a chosen period, the structured daily logs (with the client
+  // guardrail), schedule health, look-ahead, and the job's Photos library.
+  if (!snap || !(await isFeatureEnabled("field_reports"))) return snap;
+  const period = periodOf(opts.periodStart, opts.periodEnd);
+  const extra = await fieldReportExtras(id, audience, period, opts.addBack ?? [], opts.photoIds ?? []);
+  const seen = new Set(extra.photos.map((p) => p.url));
+  return {
+    ...snap, period, keptInternal: extra.keptInternal,
+    photos: [...extra.photos, ...snap.photos.filter((p) => !seen.has(p.url))].slice(0, 24),
+    data: { ...snap.data, ...extra.data },
+  };
 }
 
 async function jobSnapshot(jobId: string, audience: Audience): Promise<Snapshot | null> {
@@ -231,7 +250,7 @@ async function jobSnapshot(jobId: string, audience: Audience): Promise<Snapshot 
   return {
     name: job.job_name, number: job.job_number, kind: "Job",
     href: `/dashboard/jobs/${jobId}/summary`,
-    portalHref: `/client/jobs/${jobId}/overview`,
+    portalHref: `/client/jobs/${jobId}`,
     clientFirstNames, photos: photoList, data,
   };
 }

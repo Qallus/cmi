@@ -31,6 +31,10 @@ export async function POST(request: Request) {
       extra_emails: strings(body?.extra_emails).slice(0, 10),
       extra_phones: strings(body?.extra_phones).slice(0, 10),
       post_to_portal: !!body?.post_to_portal,
+      draft_id: typeof body?.draft_id === "string" ? body.draft_id : null,
+      period_start: typeof body?.period_start === "string" ? body.period_start : null,
+      period_end: typeof body?.period_end === "string" ? body.period_end : null,
+      add_back: strings(body?.add_back), photo_ids: strings(body?.photo_ids),
     }, actor);
     return NextResponse.json(result);
   } catch (err) {
