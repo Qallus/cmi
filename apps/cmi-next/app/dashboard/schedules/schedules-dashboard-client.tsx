@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { confirmAction } from "@/components/ui/confirm-action";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Search, CalendarClock, AlertTriangle, Clock, Flag, TriangleAlert, CircleCheck, Timer, Plus, Archive, Trash2, Activity, CircleDot } from "lucide-react";
@@ -97,7 +98,7 @@ export function SchedulesDashboardClient({ schedules, metrics, items, staff, job
   // Quick actions on the selected schedules.
   async function bulk(patch: Record<string, unknown> | "delete", label: string) {
     const n = selection.count;
-    if (patch === "delete" && !confirm(`Delete ${n} schedule${n === 1 ? "" : "s"} and all their items? This can't be undone. Archive keeps them instead.`)) return;
+    if (patch === "delete" && !(await confirmAction({ title: `Delete ${n} schedule${n === 1 ? "" : "s"}?`, body: "All their items go too. This can't be undone; Archive keeps them instead.", tone: "danger" }))) return;
     setBusy(true);
     const results = await Promise.all(selection.list.map((id) => fetch(`/api/schedules/${id}`, patch === "delete"
       ? { method: "DELETE" }

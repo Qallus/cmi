@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { confirmAction, promptText } from "@/components/ui/confirm-action";
 import { Plus, GitBranch, Flag, Layers, CalendarClock, CalendarRange, FileText, Star, Archive, ChevronDown, CornerDownRight, Route, Spline } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -76,7 +77,7 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
   async function applyPackage(packageId: string) {
     setPkgMenu(false);
     if (applyingPkg.current) return; // a second click while one is running would create every schedule twice
-    if (!confirm("Apply this package? It creates several schedules with phases, items, and milestones.")) return;
+    if (!(await confirmAction({ title: "Apply this package?", body: "It creates several schedules with their phases, items and milestones.", confirmLabel: "Apply package" }))) return;
     applyingPkg.current = true;
     try { await runPackage(packageId); } finally { applyingPkg.current = false; }
   }
@@ -195,13 +196,13 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
   }
   async function addPhase() {
     if (!primaryId) return;
-    const name = window.prompt("Phase name?"); if (!name) return;
+    const name = await promptText({ title: "New phase", label: "Phase name", placeholder: "e.g. Rough-in", submitLabel: "Add phase" }); if (!name) return;
     await fetch(`/api/schedules/${primaryId}/phases`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) });
     await loadBundle(primaryId);
   }
   async function captureBaseline() {
     if (!primaryId) return;
-    const name = window.prompt("Baseline name?", "Baseline"); if (name === null) return;
+    const name = await promptText({ title: "Capture baseline", body: "Saves today's plan so the Gantt can show planned vs current.", label: "Baseline name", initial: "Baseline", submitLabel: "Capture" }); if (name === null) return;
     await fetch(`/api/schedules/${primaryId}/baselines`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: name || "Baseline" }) });
     await loadBundle(primaryId); setShowBaseline(true); setBanner("Baseline captured.");
   }
@@ -210,7 +211,7 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
     void refreshSchedules();
   }
   async function archiveSchedule(id: string) {
-    if (!confirm("Archive this schedule? Items are kept and it can be restored later.")) return;
+    if (!(await confirmAction({ title: "Archive this schedule?", body: "Its items are kept and it can be restored later.", tone: "archive" }))) return;
     await fetch(`/api/schedules/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "archived" }) });
     setSelected((prev) => { const n = new Set(prev); n.delete(id); if (!n.size && schedules[0]) n.add(schedules.find((s) => s.id !== id)?.id ?? schedules[0].id); return n; });
     void refreshSchedules();

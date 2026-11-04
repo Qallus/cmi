@@ -5,6 +5,7 @@
 // Every change goes to /api/schedules/[id]/grid as one batch; the engine
 // recalculates and the cells it moved flash.
 import * as React from "react";
+import { confirmAction } from "@/components/ui/confirm-action";
 import { createPortal } from "react-dom";
 import { ChevronDown, ChevronRight, ChevronLeft, GripVertical, Maximize2, Undo2, Redo2, Columns3, ListOrdered, Plus, History, Loader2, FlaskConical, Check, FileSpreadsheet, Download, FileUp, Spline } from "lucide-react";
 import { ExcelImportDialog } from "./excel-import";
@@ -608,14 +609,14 @@ export function ScheduleGrid({
     order.splice(at, 0, { id: src, phaseId: targetId ? slots.find((s) => s.id === targetId)?.phaseId ?? null : phaseId });
     void run({ updates: orderUpdates(order) }, { label: `Move ${byId.get(src)?.title}`, undo: { updates: restoreOrder() }, redo: { updates: orderUpdates(order) } });
   }
-  function deleteRows(ids: string[]) {
+  async function deleteRows(ids: string[]) {
     if (!ids.length) return;
-    if (!window.confirm(`Delete ${ids.length === 1 ? `"${byId.get(ids[0])?.title}"` : `${ids.length} tasks`} and their links? This can't be undone.`)) return;
+    if (!(await confirmAction({ title: `Delete ${ids.length === 1 ? `"${byId.get(ids[0])?.title}"` : `${ids.length} tasks`}?`, body: "Their links are removed too. This can't be undone.", tone: "danger" }))) return;
     void run({ deletes: ids }, { label: `Delete ${ids.length} task${ids.length === 1 ? "" : "s"}`, undo: null, redo: null });
     setActive(null); setAnchor(null);
   }
-  function renumber() {
-    if (!window.confirm("Renumber every activity ID by tens in the order shown (10, 20, 30…)? Predecessors follow automatically.")) return;
+  async function renumber() {
+    if (!(await confirmAction({ title: "Renumber activity IDs?", body: "Every ID is renumbered by tens in the order shown (10, 20, 30…). Predecessors follow automatically.", confirmLabel: "Renumber" }))) return;
     void run({ renumber: true }, { label: "Renumber by tens", undo: null, redo: null });
   }
 
