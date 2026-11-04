@@ -10,6 +10,7 @@ import { getSessionStaff } from "@/lib/auth/server-session";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import type { FeatureFlag } from "@/lib/flags";
 import { FeatureFlagsPanel } from "./features/feature-flags-panel";
+import { CalendarEditor } from "@/components/schedules/calendar-editor";
 import { SettingsTabs } from "./settings-tabs";
 
 export const metadata = { title: "Settings — CMI Dashboard" };
@@ -81,6 +82,22 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           <CardDescription>Turn staged features on or off without a redeploy; changes take effect within about 30 seconds. Super Admin and Admin only. A flag gates a feature&apos;s nav entry, pages and API routes.</CardDescription>
         </CardHeader>
         <CardContent className="pt-0"><FeatureFlagsPanel initial={flags} /></CardContent>
+      </Card>
+    </div>
+  );
+
+  const scheduling = (
+    <div className="max-w-3xl">
+      <Card>
+        <CardHeader>
+          <CardTitle>Company work calendar</CardTitle>
+          <CardDescription>The working days and holidays every schedule on the critical path counts by. Jobs can add their own days (Saturdays, weather, owner or inspector days) from a schedule&apos;s Calendar button. Saving recalculates the schedules that use it. Admins edit; everyone can view.</CardDescription>
+        </CardHeader>
+        <CardContent className="pt-0">
+          {flags.some((f) => f.key === "schedule_engine" && f.enabled)
+            ? <CalendarEditor scope="company" />
+            : <p className="text-sm text-muted-foreground">Turn on the schedule engine (Features → schedule_engine) to use work calendars.</p>}
+        </CardContent>
       </Card>
     </div>
   );
@@ -199,7 +216,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight">Settings</h1>
         <p className="mt-1 text-sm text-muted-foreground">Credentials are managed in Coolify. Redeploy after changing them.</p>
       </div>
-      <SettingsTabs initialTab={tab} panels={{ general, features, claude, sidebar, extension, credentials }} />
+      <SettingsTabs initialTab={tab} panels={{ general, features, scheduling, claude, sidebar, extension, credentials }} />
     </div>
   );
 }

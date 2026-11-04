@@ -10,7 +10,9 @@ import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { listItems, getItem, updateItem, createItem, getSchedule, updateSchedule, applyTemplate, applyPackage, shiftSchedule, createDependency, listScopeSchedules, scopeScheduleHeader, scopeLabel, createScopeSchedule } from "@/lib/schedules/data";
 import { searchLinkable, labelForLink, LINK_TYPES } from "@/lib/schedules/links";
 import { SCHEDULE_HELP, HELP_TOPICS, type HelpTopic } from "@/lib/schedules/help";
-import { ENGINE_FLAG, recalcSchedule } from "@/lib/schedules/engine";
+import { ENGINE_FLAG, recalcSchedule, loadNetwork } from "@/lib/schedules/engine";
+import { applyWhatIf, scheduleFinish, type WhatIfOp } from "@/lib/schedules/whatif";
+import { parseLinks, parseDuration } from "@/lib/schedules/predecessors";
 import { isFeatureEnabled } from "@/lib/flags";
 import { canEditSchedules, canManageSchedules, canViewSchedules } from "@/lib/schedules/permissions";
 import { SCHEDULE_TEMPLATES, SCHEDULE_PACKAGES, getTemplate, getPackage, templateSummary } from "@/lib/schedules/templates";
@@ -304,6 +306,89 @@ const scheduleTools: McpTool[] = [
         unlinked: sum.orphans, loops_ignored: sum.loops,
         stale: sum.updated ? `${sum.updated} task(s) would change on recalculation (the next edit saves it).` : undefined,
       } };
+    },
+  },
+  {
+    name: "cmi_schedule_what_if",
+    title: "What-if on a schedule",
+    description: "Try changes on a critical-path schedule without saving anything: change task durations, starts or predecessors (by activity ID, e.g. 120 → duration 10, predecessors \"110FS+2\"), and/or start the whole schedule N working days later (shift_workdays). Returns the finish before and after, how many working days it moved, the tasks that would move, and anything refused (e.g. a start earlier than its links allow). Use it for owner questions like \"what if we start two weeks later?\" or \"what if cabinets take 6 weeks?\". To actually make the change, use cmi_schedule_item_update / cmi_schedule_shift after the person agrees.",
+    risk: "read",
+    available: (c) => canViewSchedules(c.ctx.role),
+    inputSchema: () => obj({
+      schedule_id: str("Schedule id"),
+      shift_workdays: { type: "integer", description: "Start the whole schedule this many working days later (negative = earlier)" },
+      changes: { type: "array", description: "Task changes, by activity ID", items: obj({
+        activity_id: { type: "integer", description: "The task's activity ID (10, 20, 30…)" },
+        duration: str("Working days (8) or calendar days (7cd); 0 makes it a milestone"),
+        start: str("New start, YYYY-MM-DD (becomes Start No Earlier Than)"),
+        predecessors: str("Replace its predecessors with shorthand, e.g. \"110, 120SS+2\" (empty string removes them)"),
+      }, ["activity_id"]) },
+    }, ["schedule_id"]),
+    run: async (a) => {
+      const sched = await getSchedule(s(a.schedule_id));
+      if (!sched) return { result: { error: "No schedule with that id." } };
+      if (!(await isFeatureEnabled(ENGINE_FLAG))) return { result: { error: "The critical path engine isn't switched on yet." } };
+      if ((sched.scheduling_mode ?? "legacy") !== "auto") return { result: { error: `${sched.name} isn't on the critical path (auto). What-if needs it; an Admin or Project Manager can switch it with the dates button on the schedule.` } };
+      const { jobId: _j, ...net } = await loadNetwork(sched.id);
+      const mine = net.items.filter((i) => i.schedule_id === sched.id);
+      const byActivity = new Map(mine.filter((i) => i.activity_id != null).map((i) => [i.activity_id!, i]));
+      const step: WhatIfOp = { updates: [], predecessors: [] };
+      const problems: string[] = [];
+      for (const ch of Array.isArray(a.changes) ? (a.changes as Record<string, unknown>[]) : []) {
+        const it = byActivity.get(Number(ch.activity_id));
+        if (!it) { problems.push(`No activity ${ch.activity_id} on this schedule.`); continue; }
+        const patch: Record<string, unknown> = {};
+        if (typeof ch.duration === "string" || typeof ch.duration === "number") {
+          const d = parseDuration(String(ch.duration));
+          if (!d) problems.push(`Activity ${ch.activity_id}: "${ch.duration}" isn't a duration.`);
+          else if (d.days === 0) Object.assign(patch, { kind: "milestone", duration_days: null });
+          else Object.assign(patch, { kind: "task", duration_days: d.days, duration_unit: d.unit });
+        }
+        if (typeof ch.start === "string" && /^\d{4}-\d{2}-\d{2}$/.test(ch.start)) patch.start_date = ch.start;
+        if (Object.keys(patch).length) step.updates!.push({ id: it.id, patch });
+        if (typeof ch.predecessors === "string") {
+          const { links, errors } = parseLinks(ch.predecessors);
+          if (errors.length) { problems.push(`Activity ${ch.activity_id}: ${errors[0]}`); continue; }
+          const resolved = links.map((l) => ({ src: byActivity.get(l.id), l }));
+          const missing = resolved.filter((r) => !r.src).map((r) => r.l.id);
+          if (missing.length) { problems.push(`Activity ${ch.activity_id}: no activity ${missing.join(", ")} on this schedule.`); continue; }
+          step.predecessors!.push({ itemId: it.id, links: resolved.map(({ src, l }) => ({ sourceItemId: src!.id, type: l.type, lag: l.lag })) });
+        }
+      }
+      if (typeof a.shift_workdays === "number" && a.shift_workdays) step.shift = Math.round(a.shift_workdays);
+      const base = applyWhatIf(net, sched.id, []);
+      const tried = applyWhatIf(net, sched.id, [step]);
+      const before = scheduleFinish(base.net, sched.id).finish;
+      const after = scheduleFinish(tried.net, sched.id, before);
+      const was = new Map(base.net.items.map((i) => [i.id, i]));
+      const moved = tried.net.items.filter((i) => i.schedule_id === sched.id && (was.get(i.id)?.start_date !== i.start_date || was.get(i.id)?.end_date !== i.end_date))
+        .map((i) => ({ activity_id: i.activity_id, title: i.title, from: [was.get(i.id)?.start_date, was.get(i.id)?.end_date], to: [i.start_date, i.end_date] }));
+      return { result: {
+        schedule: sched.name, saved: false,
+        finish_before: before, finish_after: after.finish, change_working_days: after.delta ?? 0,
+        tasks_moved: moved.length, moved: moved.slice(0, 30), more: Math.max(0, moved.length - 30),
+        refused: tried.refused, problems,
+        next_step: "Nothing was saved. If the person wants it, make the change with cmi_schedule_item_update (or cmi_schedule_shift for a start-date move).",
+      } };
+    },
+  },
+  {
+    name: "cmi_schedule_recalc",
+    title: "Recalculate a schedule",
+    description: "Re-run the critical path on a schedule (and the rest of its job's network) and save the dates and float. Useful after links or calendars changed outside the grid. Returns the finish, how many tasks moved and the critical path.",
+    risk: "write",
+    available: (c) => canEditSchedules(c.ctx.role),
+    inputSchema: () => obj({ schedule_id: str("Schedule id") }, ["schedule_id"]),
+    run: async (a, c) => {
+      const sched = await getSchedule(s(a.schedule_id));
+      if (!sched) return { result: { error: "No schedule with that id." } };
+      if (!(await isFeatureEnabled(ENGINE_FLAG))) return { result: { error: "The critical path engine isn't switched on yet." } };
+      if ((sched.scheduling_mode ?? "legacy") === "legacy") return { result: { error: `${sched.name} still uses 'Push later only'; there's nothing to recalculate.` } };
+      const r = await recalcSchedule(sched.id, actorOf(c));
+      return {
+        result: { schedule: sched.name, finish: r.finish, tasks_moved: r.moved.length, moved: r.moved.slice(0, 30), critical_path: r.critical.map((x) => `${x.activity_id ?? ""} ${x.title}`.trim()) },
+        entity: "job_schedule", recordId: sched.id, before: null, after: { finish: r.finish, moved: r.moved.length },
+      };
     },
   },
   {

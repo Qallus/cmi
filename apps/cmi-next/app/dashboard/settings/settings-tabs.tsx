@@ -3,12 +3,13 @@
 // Settings is split into tabs so each area stays short. ?tab= keeps the choice
 // in the URL, so a link can open straight to a tab (e.g. ?tab=features).
 import * as React from "react";
-import { KeyRound, PanelLeft, Puzzle, SlidersHorizontal, Sparkles, ToggleRight } from "lucide-react";
+import { CalendarDays, KeyRound, PanelLeft, Puzzle, SlidersHorizontal, Sparkles, ToggleRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const TABS = [
   { key: "general", label: "General", icon: SlidersHorizontal },
   { key: "features", label: "Features", icon: ToggleRight },
+  { key: "scheduling", label: "Scheduling", icon: CalendarDays },
   { key: "claude", label: "Claude", icon: Sparkles },
   { key: "sidebar", label: "Sidebar Navigation", icon: PanelLeft },
   { key: "extension", label: "Extension Access", icon: Puzzle },

@@ -3,7 +3,9 @@
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { addWorkdays, parseISO, fmtISO, workdaysBetween, workdayDiff } from "./workdays";
 import { notifyScheduleEvent, assigneeStaffIds } from "./notify";
-import { engineModeFor, recalcSchedule, assertMoveAllowed, assertNoLoop, durationOnCalendar, nextActivityId } from "./engine";
+import { engineModeFor, recalcSchedule, assertMoveAllowed, assertNoLoop, durationOnCalendar, nextActivityId, loadNetwork } from "./engine";
+import { addW, CALENDAR_DAYS, dayNum, isoOf, nextW, spanW, workDiff, type DayCalendar } from "./calendar.ts";
+import { calendarFor } from "./engine-core.ts";
 import { DEFAULT_WORKDAYS } from "./types";
 import type {
   JobSchedule, SchedulePhase, ScheduleItem, ScheduleDependency, ScheduleParticipant,
@@ -41,6 +43,19 @@ export function mapItem(r: any): ScheduleItem {
 }
 
 // ---- activity ----
+// Fields a task's history shows, and the before/after of each that changed.
+const HISTORY_FIELDS = [
+  "title", "start_date", "end_date", "duration_days", "duration_unit", "status", "percent_complete", "kind",
+  "constraint_type", "constraint_date", "is_locked", "actual_start", "actual_finish", "milestone_type", "contract_date",
+  "cost_code", "phase_id", "activity_id",
+] as const;
+export function fieldChanges(before: Record<string, unknown> | null | undefined, after: Record<string, unknown> | null | undefined): Record<string, [unknown, unknown]> {
+  const out: Record<string, [unknown, unknown]> = {};
+  if (!before || !after) return out;
+  for (const f of HISTORY_FIELDS) if (f in after && (before[f] ?? null) !== (after[f] ?? null)) out[f] = [before[f] ?? null, after[f] ?? null];
+  return out;
+}
+
 export async function logActivity(input: {
   jobId?: string | null; scheduleId?: string | null; itemId?: string | null;
   action: string; detail?: Record<string, unknown>; actor?: Actor;
@@ -287,7 +302,7 @@ export async function updateItem(id: string, patch: Partial<ScheduleItem>, actor
   }
   const { data, error } = await sb.from("schedule_items").update(clean).eq("id", id).select("*").single();
   if (error) throw new Error(error.message);
-  await logActivity({ jobId: data.job_id, scheduleId: data.schedule_id, itemId: id, action: "item_updated", detail: { fields: Object.keys(clean), title: data.title }, actor });
+  await logActivity({ jobId: data.job_id, scheduleId: data.schedule_id, itemId: id, action: "item_updated", detail: { fields: Object.keys(clean), title: data.title, changes: fieldChanges(prev, data) }, actor });
 
   // Notify newly-added assignees, and (on a date change) the existing assignees.
   const prevAssignees = assigneeStaffIds((prev?.assignees ?? []) as never);
@@ -611,6 +626,34 @@ export async function applyPackage(target: string | ScheduleScope, packageId: st
   return created;
 }
 
+/** Working-day maths for Shift dates: plain weekdays, or a full work calendar. */
+type DayMath = {
+  snap: (iso: string) => string;
+  add: (iso: string, n: number, calendarDays?: boolean) => string;
+  diff: (a: string, b: string) => number;
+  span: (a: string, b: string, calendarDays?: boolean) => number;
+};
+function weekdayMath(wd: Workdays): DayMath {
+  return {
+    snap: (iso) => fmtISO(addWorkdays(parseISO(iso)!, 0, wd)),
+    add: (iso, n, cd) => (cd ? isoOf(dayNum(iso) + n) : fmtISO(addWorkdays(parseISO(iso)!, n, wd))),
+    diff: (a, b) => workdayDiff(parseISO(a)!, parseISO(b)!, wd),
+    span: (a, b, cd) => (cd ? dayNum(b) - dayNum(a) + 1 : workdaysBetween(parseISO(a)!, parseISO(b)!, wd)),
+  };
+}
+async function calendarMath(scheduleId: string): Promise<DayMath> {
+  const net = await loadNetwork(scheduleId);
+  const s = net.schedules.find((x) => x.id === scheduleId)!;
+  const cal: DayCalendar = calendarFor(net, s);
+  const pick = (cd?: boolean) => (cd ? CALENDAR_DAYS : cal);
+  return {
+    snap: (iso) => isoOf(nextW(cal, dayNum(iso))),
+    add: (iso, n, cd) => isoOf(addW(pick(cd), dayNum(iso), n)),
+    diff: (a, b) => workDiff(cal, dayNum(a), dayNum(b)),
+    span: (a, b, cd) => spanW(pick(cd), dayNum(a), dayNum(b)),
+  };
+}
+
 export type ShiftResult = {
   from: string | null; to: string; workdays: number; moved: number; finish: string | null;
   skipped: { id: string; title: string; reason: "locked" | "complete" }[];
@@ -629,20 +672,23 @@ export async function shiftSchedule(scheduleId: string, newStart: string, actor?
   const wd = (sched.workdays ?? DEFAULT_WORKDAYS) as Workdays;
   const items = (await listItems({ scheduleId })).filter((i) => i.start_date);
   const anchor = items.reduce<string | null>((m, i) => (!m || i.start_date! < m ? i.start_date! : m), null) ?? sched.start_date;
-  const to = fmtISO(addWorkdays(target, 0, wd));
+  // On the critical path engine the shift counts the full work calendar
+  // (holidays, job days); otherwise just the schedule's weekdays, as before.
+  const math = (await engineModeFor(scheduleId)) ? await calendarMath(scheduleId) : weekdayMath(wd);
+  const to = math.snap(newStart);
   const result: ShiftResult = { from: anchor, to, workdays: 0, moved: 0, finish: null, skipped: [], changes: [] };
   if (!anchor) return result;
-  const delta = workdayDiff(addWorkdays(parseISO(anchor)!, 0, wd), parseISO(to)!, wd);
+  const delta = math.diff(math.snap(anchor), to);
   result.workdays = delta;
 
   for (const i of items) {
     if (i.is_locked) { result.skipped.push({ id: i.id, title: i.title, reason: "locked" }); continue; }
     if (!opts.includeComplete && (i.status === "complete" || i.status === "cancelled")) { result.skipped.push({ id: i.id, title: i.title, reason: "complete" }); continue; }
     if (!delta) continue;
-    const s0 = parseISO(i.start_date)!, e0 = parseISO(i.end_date) ?? s0;
-    const start = addWorkdays(s0, delta, wd);
-    const end = i.kind === "milestone" ? start : addWorkdays(start, Math.max(1, workdaysBetween(s0, e0, wd)) - 1, wd);
-    result.changes.push({ id: i.id, title: i.title, from: { start: i.start_date, end: i.end_date }, to: { start: fmtISO(start), end: fmtISO(end) } });
+    const start = math.add(i.start_date!, delta);
+    const len = Math.max(1, math.span(i.start_date!, i.end_date ?? i.start_date!, i.duration_unit === "calendar"));
+    const end = i.kind === "milestone" ? start : math.add(start, len - 1, i.duration_unit === "calendar");
+    result.changes.push({ id: i.id, title: i.title, from: { start: i.start_date, end: i.end_date }, to: { start, end } });
   }
   result.moved = result.changes.length;
   const moved = new Map(result.changes.map((c) => [c.id, c]));
@@ -652,7 +698,7 @@ export async function shiftSchedule(scheduleId: string, newStart: string, actor?
 
   const now = new Date().toISOString();
   // A Start No Earlier Than date moves with its task, or the engine would hold it back.
-  const pinned = new Map(items.filter((i) => i.constraint_date).map((i) => [i.id, fmtISO(addWorkdays(parseISO(i.constraint_date!)!, delta, wd))]));
+  const pinned = new Map(items.filter((i) => i.constraint_date).map((i) => [i.id, math.add(i.constraint_date!, delta)]));
   await Promise.all(result.changes.map((c) => sb.from("schedule_items").update({
     start_date: c.to.start, end_date: c.to.end, updated_at: now, updated_by: actor?.id ?? null,
     ...(pinned.has(c.id) ? { constraint_date: pinned.get(c.id) } : {}),
@@ -663,7 +709,7 @@ export async function shiftSchedule(scheduleId: string, newStart: string, actor?
     return range ? sb.from("schedule_phases").update(range).eq("id", ph.id) : null;
   }));
   const schedPatch: Record<string, unknown> = { start_date: to, updated_at: now };
-  if (sched.target_completion) schedPatch.target_completion = fmtISO(addWorkdays(parseISO(sched.target_completion)!, delta, wd));
+  if (sched.target_completion) schedPatch.target_completion = math.add(sched.target_completion, delta);
   await sb.from("job_schedules").update(schedPatch).eq("id", scheduleId);
   await logActivity({ jobId: sched.job_id, scheduleId, action: "schedule_shifted", detail: { from: anchor, to, workdays: delta, moved: result.moved, skipped: result.skipped.length }, actor });
   if (await engineModeFor(scheduleId)) await recalcSchedule(scheduleId, actor);

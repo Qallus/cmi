@@ -15,6 +15,8 @@ import { ItemDrawer } from "./item-drawer";
 import { AddScheduleWizard, type ScheduleSource } from "./add-schedule-wizard";
 import { ShiftDialog } from "./shift-dialog";
 import { EngineDialog } from "./engine-dialog";
+import { CalendarEditor } from "./calendar-editor";
+import { ScheduleModal } from "./schedule-modal";
 import { ScheduleGrid } from "./grid/schedule-grid";
 import { createScheduleFromWizard } from "./create-schedule";
 import { SCHEDULING_MODE_LABELS, type JobSchedule, type ScheduleItem, type SchedulePhase, type ScheduleDependency, type ScheduleView, type ScheduleDraft, type DependencyType, type ScheduleType, type ScheduleScope, type SchedulingMode } from "@/lib/schedules/types";
@@ -57,6 +59,7 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
   const [pkgStart, setPkgStart] = React.useState("");
   const [shiftOpen, setShiftOpen] = React.useState(false);
   const [engineOpen, setEngineOpen] = React.useState(false);
+  const [calendarOpen, setCalendarOpen] = React.useState(false);
   const [engine, setEngine] = React.useState<EngineState | null>(null);
 
   React.useEffect(() => {
@@ -342,6 +345,7 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
                 <Tooltip label={engine.canSwitch ? "How this schedule's dates are worked out" : "Admins and Project Managers change this"} side="bottom" className="inline-block"><Button size="sm" variant="ghost" onClick={() => setEngineOpen(true)} disabled={!engine.canSwitch}><Route className="h-3.5 w-3.5" /> {SCHEDULING_MODE_LABELS[engine.mode]}</Button></Tooltip>
               </>
             ) : null}
+            {engine?.enabled && primarySchedule && !overlay ? <AutoTooltip content={primarySchedule.job_id ? "This job's working days and closed days" : "This schedule's working days and closed days"}><Button size="sm" variant="ghost" onClick={() => setCalendarOpen(true)}><CalendarClock className="h-3.5 w-3.5" /> Calendar</Button></AutoTooltip> : null}
             {primarySchedule && canEdit && !overlay ? <Button size="sm" variant="ghost" onClick={() => setShiftOpen(true)}><CalendarRange className="h-3.5 w-3.5" /> Shift dates</Button> : null}
             {primarySchedule ? <Button size="sm" variant="ghost" onClick={() => window.open(`/api/schedules/${primarySchedule.id}/pdf`, "_blank")}><FileText className="h-3.5 w-3.5" /> PDF</Button> : null}
             {primarySchedule && canManage ? (
@@ -386,6 +390,19 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
         if (primaryId) await loadBundle(primaryId);
         void refreshEngine(); void refreshSchedules();
       }} /> : null}
+      {calendarOpen && primarySchedule ? (
+        <ScheduleModal open title={primarySchedule.job_id ? `Job calendar` : `Calendar: ${primarySchedule.name}`} onClose={() => setCalendarOpen(false)}>
+          <div className="pb-4">
+            <CalendarEditor
+              scope={primarySchedule.job_id ? "job" : "schedule"} scopeId={primarySchedule.job_id ?? primarySchedule.id}
+              intro={primarySchedule.job_id
+                ? "Applies to every schedule on this job, on top of the company calendar (Settings → Scheduling). Add working Saturdays, or closed days by type (weather, owner, jurisdiction) — the counts help with time-extension requests."
+                : "Applies to this schedule, on top of the company calendar (Settings → Scheduling)."}
+              onSaved={async (m) => { setBanner(m); if (primaryId) await loadBundle(primaryId); void refreshEngine(); }}
+            />
+          </div>
+        </ScheduleModal>
+      ) : null}
       {shiftOpen ? <ShiftDialog key={primarySchedule?.id} open schedule={primarySchedule} onClose={() => setShiftOpen(false)} onShifted={async (p) => {
         setShiftOpen(false);
         setBanner(`${p.moved} item${p.moved === 1 ? "" : "s"} moved ${Math.abs(p.workdays)} working day${Math.abs(p.workdays) === 1 ? "" : "s"} ${p.workdays > 0 ? "later" : "earlier"}. Now ${fmtDate(p.to)} to ${fmtDate(p.finish)}.`);

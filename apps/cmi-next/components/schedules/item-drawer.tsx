@@ -68,6 +68,7 @@ export function ItemDrawer({
     <ScheduleModal
       open={open}
       onClose={onClose}
+      side={engine}
       title={isNew ? `New ${kind === "milestone" ? "Milestone" : "Item"}` : draft.title || "Item"}
       footer={canEdit ? (
         <div className="flex items-center gap-2">
@@ -217,8 +218,48 @@ export function ItemDrawer({
           </div>
         ) : null}
 
+        {engine && !isNew && item?.id ? <TaskHistory itemId={item.id} /> : null}
       </div>
     </ScheduleModal>
+  );
+}
+
+const HISTORY_LABEL: Record<string, string> = {
+  title: "Name", start_date: "Start", end_date: "Finish", duration_days: "Duration", duration_unit: "Counts", status: "Status",
+  percent_complete: "% complete", kind: "Kind", constraint_type: "Constraint", constraint_date: "Constraint date", is_locked: "Locked",
+  actual_start: "Actual start", actual_finish: "Actual finish", milestone_type: "Milestone type", contract_date: "Contract date",
+  cost_code: "Cost code", phase_id: "Phase", activity_id: "Activity ID",
+};
+const shown = (v: unknown) => (v == null || v === "" ? "—" : typeof v === "boolean" ? (v ? "yes" : "no") : String(v));
+
+/** Every change to this task: who, when, what (before → after), and moves the schedule made. */
+function TaskHistory({ itemId }: { itemId: string }) {
+  const [rows, setRows] = React.useState<{ id: string; at: string; who: string; via: string | null; action: string; changes: Record<string, [unknown, unknown]> }[] | null>(null);
+  React.useEffect(() => {
+    let live = true;
+    fetch(`/api/schedule-items/${itemId}/history`).then((r) => r.json()).then((d) => { if (live) setRows(d.history ?? []); }).catch(() => { if (live) setRows([]); });
+    return () => { live = false; };
+  }, [itemId]);
+  const items = (rows ?? []).filter((r) => Object.keys(r.changes).length);
+  return (
+    <div className="rounded-lg border border-border p-3">
+      <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">History</div>
+      {rows === null ? <p className="text-xs text-muted-foreground">Loading…</p> : !items.length ? <p className="text-xs text-muted-foreground">No changes recorded yet.</p> : (
+        <ol className="max-h-64 space-y-2 overflow-y-auto pr-1">
+          {items.map((r) => (
+            <li key={r.id} className="text-xs">
+              <div className="flex justify-between gap-2 text-muted-foreground">
+                <span><span className="font-medium text-foreground">{r.who}</span>{r.via ? ` · ${r.via}` : ""}</span>
+                <span className="shrink-0 tabular-nums">{new Date(r.at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
+              </div>
+              {Object.entries(r.changes).map(([k, [a, b]]) => (
+                <div key={k}><span className="text-muted-foreground">{HISTORY_LABEL[k] ?? k}:</span> {shown(a)} → <span className="font-medium">{shown(b)}</span></div>
+              ))}
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
   );
 }
 

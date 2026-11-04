@@ -8,12 +8,14 @@ import { cn } from "@/lib/utils";
 // bottom-sheet clipping (capped height + scrollable body + pinned footer) and
 // adds maximize / minimize / close. Minimizing keeps the component mounted so
 // in-progress form state is preserved.
-export function ScheduleModal({ open, title, onClose, children, footer }: {
+export function ScheduleModal({ open, title, onClose, children, footer, side = false }: {
   open: boolean;
   title: string;
   onClose: () => void;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  /** Open as a panel on the right, leaving the grid / Gantt visible beside it. */
+  side?: boolean;
 }) {
   const [mounted, setMounted] = React.useState(false);
   const [shown, setShown] = React.useState(false);
@@ -47,6 +49,23 @@ export function ScheduleModal({ open, title, onClose, children, footer }: {
         <span className="max-w-[200px] truncate text-sm font-medium">{title}</span>
         <button type="button" onClick={() => setMinimized(false)} aria-label="Restore" className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"><Maximize2 className="h-4 w-4" /></button>
         <button type="button" onClick={onClose} aria-label="Close" className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"><X className="h-4 w-4" /></button>
+      </div>
+    );
+  }
+
+  if (side && !maximized) {
+    return (
+      <div className="fixed inset-0 z-[60] flex justify-end">
+        <div className={cn("absolute inset-0 bg-black/20 transition-opacity duration-200", shown ? "opacity-100" : "opacity-0")} onClick={onClose} />
+        <div className={cn("relative z-10 flex h-full w-full max-w-[520px] flex-col border-l border-border bg-card shadow-2xl transition-transform duration-200", shown ? "translate-x-0" : "translate-x-full")} role="dialog" aria-modal="true" aria-label={title}>
+          <div className="flex shrink-0 items-center gap-1 border-b border-border px-5 py-3">
+            <h3 className="min-w-0 flex-1 truncate font-display text-lg font-semibold">{title}</h3>
+            <button type="button" onClick={() => setMaximized(true)} aria-label="Maximize" className="rounded p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground"><Maximize2 className="h-4 w-4" /></button>
+            <button type="button" onClick={onClose} aria-label="Close" className="rounded p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground"><X className="h-4 w-4" /></button>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
+          {footer ? <div className="shrink-0 border-t border-border px-5 py-3">{footer}</div> : null}
+        </div>
       </div>
     );
   }

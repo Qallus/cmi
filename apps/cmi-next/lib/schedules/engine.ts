@@ -218,6 +218,13 @@ async function persist(net: Network & { jobId: string | null }, changes: EngineC
 
   if (moved.length) {
     await logActivity(moved[0].schedule_id, net.jobId, action, { moved: moved.length, updated: changes.length }, actor);
+    // Each task the engine moved gets a history line ("moved by the schedule").
+    try {
+      await sb.from("schedule_activity").insert(moved.map((c) => ({
+        job_id: net.jobId, schedule_id: c.schedule_id, item_id: c.id, actor_id: actor?.id ?? null, action: "engine_moved",
+        detail: { title: c.title, changes: { start_date: [c.from.start, c.to.start], end_date: [c.from.end, c.to.end] }, via: action === "engine_switch" ? "switch to critical path" : "recalculation" },
+      })));
+    } catch { /* history must never block the save */ }
     // One heads-up per person, not one per task.
     const people = new Map<string, number>();
     for (const c of moved) for (const id of assigneeStaffIds((after.get(c.id)?.assignees ?? []) as Assignee[])) people.set(id, (people.get(id) ?? 0) + 1);

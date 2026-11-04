@@ -6,7 +6,7 @@ import { runCpm } from "./cpm.ts";
 import { CALENDAR_DAYS, dayNum, spanW } from "./calendar.ts";
 import { buildInput, blockedMove, calendarFor, wouldLoop, type NetDep } from "./engine-core.ts";
 import { scheduleRows, type GridOps } from "./grid.ts";
-import { ITEM_FIELDS, mapItem, logActivity, applyCascade } from "./data";
+import { ITEM_FIELDS, mapItem, logActivity, applyCascade, fieldChanges } from "./data";
 import { engineModeFor, loadNetwork, recalcSchedule } from "./engine";
 import { DEPENDENCY_ABBR, type ScheduleItem, type SchedulePhase } from "./types";
 
@@ -66,6 +66,7 @@ export async function applyGridOps(scheduleId: string, ops: GridOps, actor?: Act
 
   // ---- updates ----
   const datesChanged: string[] = [];
+  const history: { job_id: string | null; schedule_id: string; item_id: string; actor_id: string | null; action: string; detail: Record<string, unknown> }[] = [];
   for (const u of ops.updates ?? []) {
     const prev = items.get(u.id);
     if (!prev) continue;
@@ -98,7 +99,11 @@ export async function applyGridOps(scheduleId: string, ops: GridOps, actor?: Act
     fail(prev.title, error);
     items.set(u.id, mapItem(data));
     if (startTyped || endTyped) datesChanged.push(u.id);
+    const changes = fieldChanges(prev as unknown as Record<string, unknown>, data);
+    if (Object.keys(changes).length) history.push({ job_id: sched.job_id ?? null, schedule_id: scheduleId, item_id: u.id, actor_id: actor?.id ?? null, action: ops.source === "excel" ? "item_imported" : "item_updated", detail: { title: data.title, changes, via: ops.source === "excel" ? "Excel import" : "grid" } });
   }
+
+  if (history.length) { try { await sb.from("schedule_activity").insert(history); } catch { /* history must never block the save */ } }
 
   // ---- renumber by tens, in display order ----
   if (ops.renumber) {

@@ -40,6 +40,9 @@ Shift dates (button on a schedule): moves the whole schedule to a new start date
 Baselines: Capture baseline saves today's plan; turn on Baseline on the Gantt to see planned vs current.
 Critical path (only when the schedule engine is switched on): an Admin or Project Manager sets a schedule to "Critical path (auto)" with the dates button in its action bar (a preview shows the new finish first; "Keep today's dates" pins tasks that sit later than their links with a Start No Earlier Than). Then the schedule works out its own dates from the links, CMI's holiday calendar and its working days, moving tasks later and earlier; every task gets float, and float 0 is critical (dark outline on the Gantt). Dragging a task later sets a Start No Earlier Than; dragging it earlier than its links allow is refused with the link that holds it. "Manual" keeps dates and shows float as advice; "Push later only" is the original behaviour above.
 What-if (critical path schedules, Table view → What-if): edits, Gantt drags and "start N working days later" are tried without saving; the bar shows the finish before → after; Apply saves them as one change, Discard throws them away.
+Excel: Table view → Excel → Export to Excel (grid, calendar and a weekly Gantt sheet), Download blank template, or Import from Excel (rows match on the hidden Task GUID; the preview lists every change and offers tasks missing from the file for deletion, none by default).
+Calendars: company holidays live in Settings → Scheduling (Admins). A job's own days — working Saturdays, weather, owner or jurisdiction days, or working a company holiday — are set with the Calendar button on any of its schedules; the counts by type help with time-extension requests. Saving recalculates the critical-path schedules.
+History: open a task (side panel) → History shows who changed what, before → after, and every move the schedule made.
 Contract dates: a milestone can have a type (Contract, Inspection, Client decision, Internal) and a contract date; the grid's "vs contract" column and the schedule bar show working days late (+) or early (−), and the Gantt draws a dashed line at the contract date.`,
   },
   views: {
@@ -68,7 +71,7 @@ Contract dates: a milestone can have a type (Contract, Inspection, Client decisi
   },
   claude: {
     title: "What Claude can do with schedules",
-    body: `List schedules and tasks (late, this week, by date), explain this guide, create a schedule from a template on a start date (with schedules inside it), apply a package, add or update tasks and assign staff, link tasks to each other or to records, shift a whole schedule (shows a preview first), and change a schedule's name, status, priority, target date or Master. Claude doesn't delete schedules.`,
+    body: `List schedules and tasks (late, this week, by date), explain this guide, run a what-if (cmi_schedule_what_if: durations, starts, predecessors or "start N working days later", nothing saved) or recalculate a schedule, create a schedule from a template on a start date (with schedules inside it), apply a package, add or update tasks and assign staff, link tasks to each other or to records, shift a whole schedule (shows a preview first), and change a schedule's name, status, priority, target date or Master. Claude doesn't delete schedules.`,
   },
   faq: {
     title: "Common questions",
