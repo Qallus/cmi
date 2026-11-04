@@ -319,7 +319,11 @@ export function ScheduleGrid({
     e.preventDefault();
     paste(e.clipboardData.getData("text/plain"));
   }
-  function paste(text: string) {
+  /** Paste rows. Without a header they overwrite from the selected cell down
+   *  (like Excel). With a header that has an ID column, rows match by ID:
+   *  known IDs update, new IDs become new tasks. `below` pastes them all as new
+   *  tasks under that row. */
+  function paste(text: string, below?: string) {
     let data = parseClipboard(text).filter((r) => r.some((c) => c.trim()));
     if (!data.length) return;
     const notes: string[] = [];
@@ -334,13 +338,20 @@ export function ScheduleGrid({
     }
     const r0 = active ? rowIndex.get(active.id) ?? itemRows.length : itemRows.length;
     const idCol = colsFor.indexOf("id");
+    const byActivity = (cells: string[]) => {
+      const v = idCol >= 0 ? cells[idCol]?.trim() : "";
+      return v && /^\d+$/.test(v) ? byId.get(ctx.idByActivity.get(Number(v)) ?? "") ?? null : null;
+    };
+    const targets: (ScheduleItem | null)[] = data.map((cells, k) =>
+      below ? null : hm && idCol >= 0 ? byActivity(cells) : itemRows[r0 + k] ?? null);
     // New rows first get their IDs, so pasted predecessors can point at each other.
     const ctx2: GridCtx = { ...ctx, idByActivity: new Map(ctx.idByActivity), activityById: new Map(ctx.activityById) };
-    const phaseId = active ? slots.find((s) => s.id === active.id)?.phaseId ?? null : null;
+    const anchorId = below ?? active?.id ?? null;
+    const phaseId = anchorId ? slots.find((s) => s.id === anchorId)?.phaseId ?? null : null;
     const fresh: { tempId: string; stub: ScheduleItem; cells: string[] }[] = [];
     const used = new Set(ctx.idByActivity.keys());
     data.forEach((cells, k) => {
-      if (itemRows[r0 + k]) return;
+      if (targets[k]) return;
       const tempId = `new-${++tempSeq.current}`;
       const n = idCol >= 0 && /^\d+$/.test(cells[idCol]?.trim() ?? "") ? Number(cells[idCol].trim()) : null;
       const id = n != null && !used.has(n) ? n : null;
@@ -351,7 +362,7 @@ export function ScheduleGrid({
     });
     const changes: { item: ScheduleItem; key: ColumnKey; text: string; change: CellChange }[] = [];
     data.forEach((cells, k) => {
-      const target = itemRows[r0 + k];
+      const target = targets[k];
       if (!target) return;
       cells.forEach((text, j) => {
         const key = colsFor[j];
@@ -363,9 +374,11 @@ export function ScheduleGrid({
     const creates: NonNullable<GridOps["creates"]> = [];
     const createPreds: PredEdit[] = [];
     const errs: string[] = [];
-    const base = slots.length;
+    // New rows go under `below`, or at the end.
+    const at = below ? slots.findIndex((s) => s.id === below) + 1 : slots.length;
+    const order = [...slots.slice(0, at), ...fresh.map((f) => ({ id: f.tempId, phaseId })), ...slots.slice(at)];
     fresh.forEach(({ tempId, stub, cells }, k) => {
-      const row: Partial<ScheduleItem> = { kind: "task", phase_id: phaseId, sort_order: base + k, activity_id: stub.activity_id };
+      const row: Partial<ScheduleItem> = { kind: "task", phase_id: phaseId, sort_order: at + k, activity_id: stub.activity_id };
       cells.forEach((text, j) => {
         const key = colsFor[j];
         if (!key || key === "id" || !COLUMN[key].editable || !text.trim()) return;
@@ -390,10 +403,13 @@ export function ScheduleGrid({
       if (c.change.preds) preds.push(c.change.preds);
     }
     const updates = [...patches].map(([id, patch]) => ({ id, patch }));
-    const ops: GridOps = { updates, creates, predecessors: preds };
+    const ops: GridOps = { updates: below ? mergeUpdates(updates, orderUpdates(order)) : updates, creates, predecessors: preds };
     const entry: Entry = {
       label: `Paste ${data.length} row${data.length === 1 ? "" : "s"} (${creates.length} new)`,
-      undo: { updates: updates.map((u) => ({ id: u.id, patch: beforePatch(byId.get(u.id)!, u.patch) })), predecessors: preds.filter((p) => byId.has(p.itemId)).map((p) => currentPreds(p.itemId)) },
+      undo: {
+        updates: mergeUpdates(updates.map((u) => ({ id: u.id, patch: beforePatch(byId.get(u.id)!, u.patch) })), below ? restoreOrder() : []),
+        predecessors: preds.filter((p) => byId.has(p.itemId)).map((p) => currentPreds(p.itemId)),
+      },
       redo: null,
     };
     void run(ops, entry).then((d) => { if (d?.created) entry.undo!.deletes = Object.values(d.created); });
@@ -406,7 +422,7 @@ export function ScheduleGrid({
     const pos = where === "above" ? at : at + 1;
     const prev = slots[pos - 1] ? byId.get(slots[pos - 1].id) : null;
     const next = slots[pos] ? byId.get(slots[pos].id) : null;
-    const newId = idBetween(prev?.activity_id ?? null, next?.activity_id ?? null);
+    const newId = idBetween(prev?.activity_id ?? null, next?.activity_id ?? null, new Set(ctx.idByActivity.keys()));
     if (newId == null) onBanner(`No activity ID free between ${prev?.activity_id} and ${next?.activity_id}; it goes at the end of the numbering. Renumber by tens to tidy up.`);
     const tempId = `new-${++tempSeq.current}`;
     const phaseId = slots[at].phaseId;
@@ -600,6 +616,11 @@ export function ScheduleGrid({
                 <MenuButton onClick={() => { setMenu(null); insertRow(menuItem.id, "above"); }}>Insert task above</MenuButton>
                 <MenuButton onClick={() => { setMenu(null); insertRow(menuItem.id, "below"); }}>Insert task below</MenuButton>
                 <MenuButton onClick={() => { setMenu(null); insertRow(menuItem.id, "below", menuItem); }}>Duplicate</MenuButton>
+                <MenuButton onClick={() => {
+                  setMenu(null);
+                  const id = menuItem.id;
+                  navigator.clipboard?.readText().then((text) => paste(text, id)).catch(() => onBanner("The browser didn't allow reading the clipboard. Select the row and press Ctrl+V instead."));
+                }}>Paste as new tasks below</MenuButton>
                 <MenuButton onClick={() => { setMenu(null); moveRow(menuItem.id, -1); }}>Move up</MenuButton>
                 <MenuButton onClick={() => { setMenu(null); moveRow(menuItem.id, 1); }}>Move down</MenuButton>
                 <MenuButton danger onClick={() => { setMenu(null); deleteRows(selectedIds.includes(menuItem.id) ? selectedIds : [menuItem.id]); }}>Delete{selectedIds.length > 1 && selectedIds.includes(menuItem.id) ? ` ${selectedIds.length} tasks` : ""}</MenuButton>

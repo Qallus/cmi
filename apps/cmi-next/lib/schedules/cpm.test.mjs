@@ -213,4 +213,8 @@ test("predecessor shorthand", () => {
   assert.equal(idBetween(20, 25), 22);
   assert.equal(idBetween(20, 21), null);
   assert.equal(idBetween(120, null), 130);
+  assert.equal(idBetween(120, 140, new Set([130])), 129, "skips an ID used elsewhere in the schedule");
+  assert.equal(idBetween(120, 124, new Set([121, 122, 123])), null);
+  assert.equal(idBetween(120, null, new Set([130, 140])), 150);
+  assert.equal(idBetween(140, 120, new Set([150])), 160, "rows out of ID order: next free ten");
 });

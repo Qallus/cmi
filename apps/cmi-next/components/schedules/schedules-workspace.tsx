@@ -21,7 +21,7 @@ import { SCHEDULING_MODE_LABELS, type JobSchedule, type ScheduleItem, type Sched
 
 type Staff = { id: string; name: string };
 type Bundle = { schedule: JobSchedule; phases: SchedulePhase[]; items: ScheduleItem[]; dependencies: ScheduleDependency[] };
-type EngineState = { enabled: boolean; mode: SchedulingMode; canSwitch: boolean; summary: { finish: string; critical: { id: string }[]; loops: number } | null };
+type EngineState = { enabled: boolean; mode: SchedulingMode; canSwitch: boolean; summary: { finish: string | null; critical: { id: string }[]; loops: number } | null };
 type Header = { schedule_count: number; active_count: number; overall_progress: number; health: string; projected_completion: string | null; next_milestone: { title: string; date: string | null; schedule_name: string } | null };
 
 // `scope`: whose schedules these are (a job, or with the Schedule Builder a deal,

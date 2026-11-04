@@ -57,11 +57,14 @@ export async function applyGridOps(scheduleId: string, ops: GridOps, actor?: Act
     const top = Math.floor(Math.max(0, ...taken) / 10) * 10;
     const fresh = Array.from({ length: ops.creates.length }, (_, i) => top + (i + 1) * 10);
     let k = 0;
+    const used = new Set([...items.values()].map((i) => i.activity_id).filter((n): n is number => n != null));
     const insert = ops.creates.map((c) => {
       const row: Record<string, unknown> = { schedule_id: scheduleId, job_id: sched.job_id ?? null, created_by: actor?.id ?? null, updated_by: actor?.id ?? null };
       for (const f of ITEM_FIELDS) if (f in c.row) row[f] = (c.row as Record<string, unknown>)[f];
       if (!row.title) row.title = c.row.kind === "milestone" ? "New Milestone" : "New Task";
-      if (row.activity_id == null) row.activity_id = fresh[k++];
+      // An ID someone else already has (e.g. picked from a stale screen) falls back to a free one.
+      if (row.activity_id == null || used.has(row.activity_id as number)) row.activity_id = fresh[k++];
+      used.add(row.activity_id as number);
       if (row.kind === "milestone" && row.start_date) row.end_date = row.start_date;
       return row;
     });

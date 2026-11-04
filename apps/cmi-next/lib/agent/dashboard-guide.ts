@@ -323,8 +323,9 @@ export const DASHBOARD_GUIDE: GuideEntry[] = [
   {
     id: "settings", name: "Settings", path: "/dashboard/settings", nav: "Sidebar → Settings",
     roles: "Super Admin, Admin",
-    summary: "Tabs: General (appearance, feature flags, Project Canvas visibility, extension access), Claude (who can connect Claude to CMI data, who has company-wide access, and who may receive AI-generated email, SMS, DMs and notifications; Super Admin edits), Sidebar Navigation (hide any sidebar item for everyone; Super Admin) and Credentials (which service keys are set).",
+    summary: "Tabs: General (appearance, Project Canvas visibility), Features (turn staged features on or off: feature flags), Claude (who can connect Claude to CMI data, who has company-wide access, and who may receive AI-generated email, SMS, DMs and notifications; Super Admin edits), Sidebar Navigation (hide any sidebar item for everyone; Super Admin), Extension Access (who may use the Selection Card Builder Chrome extension) and Credentials (which service keys are set).",
     steps: [
+      "Turn a feature on or off (e.g. schedule_engine, schedule_builder, projections): Settings → Features → flip its switch; it takes effect within about 30 seconds.",
       "Hide a sidebar item: Settings → Sidebar Navigation → switch it off.",
       "Give someone the company-wide (ownership) view in Claude: Settings → Claude → find the person → switch on Company-wide access.",
       "Let a client or vendor receive AI messages: Settings → Claude → Add a person → search them → switch on AI emails / AI text messages. Claude can then email them (from info@, replies come back to whoever asked) or text them, always after showing a preview and getting a yes. Opt-outs (STOP / unsubscribe) always win.",
@@ -358,7 +359,7 @@ export const DASHBOARD_GUIDE: GuideEntry[] = [
     summary: "Estimate requests from the website quote form.", keywords: ["quotes", "quote requests", "estimates"],
   },
   {
-    id: "take-off", name: "Take-Off", path: "/dashboard/take-off", nav: "Sidebar → Take-Off (when the Take-Off feature is turned on in Settings → General → Feature Flags)",
+    id: "take-off", name: "Take-Off", path: "/dashboard/take-off", nav: "Sidebar → Take-Off (when the Take-Off feature is turned on in Settings → Features)",
     summary: "Plan take-off measuring tool.", keywords: ["take-off", "takeoff", "measure", "plans"],
   },
 ];

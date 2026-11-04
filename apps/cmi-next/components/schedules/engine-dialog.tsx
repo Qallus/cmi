@@ -82,7 +82,7 @@ export function EngineDialog({ open, schedule, currentMode, onClose, onSwitched 
           <div className="space-y-2 rounded-lg border border-border p-3 text-sm">
             <div className="flex justify-between gap-3"><span className="text-muted-foreground">Finish</span><span className="font-medium">{fmtDate(plan.finishBefore)} → {fmtDate(plan.finishAfter)}</span></div>
             {plan.moved.length ? (
-              <div>{plan.later ? <><strong>{plan.later}</strong> task{plan.later === 1 ? "" : "s"} move later because their links need it. </> : null}{plan.earlier ? <><strong>{plan.earlier}</strong> move earlier.</> : null}</div>
+              <div><strong>{plan.moved.length}</strong> task{plan.moved.length === 1 ? "" : "s"} change dates{plan.earlier ? <> ({plan.later} later, {plan.earlier} earlier)</> : null}: their links, the holiday calendar or the working days need it.</div>
             ) : <div className="text-muted-foreground">No dates change.</div>}
             {plan.pinned ? <div className="text-xs text-muted-foreground">{plan.pinned} task{plan.pinned === 1 ? "" : "s"} get a Start No Earlier Than at today&apos;s date.</div> : null}
             {plan.moved.length ? (
@@ -90,7 +90,9 @@ export function EngineDialog({ open, schedule, currentMode, onClose, onSwitched 
                 {plan.moved.slice(0, 100).map((c) => (
                   <div key={c.id} className="flex justify-between gap-3 border-b border-border px-2 py-1 text-xs last:border-0">
                     <span className="truncate">{c.title}</span>
-                    <span className="shrink-0 tabular-nums text-muted-foreground">{fmtDate(c.from.start)} → <span className="text-foreground">{fmtDate(c.to.start)}</span></span>
+                    <span className="shrink-0 tabular-nums text-muted-foreground">{c.from.start === c.to.start
+                      ? <>finish {fmtDate(c.from.end)} → <span className="text-foreground">{fmtDate(c.to.end)}</span></>
+                      : <>{fmtDate(c.from.start)} → <span className="text-foreground">{fmtDate(c.to.start)}</span></>}</span>
                   </div>
                 ))}
               </div>

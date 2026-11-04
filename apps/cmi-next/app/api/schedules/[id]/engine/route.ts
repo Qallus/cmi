@@ -8,8 +8,8 @@ import type { SchedulingMode } from "@/lib/schedules/types";
 
 const MODES: SchedulingMode[] = ["legacy", "auto", "manual"];
 
-// GET: is the engine available, this schedule's mode, and (on the engine) a
-// fresh read of its finish and critical path without saving anything.
+// GET: is the engine available, this schedule's mode, and (on the engine) its
+// finish and critical tasks as of the last save.
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { staff } = await requireAdmin(request);
@@ -19,7 +19,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const { data } = await getSupabaseAdmin().from("job_schedules").select("scheduling_mode, status_date, engine_finish, engine_ran_at").eq("id", id).maybeSingle();
     if (!data) return NextResponse.json({ error: "Schedule not found." }, { status: 404 });
     const mode = (data.scheduling_mode ?? "legacy") as SchedulingMode;
-    const summary = enabled && mode !== "legacy" ? await recalcSchedule(id, undefined, { dryRun: true }) : null;
+    // Read what the last save stored rather than re-running the engine (fast).
+    let summary: { finish: string | null; critical: { id: string }[]; loops: number } | null = null;
+    if (enabled && mode !== "legacy") {
+      const { data: crit } = await getSupabaseAdmin().from("schedule_items").select("id").eq("schedule_id", id).eq("is_critical", true).not("total_float", "is", null);
+      summary = { finish: data.engine_finish ?? null, critical: (crit ?? []) as { id: string }[], loops: 0 };
+    }
     return NextResponse.json({ enabled, mode, ...data, summary, canSwitch: canManageSchedules(staff.role_slug) });
   } catch (err) { const e = err as AuthError; return NextResponse.json({ error: e.message }, { status: e.status ?? 500 }); }
 }

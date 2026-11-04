@@ -73,9 +73,20 @@ export function formatDuration(days: number, unit: "workdays" | "calendar"): str
 
 /** Next free activity ID between two neighbours (25 between 20 and 30, then
  *  22 or 27). Null when there's no gap left: offer Renumber by Tens. */
-export function idBetween(before: number | null, after: number | null): number | null {
+export function idBetween(before: number | null, after: number | null, used: Set<number> = new Set()): number | null {
   const lo = before ?? 0;
-  if (after == null) return (Math.floor(lo / 10) + 1) * 10;
-  if (after - lo < 2) return null;
-  return lo + Math.floor((after - lo) / 2);
+  if (after == null || after <= lo) {
+    // At the end (or rows out of ID order): the next ten above lo that's free.
+    let n = (Math.floor(lo / 10) + 1) * 10;
+    while (used.has(n)) n += 10;
+    return n;
+  }
+  // The middle of the gap first, then outwards, skipping IDs used elsewhere.
+  const mid = lo + Math.floor((after - lo) / 2);
+  const free = (n: number) => n > lo && n < after && !used.has(n);
+  for (let d = 0; mid - d > lo || mid + d < after; d++) {
+    if (free(mid - d)) return mid - d;
+    if (free(mid + d)) return mid + d;
+  }
+  return null;
 }

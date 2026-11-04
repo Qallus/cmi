@@ -1,6 +1,4 @@
-import Link from "next/link";
-import { ArrowRight } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ProjectCanvasVisibility } from "@/components/dashboard/project-canvas-visibility";
 import { ExtensionAccessPanel } from "@/components/dashboard/extension-access-panel";
@@ -9,9 +7,22 @@ import { NavVisibilityPanel } from "@/components/dashboard/nav-visibility-panel"
 import { ClaudeAccessPanel } from "@/components/dashboard/claude-access-panel";
 import { ClaudeActivityPanel } from "@/components/dashboard/claude-activity-panel";
 import { getSessionStaff } from "@/lib/auth/server-session";
+import { getSupabaseAdmin } from "@/lib/supabase/server";
+import type { FeatureFlag } from "@/lib/flags";
+import { FeatureFlagsPanel } from "./features/feature-flags-panel";
 import { SettingsTabs } from "./settings-tabs";
 
 export const metadata = { title: "Settings — CMI Dashboard" };
+export const dynamic = "force-dynamic";
+
+async function loadFlags(): Promise<FeatureFlag[]> {
+  try {
+    const { data } = await getSupabaseAdmin().from("feature_flags").select("*").order("key");
+    return (data ?? []) as FeatureFlag[];
+  } catch {
+    return [];
+  }
+}
 
 /** One environment variable: whether it's set, and its value unless secret. */
 function EnvRow({ label, envKey, masked }: { label: string; envKey: string; masked?: boolean }) {
@@ -45,7 +56,7 @@ function CredentialCard({ title, note, children }: { title: string; note?: strin
 }
 
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
-  const [staff, { tab }] = await Promise.all([getSessionStaff(), searchParams]);
+  const [staff, { tab }, flags] = await Promise.all([getSessionStaff(), searchParams, loadFlags()]);
   const canSeeAiActivity = staff?.role_slug === "super_admin" || staff?.role_slug === "admin";
 
   const general = (
@@ -56,23 +67,26 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       </Card>
 
       <Card>
-        <CardHeader><CardTitle>Feature Flags</CardTitle></CardHeader>
-        <CardContent className="pt-0">
-          <Link href="/dashboard/settings/features" className="flex items-center justify-between gap-4 rounded-md border border-border px-3 py-3 text-sm hover:bg-muted">
-            <span>
-              <span className="block font-medium">Turn features on or off</span>
-              <span className="block text-xs text-muted-foreground">Projections, Take-Off, Project Canvas and other staged features.</span>
-            </span>
-            <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-          </Link>
-        </CardContent>
-      </Card>
-
-      <Card>
         <CardHeader><CardTitle>Project Canvas Visibility</CardTitle></CardHeader>
         <CardContent className="pt-0"><ProjectCanvasVisibility /></CardContent>
       </Card>
+    </div>
+  );
 
+  const features = (
+    <div className="max-w-2xl">
+      <Card>
+        <CardHeader>
+          <CardTitle>Feature Flags</CardTitle>
+          <CardDescription>Turn staged features on or off without a redeploy; changes take effect within about 30 seconds. Super Admin and Admin only. A flag gates a feature&apos;s nav entry, pages and API routes.</CardDescription>
+        </CardHeader>
+        <CardContent className="pt-0"><FeatureFlagsPanel initial={flags} /></CardContent>
+      </Card>
+    </div>
+  );
+
+  const extension = (
+    <div className="max-w-2xl">
       <Card>
         <CardHeader><CardTitle>Extension Access</CardTitle></CardHeader>
         <CardContent className="pt-0"><ExtensionAccessPanel /></CardContent>
@@ -185,7 +199,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight">Settings</h1>
         <p className="mt-1 text-sm text-muted-foreground">Credentials are managed in Coolify. Redeploy after changing them.</p>
       </div>
-      <SettingsTabs initialTab={tab} panels={{ general, claude, sidebar, credentials }} />
+      <SettingsTabs initialTab={tab} panels={{ general, features, claude, sidebar, extension, credentials }} />
     </div>
   );
 }
