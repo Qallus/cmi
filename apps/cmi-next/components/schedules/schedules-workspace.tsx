@@ -3,7 +3,6 @@
 import * as React from "react";
 import { Plus, GitBranch, Flag, Layers, CalendarClock, CalendarRange, FileText, Star, Archive, ChevronDown, CornerDownRight, Route } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Select } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { Tooltip, AutoTooltip } from "@/components/ui/tooltip";
 import { VIEWS, HealthChip, TypeBadge, Progress, fmtDate, scheduleColor, scheduleTree } from "./shared";
@@ -322,15 +321,11 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
                 {canEdit ? <Button size="sm" variant={linkMode ? "accent" : "ghost"} onClick={() => setLinkMode((v) => !v)}><GitBranch className="h-3.5 w-3.5" /> Link</Button> : null}
                 <Button size="sm" variant={showBaseline ? "accent" : "ghost"} onClick={() => setShowBaseline((v) => !v)}><CalendarClock className="h-3.5 w-3.5" /> Baseline</Button>
                 {canManage ? <Button size="sm" variant="ghost" onClick={captureBaseline} disabled={!primaryId}>Capture baseline</Button> : null}
-                <div className="ml-1 flex items-center gap-1 text-xs text-muted-foreground">Zoom
-                  <Select value={zoom} onChange={(e) => setZoom(e.target.value as never)} className="h-7 w-24 text-xs"><option value="day">Day</option><option value="week">Week</option><option value="month">Month</option></Select>
-                </div>
+                <Segmented label="Zoom" value={zoom} onChange={setZoom} options={[["day", "Day"], ["week", "Week"], ["month", "Month"]]} />
               </>
             ) : null}
             {view === "kanban" ? (
-              <div className="flex items-center gap-1 text-xs text-muted-foreground">Group by
-                <Select value={kanbanGroup} onChange={(e) => setKanbanGroup(e.target.value as never)} className="h-7 w-28 text-xs"><option value="status">Status</option><option value="priority">Priority</option></Select>
-              </div>
+              <Segmented label="Group by" value={kanbanGroup} onChange={setKanbanGroup} options={[["status", "Status"], ["priority", "Priority"]]} />
             ) : null}
             <div className="flex-1" />
             {builder && primarySchedule && canEdit && !overlay ? <AutoTooltip content="Add a schedule inside this one"><Button size="sm" variant="ghost" onClick={() => { setParentForNew(primarySchedule.id); setWizardOpen(true); }}><CornerDownRight className="h-3.5 w-3.5" /> Add inside</Button></AutoTooltip> : null}
@@ -407,6 +402,23 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
         onAddDependency={(sourceId, type, lag) => { if (editing?.id) void addDependency(sourceId, editing.id, type, lag); }}
         onRemoveDependency={removeDependency}
       />
+    </div>
+  );
+}
+
+/** A small labelled segmented control, sized to sit in the action bar with the buttons. */
+function Segmented<V extends string>({ label, value, onChange, options }: { label: string; value: V; onChange: (v: V) => void; options: [V, string][] }) {
+  return (
+    <div className="ml-1 flex items-center gap-1.5">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <div role="radiogroup" aria-label={label} className="flex h-8 items-center gap-0.5 rounded-md border border-border bg-card p-0.5">
+        {options.map(([v, text]) => (
+          <button key={v} type="button" role="radio" aria-checked={value === v} onClick={() => onChange(v)}
+            className={cn("h-full rounded px-2.5 text-xs font-medium transition", value === v ? "bg-accent/15 text-accent" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
+            {text}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

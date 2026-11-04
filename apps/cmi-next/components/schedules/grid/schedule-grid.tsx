@@ -637,7 +637,7 @@ export function ScheduleGrid({
     else if (which === "gantt") { ganttPanel.current?.expand(); gridPanel.current?.collapse(); }
     else { gridPanel.current?.expand(); ganttPanel.current?.expand(); }
   };
-  const chooseLayout = (name: string) => { setLayout(name); store("cmi.schedgrid.layout", name); if (GRID_LAYOUTS[name]) { setCols(GRID_LAYOUTS[name]); store("cmi.schedgrid.columns", GRID_LAYOUTS[name]); } };
+  const chooseLayout = (name: string) => { setColMenu(false); setLayout(name); store("cmi.schedgrid.layout", name); if (GRID_LAYOUTS[name]) { setCols(GRID_LAYOUTS[name]); store("cmi.schedgrid.columns", GRID_LAYOUTS[name]); } };
   const toggleCol = (k: ColumnKey) => {
     const next = cols.includes(k) ? cols.filter((c) => c !== k) : GRID_COLUMNS.map((c) => c.key).filter((c) => c === k || cols.includes(c));
     if (!next.length) return;

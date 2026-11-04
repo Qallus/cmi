@@ -62,7 +62,7 @@ export const GRID_COLUMNS: Column[] = [
   { key: "id", label: "ID", width: 56, editable: true, align: "right", aliases: ["activity id", "activity", "#"] },
   { key: "name", label: "Task name", width: 240, editable: true, aliases: ["task", "name", "title", "activity name", "description"] },
   { key: "duration", label: "Duration", width: 72, editable: true, align: "right", aliases: ["dur", "days", "duration (days)"] },
-  { key: "start", label: "Start", width: 92, editable: true, aliases: ["start date"] },
+  { key: "start", label: "Start", width: 108, editable: true, aliases: ["start date"] },
   { key: "finish", label: "Finish", width: 92, editable: true, aliases: ["finish date", "end", "end date"] },
   { key: "preds", label: "Predecessors", width: 120, editable: true, aliases: ["predecessor", "pred", "preds"] },
   { key: "succs", label: "Successors", width: 120, editable: false, aliases: ["successor", "succ"] },

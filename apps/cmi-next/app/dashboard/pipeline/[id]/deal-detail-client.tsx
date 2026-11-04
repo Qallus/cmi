@@ -1389,5 +1389,5 @@ function ModalShell({ title, onClose, wide, children }: { title: string; onClose
   );
 }
 function L({ label, children, full }: { label: string; children: React.ReactNode; full?: boolean }) {
-  return <label className={cn("block space-y-1", full && "sm:col-span-2")}><span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</span>{children}</label>;
+  return <label className={cn("block space-y-1", full && "sm:col-span-2")}><span className="block text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</span>{children}</label>;
 }
