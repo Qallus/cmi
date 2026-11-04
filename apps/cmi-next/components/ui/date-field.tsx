@@ -21,7 +21,7 @@ function parse(s?: string | null): { y: number; m: number; d: number } | null {
 }
 
 export function DateField({
-  value, onChange, placeholder = "Pick a date", min, allowClear = true, className, title,
+  value, onChange, placeholder = "Pick a date", min, allowClear = true, className, title, triggerProps, icon = true,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -31,6 +31,10 @@ export function DateField({
   allowClear?: boolean;
   className?: string;
   title?: string;
+  /** Extra attributes for the trigger button (aria-label, data-*, onKeyDown, disabled). */
+  triggerProps?: React.ButtonHTMLAttributes<HTMLButtonElement> & Record<`data-${string}`, string | number>;
+  /** Show the calendar icon (off in dense grids). */
+  icon?: boolean;
 }) {
   const [open, setOpen] = React.useState(false);
   const [pos, setPos] = React.useState<{ top: number; left: number } | null>(null);
@@ -97,6 +101,7 @@ export function DateField({
         ref={btnRef}
         type="button"
         title={title}
+        {...triggerProps}
         onClick={toggle}
         className={cn(
           "flex h-9 w-full items-center justify-between gap-2 rounded-md border border-border bg-background px-3 text-left text-sm outline-none transition focus:border-accent",
@@ -106,7 +111,7 @@ export function DateField({
         )}
       >
         <span className="truncate">{label || placeholder}</span>
-        <CalendarIcon className="h-4 w-4 shrink-0 text-accent/70" />
+        {icon ? <CalendarIcon className="h-4 w-4 shrink-0 text-accent/70" /> : null}
       </button>
 
       {open && pos && typeof document !== "undefined" && createPortal(

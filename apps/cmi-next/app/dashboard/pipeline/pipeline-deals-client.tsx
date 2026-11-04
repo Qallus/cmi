@@ -398,7 +398,13 @@ export function PipelineDealsClient({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">CRM</div>
-            <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight">Pipeline</h1>
+            <div className="mt-1 flex items-center gap-2.5">
+              <h1 className="font-display text-2xl font-semibold tracking-tight">Pipeline</h1>
+              {/* Live count of the deals shown (follows search and filters). */}
+              <span aria-live="polite" className="inline-flex items-center rounded-full border border-border bg-muted/50 px-2.5 py-0.5 text-[11px] font-medium tabular-nums text-muted-foreground">
+                {filtered.length} deal{filtered.length === 1 ? "" : "s"}
+              </span>
+            </div>
             <p className="mt-1 text-sm text-muted-foreground">Leads and opportunities from first inquiry to Closed Won.</p>
           </div>
           <div className="flex items-center gap-2">
@@ -441,7 +447,6 @@ export function PipelineDealsClient({
           <Select value={sort} onChange={(e) => setSort(e.target.value as SortKey)} className="w-[132px] [&>button]:h-8" aria-label="Sort deals">
             {SORT_OPTIONS.map(([key, label]) => <option key={key} value={key}>Sort: {label}</option>)}
           </Select>
-          <span className="whitespace-nowrap text-xs text-muted-foreground">{filtered.length} deal{filtered.length === 1 ? "" : "s"}</span>
           <div className="ml-auto flex items-center gap-2">
             {view === "table"
               ? <ViewOptions all={TABLE_COLUMNS} columns={tableCols.columns} onChange={tableCols.setColumns} defaults={tableCols.defaults} pinned={["No.", "Deal"]} />
@@ -665,7 +670,9 @@ function ListView({ deals, ownerName, onOpen, renderActions, reorder, sortState,
   const show = (k: ListCol) => columns.includes(k);
   const { dragId, overId, rowProps } = useRowDrag(reorder);
   return (
-    <div className="overflow-hidden rounded-lg border border-border">
+    // relative: keeps the header's screen-reader-only labels inside the scroll box
+    // (absolutely positioned, they otherwise widen the whole page on phones).
+    <div className="relative overflow-x-auto rounded-lg border border-border">
       <table className="w-full text-sm">
         <thead className="bg-muted/50 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
           <tr>
@@ -764,7 +771,7 @@ function TableView({ deals, ownerName, onOpen, renderActions, reorder, sortState
   const th = "border-b border-r border-border px-2 py-2 font-medium last:border-r-0";
   const td = "border-b border-r border-border p-0 align-middle";
   return (
-    <div className="overflow-x-auto rounded-lg border border-border" data-sheet>
+    <div className="relative overflow-x-auto rounded-lg border border-border" data-sheet>
       {edit.canWrite ? <div className="border-b border-border bg-muted/30 px-3 py-1.5 text-[11px] text-muted-foreground">Click a cell to edit. Tab / Shift+Tab move across, Enter or ↑/↓ move down and up, Esc undoes. Changes save when you leave the cell.</div> : null}
       <table className={cn("w-full border-collapse text-sm", columns.length >= 7 ? "min-w-[1180px]" : "min-w-[720px]")}>
         <thead className="bg-muted/50 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
