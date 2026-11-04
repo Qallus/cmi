@@ -3,6 +3,7 @@
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { addWorkdays, parseISO, fmtISO, workdaysBetween, workdayDiff } from "./workdays";
 import { notifyScheduleEvent, assigneeStaffIds } from "./notify";
+import { engineModeFor, recalcSchedule, assertMoveAllowed, assertNoLoop, durationOnCalendar, nextActivityId } from "./engine";
 import { DEFAULT_WORKDAYS } from "./types";
 import type {
   JobSchedule, SchedulePhase, ScheduleItem, ScheduleDependency, ScheduleParticipant,
@@ -200,7 +201,19 @@ const ITEM_FIELDS = [
   "internal_notes", "client_notes", "is_critical", "is_locked", "baseline_start", "baseline_end",
   "recurrence", "relationships", "milestone_kind", "master_display", "sort_order",
   "link_type", "link_id", "link_label",
+  // Schedule engine (computed early/late dates and float are written by lib/schedules/engine.ts only):
+  "activity_id", "wbs", "duration_unit", "constraint_type", "constraint_date", "actual_start", "actual_finish",
+  "remaining_duration", "milestone_type", "contract_date", "cost_code",
 ] as const;
+
+// Changing any of these re-runs the engine on schedules that use it.
+const ENGINE_KEYS = ["start_date", "end_date", "duration_days", "duration_unit", "constraint_type", "constraint_date", "is_locked", "actual_start", "actual_finish", "kind", "status"];
+
+async function rowsByIds(ids: string[]): Promise<ScheduleItem[]> {
+  if (!ids.length) return [];
+  const { data } = await getSupabaseAdmin().from("schedule_items").select("*").in("id", ids);
+  return (data ?? []).map(mapItem);
+}
 
 export async function listItems(opts: { scheduleId?: string; scheduleIds?: string[]; jobId?: string; clientVisibleOnly?: boolean }): Promise<ScheduleItem[]> {
   const sb = getSupabaseAdmin();
@@ -236,9 +249,11 @@ export async function createItem(scheduleId: string, input: Partial<ScheduleItem
   const row: Record<string, unknown> = { schedule_id: scheduleId, job_id: sched?.job_id ?? null, created_by: actor?.id ?? null, updated_by: actor?.id ?? null };
   for (const k of ITEM_FIELDS) if (k in input) row[k] = (input as Record<string, unknown>)[k];
   if (!row.title) row.title = input.kind === "milestone" ? "New Milestone" : "New Item";
+  if (row.activity_id == null) row.activity_id = (await nextActivityId(scheduleId))[0];
   const { data, error } = await sb.from("schedule_items").insert(row).select("*").single();
   if (error) throw new Error(error.message);
   await logActivity({ jobId: sched?.job_id ?? null, scheduleId, itemId: data.id, action: "item_created", detail: { title: data.title, kind: data.kind }, actor });
+  if (await engineModeFor(scheduleId)) await recalcSchedule(scheduleId, actor);
   const created = mapItem(data);
   const assignees = assigneeStaffIds(created.assignees);
   if (assignees.length) {
@@ -252,6 +267,24 @@ export async function updateItem(id: string, patch: Partial<ScheduleItem>, actor
   const { data: prev } = await sb.from("schedule_items").select("*").eq("id", id).maybeSingle();
   const clean: Record<string, unknown> = { updated_by: actor?.id ?? null, updated_at: new Date().toISOString() };
   for (const k of ITEM_FIELDS) if (k in patch) clean[k] = (patch as Record<string, unknown>)[k];
+
+  // Schedule engine: a typed start becomes Start No Earlier Than (and can't be
+  // earlier than the links allow); typed dates set the length in working days.
+  const engine = prev ? await engineModeFor(prev.schedule_id) : null;
+  if (engine && prev) {
+    const start = (clean.start_date ?? prev.start_date) as string | null;
+    const end = (clean.end_date ?? prev.end_date) as string | null;
+    const startTyped = "start_date" in clean && clean.start_date && clean.start_date !== prev.start_date;
+    const endTyped = "end_date" in clean && clean.end_date && clean.end_date !== prev.end_date;
+    if (engine === "auto" && startTyped && !prev.is_locked && !("constraint_type" in clean)) {
+      await assertMoveAllowed(id, prev.schedule_id, clean.start_date as string);
+      clean.constraint_type = "snet";
+      clean.constraint_date = clean.start_date;
+    }
+    if ((clean.kind ?? prev.kind) !== "milestone" && endTyped && start && end && !("duration_days" in clean)) {
+      clean.duration_days = await durationOnCalendar(prev.schedule_id, start, end, (clean.duration_unit ?? prev.duration_unit) as "workdays" | "calendar");
+    }
+  }
   const { data, error } = await sb.from("schedule_items").update(clean).eq("id", id).select("*").single();
   if (error) throw new Error(error.message);
   await logActivity({ jobId: data.job_id, scheduleId: data.schedule_id, itemId: id, action: "item_updated", detail: { fields: Object.keys(clean), title: data.title }, actor });
@@ -270,7 +303,13 @@ export async function updateItem(id: string, patch: Partial<ScheduleItem>, actor
   }
 
   let cascaded: ScheduleItem[] = [];
-  if (opts.cascade !== false && datesChanged) {
+  if (engine) {
+    if (opts.cascade !== false && ENGINE_KEYS.some((k) => k in clean)) {
+      const r = await recalcSchedule(data.schedule_id, actor);
+      cascaded = await rowsByIds(r.moved.map((m) => m.id).filter((x) => x !== id));
+      return { item: (await getItem(id)) ?? mapItem(data), cascaded };
+    }
+  } else if (opts.cascade !== false && datesChanged) {
     cascaded = await applyCascade(data.job_id, id, actor);
   }
   return { item: mapItem(data), cascaded };
@@ -281,6 +320,7 @@ export async function deleteItem(id: string, actor?: Actor): Promise<void> {
   const { data } = await sb.from("schedule_items").select("job_id, schedule_id, title").eq("id", id).maybeSingle();
   await sb.from("schedule_items").delete().eq("id", id);
   await logActivity({ jobId: data?.job_id ?? null, scheduleId: data?.schedule_id ?? null, action: "item_deleted", detail: { title: data?.title }, actor });
+  if (data?.schedule_id && (await engineModeFor(data.schedule_id))) await recalcSchedule(data.schedule_id, actor);
 }
 
 // Reorder / move helper for kanban & drag operations.
@@ -318,6 +358,8 @@ export async function createDependency(input: { jobId?: string | null; sourceIte
   const tgt = (pair ?? []).find((p) => p.id === input.targetItemId);
   const isCross = !!src && !!tgt && src.schedule_id !== tgt.schedule_id;
   const jobId = input.jobId ?? src?.job_id ?? tgt?.job_id ?? null;
+  const engineSchedule = tgt && (await engineModeFor(tgt.schedule_id)) ? (tgt.schedule_id as string) : null;
+  if (engineSchedule) await assertNoLoop(engineSchedule, input.sourceItemId, input.targetItemId);
   const { data, error } = await sb.from("schedule_dependencies").upsert({
     job_id: jobId, source_item_id: input.sourceItemId, target_item_id: input.targetItemId,
     dependency_type: input.type ?? "finish_to_start", lag_days: input.lagDays ?? 0,
@@ -325,14 +367,19 @@ export async function createDependency(input: { jobId?: string | null; sourceIte
   }, { onConflict: "source_item_id,target_item_id" }).select("*").single();
   if (error) throw new Error(error.message);
   await logActivity({ jobId, action: isCross ? "cross_schedule_dependency_added" : "dependency_added", detail: { type: data.dependency_type }, actor });
+  if (engineSchedule) await recalcSchedule(engineSchedule, actor);
   return data as ScheduleDependency;
 }
 
 export async function deleteDependency(id: string, actor?: Actor): Promise<void> {
   const sb = getSupabaseAdmin();
-  const { data } = await sb.from("schedule_dependencies").select("job_id").eq("id", id).maybeSingle();
+  const { data } = await sb.from("schedule_dependencies").select("job_id, target_item_id").eq("id", id).maybeSingle();
   await sb.from("schedule_dependencies").delete().eq("id", id);
   await logActivity({ jobId: data?.job_id ?? null, action: "dependency_removed", actor });
+  if (data?.target_item_id) {
+    const { data: tgt } = await sb.from("schedule_items").select("schedule_id").eq("id", data.target_item_id).maybeSingle();
+    if (tgt && (await engineModeFor(tgt.schedule_id))) await recalcSchedule(tgt.schedule_id, actor);
+  }
 }
 
 type CascadeChange = { item: ScheduleItem; from: { start: string | null; end: string | null }; to: { start: string | null; end: string | null } };
@@ -497,6 +544,7 @@ export async function applyTemplate(scheduleId: string, templateId: string, acto
 
   const { count: itemCount } = await sb.from("schedule_items").select("id", { count: "exact", head: true }).eq("schedule_id", scheduleId);
   const firstSort = itemCount ?? 0;
+  const activityIds = await nextActivityId(scheduleId, tpl.items.length);
   const rows = tpl.items.map((it, i) => {
     const days = it.kind === "milestone" ? 1 : Math.max(1, it.duration ?? 1);
     const start = byWorkdays ? fmtISO(addWorkdays(parseISO(base)!, it.offset, wd)) : addCalDays(base, it.offset);
@@ -506,7 +554,7 @@ export async function applyTemplate(scheduleId: string, templateId: string, acto
       schedule_id: scheduleId, job_id: sched.job_id ?? null, phase_id: it.phaseKey ? phaseIdByKey.get(it.phaseKey) ?? null : null,
       kind: it.kind ?? "task", title: it.title, start_date: start, end_date: end, duration_days: it.kind === "milestone" ? null : it.duration ?? null,
       assignees: people.map((p) => ({ id: p.id, name: p.name, type: "staff" })),
-      sort_order: firstSort + i, created_by: actor?.id ?? null, updated_by: actor?.id ?? null,
+      sort_order: firstSort + i, activity_id: activityIds[i], created_by: actor?.id ?? null, updated_by: actor?.id ?? null,
     };
   });
   const { data: itemRows, error: itemErr } = await sb.from("schedule_items").insert(rows).select("id, sort_order");
@@ -541,6 +589,7 @@ export async function applyTemplate(scheduleId: string, templateId: string, acto
     await notifyScheduleEvent({ kind: "assigned", recipientIds: assignedIds, jobId: sched.job_id ?? null, scheduleId, itemId: firstItem.id, title: `Assigned on the ${tpl.name} schedule`, subtitle: `Schedule starts ${base}`, actorId: actor?.id });
   }
   await logActivity({ jobId: sched.job_id ?? null, scheduleId, action: "template_applied", detail: { template: templateId, items: rows.length, start: base, finish, auto_cascade: opts.autoCascade !== false }, actor });
+  if (await engineModeFor(scheduleId)) await recalcSchedule(scheduleId, actor);
   return { items: rows.length, start: base, finish, assigned: Array.from(staffByName.keys()), unmatched_assignees: names.filter((n) => !staffByName.has(n)) };
 }
 
@@ -602,7 +651,12 @@ export async function shiftSchedule(scheduleId: string, newStart: string, actor?
   if (opts.dryRun || !result.moved) return result;
 
   const now = new Date().toISOString();
-  await Promise.all(result.changes.map((c) => sb.from("schedule_items").update({ start_date: c.to.start, end_date: c.to.end, updated_at: now, updated_by: actor?.id ?? null }).eq("id", c.id)));
+  // A Start No Earlier Than date moves with its task, or the engine would hold it back.
+  const pinned = new Map(items.filter((i) => i.constraint_date).map((i) => [i.id, fmtISO(addWorkdays(parseISO(i.constraint_date!)!, delta, wd))]));
+  await Promise.all(result.changes.map((c) => sb.from("schedule_items").update({
+    start_date: c.to.start, end_date: c.to.end, updated_at: now, updated_by: actor?.id ?? null,
+    ...(pinned.has(c.id) ? { constraint_date: pinned.get(c.id) } : {}),
+  }).eq("id", c.id)));
   const { data: phases } = await sb.from("schedule_phases").select("id").eq("schedule_id", scheduleId);
   await Promise.all((phases ?? []).map((ph) => {
     const range = phaseRange(after.filter((i) => i.phase_id === ph.id));
@@ -612,6 +666,7 @@ export async function shiftSchedule(scheduleId: string, newStart: string, actor?
   if (sched.target_completion) schedPatch.target_completion = fmtISO(addWorkdays(parseISO(sched.target_completion)!, delta, wd));
   await sb.from("job_schedules").update(schedPatch).eq("id", scheduleId);
   await logActivity({ jobId: sched.job_id, scheduleId, action: "schedule_shifted", detail: { from: anchor, to, workdays: delta, moved: result.moved, skipped: result.skipped.length }, actor });
+  if (await engineModeFor(scheduleId)) await recalcSchedule(scheduleId, actor);
 
   // One heads-up per assigned person rather than one per task.
   const recipients = Array.from(new Set(items.filter((i) => moved.has(i.id)).flatMap((i) => assigneeStaffIds(i.assignees))));

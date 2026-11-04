@@ -10,6 +10,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { listItems, getItem, updateItem, createItem, getSchedule, updateSchedule, applyTemplate, applyPackage, shiftSchedule, createDependency, listScopeSchedules, scopeScheduleHeader, scopeLabel, createScopeSchedule } from "@/lib/schedules/data";
 import { searchLinkable, labelForLink, LINK_TYPES } from "@/lib/schedules/links";
 import { SCHEDULE_HELP, HELP_TOPICS, type HelpTopic } from "@/lib/schedules/help";
+import { ENGINE_FLAG, recalcSchedule } from "@/lib/schedules/engine";
 import { isFeatureEnabled } from "@/lib/flags";
 import { canEditSchedules, canManageSchedules, canViewSchedules } from "@/lib/schedules/permissions";
 import { SCHEDULE_TEMPLATES, SCHEDULE_PACKAGES, getTemplate, getPackage, templateSummary } from "@/lib/schedules/templates";
@@ -279,6 +280,30 @@ const scheduleTools: McpTool[] = [
       const result = { schedule: before.name, dry_run: a.dry_run === true, from: plan.from, to: plan.to, working_days: plan.workdays, moved: plan.moved, finish: plan.finish, skipped: plan.skipped, changes: plan.changes.slice(0, 40), more: Math.max(0, plan.changes.length - 40) };
       if (a.dry_run === true) return { result };
       return { result, entity: "job_schedule", recordId: before.id, before: { start_date: plan.from }, after: { start_date: plan.to, finish: plan.finish, moved: plan.moved } };
+    },
+  },
+  {
+    name: "cmi_schedule_critical_path",
+    title: "Critical path and float",
+    description: "For a schedule on the critical path engine (schedule_engine flag; the schedule set to 'Critical path (auto)' or 'Manual'): the finish worked out from the links, holidays and working days, the critical tasks in order (float 0), near-critical ones (float 1–3 working days), and tasks with no predecessor or successor. Nothing is saved. Use it for 'what's driving the finish?', 'what can slip?' or 'what's critical on this job?'.",
+    risk: "read",
+    available: (c) => canViewSchedules(c.ctx.role),
+    inputSchema: () => obj({ schedule_id: str("Schedule id") }, ["schedule_id"]),
+    run: async (a) => {
+      const sched = await getSchedule(s(a.schedule_id));
+      if (!sched) return { result: { error: "No schedule with that id." } };
+      if (!(await isFeatureEnabled(ENGINE_FLAG))) return { result: { error: "The critical path engine isn't switched on yet (Settings → Features → schedule_engine)." } };
+      if ((sched.scheduling_mode ?? "legacy") === "legacy") return { result: { error: `${sched.name} still uses 'Push later only'. An Admin or Project Manager can switch it to the critical path with the dates button on the schedule (a preview shows first).` } };
+      const sum = await recalcSchedule(sched.id, undefined, { dryRun: true });
+      const items = await listItems({ scheduleId: sched.id });
+      const near = items.filter((i) => !i.is_critical && i.total_float != null && i.total_float > 0 && i.total_float <= 3).map((i) => ({ id: i.activity_id, title: i.title, float: i.total_float, start: i.start_date }));
+      return { result: {
+        schedule: sched.name, mode: sched.scheduling_mode, finish: sum.finish,
+        critical_path: sum.critical.map((c) => `${c.activity_id ?? ""} ${c.title}`.trim()),
+        near_critical: near.slice(0, 30),
+        unlinked: sum.orphans, loops_ignored: sum.loops,
+        stale: sum.updated ? `${sum.updated} task(s) would change on recalculation (the next edit saves it).` : undefined,
+      } };
     },
   },
   {

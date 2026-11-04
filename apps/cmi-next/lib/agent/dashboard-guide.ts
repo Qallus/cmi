@@ -196,9 +196,10 @@ export const DASHBOARD_GUIDE: GuideEntry[] = [
       "Change any single task by dragging it on the Gantt or opening it and editing its dates.",
       "Move a whole schedule: select it → Shift dates → pick the new start date. The preview shows how many working days it moves and the new finish; locked and complete tasks stay put.",
       "Packages (several schedules at once): Package → set the Start date → pick a package.",
+      "Critical path (when the schedule engine is switched on; Admin / Project Manager): open a schedule → the dates button in the action bar ('Push later only') → choose Critical path (auto) or Manual → the preview shows the new finish and anything that moves → Use this. 'Keep today's dates' (on by default) gives tasks that sit later than their links a Start No Earlier Than, so nothing moves earlier. On the critical path the schedule works out its own dates from the links, the company holiday calendar and each schedule's working days; tasks move later and earlier, critical tasks get a dark outline, and hovering a bar shows its activity ID and float. Dragging a bar later sets a Start No Earlier Than (⇥); dragging it earlier than its links allow is refused with the link that holds it. Manual keeps dates where you put them and shows float as advice. Switch back to 'Push later only' any time; no dates change.",
       "Ask Claude (CMI connector): \"start a New Construction schedule on 26_014 beginning Nov 3\", \"push the Olson schedule back to Dec 1\" (Claude shows how far it moves and the new finish first), \"what's late on the Lillie job?\", or \"make Drywall wait for Insulation\".",
     ],
-    keywords: ["schedule", "schedules", "gantt", "calendar", "timeline", "look ahead", "schedule template", "new construction", "start date", "shift dates", "push back"],
+    keywords: ["schedule", "schedules", "gantt", "calendar", "timeline", "look ahead", "schedule template", "new construction", "start date", "shift dates", "push back", "critical path", "float", "holidays", "work calendar", "start no earlier than"],
   },
   {
     id: "selections", name: "Selections", path: "/dashboard/selections", nav: "Sidebar → Jobs → Selections",

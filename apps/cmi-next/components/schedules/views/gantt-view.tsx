@@ -28,7 +28,7 @@ type Props = {
   canEdit?: boolean;
   linkMode?: boolean;
   onOpenItem?: (item: ScheduleItem) => void;
-  onDatesChange?: (id: string, start: string, end: string) => void;
+  onDatesChange?: (id: string, start: string, end: string, gesture: "move" | "resize") => void;
   onLink?: (sourceId: string, targetId: string) => void;
 };
 
@@ -136,8 +136,8 @@ export function GanttView({ items, dependencies, phases, zoom, groupBySchedule, 
     const onUp = () => {
       setDrag((d) => {
         if (d && d.deltaDays !== 0 && onDatesChange) {
-          if (d.mode === "move") onDatesChange(d.id, fmtISO(addDays(d.origStart, d.deltaDays)), fmtISO(addDays(d.origEnd, d.deltaDays)));
-          else { const ne = addDays(d.origEnd, d.deltaDays); if (ne >= d.origStart) onDatesChange(d.id, fmtISO(d.origStart), fmtISO(ne)); }
+          if (d.mode === "move") onDatesChange(d.id, fmtISO(addDays(d.origStart, d.deltaDays)), fmtISO(addDays(d.origEnd, d.deltaDays)), "move");
+          else { const ne = addDays(d.origEnd, d.deltaDays); if (ne >= d.origStart) onDatesChange(d.id, fmtISO(d.origStart), fmtISO(ne), "resize"); }
         }
         return null;
       });
@@ -283,11 +283,14 @@ function Bar({ item, x, dayW, drag, color, showBaseline, linkSource, onBody, onR
       <div
         onMouseDown={onBody}
         onClick={onClick}
-        className={cn("group absolute top-1/2 z-30 flex h-5 -translate-y-1/2 cursor-pointer items-center overflow-hidden rounded text-[11px] text-white shadow-sm", item.is_critical && "ring-1 ring-destructive", linkSource && "ring-2 ring-accent")}
+        className={cn("group absolute top-1/2 z-30 flex h-5 -translate-y-1/2 cursor-pointer items-center overflow-hidden rounded text-[11px] text-white shadow-sm",
+          // Engine-worked critical path in charcoal; a hand-ticked "critical" keeps the red ring.
+          item.is_critical && (item.total_float != null ? "ring-2 ring-foreground/80" : "ring-1 ring-destructive"), linkSource && "ring-2 ring-accent")}
         style={{ left, width, background: item.status === "complete" ? `${color}aa` : color }}
-        title={`${item.title} · ${item.percent_complete}%`}
+        title={`${item.activity_id ? `${item.activity_id} · ` : ""}${item.title} · ${item.percent_complete}%${item.total_float != null ? ` · float ${item.total_float} wd${item.is_critical ? " (critical)" : ""}` : ""}${item.constraint_type === "snet" && item.constraint_date ? ` · starts no earlier than ${item.constraint_date}` : ""}`}
       >
         {item.percent_complete > 0 ? <span className="absolute inset-y-0 left-0 bg-black/20" style={{ width: `${item.percent_complete}%` }} /> : null}
+        {item.constraint_type === "snet" ? <span className="relative z-10 pl-1 text-[10px] opacity-80" aria-label="Start No Earlier Than">⇥</span> : null}
         <span className="relative z-10 truncate px-1.5">{item.title}</span>
         <span onMouseDown={onResize} className="absolute right-0 top-0 z-20 h-full w-1.5 cursor-ew-resize opacity-0 group-hover:opacity-100" style={{ background: "rgba(255,255,255,0.5)" }} />
       </div>

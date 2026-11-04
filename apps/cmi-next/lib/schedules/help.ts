@@ -37,7 +37,8 @@ Packages create several schedules at once: Custom Home, Renovation, ADU / Additi
 Moving a task (drag on the Gantt, or edit its dates): when "move the tasks that follow it" is on, every linked task after it moves by the same working days; the banner says how many moved. Tasks only move later, never earlier, and locked tasks stay put. Slack is respected: if a later task already has room, it doesn't move.
 "I'll adjust dates myself": links stay as a reference but nothing moves automatically.
 Shift dates (button on a schedule): moves the whole schedule to a new start date; every task keeps its length and spacing; preview first; complete and locked tasks stay unless you include them.
-Baselines: Capture baseline saves today's plan; turn on Baseline on the Gantt to see planned vs current.`,
+Baselines: Capture baseline saves today's plan; turn on Baseline on the Gantt to see planned vs current.
+Critical path (only when the schedule engine is switched on): an Admin or Project Manager sets a schedule to "Critical path (auto)" with the dates button in its action bar (a preview shows the new finish first; "Keep today's dates" pins tasks that sit later than their links with a Start No Earlier Than). Then the schedule works out its own dates from the links, CMI's holiday calendar and its working days, moving tasks later and earlier; every task gets float, and float 0 is critical (dark outline on the Gantt). Dragging a task later sets a Start No Earlier Than; dragging it earlier than its links allow is refused with the link that holds it. "Manual" keeps dates and shows float as advice; "Push later only" is the original behaviour above.`,
   },
   views: {
     title: "Views",

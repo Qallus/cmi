@@ -33,6 +33,9 @@ export type CpmTask = {
   constraintDate?: string | null;
   actualStart?: string | null;
   actualFinish?: string | null;
+  /** Keep this task's dates (its schedule is manual or not on the engine);
+   *  it still drives its successors and gets float. */
+  hold?: boolean;
 };
 
 export type CpmLink = { from: string; to: string; type: DependencyType; lag: number };
@@ -147,7 +150,7 @@ export function runCpm(input: CpmInput): CpmResult {
       n.fixedStart = as ?? (n.dur > 1 ? addW(n.cal, af, -(n.dur - 1)) : af);
     } else if (as != null) {
       n.fixedStart = as;
-    } else if (t.constraint === "locked" || (manual && t.start)) {
+    } else if (t.constraint === "locked" || ((manual || t.hold) && t.start)) {
       const s = d(t.start ?? t.constraintDate);
       if (s != null) {
         n.fixedStart = s;
@@ -174,13 +177,7 @@ export function runCpm(input: CpmInput): CpmResult {
       es = projectStart;
       for (const l of n.preds) {
         const p = nodes.get(l.from)!;
-        const lag = Math.round(l.lag || 0);
-        switch (l.type) {
-          case "finish_to_start": es = Math.max(es, addW(cal, p.ef, 1 + lag)); break;
-          case "start_to_start": es = Math.max(es, addW(cal, p.es, lag)); break;
-          case "finish_to_finish": es = Math.max(es, startFor(cal, addW(cal, p.ef, lag), dur)); break;
-          case "start_to_finish": es = Math.max(es, startFor(cal, addW(cal, p.es, lag), dur)); break;
-        }
+        es = Math.max(es, requiredStart(l, p.es, p.ef, cal, dur));
       }
       if (n.t.constraint === "snet" && n.t.constraintDate) {
         const want = dayNum(n.t.constraintDate);
@@ -272,6 +269,18 @@ export function runCpm(input: CpmInput): CpmResult {
     noSuccessor: [...nodes.values()].filter((n) => !n.succs.length).map((n) => n.t.id),
   };
   return { tasks: results, start: input.start, finish: isoOf(projectFinish), criticalPath, orphans, loops, danglingLinks };
+}
+
+/** Earliest start a link allows its successor (day numbers, the successor's
+ *  calendar and duration). Exported so a refused move can name its link. */
+export function requiredStart(l: Pick<CpmLink, "type" | "lag">, predStart: number, predFinish: number, cal: DayCalendar, dur: number): number {
+  const lag = Math.round(l.lag || 0);
+  switch (l.type) {
+    case "finish_to_start": return addW(cal, predFinish, 1 + lag);
+    case "start_to_start": return addW(cal, predStart, lag);
+    case "finish_to_finish": return startFor(cal, addW(cal, predFinish, lag), dur);
+    case "start_to_finish": return startFor(cal, addW(cal, predStart, lag), dur);
+  }
 }
 
 /** Start that gives the required finish (or later) for a task of `dur` days. */

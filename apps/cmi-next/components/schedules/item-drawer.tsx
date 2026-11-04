@@ -161,7 +161,7 @@ export function ItemDrawer({
             <div className="space-y-1.5">
               {predecessors.map((d) => (
                 <div key={d.id} className="flex items-center justify-between rounded border border-border px-2 py-1 text-sm">
-                  <span className="truncate">{itemName(d.source_item_id)} <span className="ml-1 rounded bg-muted px-1 text-[10px] text-muted-foreground">{DEPENDENCY_ABBR[d.dependency_type]}{d.lag_days ? ` +${d.lag_days}d` : ""}</span>{d.is_cross_schedule ? <span className="ml-1 text-[10px] text-accent">cross</span> : null}</span>
+                  <span className="truncate">{itemName(d.source_item_id)} <span className="ml-1 rounded bg-muted px-1 text-[10px] text-muted-foreground">{DEPENDENCY_ABBR[d.dependency_type]}{d.lag_days ? ` ${d.lag_days > 0 ? "+" : ""}${d.lag_days}d` : ""}</span>{d.is_cross_schedule ? <span className="ml-1 text-[10px] text-accent">cross</span> : null}</span>
                   {canEdit ? <button type="button" onClick={() => onRemoveDependency?.(d.id)} className="text-muted-foreground hover:text-destructive"><X className="h-3.5 w-3.5" /></button> : null}
                 </div>
               ))}

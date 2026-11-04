@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Plus, GitBranch, Flag, Layers, CalendarClock, CalendarRange, FileText, Star, Archive, ChevronDown, CornerDownRight } from "lucide-react";
+import { Plus, GitBranch, Flag, Layers, CalendarClock, CalendarRange, FileText, Star, Archive, ChevronDown, CornerDownRight, Route } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -14,11 +14,13 @@ import { ResourceView } from "./views/resource-view";
 import { ItemDrawer } from "./item-drawer";
 import { AddScheduleWizard, type ScheduleSource } from "./add-schedule-wizard";
 import { ShiftDialog } from "./shift-dialog";
+import { EngineDialog } from "./engine-dialog";
 import { createScheduleFromWizard } from "./create-schedule";
-import type { JobSchedule, ScheduleItem, SchedulePhase, ScheduleDependency, ScheduleView, ScheduleDraft, DependencyType, ScheduleType, ScheduleScope } from "@/lib/schedules/types";
+import { SCHEDULING_MODE_LABELS, type JobSchedule, type ScheduleItem, type SchedulePhase, type ScheduleDependency, type ScheduleView, type ScheduleDraft, type DependencyType, type ScheduleType, type ScheduleScope, type SchedulingMode } from "@/lib/schedules/types";
 
 type Staff = { id: string; name: string };
 type Bundle = { schedule: JobSchedule; phases: SchedulePhase[]; items: ScheduleItem[]; dependencies: ScheduleDependency[] };
+type EngineState = { enabled: boolean; mode: SchedulingMode; canSwitch: boolean; summary: { finish: string; critical: { id: string }[]; loops: number } | null };
 type Header = { schedule_count: number; active_count: number; overall_progress: number; health: string; projected_completion: string | null; next_milestone: { title: string; date: string | null; schedule_name: string } | null };
 
 // `scope`: whose schedules these are (a job, or with the Schedule Builder a deal,
@@ -52,6 +54,8 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
   const [pkgMenu, setPkgMenu] = React.useState(false);
   const [pkgStart, setPkgStart] = React.useState("");
   const [shiftOpen, setShiftOpen] = React.useState(false);
+  const [engineOpen, setEngineOpen] = React.useState(false);
+  const [engine, setEngine] = React.useState<EngineState | null>(null);
 
   React.useEffect(() => {
     fetch("/api/schedule-templates").then((r) => r.json()).then((d) => { setTemplates(d.templates ?? []); setPackages(d.packages ?? []); }).catch(() => {});
@@ -76,6 +80,19 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
   const primaryId = selectedIds[0] ?? null;
   const primarySchedule = schedules.find((s) => s.id === primaryId) ?? null;
   const overlay = selectedIds.length > 1;
+
+  // Schedule engine (flag schedule_engine): this schedule's mode, finish and critical path.
+  const refreshEngine = React.useCallback(async () => {
+    if (!primaryId) { setEngine(null); return; }
+    const res = await fetch(`/api/schedules/${primaryId}/engine`);
+    setEngine(res.ok ? await res.json() : null);
+  }, [primaryId]);
+  React.useEffect(() => {
+    if (!primaryId) return;
+    let live = true;
+    fetch(`/api/schedules/${primaryId}/engine`).then((r) => (r.ok ? r.json() : null)).then((d) => { if (live) setEngine(d); }).catch(() => {});
+    return () => { live = false; };
+  }, [primaryId]);
 
   const loadBundle = React.useCallback(async (id: string) => {
     const res = await fetch(`/api/schedules/${id}`);
@@ -106,6 +123,9 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
     return out;
   }, [selectedIds, bundles]);
   const phases = overlay ? [] : (primaryId ? bundles[primaryId]?.phases ?? [] : []);
+  // Schedules whose dates the engine works out: a drag sends only the start
+  // (move) or the end (resize) and the engine keeps the length in working days.
+  const engineIds = React.useMemo(() => new Set(engine?.enabled ? selectedIds.filter((id) => (bundles[id]?.schedule.scheduling_mode ?? "legacy") !== "legacy") : []), [engine?.enabled, selectedIds, bundles]);
 
   function toggleSchedule(id: string) {
     setSelected((prev) => { const n = new Set(prev); if (n.has(id)) { if (n.size > 1) n.delete(id); } else n.add(id); return n; });
@@ -117,7 +137,9 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
     if (!primaryId && !editing?.id) return;
     if (editing?.id) {
       const res = await fetch(`/api/schedule-items/${editing.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
-      if (res.ok) { const d = await res.json(); if (d.cascaded?.length) setBanner(`${d.cascaded.length} downstream item${d.cascaded.length === 1 ? "" : "s"} shifted.`); }
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) { setBanner(d.error ?? "Could not save the item."); return; }
+      if (d.cascaded?.length) setBanner(`${d.cascaded.length} downstream item${d.cascaded.length === 1 ? "" : "s"} shifted.`);
     } else {
       const sid = (patch.schedule_id as string) || primaryId!;
       await fetch(`/api/schedules/${sid}/items`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
@@ -125,6 +147,7 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
     setEditing(null);
     await Promise.all(selectedIds.map(loadBundle));
     void refreshSchedules();
+    void refreshEngine();
   }
   async function deleteItem() {
     if (!editing?.id) return;
@@ -132,18 +155,26 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
     setEditing(null);
     await Promise.all(selectedIds.map(loadBundle));
   }
-  async function ganttDates(id: string, start: string, end: string) {
-    const res = await fetch(`/api/schedule-items/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ start_date: start, end_date: end, cascade: true }) });
-    if (res.ok) { const d = await res.json(); if (d.cascaded?.length) setBanner(`${d.cascaded.length} downstream item${d.cascaded.length === 1 ? "" : "s"} shifted.`); }
+  async function ganttDates(id: string, start: string, end: string, gesture: "move" | "resize") {
+    const item = items.find((i) => i.id === id);
+    const onEngine = !!item && engineIds.has(item.schedule_id);
+    const body = onEngine ? (gesture === "move" ? { start_date: start } : { end_date: end }) : { start_date: start, end_date: end, cascade: true };
+    const res = await fetch(`/api/schedule-items/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) setBanner(d.error ?? "Could not move the item.");
+    else if (d.cascaded?.length) setBanner(`${d.cascaded.length} downstream item${d.cascaded.length === 1 ? "" : "s"} ${onEngine ? "moved" : "shifted"}.`);
     await Promise.all(selectedIds.map(loadBundle));
+    if (onEngine) void refreshEngine();
   }
   async function boardChange(id: string, patch: Partial<ScheduleItem>) {
     await fetch(`/api/schedule-items/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...patch, cascade: false }) });
     await Promise.all(selectedIds.map(loadBundle));
   }
   async function addDependency(sourceItemId: string, targetItemId: string, type: DependencyType = "finish_to_start", lag = 0) {
-    await fetch(`/api/schedule-dependencies`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jobId, sourceItemId, targetItemId, type, lagDays: lag }) });
+    const res = await fetch(`/api/schedule-dependencies`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jobId, sourceItemId, targetItemId, type, lagDays: lag }) });
+    if (!res.ok) { const d = await res.json().catch(() => ({})); setBanner(d.error ?? "Could not add the link."); }
     await Promise.all(selectedIds.map(loadBundle));
+    void refreshEngine();
   }
   async function removeDependency(depId: string) {
     await fetch(`/api/schedule-dependencies/${depId}`, { method: "DELETE" });
@@ -298,6 +329,12 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
             ) : null}
             <div className="flex-1" />
             {builder && primarySchedule && canEdit && !overlay ? <Button size="sm" variant="ghost" onClick={() => { setParentForNew(primarySchedule.id); setWizardOpen(true); }} title="Add a schedule inside this one"><CornerDownRight className="h-3.5 w-3.5" /> Add inside</Button> : null}
+            {engine?.enabled && primarySchedule && !overlay ? (
+              <>
+                {engine.summary ? <span className="text-xs text-muted-foreground" title="Worked out from the links, the work calendar and holidays">Finish <span className="font-medium text-foreground">{fmtDate(engine.summary.finish)}</span> · {engine.summary.critical.length} critical{engine.summary.loops ? <span className="text-destructive"> · {engine.summary.loops} loop{engine.summary.loops === 1 ? "" : "s"} ignored</span> : null}</span> : null}
+                <Button size="sm" variant="ghost" onClick={() => setEngineOpen(true)} disabled={!engine.canSwitch} title={engine.canSwitch ? "How this schedule's dates are worked out" : "Admins and Project Managers change this"}><Route className="h-3.5 w-3.5" /> {SCHEDULING_MODE_LABELS[engine.mode]}</Button>
+              </>
+            ) : null}
             {primarySchedule && canEdit && !overlay ? <Button size="sm" variant="ghost" onClick={() => setShiftOpen(true)}><CalendarRange className="h-3.5 w-3.5" /> Shift dates</Button> : null}
             {primarySchedule ? <Button size="sm" variant="ghost" onClick={() => window.open(`/api/schedules/${primarySchedule.id}/pdf`, "_blank")}><FileText className="h-3.5 w-3.5" /> PDF</Button> : null}
             {primarySchedule && canManage ? (
@@ -328,6 +365,12 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
         </>
       )}
 
+      {engineOpen && engine ? <EngineDialog key={primarySchedule?.id} open schedule={primarySchedule} currentMode={engine.mode} onClose={() => setEngineOpen(false)} onSwitched={async (p) => {
+        setEngineOpen(false);
+        setBanner(p.mode === "legacy" ? "Back to pushing linked tasks later only." : `Now ${SCHEDULING_MODE_LABELS[p.mode].toLowerCase()}. ${p.moved.length ? `${p.moved.length} task${p.moved.length === 1 ? "" : "s"} moved; ` : "No dates changed; "}finish ${fmtDate(p.finishAfter)}.`);
+        if (primaryId) await loadBundle(primaryId);
+        void refreshEngine(); void refreshSchedules();
+      }} /> : null}
       {shiftOpen ? <ShiftDialog key={primarySchedule?.id} open schedule={primarySchedule} onClose={() => setShiftOpen(false)} onShifted={async (p) => {
         setShiftOpen(false);
         setBanner(`${p.moved} item${p.moved === 1 ? "" : "s"} moved ${Math.abs(p.workdays)} working day${Math.abs(p.workdays) === 1 ? "" : "s"} ${p.workdays > 0 ? "later" : "earlier"}. Now ${fmtDate(p.to)} to ${fmtDate(p.finish)}.`);
