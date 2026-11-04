@@ -122,6 +122,8 @@ export function ScheduleGrid({
   const [importing, setImporting] = React.useState(false);
   const [dragId, setDragId] = React.useState<string | null>(null);
   const gridRef = React.useRef<HTMLDivElement>(null);
+  const gridHead = React.useRef<HTMLDivElement>(null);
+  const gridBody = React.useRef<HTMLDivElement>(null);
   // The open edit, readable synchronously so a blur after Enter doesn't save twice.
   const editRef = React.useRef<{ cell: Cell; value: string } | null>(null);
   const setEdit = (v: { cell: Cell; value: string } | null) => { editRef.current = v; setEditing(v); };
@@ -761,17 +763,21 @@ export function ScheduleGrid({
       {/* Height follows the rows so the page scrolls grid and Gantt together. */}
       <ResizablePanelGroup direction="horizontal" autoSaveId="cmi.schedgrid.panels" style={{ height: "auto", overflow: "visible" }} className="items-stretch">
         <ResizablePanel ref={gridPanel} id="grid" order={1} defaultSize={58} minSize={20} collapsible collapsedSize={0}
-          onCollapse={() => setHidden("grid")} onExpand={() => setHidden((h) => (h === "grid" ? null : h))} className={hidden === "grid" ? undefined : "pr-1.5"}>
+          onCollapse={() => setHidden("grid")} onExpand={() => setHidden((h) => (h === "grid" ? null : h))} className={hidden === "grid" ? undefined : "pr-1.5"} style={{ overflow: "clip" }}>
         {/* grid */}
         <div
           ref={gridRef} tabIndex={0} onKeyDown={onKeyDown} onPaste={onPaste}
-          className="w-full min-w-0 overflow-x-auto rounded-lg border border-border bg-card outline-none focus-visible:ring-1 focus-visible:ring-accent/40"
+          className="w-full min-w-0 overflow-clip rounded-lg border border-border bg-card outline-none focus-visible:ring-1 focus-visible:ring-accent/40"
         >
-          <div style={{ width }}>
-            <div className="flex border-b border-border bg-muted/40 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground" style={{ height: HEAD_H }}>
+          {/* Column headers stay under the top bar while the rows scroll (same height as the Gantt's dates). */}
+          <div ref={gridHead} className="sticky top-14 z-30 overflow-hidden border-b border-border bg-card">
+            <div className="flex bg-muted/40 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground" style={{ width, height: HEAD_H - 1 }}>
               <div className="shrink-0 border-r border-border/60" style={{ width: GUTTER_W }} />
               {cols.map((k) => <div key={k} className={cn("flex shrink-0 items-end border-r border-border/60 px-1.5 pb-1.5", COLUMN[k].align === "right" && "justify-end")} style={{ width: COLUMN[k].width }}>{COLUMN[k].label}</div>)}
             </div>
+          </div>
+          <div ref={gridBody} onScroll={() => { if (gridHead.current && gridBody.current) gridHead.current.scrollLeft = gridBody.current.scrollLeft; }} className="overflow-x-auto">
+          <div style={{ width }}>
             {rows.map((r) => r.kind === "group" ? (
               <div key={r.key} className="flex items-center gap-1.5 border-b border-border bg-muted/30 px-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground" style={{ height: ROW_H }}
                 onDragOver={(e) => { if (dragId) e.preventDefault(); }} onDrop={() => dropOn(null, r.phaseId ?? null)}>
@@ -806,6 +812,7 @@ export function ScheduleGrid({
             ))}
             {!items.length ? <div className="p-6 text-center text-sm text-muted-foreground">No tasks yet. Use + Item above, or paste rows from Excel here.</div> : null}
           </div>
+          </div>
         </div>
 
         </ResizablePanel>
@@ -831,7 +838,7 @@ export function ScheduleGrid({
         </ResizableHandle>
 
         <ResizablePanel ref={ganttPanel} id="gantt" order={2} defaultSize={42} minSize={20} collapsible collapsedSize={0}
-          onCollapse={() => setHidden("gantt")} onExpand={() => setHidden((h) => (h === "gantt" ? null : h))} className={hidden === "gantt" ? undefined : "pl-1.5"}>
+          onCollapse={() => setHidden("gantt")} onExpand={() => setHidden((h) => (h === "gantt" ? null : h))} className={hidden === "gantt" ? undefined : "pl-1.5"} style={{ overflow: "clip" }}>
           <GanttView items={items} dependencies={dependencies} phases={phases} zoom={zoom} showBaseline={showBaseline} showLinks={showLinks} canEdit={canEdit} linkMode={linkMode}
             onOpenItem={onOpenItem} onLink={whatIf ? undefined : onLink}
             onDatesChange={whatIf ? (id, start, end, gesture) => tryOps({ updates: [{ id, patch: gesture === "move" ? { start_date: start } : { end_date: end } }] }) : onDatesChange}

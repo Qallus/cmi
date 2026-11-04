@@ -71,6 +71,10 @@ export function linkPath(type: string, src: { left: number; right: number; y: nu
 export function GanttView({ items, dependencies, phases, zoom, groupBySchedule, showBaseline, canEdit, linkMode, onOpenItem, onDatesChange, onLink, hideLabels, collapsed, selectedId, flashIds, showLinks = true }: Props) {
   const dayW = DAY_W[zoom];
   const [linkSource, setLinkSource] = React.useState<string | null>(null);
+  // The sticky date header scrolls sideways with the timeline body.
+  const headRef = React.useRef<HTMLDivElement>(null);
+  const bodyRef = React.useRef<HTMLDivElement>(null);
+  const syncHead = () => { if (headRef.current && bodyRef.current) headRef.current.scrollLeft = bodyRef.current.scrollLeft; };
   const [drag, setDrag] = React.useState<{ id: string; mode: "move" | "resize"; startX: number; origStart: Date; origEnd: Date; deltaDays: number } | null>(null);
 
   const dated = items.filter((i) => i.start_date);
@@ -212,11 +216,26 @@ export function GanttView({ items, dependencies, phases, zoom, groupBySchedule, 
   }
 
   return (
-    <div className="overflow-hidden rounded-lg border border-border bg-card">
+    // overflow-clip (not hidden) so the date header can stick to the page as it scrolls.
+    <div className="overflow-clip rounded-lg border border-border bg-card">
+      {/* Date header: stays under the top bar while the rows scroll, and follows the timeline sideways. */}
+      <div className="sticky top-14 z-40 flex border-b border-border bg-card">
+        <div className={cn("shrink-0 border-r border-border bg-muted/40", hideLabels && "hidden")} style={{ width: LABEL_W, height: HEAD_H - 1 }} />
+        <div ref={headRef} className="min-w-0 flex-1 overflow-hidden bg-muted/40">
+          {/* Header — month band (top) + day/week ticks (bottom) */}
+          <div className="relative" style={{ width: boardW, height: HEAD_H - 1 }}>
+            {months.map((m, i) => (
+              <div key={`m${i}`} className="absolute overflow-hidden whitespace-nowrap border-l border-border/60 px-2 text-[11px] font-semibold text-muted-foreground" style={{ left: m.left, width: m.width, top: 0, height: HEAD_TOP, lineHeight: `${HEAD_TOP}px` }}>{m.width >= 90 ? m.label : ""}</div>
+            ))}
+            {zoom !== "month" ? ticks.map((t, i) => (
+              <div key={`t${i}`} className={cn("absolute overflow-hidden border-l border-border/40 text-center text-[10px] text-muted-foreground", t.weekend && "bg-muted/50")} style={{ left: t.left, width: t.width, top: HEAD_TOP, height: HEAD_TICK, lineHeight: `${HEAD_TICK}px` }}>{t.label}</div>
+            )) : null}
+          </div>
+        </div>
+      </div>
       <div className="flex">
         {/* Left labels */}
         <div className={cn("shrink-0 border-r border-border", hideLabels && "hidden")} style={{ width: LABEL_W }}>
-          <div className="border-b border-border bg-muted/40" style={{ height: HEAD_H }} />
           {rows.map((r, idx) => r.kind === "group" ? (
             <div key={`g-${idx}`} className="flex items-center gap-2 border-b border-border bg-muted/30 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground" style={{ height: ROW_H }}>
               {r.color ? <span className="h-2.5 w-2.5 rounded-sm" style={{ background: r.color }} /> : null}
@@ -231,18 +250,8 @@ export function GanttView({ items, dependencies, phases, zoom, groupBySchedule, 
         </div>
 
         {/* Right timeline (scrolls) */}
-        <div className="relative flex-1 overflow-x-auto">
+        <div ref={bodyRef} onScroll={syncHead} className="relative min-w-0 flex-1 overflow-x-auto">
           <div className="relative" style={{ width: boardW }}>
-            {/* Header — month band (top) + day/week ticks (bottom) */}
-            <div className="relative border-b border-border bg-muted/40" style={{ height: HEAD_H }}>
-              {months.map((m, i) => (
-                <div key={`m${i}`} className="absolute overflow-hidden whitespace-nowrap border-l border-border/60 px-2 text-[11px] font-semibold text-muted-foreground" style={{ left: m.left, width: m.width, top: 0, height: HEAD_TOP, lineHeight: `${HEAD_TOP}px` }}>{m.width >= 90 ? m.label : ""}</div>
-              ))}
-              {zoom !== "month" ? ticks.map((t, i) => (
-                <div key={`t${i}`} className={cn("absolute overflow-hidden border-l border-border/40 text-center text-[10px] text-muted-foreground", t.weekend && "bg-muted/50")} style={{ left: t.left, width: t.width, top: HEAD_TOP, height: HEAD_TICK, lineHeight: `${HEAD_TICK}px` }}>{t.label}</div>
-              )) : null}
-            </div>
-
             <div className="relative" style={{ height: rows.length * ROW_H }}>
               {/* column gridlines (+ weekend shading on day zoom) */}
               {ticks.map((t, i) => (
