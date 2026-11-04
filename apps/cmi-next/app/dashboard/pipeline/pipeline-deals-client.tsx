@@ -24,7 +24,7 @@ import { SheetInput, SheetSelect } from "./sheet-cells";
 import { PIPELINE_ORDER_KEY } from "@/lib/deals/order";
 import { DuplicateWarning, useDuplicateCheck } from "@/components/contacts/duplicate-warning";
 import { ViewOptions, ViewSwitcher, useColumnPrefs, type ColumnDef } from "@/components/ui/view-options";
-import { formatDealValue, dealValueMid, rangeError } from "@/lib/deals/value";
+import { formatDealValue, formatDealRange, dealValueMid, rangeError } from "@/lib/deals/value";
 import { Tooltip } from "@/components/ui/tooltip";
 
 export type OwnerOption = { id: string; name: string };
@@ -41,11 +41,11 @@ const LIST_COLUMNS: ColumnDef<ListCol>[] = [
   { key: "close", label: "Expected close", default: false }, { key: "probability", label: "Probability", default: false },
   { key: "source", label: "Source", default: false },
 ];
-type TableCol = "stage" | "owner" | "job_type" | "value" | "value_max" | "probability" | "close" | "source" | "next_action" | "due";
+type TableCol = "stage" | "owner" | "job_type" | "value" | "value_low" | "value_high" | "probability" | "close" | "source" | "next_action" | "due";
 const TABLE_COLUMNS: ColumnDef<TableCol>[] = [
   { key: "stage", label: "Stage", default: true }, { key: "owner", label: "Owner", default: true },
   { key: "job_type", label: "Job type", default: true }, { key: "value", label: "Value", default: true },
-  { key: "value_max", label: "Value to (range)", default: true },
+  { key: "value_low", label: "Estimated low", default: true }, { key: "value_high", label: "Estimated high", default: true },
   { key: "probability", label: "Probability", default: true }, { key: "close", label: "Expected close", default: true },
   { key: "source", label: "Source", default: true }, { key: "next_action", label: "Next action", default: true },
   { key: "due", label: "Next action due", default: true },
@@ -90,8 +90,8 @@ const ACTIVITY_LABEL: Record<ActivityType, string> = {
 
 const money = (n: number | null | undefined) =>
   n == null ? "—" : n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
-/** One number or a range ("$850,000 – $950,000"). */
-const dealMoney = (d: Pick<Deal, "estimated_value" | "estimated_max_value">) => formatDealValue(d, (n) => money(n)) ?? "—";
+/** The estimated amount, else the low–high range. */
+const dealMoney = (d: Pick<Deal, "estimated_value" | "estimated_low_value" | "estimated_high_value">) => formatDealValue(d, (n) => money(n)) ?? "—";
 
 function daysSince(iso: string | null | undefined): number | null {
   if (!iso) return null;
@@ -726,16 +726,17 @@ function ListView({ deals, ownerName, onOpen, renderActions, reorder, sortState,
                 <RowCheck id={d.id} selection={selection} />
                 {reorder && <td className="px-2 py-2.5"><ReorderCell id={d.id} index={i} reorder={reorder} /></td>}
                 <td className="px-3 py-2.5">
-                  {/* Job number on top, the name under it (the title starts with the number). */}
-                  {d.job_number ? (
-                    <>
-                      <div className="font-medium tabular-nums group-hover/row:text-accent">{d.job_number}</div>
-                      <div className="text-xs text-muted-foreground">{dealName(d)}</div>
-                    </>
-                  ) : <div className="font-medium group-hover/row:text-accent">{d.title}</div>}
+                  {/* The name on top, the job number under it (the title starts with the number). */}
+                  <div className="font-medium group-hover/row:text-accent">{dealName(d)}</div>
+                  {d.job_number && <div className="font-mono text-[11px] text-muted-foreground">{d.job_number}</div>}
                 </td>
                 {show("stage") && <td className="px-3 py-2.5"><StageBadge stage={d.stage} /></td>}
-                {show("value") && <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">{dealMoney(d)}</td>}
+                {show("value") && (
+                  <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">
+                    {dealMoney(d)}
+                    {d.estimated_value != null && formatDealRange(d, (n) => money(n)) ? <div className="text-[11px] text-muted-foreground">{formatDealRange(d, (n) => money(n))}</div> : null}
+                  </td>
+                )}
                 {show("owner") && <td className="px-3 py-2.5 text-muted-foreground">{ownerName(d.owner_id)}</td>}
                 {show("activity") && <td className="px-3 py-2.5 text-muted-foreground">{d.last_activity_at ? `${daysSince(d.last_activity_at)}d ago` : "—"}</td>}
                 {show("next_action") && (
@@ -768,13 +769,13 @@ function TableView({ deals, ownerName, onOpen, renderActions, reorder, sortState
   const ownerOptions = [{ value: "", label: "Unassigned" }, ...owners.map((o) => ({ value: o.id, label: o.name }))];
   const ro = !edit.canWrite;
   const text = (d: Deal, field: keyof Deal) => (raw: string) => edit.patch(d.id, { [field]: raw.trim() || null } as Partial<Deal>);
-  const num = (d: Deal, field: "estimated_value" | "estimated_max_value" | "probability", max?: number) => async (raw: string) => {
+  const num = (d: Deal, field: "estimated_value" | "estimated_low_value" | "estimated_high_value" | "probability", max?: number) => async (raw: string) => {
     const clean = raw.replace(/[^0-9.]/g, "");
     const n = clean === "" ? null : Number(clean);
     if (n !== null && (!Number.isFinite(n) || (max != null && n > max))) return max != null ? `Enter 0–${max}.` : "Not a number.";
-    if (field === "estimated_max_value" || field === "estimated_value") {
-      const lo = field === "estimated_value" ? n : d.estimated_value ?? null;
-      const hi = field === "estimated_max_value" ? n : d.estimated_max_value ?? null;
+    if (field === "estimated_low_value" || field === "estimated_high_value") {
+      const lo = field === "estimated_low_value" ? n : d.estimated_low_value ?? null;
+      const hi = field === "estimated_high_value" ? n : d.estimated_high_value ?? null;
       const bad = rangeError(lo, hi);
       if (bad) return bad;
     }
@@ -796,7 +797,8 @@ function TableView({ deals, ownerName, onOpen, renderActions, reorder, sortState
             {show("owner") && <SortableTh label="Owner" sortKey="owner" state={sortState} className={cn(th, "w-40")} />}
             {show("job_type") && <th className={cn(th, "w-40")}>Job type</th>}
             {show("value") && <SortableTh label="Value" sortKey="value" state={sortState} className={cn(th, "w-32 text-right")} align="right" />}
-            {show("value_max") && <th className={cn(th, "w-32 text-right")}>Value to</th>}
+            {show("value_low") && <th className={cn(th, "w-32 text-right")}>Est. low</th>}
+            {show("value_high") && <th className={cn(th, "w-32 text-right")}>Est. high</th>}
             {show("probability") && <th className={cn(th, "w-20 text-right")}>Prob. %</th>}
             {show("close") && <SortableTh label="Close" sortKey="close" state={sortState} className={cn(th, "w-36")} />}
             {show("source") && <th className={cn(th, "w-36")}>Source</th>}
@@ -819,7 +821,8 @@ function TableView({ deals, ownerName, onOpen, renderActions, reorder, sortState
                 {show("owner") && <td className={td}>{ro ? <span className="px-2 text-muted-foreground">{ownerName(d.owner_id)}</span> : <SheetSelect {...base} col={2} label="Owner" value={d.owner_id ?? ""} options={ownerOptions} save={(raw) => edit.patch(d.id, { owner_id: raw || null })} />}</td>}
                 {show("job_type") && <td className={td}><SheetSelect {...base} col={3} label="Job type" value={d.job_type ?? ""} options={JOB_TYPE_OPTIONS} save={(raw) => edit.patch(d.id, { job_type: raw || null })} /></td>}
                 {show("value") && <td className={td}><SheetInput {...base} col={4} label="Value" type="number" align="right" value={d.estimated_value == null ? "" : String(d.estimated_value)} save={num(d, "estimated_value")} placeholder="$" /></td>}
-                {show("value_max") && <td className={td}><SheetInput {...base} col={10} label="Value to (high end of a range)" type="number" align="right" value={d.estimated_max_value == null ? "" : String(d.estimated_max_value)} save={num(d, "estimated_max_value")} placeholder="to $" /></td>}
+                {show("value_low") && <td className={td}><SheetInput {...base} col={10} label="Estimated low" type="number" align="right" value={d.estimated_low_value == null ? "" : String(d.estimated_low_value)} save={num(d, "estimated_low_value")} placeholder="$" /></td>}
+                {show("value_high") && <td className={td}><SheetInput {...base} col={11} label="Estimated high" type="number" align="right" value={d.estimated_high_value == null ? "" : String(d.estimated_high_value)} save={num(d, "estimated_high_value")} placeholder="$" /></td>}
                 {show("probability") && <td className={td}><SheetInput {...base} col={5} label="Probability" type="number" align="right" value={d.probability == null ? "" : String(d.probability)} save={num(d, "probability", 100)} /></td>}
                 {show("close") && <td className={td}><SheetInput {...base} col={6} label="Expected close" type="date" value={d.expected_close_date ?? ""} save={text(d, "expected_close_date")} /></td>}
                 {show("source") && <td className={td}><SheetSelect {...base} col={7} label="Source" value={d.source ?? ""} options={SOURCE_OPTIONS} save={(raw) => edit.patch(d.id, { source: raw || null })} /></td>}
@@ -867,7 +870,8 @@ function KanbanView({ deals, onOpen, canWrite, onMove, renderActions }: { deals:
                   className={cn("cursor-pointer rounded-md border border-border bg-card p-2.5 text-sm shadow-sm transition hover:border-accent/50", dragId === d.id && "opacity-40")}>
                   <div className="flex items-start justify-between gap-1">
                     <div className="min-w-0 flex-1 leading-tight">
-                      {d.job_number ? <><div className="font-medium tabular-nums">{d.job_number}</div><div className="text-xs text-muted-foreground">{dealName(d)}</div></> : <div className="font-medium">{d.title}</div>}
+                      <div className="font-medium">{dealName(d)}</div>
+                      {d.job_number && <div className="font-mono text-[11px] text-muted-foreground">{d.job_number}</div>}
                     </div>
                     <div className="-mr-1 -mt-1 shrink-0">{renderActions(d)}</div>
                   </div>
@@ -1044,7 +1048,7 @@ function DealFormModal({
   owners: OwnerOption[]; contacts: SourceRow[]; title: string; onClose: () => void; onSaved: () => Promise<void>;
 }) {
   const [form, setForm] = React.useState({
-    title: "", contact_id: "", owner_id: "", source: "", referral_source: "", estimated_value: "", estimated_max_value: "",
+    title: "", contact_id: "", owner_id: "", source: "", referral_source: "", estimated_value: "", estimated_low_value: "", estimated_high_value: "",
     target_start_date: "", next_action: "", next_action_due: "", notes: "",
     street_address: "", city: "", state: "", zip: "",
   });
@@ -1113,13 +1117,16 @@ function DealFormModal({
       // Only sent when filled, so deal creation never depends on this column.
       ...(form.source === "referral" && form.referral_source.trim() ? { referral_source: form.referral_source.trim() } : {}),
       estimated_value: form.estimated_value === "" ? null : Number(form.estimated_value),
-      // Only sent when it's a range, so deal creation never depends on this column.
-      ...(form.estimated_max_value !== "" ? { estimated_max_value: Number(form.estimated_max_value) } : {}),
+      // Only sent when filled, so deal creation never depends on these columns.
+      ...(form.estimated_low_value !== "" ? { estimated_low_value: Number(form.estimated_low_value) } : {}),
+      ...(form.estimated_high_value !== "" ? { estimated_high_value: Number(form.estimated_high_value) } : {}),
       target_start_date: form.target_start_date || null,
       next_action: form.next_action || null,
       next_action_due: form.next_action_due || null,
       notes: form.notes || null,
     };
+    const bad = rangeError(form.estimated_low_value === "" ? null : Number(form.estimated_low_value), form.estimated_high_value === "" ? null : Number(form.estimated_high_value));
+    if (bad) { setSaving(false); setError(bad); return; }
     const res = await fetch("/api/deals", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     setSaving(false);
     if (!res.ok) { setError((await res.json()).error || "Failed to create deal."); return; }
@@ -1207,13 +1214,9 @@ function DealFormModal({
               <datalist id="deal-referrers">{contacts.map((c) => <option key={c.id} value={c.label} />)}</datalist>
             </Field>
           )}
-          <Field label="Estimated value (one number, or a range)">
-            <div className="flex items-center gap-2">
-              <MoneyInput value={form.estimated_value} onChange={(v) => set("estimated_value", v)} aria-label="Estimated value, or the low end of a range" />
-              <span className="text-xs text-muted-foreground">to</span>
-              <MoneyInput value={form.estimated_max_value} onChange={(v) => set("estimated_max_value", v)} placeholder="Optional" aria-label="High end of the range (optional)" />
-            </div>
-          </Field>
+          <Field label="Estimated value"><MoneyInput value={form.estimated_value} onChange={(v) => set("estimated_value", v)} /></Field>
+          <Field label="Estimated low"><MoneyInput value={form.estimated_low_value} onChange={(v) => set("estimated_low_value", v)} placeholder="Optional" /></Field>
+          <Field label="Estimated high"><MoneyInput value={form.estimated_high_value} onChange={(v) => set("estimated_high_value", v)} placeholder="Optional" /></Field>
           <Field label="Target start date"><Input type="date" value={form.target_start_date} onChange={(e) => set("target_start_date", e.target.value)} /></Field>
           <Field label="Next action"><Input value={form.next_action} onChange={(e) => set("next_action", e.target.value)} placeholder="e.g. Call to schedule site visit" /></Field>
           <Field label="Next action due"><Input type="date" value={form.next_action_due} onChange={(e) => set("next_action_due", e.target.value)} /></Field>

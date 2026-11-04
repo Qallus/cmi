@@ -2,7 +2,7 @@
 // through the service-role client (RLS is deny-by-default; role gating lives in
 // the API routes), matching lib/pipeline/data.ts.
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { formatDealValue, isRange } from "./value";
+import { dealValueMid, formatDealRange, hasRange } from "./value";
 import { createOpportunity } from "@/lib/pipeline/data";
 import { linkDealToOpportunity } from "@/lib/projections/links";
 import { geocodeAddress } from "@/lib/jobs/geocode";
@@ -231,8 +231,8 @@ export async function closeWonToPreCon(deal: Deal, actor?: Actor): Promise<Deal>
     {
       opportunity_name: deal.title,
       contact_id: deal.contact_id ?? null,
-      estimated_project_value: deal.estimated_value ?? null,
-      estimated_budget_range: isRange(deal) ? formatDealValue(deal) : null,
+      estimated_project_value: dealValueMid(deal),
+      estimated_budget_range: hasRange(deal) ? formatDealRange(deal) : null,
       source: deal.source ?? null,
       referral_source: deal.referral_source ?? null,
       notes: deal.notes ?? null,
