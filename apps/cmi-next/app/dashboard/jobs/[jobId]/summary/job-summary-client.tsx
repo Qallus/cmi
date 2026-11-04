@@ -63,21 +63,19 @@ export function JobSummaryClient({ job, stats, forecast = null, feed = null }: {
           {/* Summary card — job identity now lives here (moved out of the header) */}
           <div className="space-y-4 lg:col-span-1">
             <div className="rounded-lg border border-border bg-card p-4">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
                   <h1 className="font-display text-xl font-semibold tracking-tight">{job.job_name}</h1>
                   <JobStatusBadge status={job.status as JobStatus} />
                 </div>
-                <div className="flex items-center gap-2">
-                  {/* Hides the stat tiles above (remembered per person). */}
-                  {/* Phones only: the job toolbar is a single menu there. Larger screens use the top bar. */}
-                  <StatsToggle shown={showStats} onToggle={toggleStats} className="md:hidden" />
-                  <JobHeaderStatsToggle shown={showStats} onToggle={toggleStats} />
-                  <Link href={`/dashboard/jobs/${job.id}/info`}>
-                    <Button size="sm" variant="outline"><Pencil className="h-3.5 w-3.5" /> Edit Job</Button>
-                  </Link>
-                </div>
+                <Link href={`/dashboard/jobs/${job.id}/info`} className="mt-1 inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-sm font-medium text-accent hover:underline">
+                  <Pencil className="h-3.5 w-3.5" /> Edit Job
+                </Link>
               </div>
+              {/* Hides the stat tiles above (remembered per person). Larger screens have it in the
+                  top bar after Prints; phones, where that bar is a single menu, get it here. */}
+              <JobHeaderStatsToggle shown={showStats} onToggle={toggleStats} />
+              <StatsToggle shown={showStats} onToggle={toggleStats} className="mt-2 md:hidden" />
               <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                 <span className="font-mono">{job.job_number ?? "—"}</span>
                 {job.full_address && (
