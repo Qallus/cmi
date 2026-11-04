@@ -772,8 +772,8 @@ export function ScheduleGrid({
           className="w-full min-w-0 overflow-clip rounded-lg border border-border bg-card outline-none focus-visible:ring-1 focus-visible:ring-accent/40"
         >
           {/* Column headers stay under the top bar while the rows scroll (same height as the Gantt's dates). */}
-          <div ref={gridHead} className="sticky top-0 z-30 overflow-hidden border-b border-border bg-card">
-            <div className="flex bg-muted/40 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground" style={{ width, height: HEAD_H - 1 }}>
+          <div ref={gridHead} className="sticky top-0 z-30 overflow-hidden border-b border-border bg-muted">
+            <div className="flex text-[11px] font-semibold uppercase tracking-wide text-muted-foreground" style={{ width, height: HEAD_H - 1 }}>
               <div className="shrink-0 border-r border-border/60" style={{ width: GUTTER_W }} />
               {cols.map((k) => <div key={k} className={cn("flex shrink-0 items-end border-r border-border/60 px-1.5 pb-1.5", COLUMN[k].align === "right" && "justify-end")} style={{ width: COLUMN[k].width }}>{COLUMN[k].label}</div>)}
             </div>

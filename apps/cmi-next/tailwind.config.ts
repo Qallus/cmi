@@ -1,5 +1,10 @@
 import type { Config } from "tailwindcss";
 
+// Colours are CSS variables (light/dark in app/globals.css). Wrapping them in
+// color-mix with <alpha-value> lets opacity modifiers work: bg-muted/40,
+// border-border/60, bg-accent/15. Without it Tailwind drops those classes.
+const withAlpha = (v: string) => `color-mix(in oklch, var(${v}) calc(<alpha-value> * 100%), transparent)`;
+
 const config: Config = {
   darkMode: ["class", '[data-theme="dark"]'],
   content: [
@@ -10,29 +15,31 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: "var(--background)",
-        foreground: "var(--foreground)",
-        card: "var(--card)",
-        "card-foreground": "var(--card-foreground)",
-        popover: "var(--popover)",
-        "popover-foreground": "var(--popover-foreground)",
-        muted: "var(--muted)",
-        "muted-foreground": "var(--muted-foreground)",
-        border: "var(--border)",
-        input: "var(--input)",
-        ring: "var(--ring)",
-        primary: "var(--primary)",
-        "primary-foreground": "var(--primary-foreground)",
-        secondary: "var(--secondary)",
-        "secondary-foreground": "var(--secondary-foreground)",
-        accent: "var(--accent)",
-        "accent-foreground": "var(--accent-foreground)",
-        destructive: "var(--destructive)",
-        "destructive-foreground": "var(--destructive-foreground)",
-        success: "var(--success)",
-        warning: "var(--warning)",
-        info: "var(--info)"
+        background: withAlpha("--background"),
+        foreground: withAlpha("--foreground"),
+        card: withAlpha("--card"),
+        "card-foreground": withAlpha("--card-foreground"),
+        popover: withAlpha("--popover"),
+        "popover-foreground": withAlpha("--popover-foreground"),
+        muted: withAlpha("--muted"),
+        "muted-foreground": withAlpha("--muted-foreground"),
+        border: withAlpha("--border"),
+        input: withAlpha("--input"),
+        ring: withAlpha("--ring"),
+        primary: withAlpha("--primary"),
+        "primary-foreground": withAlpha("--primary-foreground"),
+        secondary: withAlpha("--secondary"),
+        "secondary-foreground": withAlpha("--secondary-foreground"),
+        accent: withAlpha("--accent"),
+        "accent-foreground": withAlpha("--accent-foreground"),
+        destructive: withAlpha("--destructive"),
+        "destructive-foreground": withAlpha("--destructive-foreground"),
+        success: withAlpha("--success"),
+        warning: withAlpha("--warning"),
+        info: withAlpha("--info")
       },
+      // Plain "border" (no colour class) uses the design token, not Tailwind's grey.
+      borderColor: { DEFAULT: "var(--border)" },
       borderRadius: {
         sm: "var(--radius-sm)",
         md: "var(--radius-md)",
