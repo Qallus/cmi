@@ -64,7 +64,8 @@ export function BrandHeader({ logo, title, meta }: { logo: string | null; title:
         <Text style={styles.brandMeta}>AZ ROC KB-1 #343120</Text>
         <Text style={styles.brandMeta}>constructedmatter.com</Text>
       </View>
-      <View>
+      {/* Title block hugs the right margin, each line right-aligned. */}
+      <View style={{ alignItems: "flex-end", maxWidth: "55%" }}>
         <Text style={styles.docTitle}>{title}</Text>
         {(meta ?? []).map((m, i) => <Text key={i} style={styles.docMeta}>{m}</Text>)}
       </View>
