@@ -125,6 +125,7 @@ export function ItemDrawer({
               <Field label="Constraint date"><Input type="date" value={draft.constraint_date ?? ""} disabled={!canEdit || !draft.constraint_type || draft.constraint_type === "alap"} onChange={(e) => set("constraint_date", e.target.value || null)} /></Field>
               <Field label="Actual start"><Input type="date" value={draft.actual_start ?? ""} disabled={!canEdit} onChange={(e) => set("actual_start", e.target.value || null)} /></Field>
               <Field label="Actual finish"><Input type="date" value={draft.actual_finish ?? ""} disabled={!canEdit} onChange={(e) => set("actual_finish", e.target.value || null)} /></Field>
+              {kind !== "milestone" ? <Field label="Remaining (working days)"><Input type="number" min={0} value={draft.remaining_duration ?? ""} disabled={!canEdit} placeholder="From % complete" onChange={(e) => set("remaining_duration", e.target.value === "" ? null : Math.max(0, Math.round(Number(e.target.value))))} /></Field> : null}
               {kind === "milestone" ? <Field label="Contract date"><Input type="date" value={draft.contract_date ?? ""} disabled={!canEdit} onChange={(e) => set("contract_date", e.target.value || null)} /></Field> : null}
               <Field label="Cost code"><Input value={draft.cost_code ?? ""} disabled={!canEdit} onChange={(e) => set("cost_code", e.target.value || null)} placeholder="Budget line" /></Field>
             </div>

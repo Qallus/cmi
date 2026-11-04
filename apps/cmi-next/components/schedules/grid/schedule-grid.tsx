@@ -54,7 +54,7 @@ function store(key: string, value: unknown) {
 
 export function ScheduleGrid({
   schedule, items: allItems, phases, dependencies: realDeps, canEdit, zoom, showBaseline, showLinks, onToggleLinks, onStyleItem, linkMode,
-  onOpenItem, onReload, onBanner, onDatesChange, onLink, mode = "legacy", contractVariances,
+  onOpenItem, onReload, onBanner, onDatesChange, onLink, mode = "legacy", contractVariances, baselineVariances, statusDate,
 }: {
   schedule: JobSchedule;
   items: ScheduleItem[];
@@ -79,6 +79,9 @@ export function ScheduleGrid({
   mode?: SchedulingMode;
   /** Working days past (+) / ahead of (−) contract, by item id (from the server). */
   contractVariances?: Map<string, number | null>;
+  /** Phase 2: forecast vs baseline per task, and the status date line on the Gantt. */
+  baselineVariances?: Map<string, number>;
+  statusDate?: string | null;
 }) {
   const realItems = React.useMemo(() => allItems.filter((i) => i.schedule_id === schedule.id), [allItems, schedule.id]);
   // ---- what-if sandbox ----
@@ -156,8 +159,9 @@ export function ScheduleGrid({
         if (wi) { const it = wi.net.items.find((i) => i.id === id); return it ? contractVariance(wi.net, it) : null; }
         return contractVariances?.get(id);
       },
+      baselineVarianceOf: (id) => baselineVariances?.get(id),
     };
-  }, [items, dependencies, wi, contractVariances]);
+  }, [items, dependencies, wi, contractVariances, baselineVariances]);
 
   const rows = React.useMemo(() => scheduleRows(items, phases, { collapsed }), [items, phases, collapsed]);
   const itemRows = React.useMemo(() => rows.flatMap((r) => (r.kind === "item" ? [r.item] : [])), [rows]);
@@ -841,7 +845,7 @@ export function ScheduleGrid({
 
         <ResizablePanel ref={ganttPanel} id="gantt" order={2} defaultSize={42} minSize={20} collapsible collapsedSize={0}
           onCollapse={() => setHidden("gantt")} onExpand={() => setHidden((h) => (h === "gantt" ? null : h))} className={hidden === "gantt" ? undefined : "pl-1.5"} style={{ overflow: "clip" }}>
-          <GanttView items={items} dependencies={dependencies} phases={phases} zoom={zoom} showBaseline={showBaseline} showLinks={showLinks} onStyleItem={whatIf ? undefined : onStyleItem} canEdit={canEdit} linkMode={linkMode}
+          <GanttView items={items} dependencies={dependencies} phases={phases} zoom={zoom} showBaseline={showBaseline} showLinks={showLinks} statusDate={statusDate} onStyleItem={whatIf ? undefined : onStyleItem} canEdit={canEdit} linkMode={linkMode}
             onOpenItem={onOpenItem} onLink={whatIf ? undefined : onLink}
             onDatesChange={whatIf ? (id, start, end, gesture) => tryOps({ updates: [{ id, patch: gesture === "move" ? { start_date: start } : { end_date: end } }] }) : onDatesChange}
             hideLabels={hidden !== "grid"} collapsed={collapsed} selectedId={active?.id ?? null} flashIds={new Set([...flash].map((c) => c.split(":")[0]))} />

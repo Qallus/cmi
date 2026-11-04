@@ -20,8 +20,11 @@ export class ScheduleRuleError extends Error {
 
 export const ENGINE_FLAG = "schedule_engine";
 
-const ITEM_COLS = "id, schedule_id, phase_id, title, kind, status, start_date, end_date, duration_days, duration_unit, is_locked, constraint_type, constraint_date, actual_start, actual_finish, activity_id, early_start, early_finish, late_start, late_finish, total_float, free_float, is_critical, milestone_type, contract_date, assignees";
-const SCHED_COLS = "id, job_id, name, scheduling_mode, workdays, start_date, target_completion, scope_type, scope_id, status";
+const ITEM_COLS = "id, schedule_id, phase_id, title, kind, status, start_date, end_date, duration_days, duration_unit, is_locked, constraint_type, constraint_date, actual_start, actual_finish, percent_complete, remaining_duration, activity_id, early_start, early_finish, late_start, late_finish, total_float, free_float, is_critical, milestone_type, contract_date, assignees";
+const SCHED_COLS = "id, job_id, name, scheduling_mode, workdays, start_date, target_completion, status_date, scope_type, scope_id, status";
+
+/** Phase 2 progress: status date, remaining work and forecast finish. Off = Phase 1 behaviour. */
+export const PROGRESS_FLAG = "schedule_progress";
 
 /** The schedule's mode when the engine applies to it, else null (flag off or legacy). */
 export async function engineModeFor(scheduleId: string): Promise<SchedulingMode | null> {
@@ -46,6 +49,8 @@ export async function loadNetwork(scheduleId: string): Promise<Network & { jobId
   fail("schedules", e1);
   const schedules = (scheds ?? []) as (NetSchedule & { scope_type: string; scope_id: string })[];
   if (!schedules.some((s) => s.id === me.id)) schedules.push(me as never);
+  // Without the progress flag the status date is ignored, so dates work exactly as in Phase 1.
+  if (!(await isFeatureEnabled(PROGRESS_FLAG))) for (const s of schedules) s.status_date = null;
   const ids = schedules.map((s) => s.id);
 
   const { data: items, error: e2 } = await sb.from("schedule_items").select(ITEM_COLS).in("schedule_id", ids);

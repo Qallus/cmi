@@ -15,12 +15,15 @@ import type { DependencyType, SchedulingMode, Workdays } from "./types";
 export type NetSchedule = {
   id: string; job_id: string | null; name: string; scheduling_mode: SchedulingMode;
   workdays: Workdays | null; start_date: string | null; target_completion?: string | null;
+  /** Progress status date (Phase 2); empty when progress forecasting is off. */
+  status_date?: string | null;
 };
 export type NetItem = {
   id: string; schedule_id: string; phase_id?: string | null; title: string; kind: "task" | "milestone"; status: string;
   start_date: string | null; end_date: string | null; duration_days: number | null; duration_unit?: "workdays" | "calendar" | null;
   is_locked: boolean; constraint_type?: "snet" | "mfo" | "alap" | null; constraint_date?: string | null;
   actual_start?: string | null; actual_finish?: string | null; activity_id?: number | null;
+  percent_complete?: number | null; remaining_duration?: number | null;
   early_start?: string | null; early_finish?: string | null; late_start?: string | null; late_finish?: string | null;
   total_float?: number | null; free_float?: number | null; is_critical?: boolean;
   milestone_type?: string | null; contract_date?: string | null;
@@ -94,6 +97,9 @@ export function buildInput(net: Network, opts: BuildOptions = {}): CpmInput {
       constraint, constraintDate,
       actualStart: i.actual_start ?? null,
       actualFinish: i.actual_finish ?? null,
+      statusDate: onEngine ? s.status_date ?? null : null,
+      percent: i.percent_complete ?? null,
+      remaining: i.remaining_duration != null ? Number(i.remaining_duration) : null,
       // Only auto schedules move; done tasks never do.
       hold: mode !== "auto" || DONE.has(i.status),
     });

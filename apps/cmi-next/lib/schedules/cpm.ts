@@ -33,6 +33,14 @@ export type CpmTask = {
   constraintDate?: string | null;
   actualStart?: string | null;
   actualFinish?: string | null;
+  /** Status (data) date of the task's schedule: work up to it is reported, so a
+   *  started task's remaining work runs after it and an unstarted task can't sit
+   *  before it (P6's data date). Empty = no progress forecasting. */
+  statusDate?: string | null;
+  /** % complete, 0–100. Used for the remaining work when no remaining is typed. */
+  percent?: number | null;
+  /** Remaining working days, when typed. Wins over Duration × (1 − %). */
+  remaining?: number | null;
   /** Keep this task's dates (its schedule is manual or not on the engine);
    *  it still drives its successors and gets float. */
   hold?: boolean;
@@ -106,6 +114,13 @@ type Node = {
 
 const d = (iso?: string | null) => (iso ? dayNum(iso) : null);
 
+/** Working days still to do on a started task: typed remaining, else Duration × (1 − %). */
+export function remainingOf(t: Pick<CpmTask, "remaining" | "percent">, dur: number): number {
+  if (t.remaining != null && Number.isFinite(t.remaining)) return Math.max(0, Math.round(t.remaining));
+  const pct = Math.max(0, Math.min(100, t.percent ?? 0));
+  return Math.max(0, Math.ceil(dur * (1 - pct / 100)));
+}
+
 export function runCpm(input: CpmInput): CpmResult {
   const calOf = (key?: string | null): DayCalendar => {
     if (key === "calendar_days") return CALENDAR_DAYS;
@@ -150,6 +165,13 @@ export function runCpm(input: CpmInput): CpmResult {
       n.fixedStart = as ?? (n.dur > 1 ? addW(n.cal, af, -(n.dur - 1)) : af);
     } else if (as != null) {
       n.fixedStart = as;
+      const sd = d(t.statusDate);
+      if (sd != null) {
+        // Started, not finished: what's left runs from the first working day after the status date.
+        const left = remainingOf(t, n.dur);
+        const resume = nextW(n.cal, Math.max(sd + 1, as));
+        n.fixedFinish = left > 0 ? addW(n.cal, resume, left - 1) : Math.max(as, prevW(n.cal, sd));
+      }
     } else if (t.constraint === "locked" || ((manual || t.hold) && t.start)) {
       const s = d(t.start ?? t.constraintDate);
       if (s != null) {
@@ -185,6 +207,12 @@ export function runCpm(input: CpmInput): CpmResult {
           es = want;
           if (!cal.isWorking(want)) n.note = "Start No Earlier Than fell on a non-working day; moved to the next working day.";
         }
+      }
+      // Not started yet: nothing can be planned before the status date.
+      const sd = d(n.t.statusDate);
+      if (sd != null && es <= sd) {
+        es = sd + 1;
+        n.note = "Hadn't started by the status date, so it moved after it.";
       }
       es = nextW(cal, es);
     }

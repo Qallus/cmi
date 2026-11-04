@@ -48,6 +48,8 @@ type Props = {
   /** Where the date header sticks, in px from the top of the scrolling area: 0 inside a
    *  scrolling panel (the schedule workspace), 56 when the window scrolls under the top bar. */
   stickyTop?: number;
+  /** Phase 2 status date: drawn as a dashed line at the end of that day. */
+  statusDate?: string | null;
 };
 
 // Link lines: how far a line runs out of a bar before it turns.
@@ -74,7 +76,7 @@ export function linkPath(type: string, src: { left: number; right: number; y: nu
   return `M ${sx} ${sy} H ${sx + out * LINK_GAP} V ${midY} H ${tx + into * LINK_GAP} V ${ty} H ${tx}`;
 }
 
-export function GanttView({ items, dependencies, phases, zoom, groupBySchedule, showBaseline, canEdit, linkMode, onOpenItem, onDatesChange, onLink, hideLabels, collapsed, selectedId, flashIds, showLinks = true, onStyleItem, stickyTop = 0 }: Props) {
+export function GanttView({ items, dependencies, phases, zoom, groupBySchedule, showBaseline, canEdit, linkMode, onOpenItem, onDatesChange, onLink, hideLabels, collapsed, selectedId, flashIds, showLinks = true, onStyleItem, stickyTop = 0, statusDate }: Props) {
   const dayW = DAY_W[zoom];
   const [linkSource, setLinkSource] = React.useState<string | null>(null);
   // The sticky date header scrolls sideways with the timeline body.
@@ -271,6 +273,11 @@ export function GanttView({ items, dependencies, phases, zoom, groupBySchedule, 
               {ticks.map((t, i) => (
                 <div key={`gl${i}`} className={cn("absolute top-0 border-l border-border/25", t.weekend && "bg-muted/20")} style={{ left: t.left, width: zoom === "day" && t.weekend ? dayW : undefined, height: rows.length * ROW_H }} />
               ))}
+              {/* status date: work up to here is reported */}
+              {statusDate && parse(statusDate) ? (() => {
+                const sx = x(statusDate) + dayW;
+                return sx >= 0 && sx <= boardW ? <div title={`Status date ${fmtShort(statusDate)}`} className="absolute top-0 z-10 border-l-2 border-dashed border-foreground/50" style={{ left: sx, height: rows.length * ROW_H }} /> : null;
+              })() : null}
               {/* today marker */}
               {todayX >= 0 && todayX <= boardW ? <div className="absolute top-0 z-10 w-px bg-accent/70" style={{ left: todayX, height: rows.length * ROW_H }} /> : null}
 

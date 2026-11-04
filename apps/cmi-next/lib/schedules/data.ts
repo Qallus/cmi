@@ -7,6 +7,9 @@ import { engineModeFor, recalcSchedule, assertMoveAllowed, assertNoLoop, duratio
 import { addW, CALENDAR_DAYS, dayNum, isoOf, nextW, spanW, workDiff, type DayCalendar } from "./calendar.ts";
 import { calendarFor } from "./engine-core.ts";
 import { DEFAULT_WORKDAYS } from "./types";
+import { isFeatureEnabled } from "@/lib/flags";
+import { PROGRESS_FLAG } from "./engine";
+import { progressPatch, todayAZ } from "./progress.ts";
 import type {
   JobSchedule, SchedulePhase, ScheduleItem, ScheduleDependency, ScheduleParticipant,
   ScheduleBaseline, ScheduleActivity, ScheduleDraft, Workdays, DependencyType, Assignee,
@@ -224,7 +227,7 @@ export const ITEM_FIELDS = [
 ] as const;
 
 // Changing any of these re-runs the engine on schedules that use it.
-const ENGINE_KEYS = ["start_date", "end_date", "duration_days", "duration_unit", "constraint_type", "constraint_date", "is_locked", "actual_start", "actual_finish", "kind", "status"];
+const ENGINE_KEYS = ["percent_complete", "remaining_duration", "start_date", "end_date", "duration_days", "duration_unit", "constraint_type", "constraint_date", "is_locked", "actual_start", "actual_finish", "kind", "status"];
 
 async function rowsByIds(ids: string[]): Promise<ScheduleItem[]> {
   if (!ids.length) return [];
@@ -284,6 +287,8 @@ export async function updateItem(id: string, patch: Partial<ScheduleItem>, actor
   const { data: prev } = await sb.from("schedule_items").select("*").eq("id", id).maybeSingle();
   const clean: Record<string, unknown> = { updated_by: actor?.id ?? null, updated_at: new Date().toISOString() };
   for (const k of ITEM_FIELDS) if (k in patch) clean[k] = (patch as Record<string, unknown>)[k];
+  // Progress (Phase 2): % complete stamps actual dates and status.
+  if (prev && (await isFeatureEnabled(PROGRESS_FLAG))) Object.assign(clean, progressPatch(prev, clean, todayAZ()));
 
   // Schedule engine: a typed start becomes Start No Earlier Than (and can't be
   // earlier than the links allow); typed dates set the length in working days.

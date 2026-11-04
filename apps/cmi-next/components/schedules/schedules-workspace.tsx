@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { StatusDateControl } from "./status-date";
 import { ItemColorsPanel } from "./item-colors-panel";
 import { confirmAction, promptText } from "@/components/ui/confirm-action";
 import { Plus, GitBranch, Flag, Layers, CalendarClock, CalendarRange, FileText, Star, Archive, ChevronDown, CornerDownRight, Route, Spline } from "lucide-react";
@@ -26,7 +27,15 @@ import { SCHEDULING_MODE_LABELS, type JobSchedule, type ScheduleItem, type Sched
 type Staff = { id: string; name: string };
 type Bundle = { schedule: JobSchedule; phases: SchedulePhase[]; items: ScheduleItem[]; dependencies: ScheduleDependency[] };
 type ContractRow = { id: string; title: string; contract_date: string; milestone_type: string | null; forecast: string | null; variance: number | null };
-type EngineState = { enabled: boolean; mode: SchedulingMode; canSwitch: boolean; summary: { finish: string | null; critical: { id: string }[]; loops: number; contract?: ContractRow[] } | null };
+type EngineState = {
+  enabled: boolean; mode: SchedulingMode; canSwitch: boolean;
+  /** Phase 2 progress tracking (flag schedule_progress) and this schedule's status date. */
+  progress?: boolean; status_date?: string | null;
+  summary: {
+    finish: string | null; critical: { id: string }[]; loops: number; contract?: ContractRow[];
+    baseline?: { id: string; variance: number }[]; baselineFinish?: string | null; finishVariance?: number | null; behind?: number;
+  } | null;
+};
 type Header = { schedule_count: number; active_count: number; overall_progress: number; health: string; projected_completion: string | null; next_milestone: { title: string; date: string | null; schedule_name: string } | null };
 
 // `scope`: whose schedules these are (a job, or with the Schedule Builder a deal,
@@ -353,6 +362,12 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
                   const v = worst.variance!;
                   return <AutoTooltip content={`${worst.title}: contract ${fmtDate(worst.contract_date)}, forecast ${fmtDate(worst.forecast)}`}><span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", v > 0 ? "bg-destructive/10 text-destructive" : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400")}>vs contract {v === 0 ? "on date" : `${v > 0 ? "+" : ""}${v} wd`}</span></AutoTooltip>;
                 })()}
+                {engine.progress && primarySchedule && !overlay ? (
+                  <StatusDateControl scheduleId={primarySchedule.id} value={engine.status_date ?? null} canEdit={canEdit}
+                    finishVariance={engine.summary?.finishVariance} baselineFinish={engine.summary?.baselineFinish} behind={engine.summary?.behind}
+                    onChanged={async () => { await loadBundle(primarySchedule.id); await refreshEngine(); setBanner("Status date set; the schedule was re-forecast."); }}
+                    onError={setBanner} />
+                ) : null}
                 <Tooltip label={engine.canSwitch ? "How this schedule's dates are worked out" : "Admins and Project Managers change this"} side="bottom" className="inline-block"><Button size="sm" variant="ghost" onClick={() => setEngineOpen(true)} disabled={!engine.canSwitch}><Route className="h-3.5 w-3.5" /> {SCHEDULING_MODE_LABELS[engine.mode]}</Button></Tooltip>
               </>
             ) : null}
@@ -373,7 +388,7 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
           <div className="flex-1 overflow-auto p-4 md:p-6">
             {loading && !items.length ? <div className="py-16 text-center text-sm text-muted-foreground">Loading schedule…</div> : null}
             {view === "gantt" || view === "timeline" ? (
-              <GanttView items={items} dependencies={dependencies} phases={phases} zoom={view === "timeline" ? "month" : zoom} groupBySchedule={overlay || view === "timeline"} showBaseline={showBaseline} showLinks={showLinks} onStyleItem={canEdit ? setStyling : undefined} canEdit={canEdit} linkMode={linkMode} onOpenItem={setEditing} onDatesChange={ganttDates} onLink={(s, t) => addDependency(s, t)} />
+              <GanttView items={items} dependencies={dependencies} phases={phases} zoom={view === "timeline" ? "month" : zoom} groupBySchedule={overlay || view === "timeline"} showBaseline={showBaseline} showLinks={showLinks} statusDate={engine?.progress && !overlay ? engine.status_date ?? null : null} onStyleItem={canEdit ? setStyling : undefined} canEdit={canEdit} linkMode={linkMode} onOpenItem={setEditing} onDatesChange={ganttDates} onLink={(s, t) => addDependency(s, t)} />
             ) : view === "calendar" ? (
               <CalendarView items={items} onOpenItem={setEditing} />
             ) : view === "kanban" ? (
@@ -387,6 +402,8 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
                 onOpenItem={setEditing} onBanner={setBanner} onDatesChange={ganttDates} onLink={(s, t) => addDependency(s, t)}
                 onReload={async () => { const b = await loadBundle(primarySchedule.id); void refreshEngine(); return b?.items ?? null; }}
                 mode={engine.mode} contractVariances={new Map((engine.summary?.contract ?? []).map((c) => [c.id, c.variance]))}
+                baselineVariances={engine.progress ? new Map((engine.summary?.baseline ?? []).map((b) => [b.id, b.variance])) : undefined}
+                statusDate={engine.progress ? engine.status_date ?? null : null}
               />
             ) : (
               <ListView items={items} mode={view === "table" ? "table" : view === "card" ? "card" : "list"} showSchedule={overlay} onOpenItem={setEditing} />

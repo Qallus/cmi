@@ -7,7 +7,9 @@ import { CALENDAR_DAYS, dayNum, spanW } from "./calendar.ts";
 import { buildInput, blockedMove, calendarFor, wouldLoop, type NetDep } from "./engine-core.ts";
 import { scheduleRows, type GridOps } from "./grid.ts";
 import { ITEM_FIELDS, mapItem, logActivity, applyCascade, fieldChanges } from "./data";
-import { engineModeFor, loadNetwork, recalcSchedule } from "./engine";
+import { engineModeFor, loadNetwork, recalcSchedule, PROGRESS_FLAG } from "./engine";
+import { isFeatureEnabled } from "@/lib/flags";
+import { progressPatch, todayAZ } from "./progress.ts";
 import { DEPENDENCY_ABBR, type ScheduleItem, type SchedulePhase } from "./types";
 
 type Actor = { id?: string | null; name?: string | null };
@@ -27,6 +29,8 @@ export async function applyGridOps(scheduleId: string, ops: GridOps, actor?: Act
   fail("schedule", e0);
   if (!sched) throw new Error("Schedule not found.");
   const engine = await engineModeFor(scheduleId);
+  const progressOn = await isFeatureEnabled(PROGRESS_FLAG);
+  const today = todayAZ();
   const now = new Date().toISOString();
   const result: GridResult = { created: {}, refused: [], moved: 0 };
 
@@ -72,6 +76,7 @@ export async function applyGridOps(scheduleId: string, ops: GridOps, actor?: Act
     if (!prev) continue;
     const clean: Record<string, unknown> = {};
     for (const f of ITEM_FIELDS) if (f in u.patch) clean[f] = (u.patch as Record<string, unknown>)[f];
+    if (progressOn) Object.assign(clean, progressPatch(prev, clean, today));
     const kind = (clean.kind ?? prev.kind) as string;
     if (kind === "milestone" && clean.start_date) clean.end_date = clean.start_date;
     const startTyped = "start_date" in clean && clean.start_date && clean.start_date !== prev.start_date;

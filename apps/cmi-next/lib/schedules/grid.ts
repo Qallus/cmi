@@ -54,7 +54,9 @@ export function scheduleRows(items: ScheduleItem[], phases: SchedulePhase[] | un
 export type ColumnKey =
   | "id" | "name" | "duration" | "start" | "finish" | "preds" | "succs" | "pct"
   | "float" | "constraint" | "cdate" | "calendar" | "assigned" | "status" | "cost_code" | "notes"
-  | "mtype" | "contract" | "variance";
+  | "mtype" | "contract" | "variance"
+  // Phase 2 progress:
+  | "astart" | "afinish" | "remaining" | "bvar";
 
 export type Column = { key: ColumnKey; label: string; width: number; editable: boolean; align?: "right"; aliases?: string[] };
 
@@ -78,6 +80,10 @@ export const GRID_COLUMNS: Column[] = [
   { key: "mtype", label: "Milestone type", width: 112, editable: true, aliases: ["milestone type", "type"] },
   { key: "contract", label: "Contract date", width: 100, editable: true, aliases: ["contract", "contract date"] },
   { key: "variance", label: "vs contract", width: 84, editable: false, align: "right", aliases: ["variance", "variance to contract"] },
+  { key: "astart", label: "Actual start", width: 100, editable: true, aliases: ["actual start", "act start", "started"] },
+  { key: "afinish", label: "Actual finish", width: 100, editable: true, aliases: ["actual finish", "act finish", "finished"] },
+  { key: "remaining", label: "Remaining", width: 80, editable: true, align: "right", aliases: ["remaining", "remaining duration", "rem"] },
+  { key: "bvar", label: "vs baseline", width: 84, editable: false, align: "right", aliases: ["variance to baseline", "baseline variance"] },
 ];
 export const COLUMN = Object.fromEntries(GRID_COLUMNS.map((c) => [c.key, c])) as Record<ColumnKey, Column>;
 
@@ -86,6 +92,7 @@ export const GRID_LAYOUTS: Record<string, ColumnKey[]> = {
   "Super view": ["id", "name", "duration", "start", "finish", "pct", "float", "assigned", "notes"],
   "Client print": ["name", "start", "finish", "pct"],
   "Milestones": ["id", "name", "start", "mtype", "contract", "variance", "float", "notes"],
+  "Progress": ["id", "name", "duration", "start", "finish", "pct", "astart", "afinish", "remaining", "bvar", "float", "status"],
 };
 
 // ---- reading cells ----------------------------------------------------------
@@ -102,6 +109,8 @@ export type GridCtx = {
   otherPredCount: (itemId: string) => number;
   /** Working days past (+) or ahead of (−) the contract date, when known. */
   varianceOf?: (itemId: string) => number | null | undefined;
+  /** Forecast finish vs baseline finish, working days (Phase 2). */
+  baselineVarianceOf?: (itemId: string) => number | null | undefined;
 };
 
 export const CONSTRAINT_TEXT: Record<string, string> = { snet: "SNET", mfo: "MFO", alap: "ALAP", locked: "Locked" };
@@ -133,6 +142,13 @@ export function cellText(item: ScheduleItem, key: ColumnKey, ctx: GridCtx): stri
     case "contract": return item.contract_date ?? "";
     case "variance": {
       const v = ctx.varianceOf?.(item.id);
+      return v == null ? "" : v === 0 ? "on date" : `${v > 0 ? "+" : ""}${v} wd`;
+    }
+    case "astart": return item.actual_start ?? "";
+    case "afinish": return item.actual_finish ?? "";
+    case "remaining": return item.remaining_duration != null ? String(Number(item.remaining_duration)) : "";
+    case "bvar": {
+      const v = ctx.baselineVarianceOf?.(item.id);
       return v == null ? "" : v === 0 ? "on date" : `${v > 0 ? "+" : ""}${v} wd`;
     }
   }
@@ -259,6 +275,17 @@ export function parseCell(item: ScheduleItem, key: ColumnKey, text: string, ctx:
       return d ? { patch: { contract_date: d } } : { error: `"${t}" isn't a date.` };
     }
     case "notes": return { patch: { internal_notes: t || null } };
+    case "astart": case "afinish": {
+      const f = key === "astart" ? "actual_start" : "actual_finish";
+      if (!t) return { patch: { [f]: null } };
+      const d = parseDateCell(t);
+      return d ? { patch: { [f]: d } } : { error: `"${t}" isn't a date.` };
+    }
+    case "remaining": {
+      if (!t) return { patch: { remaining_duration: null } };
+      const n = Number(t.replace(/\s*(wd|d|days?)$/i, ""));
+      return Number.isFinite(n) && n >= 0 ? { patch: { remaining_duration: Math.round(n) } } : { error: "Remaining is a number of working days." };
+    }
     default: return { error: "That column is worked out for you." };
   }
 }

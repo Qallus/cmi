@@ -218,3 +218,38 @@ test("predecessor shorthand", () => {
   assert.equal(idBetween(120, null, new Set([130, 140])), 150);
   assert.equal(idBetween(140, 120, new Set([150])), 160, "rows out of ID order: next free ten");
 });
+
+test("progress: status date drives remaining work and unstarted tasks (Phase 2)", () => {
+  // A: 10 days from Mon Nov 2, started on time, 40% done on status date Fri Nov 6.
+  // B: 5 days after A. C: 3 days, no links, planned Nov 2 but not started by the status date.
+  const tasks = [
+    { id: "A", duration: 10, actualStart: "2026-11-02", percent: 40, statusDate: "2026-11-06" },
+    { id: "B", duration: 5, statusDate: "2026-11-06" },
+    { id: "C", duration: 3, statusDate: "2026-11-06" },
+  ];
+  const r = run(tasks, [fs("A", "B")]);
+  // 6 days left (10 × 60%), from Mon Nov 9 → Mon Nov 16.
+  assert.equal(r.tasks.get("A").start, "2026-11-02");
+  assert.equal(r.tasks.get("A").finish, "2026-11-16");
+  assert.equal(r.tasks.get("B").start, "2026-11-17");
+  // C hadn't started: it can't sit before the status date.
+  assert.equal(r.tasks.get("C").start, "2026-11-09");
+  assert.match(r.tasks.get("C").note ?? "", /status date/);
+
+  // A typed remaining wins over the % (2 days left → Tue Nov 10).
+  const r2 = run([{ ...tasks[0], remaining: 2 }, tasks[1]], [fs("A", "B")]);
+  assert.equal(r2.tasks.get("A").finish, "2026-11-10");
+  assert.equal(r2.tasks.get("B").start, "2026-11-11");
+
+  // Running late: 20% done a week in → 8 days left, finishing later than planned.
+  const r3 = run([{ id: "A", duration: 10, actualStart: "2026-11-02", percent: 20, statusDate: "2026-11-06" }], []);
+  assert.equal(r3.tasks.get("A").finish, "2026-11-18");
+
+  // No status date: Phase 1 behaviour (planned duration from the actual start).
+  const r4 = run([{ id: "A", duration: 10, actualStart: "2026-11-02", percent: 40 }], []);
+  assert.equal(r4.tasks.get("A").finish, "2026-11-13");
+
+  // Finished tasks stay on their actual dates whatever the status date says.
+  const r5 = run([{ id: "A", duration: 10, actualStart: "2026-11-02", actualFinish: "2026-11-05", percent: 100, statusDate: "2026-11-20" }], []);
+  assert.equal(r5.tasks.get("A").finish, "2026-11-05");
+});

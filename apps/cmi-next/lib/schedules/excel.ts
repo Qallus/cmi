@@ -12,7 +12,7 @@ import type { ScheduleItem } from "./types";
 
 const CHARCOAL = "FF2B2A28";
 const ACCENT = "FF9E6F2E";
-const DATE_COLS = new Set<ColumnKey>(["start", "finish", "cdate", "contract"]);
+const DATE_COLS = new Set<ColumnKey>(["start", "finish", "cdate", "contract", "astart", "afinish"]);
 const EXCEL_LABEL: Partial<Record<ColumnKey, string>> = { pct: "% Complete", float: "Total Float", variance: "Variance to contract" };
 
 const label = (k: ColumnKey) => EXCEL_LABEL[k] ?? COLUMN[k].label;
