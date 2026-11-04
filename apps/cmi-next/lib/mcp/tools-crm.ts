@@ -273,7 +273,7 @@ const contactTools: McpTool[] = [
 
 // ─── Deals, Pre-Con, pipeline review ────────────────────────────────────────
 
-const DEAL_FIELDS = "title, contact_id, company_id, street_address, city, state, zip, source, referral_source, estimated_value (admins), target_start_date, expected_close_date, job_type, probability, owner_id, next_action, next_action_due, next_action_owner_id, notes, tags";
+const DEAL_FIELDS = "title, contact_id, company_id, street_address, city, state, zip, source, referral_source, estimated_value (admins; the low end when it's a range), estimated_max_value (admins; high end of a range, leave empty for one number), target_start_date, expected_close_date, job_type, probability, owner_id, next_action, next_action_due, next_action_owner_id, notes, tags";
 const OPEN_STAGES = DEAL_STAGES.filter((st) => DEAL_STAGE_META[st].open);
 
 const dealTools: McpTool[] = [

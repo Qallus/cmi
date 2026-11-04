@@ -50,6 +50,7 @@ export const DASHBOARD_GUIDE: GuideEntry[] = [
     summary: "The CRM: every person, with tabs by type (Leads, Clients, Prospects, Vendors, Designers…), search, bulk actions, duplicate finder, CSV import/export. Open a contact to call, text, email, see the deals they're on and assign them to a deal.",
     steps: [
       "Add a contact: Contacts → Add Contact → fill in name, email, phone, type → Save.",
+      "Sort contacts: in the Table view click any column header (Name, Email, Company, Lead Owner, Status, …); click again to reverse. Choose columns with View options (right of the filters; Reset to default), and switch views with the icons on the far right.",
       "See leads: Contacts → the Leads tab.",
       "Assign a contact to an existing deal: open the contact → Pipeline deals → Assign to Pipeline → pick the deal and their role → Assign.",
       "Start a new deal from a contact: open the contact → More (…) → + Pipeline.",
@@ -92,6 +93,9 @@ export const DASHBOARD_GUIDE: GuideEntry[] = [
     summary: "Early sales deals from New/Working to Closed Won, as a list, table, kanban board, calendar or map. Each deal has contacts (primary, secondary and more, each with a role), key fields, to-do items, tasks, an activity timeline and stage history. Every deal gets its job (pipeline) number, e.g. 26_059, the moment it enters the Pipeline, at the front of its title; Pre-Con and the job keep it (the job reads 26_014_26_059_Name). Closed Won moves the deal into Pre-Con and off the Pipeline board.",
     steps: [
       "Add a deal: Pipeline → New deal → title, contact, value → Save. The next number is added to the title for you (or keep one you typed, if no other deal has it).",
+      "Choose the columns: Pipeline → View options (right of the filters) → tick or untick columns; the List and Table views each remember their own choice, and Reset to default puts them back. Switch views (List, Table, Kanban, Calendar, Map) with the icons on the far right.",
+      "Hide the stat cards (Tasks, Open deals, Pipeline value, Closed Won, Follow-ups due): Pipeline → Hide stats (top right); Show stats brings them back. It's remembered for you.",
+      "In the List view each deal shows its job number on top and its name underneath; the Deal column sorts by job number.",
       "Add people to a deal: open the deal → Lead / Contact details → type first/last name, phone, email and relation in the Primary contact block; use + Add contact for more. Fields save as you leave them; partial details are fine.",
       "Move a deal: open it → click the next stage in the stage bar (or Closed Won / Closed Lost at the top).",
       "List view: click a deal's row to open it. Edit there, or switch to the Table view.",

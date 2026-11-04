@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input, Select, Textarea } from "@/components/ui/input";
 import { MoneyInput } from "@/components/ui/money-input";
+import { formatDealValue, rangeError } from "@/lib/deals/value";
 import { BoltModal } from "@/components/dashboard/bolt-modal";
 import { CallsWorkspace } from "@/app/dashboard/communications/calls-workspace";
 import { RichTextEditor } from "@/components/notes/rich-text-editor";
@@ -369,7 +370,7 @@ export function DealDetailClient({
         <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 rounded-lg border border-border p-4 md:grid-cols-4 lg:grid-cols-5">
           <Summary label="Account / Contact">{contact ? <a href={`/dashboard/contacts?id=${contact.id}`} className="hover:underline">{contact.name}</a> : "—"}</Summary>
           <Summary label="Close date"><Inline canWrite={canWrite} kind="date" value={deal.expected_close_date ?? ""} display={fmtDate(deal.expected_close_date)} onSave={(x) => saveDeal({ expected_close_date: x || null })} /></Summary>
-          <Summary label="Amount"><Inline canWrite={canWrite} kind="number" value={deal.estimated_value != null ? String(deal.estimated_value) : ""} display={money(deal.estimated_value)} onSave={(x) => saveDeal({ estimated_value: x === "" ? null : Number(x) })} /></Summary>
+          <Summary label="Amount"><AmountButton deal={deal} canWrite={canWrite} onEdit={() => setEditKey(true)} /></Summary>
           <Summary label="Owner"><Inline canWrite={canWrite} kind="select" value={deal.owner_id ?? ""} display={ownerName(deal.owner_id)} options={[{ value: "", label: "Unassigned" }, ...owners.map((o) => ({ value: o.id, label: o.name }))]} onSave={(x) => saveDeal({ owner_id: x || null })} /></Summary>
           <Summary label="Stage" value={<span className="rounded-full bg-accent/15 px-2 py-0.5 text-xs font-medium text-accent">{meta.label}</span>} />
         </div>
@@ -419,7 +420,7 @@ export function DealDetailClient({
 
             <Card title="Key fields" action={canWrite && <button onClick={() => setEditKey(true)} className="inline-flex items-center gap-1 text-xs text-accent hover:underline"><Pencil className="h-3 w-3" /> Edit</button>}>
               <div className="space-y-2.5">
-                <Field label="Estimated amount"><Inline canWrite={canWrite} kind="number" value={deal.estimated_value != null ? String(deal.estimated_value) : ""} display={money(deal.estimated_value)} onSave={(v) => saveDeal({ estimated_value: v === "" ? null : Number(v) })} /></Field>
+                <Field label="Estimated amount"><AmountButton deal={deal} canWrite={canWrite} onEdit={() => setEditKey(true)} /></Field>
                 <Field label="Expected close"><Inline canWrite={canWrite} kind="date" value={deal.expected_close_date ?? ""} display={fmtDate(deal.expected_close_date)} onSave={(v) => saveDeal({ expected_close_date: v || null })} /></Field>
                 <Field label="Source"><Inline canWrite={canWrite} kind="select" value={deal.source ?? ""} display={deal.source ? deal.source.replace(/_/g, " ") : undefined} options={[{ value: "", label: "—" }, ...DEAL_SOURCES.map((s) => ({ value: s, label: s.replace(/_/g, " ") }))]} onSave={(v) => saveDeal({ source: v || null })} /></Field>
                 {(deal.source === "referral" || deal.referral_source) && (
@@ -754,10 +755,22 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   return <div className="flex items-start justify-between gap-3 text-sm"><span className="text-muted-foreground">{label}</span><span className="text-right font-medium">{children}</span></div>;
 }
 
+/** The estimate (one number or a range); a range is edited in Edit deal details. */
+function AmountButton({ deal, canWrite, onEdit }: { deal: Deal; canWrite: boolean; onEdit: () => void }) {
+  const label = formatDealValue(deal, (n) => money(n)) ?? "—";
+  if (!canWrite) return <span className="tabular-nums">{label}</span>;
+  return (
+    <button type="button" onClick={onEdit} className="rounded px-1 text-left tabular-nums transition hover:bg-muted" aria-label={`Estimated amount ${label}. Edit`}>
+      {label}
+    </button>
+  );
+}
+
 // ─── Edit key fields ──────────────────────────────────────────────
 function EditKeyFieldsModal({ deal, owners, onClose, onSaved }: { deal: Deal; owners: OwnerOption[]; onClose: () => void; onSaved: () => Promise<void> }) {
   const [f, setF] = React.useState({
     estimated_value: deal.estimated_value != null ? String(deal.estimated_value) : "",
+    estimated_max_value: deal.estimated_max_value != null ? String(deal.estimated_max_value) : "",
     expected_close_date: deal.expected_close_date ?? "",
     job_type: deal.job_type ?? "",
     probability: deal.probability != null ? String(deal.probability) : "",
@@ -770,13 +783,21 @@ function EditKeyFieldsModal({ deal, owners, onClose, onSaved }: { deal: Deal; ow
     zip: deal.zip ?? "",
   });
   const [saving, setSaving] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
   const set = (k: keyof typeof f, v: string) => setF((p) => ({ ...p, [k]: v }));
   async function save() {
+    const lo = f.estimated_value === "" ? null : Number(f.estimated_value);
+    const hi = f.estimated_max_value === "" ? null : Number(f.estimated_max_value);
+    const bad = rangeError(lo, hi);
+    if (bad) { setError(bad); return; }
+    setError(null);
     setSaving(true);
-    await fetch(`/api/deals/${deal.id}`, {
+    const res = await fetch(`/api/deals/${deal.id}`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        estimated_value: f.estimated_value === "" ? null : Number(f.estimated_value),
+        estimated_value: lo,
+        // Sent only for a range (or to clear one), so a single number never depends on this column.
+        ...(hi != null || deal.estimated_max_value != null ? { estimated_max_value: hi } : {}),
         expected_close_date: f.expected_close_date || null,
         job_type: f.job_type || null,
         probability: f.probability === "" ? null : Number(f.probability),
@@ -790,12 +811,19 @@ function EditKeyFieldsModal({ deal, owners, onClose, onSaved }: { deal: Deal; ow
       }),
     });
     setSaving(false);
+    if (!res.ok) { const d = await res.json().catch(() => ({})); setError(d.error ?? "Couldn't save the deal."); return; }
     await onSaved();
   }
   return (
     <ModalShell title="Edit deal details" onClose={onClose}>
       <div className="grid gap-3 sm:grid-cols-2">
-        <L label="Estimated amount"><MoneyInput value={f.estimated_value} onChange={(v) => set("estimated_value", v)} /></L>
+        <L label="Estimated amount (one number, or a range)" full>
+          <div className="flex items-center gap-2">
+            <MoneyInput value={f.estimated_value} onChange={(v) => set("estimated_value", v)} aria-label="Estimated amount, or the low end of a range" />
+            <span className="shrink-0 text-xs text-muted-foreground">to</span>
+            <MoneyInput value={f.estimated_max_value} onChange={(v) => set("estimated_max_value", v)} placeholder="Optional high end" aria-label="High end of the range (optional)" />
+          </div>
+        </L>
         <L label="Expected close"><Input type="date" value={f.expected_close_date} onChange={(e) => set("expected_close_date", e.target.value)} /></L>
         <L label="Job type"><Select value={f.job_type} onChange={(e) => set("job_type", e.target.value)}><option value="">—</option>{JOB_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}</Select></L>
         <L label="Probability (%)"><Input type="number" min={0} max={100} value={f.probability} onChange={(e) => set("probability", e.target.value)} /></L>
@@ -807,7 +835,8 @@ function EditKeyFieldsModal({ deal, owners, onClose, onSaved }: { deal: Deal; ow
         <L label="State"><Input value={f.state} onChange={(e) => set("state", e.target.value)} /></L>
         <L label="ZIP"><Input value={f.zip} onChange={(e) => set("zip", e.target.value)} /></L>
       </div>
-      <p className="mt-2 text-[11px] text-muted-foreground">Saving an address geocodes the deal for the pipeline Map view.</p>
+      <p className="mt-2 text-[11px] text-muted-foreground">Saving an address geocodes the deal for the pipeline Map view. A range counts at its midpoint in Pipeline totals.</p>
+      {error ? <p className="mt-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p> : null}
       <div className="mt-4 flex justify-end gap-2"><Button variant="outline" onClick={onClose}>Cancel</Button><Button variant="accent" onClick={save} disabled={saving}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Save</Button></div>
     </ModalShell>
   );

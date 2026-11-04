@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import { ViewOptions, ViewSwitcher, useColumnPrefs } from "@/components/ui/view-options";
+import { SortableTh, useSort } from "@/components/ui/data-table";
 import {
   Archive,
   ArrowRightLeft,
@@ -32,7 +34,6 @@ import {
   Phone,
   Plus,
   Search,
-  SlidersHorizontal,
   Table as TableIcon,
   Tag,
   Trash2,
@@ -273,8 +274,21 @@ const CONTACT_COLUMNS: { key: ColumnKey; label: string; default: boolean }[] = [
   { key: "last_activity", label: "Last Activity", default: false },
   { key: "created_at", label: "Created", default: false },
 ];
-const DEFAULT_COLUMNS = CONTACT_COLUMNS.filter((c) => c.default).map((c) => c.key);
 const COLUMNS_KEY = "cmi-contacts-columns";
+const CONTACT_VIEWS: { key: ContactView; label: string; icon: typeof List }[] = [
+  { key: "table", label: "Table", icon: TableIcon }, { key: "list", label: "List", icon: List },
+  { key: "cards", label: "Cards", icon: LayoutGrid }, { key: "kanban", label: "Kanban", icon: Columns3 },
+  { key: "calendar", label: "Calendar", icon: CalendarDays },
+];
+
+// What each column sorts by (Name plus every optional column).
+type SortKey = "name" | ColumnKey;
+const CONTACT_SORT: Record<SortKey, (c: Contact) => string | number | null | undefined> = {
+  name: (c) => fullName(c), email: (c) => c.email, phone: (c) => c.phone, company: (c) => c.company,
+  lead_owner: (c) => c.lead_owner, type: (c) => c.type, status: (c) => c.status, tags: (c) => (c.tags ?? []).join(", "),
+  source: (c) => c.source, location: (c) => [c.city, c.state].filter(Boolean).join(", "),
+  last_activity: (c) => c.last_activity, created_at: (c) => c.created_at,
+};
 
 const shortDate = (iso: string | null | undefined) =>
   iso ? new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "--";
@@ -306,54 +320,6 @@ function ContactCell({ contact: c, column }: { contact: Contact; column: ColumnK
     case "last_activity": return <span className="text-muted-foreground">{shortDate(c.last_activity)}</span>;
     case "created_at": return <span className="text-muted-foreground">{shortDate(c.created_at)}</span>;
   }
-}
-
-/** Multi-select of the table's columns, with a reset to the defaults. */
-function ViewOptions({ columns, onChange, disabled }: { columns: ColumnKey[]; onChange: (next: ColumnKey[]) => void; disabled?: boolean }) {
-  const [open, setOpen] = React.useState(false);
-  const ref = React.useRef<HTMLDivElement>(null);
-  React.useEffect(() => {
-    if (!open) return;
-    function onDoc(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); }
-    function onKey(e: KeyboardEvent) { if (e.key === "Escape") setOpen(false); }
-    document.addEventListener("mousedown", onDoc);
-    document.addEventListener("keydown", onKey);
-    return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
-  }, [open]);
-  const toggle = (key: ColumnKey) =>
-    onChange(columns.includes(key) ? columns.filter((k) => k !== key) : CONTACT_COLUMNS.map((c) => c.key).filter((k) => k === key || columns.includes(k)));
-
-  return (
-    <div ref={ref} className="relative ml-auto">
-      <button
-        type="button" disabled={disabled} aria-haspopup="true" aria-expanded={open} onClick={() => setOpen((v) => !v)}
-        title={disabled ? "View options apply to the table view" : "Choose which columns the table shows"}
-        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 text-sm text-foreground hover:bg-muted disabled:opacity-50"
-      >
-        <SlidersHorizontal className="h-3.5 w-3.5 text-muted-foreground" />
-        View options
-        <span className="rounded-full bg-muted px-1.5 text-[11px] text-muted-foreground">{columns.length + 1}</span>
-        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-      </button>
-      {open && (
-        <div role="menu" className="absolute right-0 z-30 mt-1 w-56 overflow-hidden rounded-lg border border-border bg-card py-1 shadow-lg">
-          <p className="px-3 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Columns</p>
-          <label className="flex cursor-not-allowed items-center gap-2 px-3 py-1.5 text-sm text-muted-foreground">
-            <input type="checkbox" checked disabled className="h-4 w-4 accent-[var(--accent)]" /> Name
-          </label>
-          {CONTACT_COLUMNS.map((col) => (
-            <label key={col.key} role="menuitemcheckbox" aria-checked={columns.includes(col.key)} className="flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm hover:bg-muted">
-              <input type="checkbox" className="h-4 w-4 accent-[var(--accent)]" checked={columns.includes(col.key)} onChange={() => toggle(col.key)} />
-              {col.label}
-            </label>
-          ))}
-          <div className="mt-1 border-t border-border px-3 pt-1.5 pb-1">
-            <button type="button" className="text-xs font-medium text-accent hover:underline" onClick={() => onChange(DEFAULT_COLUMNS)}>Reset to default</button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
 }
 
 export function ContactsClient({ initialContacts, role = null }: { initialContacts: Contact[]; role?: string | null }) {
@@ -405,20 +371,7 @@ export function ContactsClient({ initialContacts, role = null }: { initialContac
   const say = (msg: string) => { setFlash(msg); window.setTimeout(() => setFlash(null), 3500); };
   const [modalFull, setModalFull] = React.useState(false);
   const [contactView, setContactView] = React.useState<ContactView>("table");
-  const [columns, setColumnsState] = React.useState<ColumnKey[]>(DEFAULT_COLUMNS);
-  React.useEffect(() => {
-    try {
-      const saved = JSON.parse(window.localStorage.getItem(COLUMNS_KEY) ?? "null") as unknown;
-      if (Array.isArray(saved)) {
-        const known = CONTACT_COLUMNS.map((c) => c.key).filter((k) => saved.includes(k));
-        setColumnsState(known);
-      }
-    } catch { /* private window or bad value: keep defaults */ }
-  }, []);
-  const setColumns = (next: ColumnKey[]) => {
-    setColumnsState(next);
-    try { window.localStorage.setItem(COLUMNS_KEY, JSON.stringify(next)); } catch { /* fine */ }
-  };
+  const { columns, setColumns, defaults: defaultColumns } = useColumnPrefs(COLUMNS_KEY, CONTACT_COLUMNS);
 
   React.useEffect(() => {
     function handleDashboardSearch(event: Event) {
@@ -446,8 +399,10 @@ export function ContactsClient({ initialContacts, role = null }: { initialContac
     });
   }, [contacts, search, statusFilter, tab]);
 
+  // Click a column header to sort (again to reverse); every view pages through the sorted list.
+  const { sorted, sort } = useSort<Contact, SortKey>(filtered, CONTACT_SORT);
   const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
-  const pageContacts = filtered.slice((page - 1) * perPage, page * perPage);
+  const pageContacts = sorted.slice((page - 1) * perPage, page * perPage);
 
   const activeTab = TABS.find((t) => t.key === tab) ?? TABS[0];
 
@@ -828,11 +783,9 @@ export function ContactsClient({ initialContacts, role = null }: { initialContac
           >
             {[25, 50, 100].map((n) => <option key={n} value={n}>{n} / page</option>)}
           </Select>
-          <ViewOptions columns={columns} onChange={setColumns} disabled={contactView !== "table"} />
-          <div className="inline-flex rounded-md border border-border p-0.5">
-            {([["table", TableIcon], ["list", List], ["cards", LayoutGrid], ["kanban", Columns3], ["calendar", CalendarDays]] as const).map(([v, Icon]) => (
-              <button key={v} type="button" title={v} onClick={() => setContactView(v)} className={cn("inline-flex h-7 w-7 items-center justify-center rounded", contactView === v ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground")}><Icon className="h-3.5 w-3.5" /></button>
-            ))}
+          <div className="ml-auto flex items-center gap-2">
+            <ViewOptions all={CONTACT_COLUMNS} columns={columns} onChange={setColumns} defaults={defaultColumns} disabled={contactView !== "table"} disabledHint="View options apply to the table view" />
+            <ViewSwitcher views={CONTACT_VIEWS} value={contactView} onChange={setContactView} />
           </div>
         </div>
       </div>
@@ -920,9 +873,9 @@ export function ContactsClient({ initialContacts, role = null }: { initialContac
                   }}
                 />
               </th>
-              <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Name</th>
+              <SortableTh label="Name" sortKey="name" sort={sort} className="px-4 py-3 tracking-[0.1em]" />
               {CONTACT_COLUMNS.filter((col) => columns.includes(col.key)).map((col) => (
-                <th key={col.key} className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">{col.label}</th>
+                <SortableTh key={col.key} label={col.label} sortKey={col.key} sort={sort} className="px-4 py-3 tracking-[0.1em]" />
               ))}
               <th className="sticky right-0 z-10 w-10 bg-card px-4 py-3" />
             </tr>

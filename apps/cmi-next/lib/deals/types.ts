@@ -46,6 +46,8 @@ export type Deal = {
   referral_source: string | null;
 
   estimated_value: number | null;
+  /** High end when the estimate is a range (estimated_value is then the low end). */
+  estimated_max_value?: number | null;
   target_start_date: string | null;
   expected_close_date: string | null;
   job_type: string | null;

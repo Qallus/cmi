@@ -3,6 +3,7 @@
 // roles that can open the Pipeline, and the link only works for them.
 // Server only.
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { formatDealValue } from "./value";
 import { normalizePhone, publicAppUrl } from "@/lib/twilio";
 import { isSuppressed } from "@/lib/messaging/consent";
 import { findOrCreateConversation, sendMessage } from "@/lib/direct-messages/data";
@@ -59,7 +60,7 @@ export async function shareDeal(
 
   const url = `${publicAppUrl()}/dashboard/pipeline/${id}`;
   const note = input.note?.trim().slice(0, 1000) || null;
-  const value = usd(deal.estimated_value);
+  const value = deal.estimated_max_value != null ? formatDealValue(deal) : usd(deal.estimated_value);
   const lines = [
     [deal.job_number, deal.title].filter(Boolean).join("_"),
     [DEAL_STAGE_META[deal.stage]?.label ?? deal.stage, value, deal.probability != null ? `${deal.probability}%` : null]

@@ -7,7 +7,7 @@ import {
   Mic, Sparkles, Package, CalendarClock, Users2, MapPin, ScanLine, CheckCircle2,
   Circle, ArrowRight, Clock, TrendingUp, Trophy, CalendarDays, ListChecks,
   List as ListIcon, Table2, Columns3, Map as MapIcon, ChevronLeft, ChevronRight,
-  ChevronUp, ChevronDown, GripVertical, ArrowUp, ArrowDown, ArrowUpDown, Maximize2,
+  ChevronUp, ChevronDown, GripVertical, ArrowUp, ArrowDown, ArrowUpDown, Maximize2, PanelTopClose, PanelTopOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -23,11 +23,41 @@ import type { CellEdit } from "./editable-cells";
 import { SheetInput, SheetSelect } from "./sheet-cells";
 import { PIPELINE_ORDER_KEY } from "@/lib/deals/order";
 import { DuplicateWarning, useDuplicateCheck } from "@/components/contacts/duplicate-warning";
+import { ViewOptions, ViewSwitcher, useColumnPrefs, type ColumnDef } from "@/components/ui/view-options";
+import { formatDealValue, dealValueMid, rangeError } from "@/lib/deals/value";
+import { Tooltip } from "@/components/ui/tooltip";
 
 export type OwnerOption = { id: string; name: string };
 export type SourceRow = { id: string; label: string; sub: string };
 
 type ViewMode = "list" | "table" | "kanban" | "calendar" | "map";
+
+// Optional columns (View options), per view, remembered per person.
+type ListCol = "stage" | "value" | "owner" | "activity" | "next_action" | "job_type" | "close" | "probability" | "source";
+const LIST_COLUMNS: ColumnDef<ListCol>[] = [
+  { key: "stage", label: "Stage", default: true }, { key: "value", label: "Value", default: true },
+  { key: "owner", label: "Owner", default: true }, { key: "activity", label: "Last activity", default: true },
+  { key: "next_action", label: "Next action", default: true }, { key: "job_type", label: "Job type", default: false },
+  { key: "close", label: "Expected close", default: false }, { key: "probability", label: "Probability", default: false },
+  { key: "source", label: "Source", default: false },
+];
+type TableCol = "stage" | "owner" | "job_type" | "value" | "value_max" | "probability" | "close" | "source" | "next_action" | "due";
+const TABLE_COLUMNS: ColumnDef<TableCol>[] = [
+  { key: "stage", label: "Stage", default: true }, { key: "owner", label: "Owner", default: true },
+  { key: "job_type", label: "Job type", default: true }, { key: "value", label: "Value", default: true },
+  { key: "value_max", label: "Value to (range)", default: true },
+  { key: "probability", label: "Probability", default: true }, { key: "close", label: "Expected close", default: true },
+  { key: "source", label: "Source", default: true }, { key: "next_action", label: "Next action", default: true },
+  { key: "due", label: "Next action due", default: true },
+];
+const STATS_KEY = "cmi.pipeline.stats";
+
+/** Deal titles carry the job number ("25_026_Harris Residence"); the name is what follows it. */
+export function dealName(d: Pick<Deal, "title" | "job_number">): string {
+  const title = (d.title ?? "").trim();
+  if (!d.job_number || !title.startsWith(d.job_number)) return title;
+  return title.slice(d.job_number.length).replace(/^[\s_\-–—:]+/, "").trim() || title;
+}
 const VIEWS: { key: ViewMode; label: string; icon: typeof ListIcon }[] = [
   { key: "list", label: "List", icon: ListIcon },
   { key: "table", label: "Table", icon: Table2 },
@@ -60,6 +90,8 @@ const ACTIVITY_LABEL: Record<ActivityType, string> = {
 
 const money = (n: number | null | undefined) =>
   n == null ? "—" : n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+/** One number or a range ("$850,000 – $950,000"). */
+const dealMoney = (d: Pick<Deal, "estimated_value" | "estimated_max_value">) => formatDealValue(d, (n) => money(n)) ?? "—";
 
 function daysSince(iso: string | null | undefined): number | null {
   if (!iso) return null;
@@ -112,6 +144,20 @@ export function PipelineDealsClient({
   const [showCreate, setShowCreate] = React.useState(false);
   const [showAdd, setShowAdd] = React.useState(false);
   const [showArchived, setShowArchived] = React.useState(false);
+  const listCols = useColumnPrefs("cmi.pipeline.list-columns", LIST_COLUMNS);
+  const tableCols = useColumnPrefs("cmi.pipeline.table-columns", TABLE_COLUMNS);
+  // Stat cards can be hidden to give the list more room (remembered per person).
+  const [showStats, setShowStats] = React.useState(true);
+  React.useEffect(() => {
+    try {
+      // eslint-disable-next-line -- one-time restore of the saved preference on mount
+      if (window.localStorage.getItem(STATS_KEY) === "hidden") setShowStats(false);
+    } catch { /* private window */ }
+  }, []);
+  const toggleStats = () => setShowStats((v) => {
+    try { window.localStorage.setItem(STATS_KEY, v ? "hidden" : "shown"); } catch { /* fine */ }
+    return !v;
+  });
 
   const ownerName = React.useCallback((id: string | null) => owners.find((o) => o.id === id)?.name ?? "Unassigned", [owners]);
 
@@ -183,7 +229,7 @@ export function PipelineDealsClient({
         case "job_number": return natural(a.job_number, b.job_number) || txt(a.title).localeCompare(txt(b.title));
         case "title": return txt(a.title).localeCompare(txt(b.title));
         case "stage": return DEAL_STAGES.indexOf(a.stage) - DEAL_STAGES.indexOf(b.stage) || natural(a.job_number, b.job_number);
-        case "value": return (b.estimated_value ?? 0) - (a.estimated_value ?? 0);
+        case "value": return (dealValueMid(b) ?? 0) - (dealValueMid(a) ?? 0);
         // By name, not id, so the order matches what the column shows.
         case "owner": return txt(ownerName(a.owner_id)).localeCompare(txt(ownerName(b.owner_id))) || natural(a.job_number, b.job_number);
         case "close": return natural(a.expected_close_date, b.expected_close_date);
@@ -341,7 +387,8 @@ export function PipelineDealsClient({
   const openDeals = deals.filter((d) => DEAL_STAGE_META[d.stage].open);
   const stats = {
     open: openDeals.length,
-    value: openDeals.reduce((sum, d) => sum + (d.estimated_value ?? 0), 0),
+    // A range counts at its midpoint.
+    value: openDeals.reduce((sum, d) => sum + (dealValueMid(d) ?? 0), 0),
     won: deals.filter((d) => d.stage === "closed_won").length,
     dueToday: deals.filter((d) => d.next_action_due && d.next_action_due <= new Date().toISOString().slice(0, 10) && DEAL_STAGE_META[d.stage].open).length,
   };
@@ -350,44 +397,44 @@ export function PipelineDealsClient({
     <div className="flex h-[calc(100vh-56px)] flex-col">
       {/* Header + stat cards */}
       <div className="shrink-0 border-b border-border bg-card px-4 py-4 md:px-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h1 className="font-display text-xl font-semibold">Pipeline</h1>
-            <p className="text-sm text-muted-foreground">Leads and opportunities from first inquiry to Closed Won.</p>
+            <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">CRM</div>
+            <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight">Pipeline</h1>
+            <p className="mt-1 text-sm text-muted-foreground">Leads and opportunities from first inquiry to Closed Won.</p>
           </div>
-          {canWrite && (
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => setShowAdd(true)}><UserPlus className="h-4 w-4" /> Add to Pipeline</Button>
-              <Button variant="accent" size="sm" onClick={() => setShowCreate(true)}><Plus className="h-4 w-4" /> Add Deal</Button>
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            <Tooltip label={showStats ? "Hide the stat cards" : "Show the stat cards"} side="bottom" className="inline-block">
+              <Button variant="outline" size="sm" onClick={toggleStats} aria-label={showStats ? "Hide the stat cards" : "Show the stat cards"} aria-pressed={!showStats}>
+                {showStats ? <PanelTopClose className="h-4 w-4" /> : <PanelTopOpen className="h-4 w-4" />}
+                <span className="hidden sm:inline">{showStats ? "Hide stats" : "Show stats"}</span>
+              </Button>
+            </Tooltip>
+            {canWrite && (
+              <>
+                <Button variant="outline" size="sm" onClick={() => setShowAdd(true)}><UserPlus className="h-4 w-4" /> Add to Pipeline</Button>
+                <Button variant="accent" size="sm" onClick={() => setShowCreate(true)}><Plus className="h-4 w-4" /> Add Deal</Button>
+              </>
+            )}
+          </div>
         </div>
-        <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
+        {showStats ? <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
           <StatCard icon={ListChecks} label="Tasks" value={String(openTasks)} tone={openTasks ? "warning" : "muted"} />
           <StatCard icon={TrendingUp} label="Open deals" value={String(stats.open)} tone="accent" />
           <StatCard icon={TrendingUp} label="Pipeline value" value={money(stats.value)} tone="success" />
           <StatCard icon={Trophy} label="Closed Won" value={String(stats.won)} tone="success" />
           <StatCard icon={CalendarDays} label="Follow-ups due" value={String(stats.dueToday)} tone={stats.dueToday ? "warning" : "muted"} />
-        </div>
+        </div> : null}
       </div>
 
       {/* Toolbar: view switcher + filters */}
-      <div className="shrink-0 space-y-2 border-b border-border px-4 py-2.5 md:px-6">
+      <div className="shrink-0 border-b border-border px-4 py-2.5 md:px-6">
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-0.5 rounded-lg border border-border p-0.5">
-            {VIEWS.map((v) => (
-              <button key={v.key} type="button" onClick={() => setView(v.key)} title={v.label}
-                className={cn("flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition", view === v.key ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground")}>
-                <v.icon className="h-3.5 w-3.5" /> <span className="hidden sm:inline">{v.label}</span>
-              </button>
-            ))}
+          <div className="relative min-w-[180px] max-w-xs flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search deals, job #, next action…"
+              className="h-8 w-full rounded-md border border-border bg-background pl-8 pr-3 text-sm outline-none focus:border-accent" />
           </div>
-          <div className="relative min-w-[200px] flex-1">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search deals…" className="pl-8" />
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
           <Select value={stageFilter} onChange={(e) => setStageFilter(e.target.value as DealStage | "all")} className="w-auto min-w-[130px]">
             <option value="all">All Stages</option>
             {DEAL_STAGES.filter((s) => s !== "closed_won").map((s) => <option key={s} value={s}>{DEAL_STAGE_META[s].label}</option>)}
@@ -414,7 +461,13 @@ export function PipelineDealsClient({
             <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
             Show archived
           </label>
-          <span className="ml-auto text-xs text-muted-foreground">{filtered.length} deal{filtered.length === 1 ? "" : "s"}</span>
+          <span className="text-xs text-muted-foreground">{filtered.length} deal{filtered.length === 1 ? "" : "s"}</span>
+          <div className="ml-auto flex items-center gap-2">
+            {view === "table"
+              ? <ViewOptions all={TABLE_COLUMNS} columns={tableCols.columns} onChange={tableCols.setColumns} defaults={tableCols.defaults} pinned={["No.", "Deal"]} />
+              : <ViewOptions all={LIST_COLUMNS} columns={listCols.columns} onChange={listCols.setColumns} defaults={listCols.defaults} pinned={["Job # / Name"]} disabled={view !== "list"} disabledHint="View options apply to the List and Table views" />}
+            <ViewSwitcher views={VIEWS} value={view} onChange={setView} />
+          </div>
         </div>
       </div>
 
@@ -425,9 +478,9 @@ export function PipelineDealsClient({
             {deals.length === 0 ? <>No deals yet. {canWrite && "Use “Add Deal” or “Add to Pipeline” to get started."}</> : "No deals match the current filters."}
           </div>
         ) : view === "list" ? (
-          <ListView deals={ordered} ownerName={ownerName} onOpen={openDeal} renderActions={renderActions} reorder={reorder} sortState={sortState} selection={selection} />
+          <ListView deals={ordered} ownerName={ownerName} onOpen={openDeal} renderActions={renderActions} reorder={reorder} sortState={sortState} selection={selection} columns={listCols.columns} />
         ) : view === "table" ? (
-          <TableView deals={ordered} ownerName={ownerName} onOpen={openDeal} renderActions={renderActions} reorder={reorder} sortState={sortState} selection={selection} edit={cellEdit} owners={owners} />
+          <TableView deals={ordered} ownerName={ownerName} onOpen={openDeal} renderActions={renderActions} reorder={reorder} sortState={sortState} selection={selection} edit={cellEdit} owners={owners} columns={tableCols.columns} />
         ) : view === "kanban" ? (
           <KanbanView deals={ordered} onOpen={openDeal} canWrite={canWrite} onMove={moveStage} renderActions={renderActions} />
         ) : view === "calendar" ? (
@@ -627,8 +680,9 @@ function HeadCheck({ selection }: { selection?: Selection }) {
 
 
 // ─── List view (roomy rows) ───────────────────────────────────────
-function ListView({ deals, ownerName, onOpen, renderActions, reorder, sortState, selection }: { deals: Deal[]; ownerName: (id: string | null) => string; onOpen: (id: string) => void; renderActions: (d: Deal) => React.ReactNode; reorder: Reorder | null; sortState?: SortState; selection?: Selection }) {
+function ListView({ deals, ownerName, onOpen, renderActions, reorder, sortState, selection, columns }: { deals: Deal[]; ownerName: (id: string | null) => string; onOpen: (id: string) => void; renderActions: (d: Deal) => React.ReactNode; reorder: Reorder | null; sortState?: SortState; selection?: Selection; columns: ListCol[] }) {
   const today = new Date().toISOString().slice(0, 10);
+  const show = (k: ListCol) => columns.includes(k);
   const { dragId, overId, rowProps } = useRowDrag(reorder);
   return (
     <div className="overflow-hidden rounded-lg border border-border">
@@ -637,12 +691,16 @@ function ListView({ deals, ownerName, onOpen, renderActions, reorder, sortState,
           <tr>
             <HeadCheck selection={selection} />
             {reorder && <th className="w-14 px-2 py-2"><span className="sr-only">Reorder</span></th>}
-            <SortableTh label="Deal" sortKey="title" state={sortState} />
-            <SortableTh label="Stage" sortKey="stage" state={sortState} />
-            <SortableTh label="Value" sortKey="value" state={sortState} className="text-right" align="right" />
-            <SortableTh label="Owner" sortKey="owner" state={sortState} />
-            <SortableTh label="Last activity" sortKey="activity" state={sortState} />
-            <th className="px-3 py-2 font-medium">Next action</th>
+            <SortableTh label="Deal" sortKey="job_number" state={sortState} />
+            {show("stage") && <SortableTh label="Stage" sortKey="stage" state={sortState} />}
+            {show("value") && <SortableTh label="Value" sortKey="value" state={sortState} className="text-right" align="right" />}
+            {show("owner") && <SortableTh label="Owner" sortKey="owner" state={sortState} />}
+            {show("activity") && <SortableTh label="Last activity" sortKey="activity" state={sortState} />}
+            {show("next_action") && <th className="px-3 py-2 font-medium">Next action</th>}
+            {show("job_type") && <th className="px-3 py-2 font-medium">Job type</th>}
+            {show("close") && <SortableTh label="Expected close" sortKey="close" state={sortState} />}
+            {show("probability") && <th className="px-3 py-2 text-right font-medium">Prob.</th>}
+            {show("source") && <th className="px-3 py-2 font-medium">Source</th>}
             <th className="w-10 px-3 py-2"><span className="sr-only">Actions</span></th>
           </tr>
         </thead>
@@ -668,17 +726,28 @@ function ListView({ deals, ownerName, onOpen, renderActions, reorder, sortState,
                 <RowCheck id={d.id} selection={selection} />
                 {reorder && <td className="px-2 py-2.5"><ReorderCell id={d.id} index={i} reorder={reorder} /></td>}
                 <td className="px-3 py-2.5">
-                  <div className="font-medium group-hover/row:text-accent">{d.title}</div>
-                  {d.job_number && <div className="font-mono text-[11px] text-muted-foreground">{d.job_number}</div>}
+                  {/* Job number on top, the name under it (the title starts with the number). */}
+                  {d.job_number ? (
+                    <>
+                      <div className="font-medium tabular-nums group-hover/row:text-accent">{d.job_number}</div>
+                      <div className="text-xs text-muted-foreground">{dealName(d)}</div>
+                    </>
+                  ) : <div className="font-medium group-hover/row:text-accent">{d.title}</div>}
                 </td>
-                <td className="px-3 py-2.5"><StageBadge stage={d.stage} /></td>
-                <td className="px-3 py-2.5 text-right tabular-nums">{money(d.estimated_value)}</td>
-                <td className="px-3 py-2.5 text-muted-foreground">{ownerName(d.owner_id)}</td>
-                <td className="px-3 py-2.5 text-muted-foreground">{d.last_activity_at ? `${daysSince(d.last_activity_at)}d ago` : "—"}</td>
-                <td className="max-w-[240px] px-3 py-2.5">
-                  {d.next_action ? <div className="max-w-[220px] truncate">{d.next_action}</div> : <span className="text-muted-foreground">—</span>}
-                  {d.next_action_due && <div className={cn("text-[11px]", overdue ? "text-destructive" : "text-muted-foreground")}>{fmtDate(d.next_action_due)}{overdue ? " · overdue" : ""}</div>}
-                </td>
+                {show("stage") && <td className="px-3 py-2.5"><StageBadge stage={d.stage} /></td>}
+                {show("value") && <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">{dealMoney(d)}</td>}
+                {show("owner") && <td className="px-3 py-2.5 text-muted-foreground">{ownerName(d.owner_id)}</td>}
+                {show("activity") && <td className="px-3 py-2.5 text-muted-foreground">{d.last_activity_at ? `${daysSince(d.last_activity_at)}d ago` : "—"}</td>}
+                {show("next_action") && (
+                  <td className="max-w-[240px] px-3 py-2.5">
+                    {d.next_action ? <div className="max-w-[220px] truncate">{d.next_action}</div> : <span className="text-muted-foreground">—</span>}
+                    {d.next_action_due && <div className={cn("text-[11px]", overdue ? "text-destructive" : "text-muted-foreground")}>{fmtDate(d.next_action_due)}{overdue ? " · overdue" : ""}</div>}
+                  </td>
+                )}
+                {show("job_type") && <td className="px-3 py-2.5 text-muted-foreground">{d.job_type ?? "—"}</td>}
+                {show("close") && <td className="px-3 py-2.5 text-muted-foreground">{d.expected_close_date ? fmtDate(d.expected_close_date) : "—"}</td>}
+                {show("probability") && <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">{d.probability != null ? `${d.probability}%` : "—"}</td>}
+                {show("source") && <td className="px-3 py-2.5 capitalize text-muted-foreground">{d.source ? d.source.replace(/_/g, " ") : "—"}</td>}
                 <td className="px-3 py-2.5 text-right" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>{renderActions(d)}</td>
               </tr>
             );
@@ -694,14 +763,21 @@ const SOURCE_OPTIONS = [{ value: "", label: "—" }, ...DEAL_SOURCES.map((s) => 
 const JOB_TYPE_OPTIONS = [{ value: "", label: "—" }, ...JOB_TYPES.map((t) => ({ value: t, label: t }))];
 const STAGE_OPTIONS = DEAL_STAGES.map((st) => ({ value: st, label: DEAL_STAGE_META[st]?.label ?? st }));
 
-function TableView({ deals, ownerName, onOpen, renderActions, reorder, sortState, selection, edit, owners }: { deals: Deal[]; ownerName: (id: string | null) => string; onOpen: (id: string) => void; renderActions: (d: Deal) => React.ReactNode; reorder: Reorder | null; sortState?: SortState; selection?: Selection; edit: CellEdit; owners: OwnerOption[] }) {
+function TableView({ deals, ownerName, onOpen, renderActions, reorder, sortState, selection, edit, owners, columns }: { deals: Deal[]; ownerName: (id: string | null) => string; onOpen: (id: string) => void; renderActions: (d: Deal) => React.ReactNode; reorder: Reorder | null; sortState?: SortState; selection?: Selection; edit: CellEdit; owners: OwnerOption[]; columns: TableCol[] }) {
+  const show = (k: TableCol) => columns.includes(k);
   const ownerOptions = [{ value: "", label: "Unassigned" }, ...owners.map((o) => ({ value: o.id, label: o.name }))];
   const ro = !edit.canWrite;
   const text = (d: Deal, field: keyof Deal) => (raw: string) => edit.patch(d.id, { [field]: raw.trim() || null } as Partial<Deal>);
-  const num = (d: Deal, field: "estimated_value" | "probability", max?: number) => async (raw: string) => {
+  const num = (d: Deal, field: "estimated_value" | "estimated_max_value" | "probability", max?: number) => async (raw: string) => {
     const clean = raw.replace(/[^0-9.]/g, "");
     const n = clean === "" ? null : Number(clean);
     if (n !== null && (!Number.isFinite(n) || (max != null && n > max))) return max != null ? `Enter 0–${max}.` : "Not a number.";
+    if (field === "estimated_max_value" || field === "estimated_value") {
+      const lo = field === "estimated_value" ? n : d.estimated_value ?? null;
+      const hi = field === "estimated_max_value" ? n : d.estimated_max_value ?? null;
+      const bad = rangeError(lo, hi);
+      if (bad) return bad;
+    }
     return edit.patch(d.id, { [field]: n } as Partial<Deal>);
   };
   const th = "border-b border-r border-border px-2 py-2 font-medium last:border-r-0";
@@ -709,22 +785,23 @@ function TableView({ deals, ownerName, onOpen, renderActions, reorder, sortState
   return (
     <div className="overflow-x-auto rounded-lg border border-border" data-sheet>
       {edit.canWrite ? <div className="border-b border-border bg-muted/30 px-3 py-1.5 text-[11px] text-muted-foreground">Click a cell to edit. Tab / Shift+Tab move across, Enter or ↑/↓ move down and up, Esc undoes. Changes save when you leave the cell.</div> : null}
-      <table className="w-full min-w-[1180px] border-collapse text-sm">
+      <table className={cn("w-full border-collapse text-sm", columns.length >= 7 ? "min-w-[1180px]" : "min-w-[720px]")}>
         <thead className="bg-muted/50 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
           <tr>
             <HeadCheck selection={selection} />
             {reorder && <th className="w-14 px-2 py-2"><span className="sr-only">Reorder</span></th>}
             <th className={cn(th, "w-20")}>No.</th>
             <SortableTh label="Deal" sortKey="title" state={sortState} className={cn(th, "min-w-[220px]")} />
-            <SortableTh label="Stage" sortKey="stage" state={sortState} className={cn(th, "w-40")} />
-            <SortableTh label="Owner" sortKey="owner" state={sortState} className={cn(th, "w-40")} />
-            <th className={cn(th, "w-40")}>Job type</th>
-            <SortableTh label="Value" sortKey="value" state={sortState} className={cn(th, "w-32 text-right")} align="right" />
-            <th className={cn(th, "w-20 text-right")}>Prob. %</th>
-            <SortableTh label="Close" sortKey="close" state={sortState} className={cn(th, "w-36")} />
-            <th className={cn(th, "w-36")}>Source</th>
-            <th className={cn(th, "min-w-[180px]")}>Next action</th>
-            <th className={cn(th, "w-36")}>Due</th>
+            {show("stage") && <SortableTh label="Stage" sortKey="stage" state={sortState} className={cn(th, "w-40")} />}
+            {show("owner") && <SortableTh label="Owner" sortKey="owner" state={sortState} className={cn(th, "w-40")} />}
+            {show("job_type") && <th className={cn(th, "w-40")}>Job type</th>}
+            {show("value") && <SortableTh label="Value" sortKey="value" state={sortState} className={cn(th, "w-32 text-right")} align="right" />}
+            {show("value_max") && <th className={cn(th, "w-32 text-right")}>Value to</th>}
+            {show("probability") && <th className={cn(th, "w-20 text-right")}>Prob. %</th>}
+            {show("close") && <SortableTh label="Close" sortKey="close" state={sortState} className={cn(th, "w-36")} />}
+            {show("source") && <th className={cn(th, "w-36")}>Source</th>}
+            {show("next_action") && <th className={cn(th, "min-w-[180px]")}>Next action</th>}
+            {show("due") && <th className={cn(th, "w-36")}>Due</th>}
             <th className="w-9 border-b border-border px-1 py-2"><span className="sr-only">Open</span></th>
             <th className="w-10 border-b border-border px-3 py-2"><span className="sr-only">Actions</span></th>
           </tr>
@@ -738,15 +815,16 @@ function TableView({ deals, ownerName, onOpen, renderActions, reorder, sortState
                 {reorder && <td className="border-b border-border px-2 py-1"><ReorderCell id={d.id} index={i} reorder={reorder} /></td>}
                 <td className={cn(td, "px-2 font-mono text-[11px] text-muted-foreground")}>{d.job_number ?? "—"}</td>
                 <td className={td}><SheetInput {...base} col={0} label={`Deal name, ${d.title}`} value={d.title ?? ""} save={async (raw) => (raw.trim() ? edit.patch(d.id, { title: raw.trim() }) : "A deal needs a name.")} /></td>
-                <td className={td}><SheetSelect {...base} col={1} label="Stage" value={d.stage} options={STAGE_OPTIONS} save={(raw) => edit.setStage(d.id, raw as DealStage)} /></td>
-                <td className={td}>{ro ? <span className="px-2 text-muted-foreground">{ownerName(d.owner_id)}</span> : <SheetSelect {...base} col={2} label="Owner" value={d.owner_id ?? ""} options={ownerOptions} save={(raw) => edit.patch(d.id, { owner_id: raw || null })} />}</td>
-                <td className={td}><SheetSelect {...base} col={3} label="Job type" value={d.job_type ?? ""} options={JOB_TYPE_OPTIONS} save={(raw) => edit.patch(d.id, { job_type: raw || null })} /></td>
-                <td className={td}><SheetInput {...base} col={4} label="Value" type="number" align="right" value={d.estimated_value == null ? "" : String(d.estimated_value)} save={num(d, "estimated_value")} placeholder="$" /></td>
-                <td className={td}><SheetInput {...base} col={5} label="Probability" type="number" align="right" value={d.probability == null ? "" : String(d.probability)} save={num(d, "probability", 100)} /></td>
-                <td className={td}><SheetInput {...base} col={6} label="Expected close" type="date" value={d.expected_close_date ?? ""} save={text(d, "expected_close_date")} /></td>
-                <td className={td}><SheetSelect {...base} col={7} label="Source" value={d.source ?? ""} options={SOURCE_OPTIONS} save={(raw) => edit.patch(d.id, { source: raw || null })} /></td>
-                <td className={td}><SheetInput {...base} col={8} label="Next action" value={d.next_action ?? ""} save={text(d, "next_action")} /></td>
-                <td className={td}><SheetInput {...base} col={9} label="Next action due" type="date" value={d.next_action_due ?? ""} save={text(d, "next_action_due")} /></td>
+                {show("stage") && <td className={td}><SheetSelect {...base} col={1} label="Stage" value={d.stage} options={STAGE_OPTIONS} save={(raw) => edit.setStage(d.id, raw as DealStage)} /></td>}
+                {show("owner") && <td className={td}>{ro ? <span className="px-2 text-muted-foreground">{ownerName(d.owner_id)}</span> : <SheetSelect {...base} col={2} label="Owner" value={d.owner_id ?? ""} options={ownerOptions} save={(raw) => edit.patch(d.id, { owner_id: raw || null })} />}</td>}
+                {show("job_type") && <td className={td}><SheetSelect {...base} col={3} label="Job type" value={d.job_type ?? ""} options={JOB_TYPE_OPTIONS} save={(raw) => edit.patch(d.id, { job_type: raw || null })} /></td>}
+                {show("value") && <td className={td}><SheetInput {...base} col={4} label="Value" type="number" align="right" value={d.estimated_value == null ? "" : String(d.estimated_value)} save={num(d, "estimated_value")} placeholder="$" /></td>}
+                {show("value_max") && <td className={td}><SheetInput {...base} col={10} label="Value to (high end of a range)" type="number" align="right" value={d.estimated_max_value == null ? "" : String(d.estimated_max_value)} save={num(d, "estimated_max_value")} placeholder="to $" /></td>}
+                {show("probability") && <td className={td}><SheetInput {...base} col={5} label="Probability" type="number" align="right" value={d.probability == null ? "" : String(d.probability)} save={num(d, "probability", 100)} /></td>}
+                {show("close") && <td className={td}><SheetInput {...base} col={6} label="Expected close" type="date" value={d.expected_close_date ?? ""} save={text(d, "expected_close_date")} /></td>}
+                {show("source") && <td className={td}><SheetSelect {...base} col={7} label="Source" value={d.source ?? ""} options={SOURCE_OPTIONS} save={(raw) => edit.patch(d.id, { source: raw || null })} /></td>}
+                {show("next_action") && <td className={td}><SheetInput {...base} col={8} label="Next action" value={d.next_action ?? ""} save={text(d, "next_action")} /></td>}
+                {show("due") && <td className={td}><SheetInput {...base} col={9} label="Next action due" type="date" value={d.next_action_due ?? ""} save={text(d, "next_action_due")} /></td>}
                 <td className="border-b border-border px-1">
                   <button type="button" onClick={() => onOpen(d.id)} aria-label={`Open ${d.title}`} title="Open deal" className="rounded p-1 text-muted-foreground transition hover:bg-muted hover:text-foreground">
                     <Maximize2 className="h-3.5 w-3.5" />
@@ -772,7 +850,7 @@ function KanbanView({ deals, onOpen, canWrite, onMove, renderActions }: { deals:
       {cols.map((s) => {
         const m = DEAL_STAGE_META[s];
         const items = deals.filter((d) => d.stage === s);
-        const total = items.reduce((sum, d) => sum + (d.estimated_value ?? 0), 0);
+        const total = items.reduce((sum, d) => sum + (dealValueMid(d) ?? 0), 0);
         return (
           <div key={s}
             onDragOver={(e) => { if (canWrite && dragId) { e.preventDefault(); if (overStage !== s) setOverStage(s); } }}
@@ -788,11 +866,13 @@ function KanbanView({ deals, onOpen, canWrite, onMove, renderActions }: { deals:
                   onClick={() => onOpen(d.id)}
                   className={cn("cursor-pointer rounded-md border border-border bg-card p-2.5 text-sm shadow-sm transition hover:border-accent/50", dragId === d.id && "opacity-40")}>
                   <div className="flex items-start justify-between gap-1">
-                    <div className="min-w-0 flex-1 font-medium leading-tight">{d.title}</div>
+                    <div className="min-w-0 flex-1 leading-tight">
+                      {d.job_number ? <><div className="font-medium tabular-nums">{d.job_number}</div><div className="text-xs text-muted-foreground">{dealName(d)}</div></> : <div className="font-medium">{d.title}</div>}
+                    </div>
                     <div className="-mr-1 -mt-1 shrink-0">{renderActions(d)}</div>
                   </div>
                   <div className="mt-1 flex items-center justify-between text-[11px] text-muted-foreground">
-                    <span>{money(d.estimated_value)}</span>
+                    <span>{dealMoney(d)}</span>
                     {d.expected_close_date && <span>{fmtDate(d.expected_close_date)}</span>}
                   </div>
                 </div>
@@ -842,7 +922,7 @@ function CalendarView({ deals, onOpen, renderActions }: { deals: Deal[]; onOpen:
             <div className="space-y-1">
               {(byDay.get(day ?? -1) ?? []).map((d) => (
                 <div key={d.id} className="flex items-center gap-0.5">
-                  <button onClick={() => onOpen(d.id)} className="min-w-0 flex-1 truncate rounded bg-accent/15 px-1.5 py-0.5 text-left text-[11px] font-medium text-accent hover:bg-accent/25" title={`${d.title} · ${money(d.estimated_value)}`}>{d.title}</button>
+                  <button onClick={() => onOpen(d.id)} className="min-w-0 flex-1 truncate rounded bg-accent/15 px-1.5 py-0.5 text-left text-[11px] font-medium text-accent hover:bg-accent/25" title={`${d.title} · ${dealMoney(d)}`}>{d.title}</button>
                   <span className="shrink-0">{renderActions(d)}</span>
                 </div>
               ))}
@@ -911,7 +991,7 @@ function MapView({
         const m = L.marker([lat, lng], { icon }).addTo(group);
         const btnId = `deal-open-${d.id}`;
         const actId = `deal-actions-${d.id}`;
-        m.bindPopup(`<strong>${d.title}</strong><br/>${d.full_address ?? ""}<br/>${money(d.estimated_value)}<br/><a href="#" id="${btnId}">Open deal →</a> &nbsp;·&nbsp; <a href="#" id="${actId}">Actions</a>`);
+        m.bindPopup(`<strong>${d.title}</strong><br/>${d.full_address ?? ""}<br/>${dealMoney(d)}<br/><a href="#" id="${btnId}">Open deal →</a> &nbsp;·&nbsp; <a href="#" id="${actId}">Actions</a>`);
         m.on("popupopen", () => {
           const open = document.getElementById(btnId);
           if (open) open.onclick = (e) => { e.preventDefault(); openRef.current(d.id); };
@@ -964,7 +1044,7 @@ function DealFormModal({
   owners: OwnerOption[]; contacts: SourceRow[]; title: string; onClose: () => void; onSaved: () => Promise<void>;
 }) {
   const [form, setForm] = React.useState({
-    title: "", contact_id: "", owner_id: "", source: "", referral_source: "", estimated_value: "",
+    title: "", contact_id: "", owner_id: "", source: "", referral_source: "", estimated_value: "", estimated_max_value: "",
     target_start_date: "", next_action: "", next_action_due: "", notes: "",
     street_address: "", city: "", state: "", zip: "",
   });
@@ -1033,6 +1113,8 @@ function DealFormModal({
       // Only sent when filled, so deal creation never depends on this column.
       ...(form.source === "referral" && form.referral_source.trim() ? { referral_source: form.referral_source.trim() } : {}),
       estimated_value: form.estimated_value === "" ? null : Number(form.estimated_value),
+      // Only sent when it's a range, so deal creation never depends on this column.
+      ...(form.estimated_max_value !== "" ? { estimated_max_value: Number(form.estimated_max_value) } : {}),
       target_start_date: form.target_start_date || null,
       next_action: form.next_action || null,
       next_action_due: form.next_action_due || null,
@@ -1125,7 +1207,13 @@ function DealFormModal({
               <datalist id="deal-referrers">{contacts.map((c) => <option key={c.id} value={c.label} />)}</datalist>
             </Field>
           )}
-          <Field label="Estimated value"><MoneyInput value={form.estimated_value} onChange={(v) => set("estimated_value", v)} /></Field>
+          <Field label="Estimated value (one number, or a range)">
+            <div className="flex items-center gap-2">
+              <MoneyInput value={form.estimated_value} onChange={(v) => set("estimated_value", v)} aria-label="Estimated value, or the low end of a range" />
+              <span className="text-xs text-muted-foreground">to</span>
+              <MoneyInput value={form.estimated_max_value} onChange={(v) => set("estimated_max_value", v)} placeholder="Optional" aria-label="High end of the range (optional)" />
+            </div>
+          </Field>
           <Field label="Target start date"><Input type="date" value={form.target_start_date} onChange={(e) => set("target_start_date", e.target.value)} /></Field>
           <Field label="Next action"><Input value={form.next_action} onChange={(e) => set("next_action", e.target.value)} placeholder="e.g. Call to schedule site visit" /></Field>
           <Field label="Next action due"><Input type="date" value={form.next_action_due} onChange={(e) => set("next_action_due", e.target.value)} /></Field>
