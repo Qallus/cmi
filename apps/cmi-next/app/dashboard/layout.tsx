@@ -15,6 +15,7 @@ import { InstallAppButton } from "@/components/pwa/install-app-button";
 import { PushPrompt } from "@/components/pwa/push-prompt";
 import { SidebarContext } from "@/components/dashboard/sidebar-context";
 import { cn } from "@/lib/utils";
+import { Tooltip } from "@/components/ui/tooltip";
 
 // A single job's detail pages (…/jobs/<id>/…), excluding the list/new/map routes.
 function isJobDetailPath(pathname: string): boolean {
@@ -128,14 +129,16 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             <InstallAppButton variant="outline" size="sm" label="Get the App" className="hidden sm:inline-flex" />
             <ThemeToggle />
             <NotificationBell />
-            <button
-              className="rounded-md border border-border p-1.5 text-muted-foreground transition hover:border-red-400 hover:text-red-500"
-              type="button"
-              title="Sign out"
-              onClick={handleSignOut}
-            >
-              <ArrowLeft className="h-3.5 w-3.5" />
-            </button>
+            <Tooltip label="Sign out" side="bottom" className="inline-block">
+              <button
+                className="rounded-md border border-border p-1.5 text-muted-foreground transition hover:border-red-400 hover:text-red-500"
+                type="button"
+                aria-label="Sign out"
+                onClick={handleSignOut}
+              >
+                <ArrowLeft className="h-3.5 w-3.5" />
+              </button>
+            </Tooltip>
           </div>
         </header>
         <PushPrompt />
@@ -170,9 +173,11 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                   <div className="truncate text-[11px] text-muted-foreground">{sessionUser?.title ?? ""}</div>
                 </div>
               </div>
-              <button type="button" onClick={handleSignOut} className="rounded-md border border-border p-1.5 text-muted-foreground transition hover:border-red-400 hover:text-red-500" title="Sign out">
-                <ArrowLeft className="h-3.5 w-3.5" />
-              </button>
+              <Tooltip label="Sign out" side="top" className="inline-block">
+                <button type="button" onClick={handleSignOut} aria-label="Sign out" className="rounded-md border border-border p-1.5 text-muted-foreground transition hover:border-red-400 hover:text-red-500">
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                </button>
+              </Tooltip>
             </div>
           </div>
         </div>

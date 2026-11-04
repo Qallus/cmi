@@ -199,7 +199,7 @@ export function GanttView({ items, dependencies, phases, zoom, groupBySchedule, 
             {/* Header — month band (top) + day/week ticks (bottom) */}
             <div className="relative border-b border-border bg-muted/40" style={{ height: HEAD_H }}>
               {months.map((m, i) => (
-                <div key={`m${i}`} className="absolute border-l border-border/60 px-2 text-[11px] font-semibold text-muted-foreground" style={{ left: m.left, width: m.width, top: 0, height: HEAD_TOP, lineHeight: `${HEAD_TOP}px` }}>{m.label}</div>
+                <div key={`m${i}`} className="absolute overflow-hidden whitespace-nowrap border-l border-border/60 px-2 text-[11px] font-semibold text-muted-foreground" style={{ left: m.left, width: m.width, top: 0, height: HEAD_TOP, lineHeight: `${HEAD_TOP}px` }}>{m.width >= 90 ? m.label : ""}</div>
               ))}
               {zoom !== "month" ? ticks.map((t, i) => (
                 <div key={`t${i}`} className={cn("absolute overflow-hidden border-l border-border/40 text-center text-[10px] text-muted-foreground", t.weekend && "bg-muted/50")} style={{ left: t.left, width: t.width, top: HEAD_TOP, height: HEAD_TICK, lineHeight: `${HEAD_TICK}px` }}>{t.label}</div>

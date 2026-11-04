@@ -732,7 +732,7 @@ export function ScheduleGrid({
       {/* Height follows the rows so the page scrolls grid and Gantt together. */}
       <ResizablePanelGroup direction="horizontal" autoSaveId="cmi.schedgrid.panels" style={{ height: "auto", overflow: "visible" }} className="items-stretch">
         <ResizablePanel ref={gridPanel} id="grid" order={1} defaultSize={58} minSize={20} collapsible collapsedSize={0}
-          onCollapse={() => setHidden("grid")} onExpand={() => setHidden((h) => (h === "grid" ? null : h))} className="pr-1.5">
+          onCollapse={() => setHidden("grid")} onExpand={() => setHidden((h) => (h === "grid" ? null : h))} className={hidden === "grid" ? undefined : "pr-1.5"}>
         {/* grid */}
         <div
           ref={gridRef} tabIndex={0} onKeyDown={onKeyDown} onPaste={onPaste}
@@ -802,7 +802,7 @@ export function ScheduleGrid({
         </ResizableHandle>
 
         <ResizablePanel ref={ganttPanel} id="gantt" order={2} defaultSize={42} minSize={20} collapsible collapsedSize={0}
-          onCollapse={() => setHidden("gantt")} onExpand={() => setHidden((h) => (h === "gantt" ? null : h))} className="pl-1.5">
+          onCollapse={() => setHidden("gantt")} onExpand={() => setHidden((h) => (h === "gantt" ? null : h))} className={hidden === "gantt" ? undefined : "pl-1.5"}>
           <GanttView items={items} dependencies={dependencies} phases={phases} zoom={zoom} showBaseline={showBaseline} canEdit={canEdit} linkMode={linkMode}
             onOpenItem={onOpenItem} onLink={whatIf ? undefined : onLink}
             onDatesChange={whatIf ? (id, start, end, gesture) => tryOps({ updates: [{ id, patch: gesture === "move" ? { start_date: start } : { end_date: end } }] }) : onDatesChange}

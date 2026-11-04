@@ -4,6 +4,7 @@ import * as React from "react";
 import { Bell, BellRing, CalendarClock, Check, FileText, Loader2, Mail, Megaphone, MessageSquare, MessagesSquare, StickyNote, UserPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { Tooltip } from "@/components/ui/tooltip";
 import { PushToggle } from "@/components/pwa/push-toggle";
 
 type Kind = "submission" | "message" | "lead" | "note" | "booking" | "dm" | "broadcast" | "note_link" | "schedule" | "alert";
@@ -136,6 +137,7 @@ export function NotificationBell() {
 
   return (
     <div ref={wrapRef} className="relative">
+      <Tooltip label="Notifications" side="bottom" className="inline-block">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -143,7 +145,6 @@ export function NotificationBell() {
           "relative inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-card text-muted-foreground transition hover:text-foreground",
           open && "text-foreground",
         )}
-        title="Notifications"
         aria-label="Notifications"
       >
         <Bell className="h-4 w-4" />
@@ -153,6 +154,7 @@ export function NotificationBell() {
           </span>
         )}
       </button>
+      </Tooltip>
 
       {open && (
         <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-[340px] overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
