@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Plus, GitBranch, Flag, Layers, CalendarClock, CalendarRange, FileText, Star, Archive, ChevronDown, CornerDownRight, Route } from "lucide-react";
+import { Plus, GitBranch, Flag, Layers, CalendarClock, CalendarRange, FileText, Star, Archive, ChevronDown, CornerDownRight, Route, Spline } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Tooltip, AutoTooltip } from "@/components/ui/tooltip";
@@ -47,6 +47,12 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
   const [zoom, setZoom] = React.useState<"day" | "week" | "month">("week");
   const [kanbanGroup, setKanbanGroup] = React.useState<"status" | "priority">("status");
   const [showBaseline, setShowBaseline] = React.useState(false);
+  // Gantt link lines, on by default and remembered per person.
+  const [showLinks, setShowLinks] = React.useState(true);
+  React.useEffect(() => {
+    try { if (localStorage.getItem("cmi.gantt.links") === "0") setShowLinks(false); } catch { /* storage blocked */ }
+  }, []);
+  const toggleLinks = () => setShowLinks((v) => { try { localStorage.setItem("cmi.gantt.links", v ? "0" : "1"); } catch { /* storage blocked */ } return !v; });
   const [linkMode, setLinkMode] = React.useState(false);
   const [wizardOpen, setWizardOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<Partial<ScheduleItem> | null>(null);
@@ -322,6 +328,7 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
             {view === "gantt" || view === "timeline" ? (
               <>
                 {canEdit ? <Button size="sm" variant={linkMode ? "accent" : "ghost"} onClick={() => setLinkMode((v) => !v)}><GitBranch className="h-3.5 w-3.5" /> Link</Button> : null}
+                <Button size="sm" variant={showLinks ? "accent" : "ghost"} onClick={toggleLinks} aria-pressed={showLinks}><Spline className="h-3.5 w-3.5" /> Links</Button>
                 <Button size="sm" variant={showBaseline ? "accent" : "ghost"} onClick={() => setShowBaseline((v) => !v)}><CalendarClock className="h-3.5 w-3.5" /> Baseline</Button>
                 {canManage ? <Button size="sm" variant="ghost" onClick={captureBaseline} disabled={!primaryId}>Capture baseline</Button> : null}
                 <Segmented label="Zoom" value={zoom} onChange={setZoom} options={[["day", "Day"], ["week", "Week"], ["month", "Month"]]} />
@@ -362,7 +369,7 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
           <div className="flex-1 overflow-auto p-4 md:p-6">
             {loading && !items.length ? <div className="py-16 text-center text-sm text-muted-foreground">Loading schedule…</div> : null}
             {view === "gantt" || view === "timeline" ? (
-              <GanttView items={items} dependencies={dependencies} phases={phases} zoom={view === "timeline" ? "month" : zoom} groupBySchedule={overlay || view === "timeline"} showBaseline={showBaseline} canEdit={canEdit} linkMode={linkMode} onOpenItem={setEditing} onDatesChange={ganttDates} onLink={(s, t) => addDependency(s, t)} />
+              <GanttView items={items} dependencies={dependencies} phases={phases} zoom={view === "timeline" ? "month" : zoom} groupBySchedule={overlay || view === "timeline"} showBaseline={showBaseline} showLinks={showLinks} canEdit={canEdit} linkMode={linkMode} onOpenItem={setEditing} onDatesChange={ganttDates} onLink={(s, t) => addDependency(s, t)} />
             ) : view === "calendar" ? (
               <CalendarView items={items} onOpenItem={setEditing} />
             ) : view === "kanban" ? (
@@ -372,7 +379,7 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
             ) : view === "table" && engine?.enabled && primarySchedule && !overlay ? (
               <ScheduleGrid
                 key={primarySchedule.id} schedule={primarySchedule} items={items} phases={phases} dependencies={dependencies}
-                canEdit={canEdit} zoom={zoom} showBaseline={showBaseline} linkMode={linkMode}
+                canEdit={canEdit} zoom={zoom} showBaseline={showBaseline} showLinks={showLinks} onToggleLinks={toggleLinks} linkMode={linkMode}
                 onOpenItem={setEditing} onBanner={setBanner} onDatesChange={ganttDates} onLink={(s, t) => addDependency(s, t)}
                 onReload={async () => { const b = await loadBundle(primarySchedule.id); void refreshEngine(); return b?.items ?? null; }}
                 mode={engine.mode} contractVariances={new Map((engine.summary?.contract ?? []).map((c) => [c.id, c.variance]))}

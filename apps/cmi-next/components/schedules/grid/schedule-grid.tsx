@@ -6,7 +6,7 @@
 // recalculates and the cells it moved flash.
 import * as React from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, ChevronRight, ChevronLeft, GripVertical, Maximize2, Undo2, Redo2, Columns3, ListOrdered, Plus, History, Loader2, FlaskConical, Check, FileSpreadsheet, Download, FileUp } from "lucide-react";
+import { ChevronDown, ChevronRight, ChevronLeft, GripVertical, Maximize2, Undo2, Redo2, Columns3, ListOrdered, Plus, History, Loader2, FlaskConical, Check, FileSpreadsheet, Download, FileUp, Spline } from "lucide-react";
 import { ExcelImportDialog } from "./excel-import";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,7 +52,7 @@ function store(key: string, value: unknown) {
 }
 
 export function ScheduleGrid({
-  schedule, items: allItems, phases, dependencies: realDeps, canEdit, zoom, showBaseline, linkMode,
+  schedule, items: allItems, phases, dependencies: realDeps, canEdit, zoom, showBaseline, showLinks, onToggleLinks, linkMode,
   onOpenItem, onReload, onBanner, onDatesChange, onLink, mode = "legacy", contractVariances,
 }: {
   schedule: JobSchedule;
@@ -62,6 +62,9 @@ export function ScheduleGrid({
   canEdit: boolean;
   zoom: "day" | "week" | "month";
   showBaseline?: boolean;
+  /** Gantt link lines, and the toolbar switch for them. */
+  showLinks?: boolean;
+  onToggleLinks?: () => void;
   linkMode?: boolean;
   onOpenItem: (item: ScheduleItem) => void;
   /** Reload this schedule; resolves with its fresh items. */
@@ -698,6 +701,11 @@ export function ScheduleGrid({
             </div>
           </>
         ) : null}
+        {onToggleLinks && hidden !== "gantt" ? (
+          <AutoTooltip content={showLinks ? "Hide the link lines on the Gantt" : "Show the link lines on the Gantt"}>
+            <Button size="sm" variant={showLinks ? "accent" : "ghost"} onClick={onToggleLinks} aria-pressed={!!showLinks}><Spline className="h-3.5 w-3.5" /> Links</Button>
+          </AutoTooltip>
+        ) : null}
         <div className="relative">
           <Button size="sm" variant="ghost" onClick={() => setXlMenu((o) => !o)} aria-haspopup="menu" aria-expanded={xlMenu}><FileSpreadsheet className="h-3.5 w-3.5" /> Excel <ChevronDown className="h-3 w-3 opacity-60" /></Button>
           {xlMenu ? (
@@ -823,7 +831,7 @@ export function ScheduleGrid({
 
         <ResizablePanel ref={ganttPanel} id="gantt" order={2} defaultSize={42} minSize={20} collapsible collapsedSize={0}
           onCollapse={() => setHidden("gantt")} onExpand={() => setHidden((h) => (h === "gantt" ? null : h))} className={hidden === "gantt" ? undefined : "pl-1.5"}>
-          <GanttView items={items} dependencies={dependencies} phases={phases} zoom={zoom} showBaseline={showBaseline} canEdit={canEdit} linkMode={linkMode}
+          <GanttView items={items} dependencies={dependencies} phases={phases} zoom={zoom} showBaseline={showBaseline} showLinks={showLinks} canEdit={canEdit} linkMode={linkMode}
             onOpenItem={onOpenItem} onLink={whatIf ? undefined : onLink}
             onDatesChange={whatIf ? (id, start, end, gesture) => tryOps({ updates: [{ id, patch: gesture === "move" ? { start_date: start } : { end_date: end } }] }) : onDatesChange}
             hideLabels={hidden !== "grid"} collapsed={collapsed} selectedId={active?.id ?? null} flashIds={new Set([...flash].map((c) => c.split(":")[0]))} />

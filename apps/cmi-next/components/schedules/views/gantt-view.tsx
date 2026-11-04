@@ -40,9 +40,35 @@ type Props = {
   selectedId?: string | null;
   /** Rows the last edit moved, briefly highlighted. */
   flashIds?: Set<string>;
+  /** Draw the link lines between tasks (default on). */
+  showLinks?: boolean;
 };
 
-export function GanttView({ items, dependencies, phases, zoom, groupBySchedule, showBaseline, canEdit, linkMode, onOpenItem, onDatesChange, onLink, hideLabels, collapsed, selectedId, flashIds }: Props) {
+// Link lines: how far a line runs out of a bar before it turns.
+const LINK_GAP = 8;
+const LINK_COLOR = "#9e6f2e";
+
+/** The elbow path for one link. Each type leaves and enters the bar edge it
+ *  ties: FS end → start, SS start → start, FF end → end, SF start → end.
+ *  When no single vertical run fits outside both edges, the line doubles
+ *  back along the row boundary, as MS Project draws it. */
+export function linkPath(type: string, src: { left: number; right: number; y: number }, tgt: { left: number; right: number; y: number }, rowH: number): string {
+  const fromEnd = type !== "start_to_start" && type !== "start_to_finish";
+  const toStart = type === "finish_to_start" || type === "start_to_start";
+  const sx = fromEnd ? src.right : src.left, out = fromEnd ? 1 : -1;
+  const tx = toStart ? tgt.left : tgt.right, into = toStart ? -1 : 1;
+  const sy = src.y, ty = tgt.y;
+  let vx: number | null = null;
+  if (out === 1 && into === -1) vx = tx - sx >= 2 * LINK_GAP ? sx + LINK_GAP : null; // FS
+  else if (out === -1 && into === -1) vx = Math.min(sx, tx) - LINK_GAP; // SS
+  else if (out === 1 && into === 1) vx = Math.max(sx, tx) + LINK_GAP; // FF
+  else vx = sx - tx >= 2 * LINK_GAP ? sx - LINK_GAP : null; // SF
+  if (vx != null) return `M ${sx} ${sy} H ${vx} V ${ty} H ${tx}`;
+  const midY = sy + Math.sign(ty - sy) * (rowH / 2);
+  return `M ${sx} ${sy} H ${sx + out * LINK_GAP} V ${midY} H ${tx + into * LINK_GAP} V ${ty} H ${tx}`;
+}
+
+export function GanttView({ items, dependencies, phases, zoom, groupBySchedule, showBaseline, canEdit, linkMode, onOpenItem, onDatesChange, onLink, hideLabels, collapsed, selectedId, flashIds, showLinks = true }: Props) {
   const dayW = DAY_W[zoom];
   const [linkSource, setLinkSource] = React.useState<string | null>(null);
   const [drag, setDrag] = React.useState<{ id: string; mode: "move" | "resize"; startX: number; origStart: Date; origEnd: Date; deltaDays: number } | null>(null);
@@ -152,23 +178,34 @@ export function GanttView({ items, dependencies, phases, zoom, groupBySchedule, 
     onOpenItem?.(item);
   }
 
-  // Dependency connector paths (drawn over the track area).
+  // Link lines between bars (under the bars, over the gridlines).
   const connectors = React.useMemo(() => {
-    const paths: { d: string; cross: boolean }[] = [];
-    const yOf = (id: string) => { const idx = rowIndexOf.get(id); return idx == null ? null : idx * ROW_H + ROW_H / 2; };
+    const paths: { id: string; d: string; cross: boolean; critical: boolean; touches: string[] }[] = [];
+    if (!showLinks) return paths;
+    const byId = new Map(items.map((i) => [i.id, i]));
+    const edges = (i: ScheduleItem) => {
+      const idx = rowIndexOf.get(i.id);
+      const s = parse(i.start_date);
+      if (idx == null || !s) return null;
+      const y = idx * ROW_H + ROW_H / 2;
+      const left = diffDays(min, s) * dayW;
+      if (i.kind === "milestone") return { left: left - 7, right: left + 7, y };
+      const e = parse(i.end_date) ?? s;
+      return { left, right: left + Math.max(dayW, (diffDays(s, e) + 1) * dayW), y };
+    };
     for (const dep of dependencies) {
-      const src = items.find((i) => i.id === dep.source_item_id);
-      const tgt = items.find((i) => i.id === dep.target_item_id);
+      const src = byId.get(dep.source_item_id), tgt = byId.get(dep.target_item_id);
       if (!src || !tgt) continue;
-      const sy = yOf(src.id), ty = yOf(tgt.id);
-      if (sy == null || ty == null) continue;
-      const sx = x(src.end_date, parse(src.start_date) ?? undefined) + dayW; // right edge of source
-      const tx = x(tgt.start_date); // left edge of target
-      const midX = Math.max(sx + 8, tx - 8);
-      paths.push({ d: `M ${sx} ${sy} H ${midX} V ${ty} H ${tx}`, cross: dep.is_cross_schedule });
+      const a = edges(src), b = edges(tgt);
+      if (!a || !b) continue;
+      paths.push({
+        id: dep.id, d: linkPath(dep.dependency_type, a, b, ROW_H), cross: dep.is_cross_schedule,
+        critical: !!(src.is_critical && tgt.is_critical && src.total_float != null && tgt.total_float != null),
+        touches: [src.id, tgt.id],
+      });
     }
     return paths;
-  }, [dependencies, items, rowIndexOf, dayW, min]);
+  }, [showLinks, dependencies, items, rowIndexOf, dayW, min]);
 
   if (!items.length) {
     return <div className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted-foreground">No schedule items yet. Add an item to see it on the Gantt.</div>;
@@ -215,12 +252,26 @@ export function GanttView({ items, dependencies, phases, zoom, groupBySchedule, 
               {todayX >= 0 && todayX <= boardW ? <div className="absolute top-0 z-10 w-px bg-accent/70" style={{ left: todayX, height: rows.length * ROW_H }} /> : null}
 
               {/* dependency connectors */}
-              <svg className="pointer-events-none absolute inset-0 z-20" width={boardW} height={rows.length * ROW_H}>
-                <defs>
-                  <marker id="sched-arrow" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" className="fill-muted-foreground" /></marker>
-                </defs>
-                {connectors.map((c, i) => <path key={i} d={c.d} fill="none" strokeWidth={1.5} className={c.cross ? "stroke-accent" : "stroke-muted-foreground/60"} strokeDasharray={c.cross ? "4 3" : undefined} markerEnd="url(#sched-arrow)" />)}
-              </svg>
+              {connectors.length ? (
+                <svg className="pointer-events-none absolute inset-0 z-20 overflow-visible" width={boardW} height={rows.length * ROW_H} aria-hidden>
+                  <defs>
+                    <marker id="sched-arrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill={LINK_COLOR} /></marker>
+                    <marker id="sched-arrow-crit" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" style={{ fill: "var(--foreground)" }} /></marker>
+                  </defs>
+                  {connectors.map((c) => {
+                    // A selected task's links stand out; the rest fade back.
+                    const lit = !!selectedId && c.touches.includes(selectedId);
+                    const dim = !!selectedId && !lit;
+                    return (
+                      <path key={c.id} d={c.d} fill="none" strokeLinejoin="round"
+                        strokeWidth={lit ? 2 : c.critical ? 1.5 : 1.25}
+                        strokeDasharray={c.critical || lit ? undefined : c.cross ? "5 3" : "2 2"}
+                        style={{ stroke: c.critical ? "var(--foreground)" : LINK_COLOR, opacity: dim ? 0.35 : c.critical || lit ? 0.9 : 0.75 }}
+                        markerEnd={c.critical ? "url(#sched-arrow-crit)" : "url(#sched-arrow)"} />
+                    );
+                  })}
+                </svg>
+              ) : null}
 
               {/* rows + bars */}
               {rows.map((r, idx) => (
