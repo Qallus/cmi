@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { ItemColorsPanel } from "./item-colors-panel";
 import { confirmAction, promptText } from "@/components/ui/confirm-action";
 import { Plus, GitBranch, Flag, Layers, CalendarClock, CalendarRange, FileText, Star, Archive, ChevronDown, CornerDownRight, Route, Spline } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -48,6 +49,8 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
   const [zoom, setZoom] = React.useState<"day" | "week" | "month">("week");
   const [kanbanGroup, setKanbanGroup] = React.useState<"status" | "priority">("status");
   const [showBaseline, setShowBaseline] = React.useState(false);
+  // Double-clicked bar whose colours are being edited.
+  const [styling, setStyling] = React.useState<ScheduleItem | null>(null);
   // Gantt link lines, on by default and remembered per person.
   const [showLinks, setShowLinks] = React.useState(true);
   React.useEffect(() => {
@@ -370,7 +373,7 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
           <div className="flex-1 overflow-auto p-4 md:p-6">
             {loading && !items.length ? <div className="py-16 text-center text-sm text-muted-foreground">Loading schedule…</div> : null}
             {view === "gantt" || view === "timeline" ? (
-              <GanttView items={items} dependencies={dependencies} phases={phases} zoom={view === "timeline" ? "month" : zoom} groupBySchedule={overlay || view === "timeline"} showBaseline={showBaseline} showLinks={showLinks} canEdit={canEdit} linkMode={linkMode} onOpenItem={setEditing} onDatesChange={ganttDates} onLink={(s, t) => addDependency(s, t)} />
+              <GanttView items={items} dependencies={dependencies} phases={phases} zoom={view === "timeline" ? "month" : zoom} groupBySchedule={overlay || view === "timeline"} showBaseline={showBaseline} showLinks={showLinks} onStyleItem={canEdit ? setStyling : undefined} canEdit={canEdit} linkMode={linkMode} onOpenItem={setEditing} onDatesChange={ganttDates} onLink={(s, t) => addDependency(s, t)} />
             ) : view === "calendar" ? (
               <CalendarView items={items} onOpenItem={setEditing} />
             ) : view === "kanban" ? (
@@ -380,7 +383,7 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
             ) : view === "table" && engine?.enabled && primarySchedule && !overlay ? (
               <ScheduleGrid
                 key={primarySchedule.id} schedule={primarySchedule} items={items} phases={phases} dependencies={dependencies}
-                canEdit={canEdit} zoom={zoom} showBaseline={showBaseline} showLinks={showLinks} onToggleLinks={toggleLinks} linkMode={linkMode}
+                canEdit={canEdit} zoom={zoom} showBaseline={showBaseline} showLinks={showLinks} onToggleLinks={toggleLinks} onStyleItem={canEdit ? setStyling : undefined} linkMode={linkMode}
                 onOpenItem={setEditing} onBanner={setBanner} onDatesChange={ganttDates} onLink={(s, t) => addDependency(s, t)}
                 onReload={async () => { const b = await loadBundle(primarySchedule.id); void refreshEngine(); return b?.items ?? null; }}
                 mode={engine.mode} contractVariances={new Map((engine.summary?.contract ?? []).map((c) => [c.id, c.variance]))}
@@ -419,6 +422,12 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
       }} /> : null}
       <AddScheduleWizard open={wizardOpen} staff={staff} templates={templates} existing={schedules} onClose={() => { setWizardOpen(false); setParentForNew(null); }} onCreate={createSchedule}
         parents={builder ? schedules : undefined} defaultParentId={parentForNew} scopeNoun={scope.type === "job" ? "Job" : scope.type === "deal" ? "Deal" : scope.type === "precon" ? "Pre-Con" : "Selection"} />
+      <ItemColorsPanel
+        item={styling} items={items} dependencies={dependencies}
+        defaultBar={styling?.schedule_color ? scheduleColor(styling.schedule_id, styling.schedule_color) : undefined}
+        onClose={() => setStyling(null)}
+        onSaved={async (it) => { await loadBundle(bundles[it.schedule_id] ? it.schedule_id : primaryId!); setBanner("Colors saved."); }}
+      />
       <ItemDrawer
         open={!!editing} item={editing} phases={phases.length ? phases : (primaryId ? bundles[primaryId]?.phases ?? [] : [])} staff={staff}
         allItems={items} dependencies={dependencies} isMasterSchedule={primarySchedule?.is_master} canEdit={canEdit} linkable={builder}

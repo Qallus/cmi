@@ -219,6 +219,8 @@ export const ITEM_FIELDS = [
   // Schedule engine (computed early/late dates and float are written by lib/schedules/engine.ts only):
   "activity_id", "wbs", "duration_unit", "constraint_type", "constraint_date", "actual_start", "actual_finish",
   "remaining_duration", "milestone_type", "contract_date", "cost_code",
+  // Gantt appearance:
+  "bar_color",
 ] as const;
 
 // Changing any of these re-runs the engine on schedules that use it.
@@ -383,6 +385,24 @@ export async function createDependency(input: { jobId?: string | null; sourceIte
   if (error) throw new Error(error.message);
   await logActivity({ jobId, action: isCross ? "cross_schedule_dependency_added" : "dependency_added", detail: { type: data.dependency_type }, actor });
   if (engineSchedule) await recalcSchedule(engineSchedule, actor);
+  return data as ScheduleDependency;
+}
+
+const HEX = /^#[0-9a-fA-F]{6}$/;
+
+/** How a link's line looks on the Gantt (colour and style). Changes nothing about dates. */
+export async function updateDependencyLook(id: string, patch: { line_color?: unknown; line_style?: unknown }): Promise<ScheduleDependency> {
+  const clean: Record<string, unknown> = {};
+  if ("line_color" in patch) {
+    if (patch.line_color != null && !(typeof patch.line_color === "string" && HEX.test(patch.line_color))) throw new Error("Line color must look like #9e6f2e.");
+    clean.line_color = patch.line_color ?? null;
+  }
+  if ("line_style" in patch) {
+    if (patch.line_style != null && !["solid", "dotted", "dashed"].includes(patch.line_style as string)) throw new Error("Line style must be solid, dotted or dashed.");
+    clean.line_style = patch.line_style ?? null;
+  }
+  const { data, error } = await getSupabaseAdmin().from("schedule_dependencies").update(clean).eq("id", id).select("*").single();
+  if (error) throw new Error(error.message);
   return data as ScheduleDependency;
 }
 

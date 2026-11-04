@@ -5,7 +5,8 @@ import { cn } from "@/lib/utils";
 import { scheduleColor, fmtShort } from "../shared";
 import { AutoTooltip } from "@/components/ui/tooltip";
 import { scheduleRows, type GridRow } from "@/lib/schedules/grid";
-import type { ScheduleItem, ScheduleDependency, SchedulePhase } from "@/lib/schedules/types";
+import type { ScheduleItem, ScheduleDependency, SchedulePhase, LineStyle } from "@/lib/schedules/types";
+import { dashFor } from "../item-colors-panel";
 
 type Zoom = "day" | "week" | "month";
 const DAY_W: Record<Zoom, number> = { day: 40, week: 20, month: 10 };
@@ -42,6 +43,8 @@ type Props = {
   flashIds?: Set<string>;
   /** Draw the link lines between tasks (default on). */
   showLinks?: boolean;
+  /** Double-click a bar: open its colours (bar and link lines). */
+  onStyleItem?: (item: ScheduleItem) => void;
 };
 
 // Link lines: how far a line runs out of a bar before it turns.
@@ -68,12 +71,13 @@ export function linkPath(type: string, src: { left: number; right: number; y: nu
   return `M ${sx} ${sy} H ${sx + out * LINK_GAP} V ${midY} H ${tx + into * LINK_GAP} V ${ty} H ${tx}`;
 }
 
-export function GanttView({ items, dependencies, phases, zoom, groupBySchedule, showBaseline, canEdit, linkMode, onOpenItem, onDatesChange, onLink, hideLabels, collapsed, selectedId, flashIds, showLinks = true }: Props) {
+export function GanttView({ items, dependencies, phases, zoom, groupBySchedule, showBaseline, canEdit, linkMode, onOpenItem, onDatesChange, onLink, hideLabels, collapsed, selectedId, flashIds, showLinks = true, onStyleItem }: Props) {
   const dayW = DAY_W[zoom];
   const [linkSource, setLinkSource] = React.useState<string | null>(null);
   // The sticky date header scrolls sideways with the timeline body.
   const headRef = React.useRef<HTMLDivElement>(null);
   const bodyRef = React.useRef<HTMLDivElement>(null);
+  const clickTimer = React.useRef<number | null>(null);
   const syncHead = () => { if (headRef.current && bodyRef.current) headRef.current.scrollLeft = bodyRef.current.scrollLeft; };
   const [drag, setDrag] = React.useState<{ id: string; mode: "move" | "resize"; startX: number; origStart: Date; origEnd: Date; deltaDays: number } | null>(null);
 
@@ -179,12 +183,19 @@ export function GanttView({ items, dependencies, phases, zoom, groupBySchedule, 
       else if (linkSource !== item.id) { onLink(linkSource, item.id); setLinkSource(null); }
       return;
     }
-    onOpenItem?.(item);
+    // With a double-click action, wait a moment so a double-click doesn't also open the task.
+    if (!onStyleItem) { onOpenItem?.(item); return; }
+    if (clickTimer.current) window.clearTimeout(clickTimer.current);
+    clickTimer.current = window.setTimeout(() => { clickTimer.current = null; onOpenItem?.(item); }, 240);
+  }
+  function doubleClickBar(item: ScheduleItem) {
+    if (clickTimer.current) { window.clearTimeout(clickTimer.current); clickTimer.current = null; }
+    if (!linkMode) onStyleItem?.(item);
   }
 
   // Link lines between bars (under the bars, over the gridlines).
   const connectors = React.useMemo(() => {
-    const paths: { id: string; d: string; cross: boolean; critical: boolean; touches: string[] }[] = [];
+    const paths: { id: string; d: string; cross: boolean; critical: boolean; touches: string[]; color: string | null; style: LineStyle | null }[] = [];
     if (!showLinks) return paths;
     const byId = new Map(items.map((i) => [i.id, i]));
     const edges = (i: ScheduleItem) => {
@@ -205,7 +216,7 @@ export function GanttView({ items, dependencies, phases, zoom, groupBySchedule, 
       paths.push({
         id: dep.id, d: linkPath(dep.dependency_type, a, b, ROW_H), cross: dep.is_cross_schedule,
         critical: !!(src.is_critical && tgt.is_critical && src.total_float != null && tgt.total_float != null),
-        touches: [src.id, tgt.id],
+        touches: [src.id, tgt.id], color: dep.line_color ?? null, style: dep.line_style ?? null,
       });
     }
     return paths;
@@ -266,6 +277,9 @@ export function GanttView({ items, dependencies, phases, zoom, groupBySchedule, 
                   <defs>
                     <marker id="sched-arrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill={LINK_COLOR} /></marker>
                     <marker id="sched-arrow-crit" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" style={{ fill: "var(--foreground)" }} /></marker>
+                    {[...new Set(connectors.map((c) => c.color).filter(Boolean))].map((c) => (
+                      <marker key={c} id={`sched-arrow-${c!.slice(1)}`} markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill={c!} /></marker>
+                    ))}
                   </defs>
                   {connectors.map((c) => {
                     // A selected task's links stand out; the rest fade back.
@@ -274,9 +288,9 @@ export function GanttView({ items, dependencies, phases, zoom, groupBySchedule, 
                     return (
                       <path key={c.id} d={c.d} fill="none" strokeLinejoin="round"
                         strokeWidth={lit ? 2 : c.critical ? 1.5 : 1.25}
-                        strokeDasharray={c.critical || lit ? undefined : c.cross ? "5 3" : "2 2"}
-                        style={{ stroke: c.critical ? "var(--foreground)" : LINK_COLOR, opacity: dim ? 0.35 : c.critical || lit ? 0.9 : 0.75 }}
-                        markerEnd={c.critical ? "url(#sched-arrow-crit)" : "url(#sched-arrow)"} />
+                        strokeDasharray={c.style ? dashFor(c.style) : c.critical || lit ? undefined : c.cross ? "5 3" : "2 2"}
+                        style={{ stroke: c.color ?? (c.critical ? "var(--foreground)" : LINK_COLOR), opacity: dim ? 0.35 : c.critical || lit || c.color ? 0.9 : 0.75 }}
+                        markerEnd={c.color ? `url(#sched-arrow-${c.color.slice(1)})` : c.critical ? "url(#sched-arrow-crit)" : "url(#sched-arrow)"} />
                     );
                   })}
                 </svg>
@@ -285,7 +299,7 @@ export function GanttView({ items, dependencies, phases, zoom, groupBySchedule, 
               {/* rows + bars */}
               {rows.map((r, idx) => (
                 <div key={r.kind === "item" ? r.item.id : `g-${idx}`} className={cn("absolute left-0 right-0 border-b border-border/60 transition-colors duration-700", r.kind === "group" && "bg-muted/20", r.kind === "item" && r.item.id === selectedId && "bg-accent/10", r.kind === "item" && flashIds?.has(r.item.id) && "bg-amber-200/40")} style={{ top: idx * ROW_H, height: ROW_H }}>
-                  {r.kind === "item" ? <Bar item={r.item} x={x} dayW={dayW} drag={drag} color={r.kind === "item" ? (r.item.schedule_color ? scheduleColor(r.item.schedule_id, r.item.schedule_color) : "#9e6f2e") : "#9e6f2e"} showBaseline={showBaseline} linkSource={linkSource === r.item.id} onBody={(e) => startDrag(e, r.item, "move")} onResize={(e) => startDrag(e, r.item, "resize")} onClick={() => clickBar(r.item)} /> : null}
+                  {r.kind === "item" ? <Bar item={r.item} x={x} dayW={dayW} drag={drag} color={r.item.bar_color ?? (r.item.schedule_color ? scheduleColor(r.item.schedule_id, r.item.schedule_color) : "#9e6f2e")} showBaseline={showBaseline} linkSource={linkSource === r.item.id} onBody={(e) => startDrag(e, r.item, "move")} onResize={(e) => startDrag(e, r.item, "resize")} onClick={() => clickBar(r.item)} onDoubleClick={onStyleItem ? () => doubleClickBar(r.item) : undefined} /> : null}
                 </div>
               ))}
             </div>
@@ -297,11 +311,12 @@ export function GanttView({ items, dependencies, phases, zoom, groupBySchedule, 
   );
 }
 
-function Bar({ item, x, dayW, drag, color, showBaseline, linkSource, onBody, onResize, onClick }: {
+function Bar({ item, x, dayW, drag, color, showBaseline, linkSource, onBody, onResize, onClick, onDoubleClick }: {
   item: ScheduleItem; x: (iso?: string | null, fb?: Date) => number; dayW: number;
   drag: { id: string; mode: "move" | "resize"; deltaDays: number } | null; color: string; showBaseline?: boolean; linkSource?: boolean;
-  onBody: (e: React.MouseEvent) => void; onResize: (e: React.MouseEvent) => void; onClick: () => void;
+  onBody: (e: React.MouseEvent) => void; onResize: (e: React.MouseEvent) => void; onClick: () => void; onDoubleClick?: () => void;
 }) {
+  const hint = onDoubleClick ? "Double-click for colors" : undefined;
   const s = parse(item.start_date); const e = parse(item.end_date) ?? s;
   if (!s) return null;
   const dragging = drag?.id === item.id ? drag : null;
@@ -321,8 +336,8 @@ function Bar({ item, x, dayW, drag, color, showBaseline, linkSource, onBody, onR
             <div className={cn("absolute inset-y-1 z-20 w-2 -translate-x-1/2 cursor-help", "after:absolute after:inset-y-0 after:left-1/2 after:border-l-2 after:border-dashed", late ? "after:border-destructive/70" : "after:border-foreground/50")} style={{ left: x(item.contract_date) }} />
           </AutoTooltip>
         ) : null}
-        <AutoTooltip prefer="horizontal" disabled={!!drag} content={<TipBody item={item} />}>
-          <div className="absolute top-1/2 z-30 -translate-y-1/2" style={{ left: left - 7 }} onClick={onClick}>
+        <AutoTooltip prefer="horizontal" disabled={!!drag} content={<TipBody item={item} hint={hint} />}>
+          <div className="absolute top-1/2 z-30 -translate-y-1/2" style={{ left: left - 7 }} onClick={onClick} onDoubleClick={onDoubleClick}>
             <span onMouseDown={onBody} className={cn("block h-3.5 w-3.5 rotate-45 cursor-pointer border", item.status === "complete" ? "bg-accent" : "bg-card", linkSource ? "ring-2 ring-accent" : "")} style={{ borderColor: color }} />
           </div>
         </AutoTooltip>
@@ -335,10 +350,11 @@ function Bar({ item, x, dayW, drag, color, showBaseline, linkSource, onBody, onR
       {showBaseline && item.baseline_start ? (
         <div className="absolute top-1/2 z-10 h-1.5 -translate-y-1/2 rounded bg-muted-foreground/25" style={{ left: x(item.baseline_start), width: Math.max(dayW, ((diffDays(parse(item.baseline_start)!, parse(item.baseline_end) ?? parse(item.baseline_start)!) + 1)) * dayW), marginTop: 9 }} />
       ) : null}
-      <AutoTooltip disabled={!!drag} content={<TipBody item={item} />}>
+      <AutoTooltip disabled={!!drag} content={<TipBody item={item} hint={hint} />}>
       <div
         onMouseDown={onBody}
         onClick={onClick}
+        onDoubleClick={onDoubleClick}
         className={cn("group absolute top-1/2 z-30 flex h-5 -translate-y-1/2 cursor-pointer items-center overflow-hidden rounded text-[11px] text-white shadow-sm",
           // Engine-worked critical path in charcoal; a hand-ticked "critical" keeps the red ring.
           item.is_critical && (item.total_float != null ? "ring-2 ring-foreground/80" : "ring-1 ring-destructive"), linkSource && "ring-2 ring-accent")}
@@ -356,7 +372,7 @@ function Bar({ item, x, dayW, drag, color, showBaseline, linkSource, onBody, onR
 
 /** What a bar's tooltip shows: ID and name, dates, length, progress, float,
  *  constraint and contract date. */
-function TipBody({ item, heading }: { item: ScheduleItem; heading?: string }) {
+function TipBody({ item, heading, hint }: { item: ScheduleItem; heading?: string; hint?: string }) {
   const milestone = item.kind === "milestone";
   const len = item.duration_days ?? (item.start_date && item.end_date ? diffDays(parse(item.start_date)!, parse(item.end_date)!) + 1 : null);
   const tf = item.total_float;
@@ -384,6 +400,7 @@ function TipBody({ item, heading }: { item: ScheduleItem; heading?: string }) {
           </React.Fragment>
         ))}
       </div>
+      {hint ? <div className="border-t border-white/15 pt-1 text-[10px] opacity-60">{hint}</div> : null}
     </div>
   );
 }

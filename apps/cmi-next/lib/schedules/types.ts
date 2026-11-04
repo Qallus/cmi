@@ -205,6 +205,8 @@ export type ScheduleItem = {
   milestone_type?: MilestoneType | null;
   contract_date?: string | null;
   cost_code?: string | null;
+  /** Gantt bar colour (#rrggbb); empty = the schedule's colour. */
+  bar_color?: string | null;
   sort_order: number;
   created_at: string;
   updated_at: string;
@@ -225,7 +227,12 @@ export type ScheduleDependency = {
   auto_cascade: boolean;
   is_locked: boolean;
   notes: string | null;
+  /** Gantt line colour (#rrggbb) and style; empty = the standard look. */
+  line_color?: string | null;
+  line_style?: LineStyle | null;
 };
+
+export type LineStyle = "solid" | "dotted" | "dashed";
 
 export type ScheduleParticipant = {
   id: string;

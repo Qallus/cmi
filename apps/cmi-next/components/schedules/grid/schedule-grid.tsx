@@ -53,7 +53,7 @@ function store(key: string, value: unknown) {
 }
 
 export function ScheduleGrid({
-  schedule, items: allItems, phases, dependencies: realDeps, canEdit, zoom, showBaseline, showLinks, onToggleLinks, linkMode,
+  schedule, items: allItems, phases, dependencies: realDeps, canEdit, zoom, showBaseline, showLinks, onToggleLinks, onStyleItem, linkMode,
   onOpenItem, onReload, onBanner, onDatesChange, onLink, mode = "legacy", contractVariances,
 }: {
   schedule: JobSchedule;
@@ -66,6 +66,8 @@ export function ScheduleGrid({
   /** Gantt link lines, and the toolbar switch for them. */
   showLinks?: boolean;
   onToggleLinks?: () => void;
+  /** Double-click a Gantt bar: open its colours. */
+  onStyleItem?: (item: ScheduleItem) => void;
   linkMode?: boolean;
   onOpenItem: (item: ScheduleItem) => void;
   /** Reload this schedule; resolves with its fresh items. */
@@ -839,7 +841,7 @@ export function ScheduleGrid({
 
         <ResizablePanel ref={ganttPanel} id="gantt" order={2} defaultSize={42} minSize={20} collapsible collapsedSize={0}
           onCollapse={() => setHidden("gantt")} onExpand={() => setHidden((h) => (h === "gantt" ? null : h))} className={hidden === "gantt" ? undefined : "pl-1.5"} style={{ overflow: "clip" }}>
-          <GanttView items={items} dependencies={dependencies} phases={phases} zoom={zoom} showBaseline={showBaseline} showLinks={showLinks} canEdit={canEdit} linkMode={linkMode}
+          <GanttView items={items} dependencies={dependencies} phases={phases} zoom={zoom} showBaseline={showBaseline} showLinks={showLinks} onStyleItem={whatIf ? undefined : onStyleItem} canEdit={canEdit} linkMode={linkMode}
             onOpenItem={onOpenItem} onLink={whatIf ? undefined : onLink}
             onDatesChange={whatIf ? (id, start, end, gesture) => tryOps({ updates: [{ id, patch: gesture === "move" ? { start_date: start } : { end_date: end } }] }) : onDatesChange}
             hideLabels={hidden !== "grid"} collapsed={collapsed} selectedId={active?.id ?? null} flashIds={new Set([...flash].map((c) => c.split(":")[0]))} />
