@@ -9,7 +9,7 @@ import { calendarFor } from "./engine-core.ts";
 import { DEFAULT_WORKDAYS } from "./types";
 import { isFeatureEnabled } from "@/lib/flags";
 import { PROGRESS_FLAG } from "./engine";
-import { progressPatch, todayAZ } from "./progress.ts";
+import { progressPatch, todayAZ, scheduleProgress } from "./progress.ts";
 import type {
   JobSchedule, SchedulePhase, ScheduleItem, ScheduleDependency, ScheduleParticipant,
   ScheduleBaseline, ScheduleActivity, ScheduleDraft, Workdays, DependencyType, Assignee,
@@ -274,6 +274,7 @@ export async function createItem(scheduleId: string, input: Partial<ScheduleItem
   if (error) throw new Error(error.message);
   await logActivity({ jobId: sched?.job_id ?? null, scheduleId, itemId: data.id, action: "item_created", detail: { title: data.title, kind: data.kind }, actor });
   if (await engineModeFor(scheduleId)) await recalcSchedule(scheduleId, actor);
+  await syncScheduleProgress(scheduleId);
   const created = mapItem(data);
   const assignees = assigneeStaffIds(created.assignees);
   if (assignees.length) {
@@ -329,12 +330,27 @@ export async function updateItem(id: string, patch: Partial<ScheduleItem>, actor
     if (opts.cascade !== false && ENGINE_KEYS.some((k) => k in clean)) {
       const r = await recalcSchedule(data.schedule_id, actor);
       cascaded = await rowsByIds(r.moved.map((m) => m.id).filter((x) => x !== id));
+      await syncScheduleProgress(data.schedule_id);
       return { item: (await getItem(id)) ?? mapItem(data), cascaded };
     }
   } else if (opts.cascade !== false && datesChanged) {
     cascaded = await applyCascade(data.job_id, id, actor);
   }
+  await syncScheduleProgress(data.schedule_id);
   return { item: mapItem(data), cascaded };
+}
+
+/** Keep job_schedules.progress equal to its tasks' duration-weighted % complete. */
+export async function syncScheduleProgress(scheduleId: string): Promise<number | null> {
+  const sb = getSupabaseAdmin();
+  const [{ data: rows }, { data: sched }] = await Promise.all([
+    sb.from("schedule_items").select("kind, status, percent_complete, duration_days, start_date, end_date").eq("schedule_id", scheduleId),
+    sb.from("job_schedules").select("progress").eq("id", scheduleId).maybeSingle(),
+  ]);
+  if (!sched) return null;
+  const pct = scheduleProgress(rows ?? []);
+  if (pct !== sched.progress) await sb.from("job_schedules").update({ progress: pct }).eq("id", scheduleId);
+  return pct;
 }
 
 export async function deleteItem(id: string, actor?: Actor): Promise<void> {
@@ -343,6 +359,7 @@ export async function deleteItem(id: string, actor?: Actor): Promise<void> {
   await sb.from("schedule_items").delete().eq("id", id);
   await logActivity({ jobId: data?.job_id ?? null, scheduleId: data?.schedule_id ?? null, action: "item_deleted", detail: { title: data?.title }, actor });
   if (data?.schedule_id && (await engineModeFor(data.schedule_id))) await recalcSchedule(data.schedule_id, actor);
+  if (data?.schedule_id) await syncScheduleProgress(data.schedule_id);
 }
 
 // Reorder / move helper for kanban & drag operations.
@@ -353,6 +370,10 @@ export async function bulkUpdateItems(updates: { id: string; patch: Partial<Sche
     for (const k of ITEM_FIELDS) if (k in u.patch) clean[k] = (u.patch as Record<string, unknown>)[k];
     return sb.from("schedule_items").update(clean).eq("id", u.id);
   }));
+  if (updates.some((u) => "status" in u.patch || "percent_complete" in u.patch)) {
+    const { data } = await sb.from("schedule_items").select("schedule_id").in("id", updates.map((u) => u.id));
+    for (const sid of new Set((data ?? []).map((r) => r.schedule_id as string))) await syncScheduleProgress(sid);
+  }
 }
 
 // ---- dependencies + cascade ----
@@ -879,7 +900,9 @@ export async function jobScheduleHeader(jobId: string): Promise<JobScheduleHeade
 
 function headerFor(schedules: JobSchedule[], items: ScheduleItem[]): JobScheduleHeader {
   const active = schedules.filter((s) => s.status === "active");
-  const overall = active.length ? Math.round(active.reduce((a, s) => a + (s.progress || 0), 0) / active.length) : 0;
+  // Each schedule's progress comes from its tasks, so the header is right even before a save re-syncs it.
+  const pctOf = (s: JobSchedule) => scheduleProgress(items.filter((i) => i.schedule_id === s.id));
+  const overall = active.length ? Math.round(active.reduce((a, s) => a + pctOf(s), 0) / active.length) : 0;
   const rank = { critical: 4, delayed: 3, at_risk: 2, watch: 1, on_track: 0 } as Record<string, number>;
   const worst = active.reduce((w, s) => (rank[s.health] > rank[w] ? s.health : w), "on_track");
   const projected = active.reduce<string | null>((mx, s) => {

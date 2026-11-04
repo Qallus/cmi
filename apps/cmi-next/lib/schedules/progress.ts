@@ -65,3 +65,24 @@ export function progressPatch(prev: Prev, patch: Record<string, unknown>, today:
   if (has("actual_start") && patch.actual_start && !has("status") && NOT_STARTED.has(prev.status ?? null)) out.status = "in_progress";
   return out;
 }
+
+type ProgressItem = { kind?: string | null; status?: string | null; percent_complete?: number | null; duration_days?: number | null; start_date?: string | null; end_date?: string | null };
+
+/** A schedule's % complete from its tasks, weighted by duration (P6's
+ *  duration % complete): a 20-day task counts twice a 10-day one. Complete
+ *  tasks count as 100%, cancelled ones are left out, and milestones only count
+ *  when a schedule has nothing else. */
+export function scheduleProgress(items: ProgressItem[]): number {
+  const live = items.filter((i) => i.status !== "cancelled");
+  const pct = (i: ProgressItem) => (i.status === "complete" ? 100 : Math.max(0, Math.min(100, i.percent_complete ?? 0)));
+  const span = (i: ProgressItem) => {
+    if (i.duration_days != null && i.duration_days > 0) return i.duration_days;
+    if (i.start_date && i.end_date) return Math.max(1, Math.round((Date.parse(i.end_date) - Date.parse(i.start_date)) / 86400000) + 1);
+    return 1;
+  };
+  const tasks = live.filter((i) => i.kind !== "milestone");
+  const pool = tasks.length ? tasks : live;
+  let total = 0, done = 0;
+  for (const i of pool) { const w = tasks.length ? span(i) : 1; total += w; done += w * pct(i); }
+  return total ? Math.round(done / total) : 0;
+}

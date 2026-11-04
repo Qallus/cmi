@@ -39,3 +39,22 @@ test("progress: today is Arizona's date", () => {
   // 03:00 UTC on Nov 6 is still Nov 5 in Phoenix (UTC−7).
   assert.equal(todayAZ(new Date("2026-11-06T03:00:00Z")), "2026-11-05");
 });
+
+test("progress: schedule % complete is duration-weighted", async () => {
+  const { scheduleProgress } = await import("./progress.ts");
+  assert.equal(scheduleProgress([]), 0);
+  // 10-day task done, 30-day task half done: (10*100 + 30*50) / 40 = 62.5 → 63.
+  assert.equal(scheduleProgress([
+    { kind: "task", status: "complete", percent_complete: 100, duration_days: 10 },
+    { kind: "task", status: "in_progress", percent_complete: 50, duration_days: 30 },
+  ]), 63);
+  // Marked complete without a % still counts as done; milestones and cancelled tasks don't dilute it.
+  assert.equal(scheduleProgress([
+    { kind: "task", status: "complete", percent_complete: 0, duration_days: 5 },
+    { kind: "task", status: "not_started", percent_complete: 0, duration_days: 5 },
+    { kind: "milestone", status: "not_started" },
+    { kind: "task", status: "cancelled", duration_days: 50 },
+  ]), 50);
+  // Only milestones: count them.
+  assert.equal(scheduleProgress([{ kind: "milestone", status: "complete" }, { kind: "milestone", status: "not_started" }]), 50);
+});

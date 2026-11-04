@@ -6,7 +6,7 @@ import { runCpm } from "./cpm.ts";
 import { CALENDAR_DAYS, dayNum, spanW } from "./calendar.ts";
 import { buildInput, blockedMove, calendarFor, wouldLoop, type NetDep } from "./engine-core.ts";
 import { scheduleRows, type GridOps } from "./grid.ts";
-import { ITEM_FIELDS, mapItem, logActivity, applyCascade, fieldChanges } from "./data";
+import { ITEM_FIELDS, mapItem, logActivity, applyCascade, fieldChanges, syncScheduleProgress } from "./data";
 import { engineModeFor, loadNetwork, recalcSchedule, PROGRESS_FLAG } from "./engine";
 import { isFeatureEnabled } from "@/lib/flags";
 import { progressPatch, todayAZ } from "./progress.ts";
@@ -169,6 +169,7 @@ export async function applyGridOps(scheduleId: string, ops: GridOps, actor?: Act
     } else {
       for (const id of datesChanged) result.moved += (await applyCascade(sched!.job_id, id, actor)).length;
     }
+    await syncScheduleProgress(scheduleId);
     const counts = { updated: ops.updates?.length ?? 0, created: ops.creates?.length ?? 0, deleted: ops.deletes?.length ?? 0, links: ops.predecessors?.length ?? 0, renumbered: !!ops.renumber };
     if (Object.values(counts).some(Boolean)) {
       await logActivity({

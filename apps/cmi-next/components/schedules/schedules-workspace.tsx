@@ -400,7 +400,7 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
                 key={primarySchedule.id} schedule={primarySchedule} items={items} phases={phases} dependencies={dependencies}
                 canEdit={canEdit} zoom={zoom} showBaseline={showBaseline} showLinks={showLinks} onToggleLinks={toggleLinks} onStyleItem={canEdit ? setStyling : undefined} linkMode={linkMode}
                 onOpenItem={setEditing} onBanner={setBanner} onDatesChange={ganttDates} onLink={(s, t) => addDependency(s, t)}
-                onReload={async () => { const b = await loadBundle(primarySchedule.id); void refreshEngine(); return b?.items ?? null; }}
+                onReload={async () => { const b = await loadBundle(primarySchedule.id); void refreshEngine(); void refreshSchedules(); return b?.items ?? null; }}
                 mode={engine.mode} contractVariances={new Map((engine.summary?.contract ?? []).map((c) => [c.id, c.variance]))}
                 baselineVariances={engine.progress ? new Map((engine.summary?.baseline ?? []).map((b) => [b.id, b.variance])) : undefined}
                 statusDate={engine.progress ? engine.status_date ?? null : null}
