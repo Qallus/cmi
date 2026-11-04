@@ -61,8 +61,9 @@ export function JobSummaryClient({ job, stats, forecast = null, feed = null }: {
 
         <div className={cn("grid gap-4 lg:grid-cols-3", showStats && "mt-4")}>
           {/* Summary card — job identity now lives here (moved out of the header) */}
-          <div className="space-y-4 lg:col-span-1">
-            <div className="rounded-lg border border-border bg-card p-4">
+          {/* On large screens the job card spans the first two rows of the cards beside it
+              (Past due + Action items), so its height matches them. */}
+            <div className="rounded-lg border border-border bg-card p-4 lg:row-span-2">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
                   <h1 className="font-display text-xl font-semibold tracking-tight">{job.job_name}</h1>
@@ -97,6 +98,7 @@ export function JobSummaryClient({ job, stats, forecast = null, feed = null }: {
               )}
             </div>
 
+          <div className="space-y-4 lg:col-start-1 lg:row-start-3">
             <Card title="Clients" action={<CardLink onClick={() => setLinking("client")}>Add</CardLink>}>
               {clients.length === 0 ? <Empty>No clients yet.</Empty> : clients.map((c) => {
                 const name = `${c.contact?.first_name ?? ""} ${c.contact?.last_name ?? ""}`.trim() || c.contact?.company || "Client";
@@ -187,7 +189,8 @@ export function JobSummaryClient({ job, stats, forecast = null, feed = null }: {
           {/* Dashboard cards */}
           {/* Live cards: each pulls from the job's schedules, Projects & Tasks
               board, punch lists, activity and logs, and adds in place. */}
-          <div className="grid content-start gap-4 sm:grid-cols-2 lg:col-span-2">
+          {/* lg:contents: these cards join the page grid as columns 2–3, row by row. */}
+          <div className="grid content-start gap-4 sm:grid-cols-2 lg:contents">
             {feed ? (
               <>
                 <PastDueCard jobId={job.id} feed={feed} />
@@ -202,7 +205,7 @@ export function JobSummaryClient({ job, stats, forecast = null, feed = null }: {
                 <LogsCard jobId={job.id} feed={feed} />
               </>
             ) : (
-              <div className="sm:col-span-2"><Empty>Sign in again to load this job&apos;s tasks and activity.</Empty></div>
+              <div className="sm:col-span-2 lg:col-start-2 lg:row-start-1"><Empty>Sign in again to load this job&apos;s tasks and activity.</Empty></div>
             )}
           </div>
         </div>
