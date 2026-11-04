@@ -76,21 +76,17 @@ export function JobSummaryClient({ job, stats, forecast = null, feed = null }: {
                   top bar after Prints; phones, where that bar is a single menu, get it here. */}
               <JobHeaderStatsToggle shown={showStats} onToggle={toggleStats} />
               <StatsToggle shown={showStats} onToggle={toggleStats} className="mt-2 md:hidden" />
-              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                <span className="font-mono">{job.job_number ?? "—"}</span>
-                {job.full_address && (
-                  <a href={`https://maps.google.com/?q=${encodeURIComponent(job.full_address)}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:text-foreground">
-                    <MapPin className="h-3.5 w-3.5" /> {job.full_address}
-                  </a>
-                )}
-              </div>
               <div className="mb-2 mt-4 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Job</div>
               <KV label="Status"><JobStatusBadge status={job.status as JobStatus} /></KV>
               <KV label="Job #">{job.job_number ?? "—"}</KV>
               {job.lead_number && <KV label="Pre-Con #"><span className="font-mono text-xs text-accent">{job.lead_number}</span></KV>}
               <KV label="Type">{job.job_type?.name ?? "—"}</KV>
               <KV label="Contract">{money(job.contract_price)}</KV>
-              <KV label="Address">{job.full_address ?? "—"}</KV>
+              <KV label="Address">{job.full_address ? (
+                <a href={`https://maps.google.com/?q=${encodeURIComponent(job.full_address)}`} target="_blank" rel="noreferrer" title="Open in Google Maps" className="inline-flex items-center gap-1 hover:text-accent hover:underline">
+                  <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /> {job.full_address}
+                </a>
+              ) : "—"}</KV>
               <KV label="Clocked in"><span className="inline-flex items-center gap-1 text-muted-foreground"><Clock className="h-3.5 w-3.5" /> Time clock not connected</span></KV>
               {(job.related_opportunity_id || job.related_lead_id) && (
                 <KV label="Sales">
