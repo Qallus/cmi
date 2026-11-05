@@ -6,7 +6,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { notifyStaff } from "@/lib/notifications/dispatch";
 
 export const WAITING_ON = ["none", "client", "sub", "teammate", "vendor"] as const;
-export const COMMITMENT_SOURCES = ["email", "sms", "meeting", "slack", "call", "manual"] as const;
+export const COMMITMENT_SOURCES = ["email", "sms", "meeting", "slack", "call", "manual", "daily_log"] as const;
 export const COMMITMENT_STATUSES = ["open", "done", "dismissed"] as const;
 
 export type Commitment = {

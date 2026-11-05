@@ -141,7 +141,9 @@ function ReportCard({ jobId, row, open, onToggle, canEdit, canReopen, onChanged 
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || "Couldn't update the log.");
       onChanged(d.log);
-      setMsg(action === "submit" ? `Submitted.${d.commitments ? ` ${d.commitments} action item${d.commitments === 1 ? "" : "s"} added to Commitments.` : ""}` : "Reopened as a draft.");
+      setMsg(action === "submit"
+        ? `Submitted.${d.commitments ? ` ${d.commitments} action item${d.commitments === 1 ? "" : "s"} added to Commitments.` : ""}${d.failed?.length ? ` ${d.failed.length} couldn't be added to Commitments: ${d.failed[0]}` : ""}`
+        : "Reopened as a draft. Submit again to add any new action items to Commitments.");
     } catch (e) { setMsg((e as Error).message); } finally { setSaving(false); }
   }
 

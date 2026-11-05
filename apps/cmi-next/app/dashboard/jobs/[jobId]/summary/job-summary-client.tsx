@@ -67,7 +67,6 @@ export function JobSummaryClient({ job, stats, forecast = null, feed = null }: {
               <div className="flex items-start justify-between gap-3">
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
                   <h1 className="font-display text-xl font-semibold tracking-tight">{job.job_name}</h1>
-                  <JobStatusBadge status={job.status as JobStatus} />
                 </div>
                 <Link href={`/dashboard/jobs/${job.id}/info`} className="mt-1 inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-sm font-medium text-accent hover:underline">
                   <Pencil className="h-3.5 w-3.5" /> Edit Job

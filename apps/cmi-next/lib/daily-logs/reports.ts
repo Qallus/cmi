@@ -160,13 +160,14 @@ async function staffByName(name: string | null | undefined): Promise<string | nu
 }
 
 /** Submit: lock the log and file its action items as internal commitments (once each). */
-export async function submitDayLog(logId: string, actor: Actor): Promise<{ log: FieldReport; commitments: number }> {
+export async function submitDayLog(logId: string, actor: Actor): Promise<{ log: FieldReport; commitments: number; failed: string[] }> {
   const sb = getSupabaseAdmin();
   const { data: cur } = await sb.from("daily_logs").select("*").eq("id", logId).eq("report_version", 2).maybeSingle();
   if (!cur) throw new Error("Daily log not found.");
   const log = asReport(cur);
   const items = [...log.sections.items];
   let made = 0;
+  const failed: string[] = [];
   for (const [idx, i] of items.entries()) {
     if (i.section !== "actions" || i.commitment_id) continue;
     const owner = await staffByName(i.owner);
@@ -179,14 +180,14 @@ export async function submitDayLog(logId: string, actor: Actor): Promise<{ log: 
       }, { id: actor.id }, "dashboard");
       items[idx] = { ...i, commitment_id: commitment.id };
       made++;
-    } catch { /* one bad item doesn't stop the submit */ }
+    } catch (e) { failed.push(`${i.text.slice(0, 60)}: ${(e as Error).message}`); /* one bad item doesn't stop the submit */ }
   }
   const { data, error } = await sb.from("daily_logs").update({
     status: "submitted", submitted_by: actor.id, submitted_at: new Date().toISOString(),
     sections: { ...log.sections, items }, updated_at: new Date().toISOString(),
   }).eq("id", logId).select("*").single();
   if (error) throw new Error(error.message);
-  return { log: asReport(data), commitments: made };
+  return { log: asReport(data), commitments: made, failed };
 }
 
 /** Back to Draft (Admins / PMs), recorded. */
