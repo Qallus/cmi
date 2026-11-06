@@ -78,6 +78,14 @@ and selections the client can't see. The trade version and the Friday send are s
   - offers a new baseline
 - This needs a hook in `updateChangeOrder`, a `schedule_extensions` table and a CO "days" field.
 
+**Built (2026-11-06, a17dece; migration `2026-11-06_schedule_baselines_extensions.sql` applied):**
+- Baselines are numbered and Baseline 0 is locked; each keeps the calendar it was captured on.
+- A picker beside the Baseline toggle shows earlier baselines.
+- `change_orders.schedule_days` is handled in `lib/schedules/extensions.ts`, called from
+  `updateChangeOrder`/`createChangeOrder`. It moves open contract milestones on or after the approval
+  date, once per CO.
+- The Change Orders page shows a banner with Capture new baseline.
+
 ## Step 5: Schedule health tiles (§7.4)
 
 - Forecast vs baseline and vs contract.
