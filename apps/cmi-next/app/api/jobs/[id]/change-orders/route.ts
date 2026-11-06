@@ -19,6 +19,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const { id } = await params;
     const body = await request.json();
     if (!body?.title?.trim()) return NextResponse.json({ error: "Title is required." }, { status: 400 });
-    return NextResponse.json(await createChangeOrder(id, body, user.email), { status: 201 });
+    return NextResponse.json(await createChangeOrder(id, body, user.email, staff.id), { status: 201 });
   } catch (err) { const e = err as AuthError; return NextResponse.json({ error: e.message }, { status: e.status ?? 500 }); }
 }

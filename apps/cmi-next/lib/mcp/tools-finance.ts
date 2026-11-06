@@ -187,7 +187,7 @@ const projectionTools: McpTool[] = [
 
 const CO_ROLES = ["super_admin", "admin", "project_manager"];
 const coRole = (c: McpCaller) => CO_ROLES.includes(c.ctx.role);
-const CO_FIELDS = ["title", "description", "status", "amount", "co_date", "approved_date", "requested_by", "client_visible"] as const;
+const CO_FIELDS = ["title", "description", "status", "amount", "co_date", "approved_date", "requested_by", "client_visible", "schedule_days"] as const;
 
 const changeOrderTools: McpTool[] = [
   {
@@ -227,13 +227,13 @@ const changeOrderTools: McpTool[] = [
     risk: "write",
     available: coRole,
     inputSchema: () => obj({ id: str("Change order id"), changes: fields("Fields to change") }, ["id", "changes"]),
-    run: async (a) => {
+    run: async (a, c) => {
       const before = await getChangeOrder(s(a.id));
       if (!before) return { result: { error: "No change order with that id." } };
       const patch = Object.fromEntries(Object.entries((a.changes as Json) ?? {}).filter(([k]) => (CO_FIELDS as readonly string[]).includes(k)));
       if (patch.status && !(CHANGE_ORDER_STATUSES as readonly string[]).includes(String(patch.status))) return { result: { error: `status must be one of ${CHANGE_ORDER_STATUSES.join(", ")}.` } };
       if (!Object.keys(patch).length) return { result: { error: `Change one of: ${CO_FIELDS.join(", ")}.` } };
-      const after = await updateChangeOrder(before.id, patch as Partial<ChangeOrderDraft>);
+      const after = await updateChangeOrder(before.id, patch as Partial<ChangeOrderDraft>, { id: c.ctx.id });
       return { result: { updated: true, change_order: after }, entity: "change_order", recordId: after.id, before, after };
     },
   },

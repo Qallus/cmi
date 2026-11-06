@@ -9,7 +9,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const { staff } = await requireAdmin(request);
     if (!WRITE_ROLES.includes(staff.role_slug)) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
     const { coId } = await params;
-    return NextResponse.json(await updateChangeOrder(coId, await request.json()));
+    return NextResponse.json(await updateChangeOrder(coId, await request.json(), { id: staff.id }));
   } catch (err) { const e = err as AuthError; return NextResponse.json({ error: e.message }, { status: e.status ?? 500 }); }
 }
 

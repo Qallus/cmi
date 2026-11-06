@@ -254,6 +254,8 @@ export type ScheduleBaseline = {
   snapshot: { item_id: string; start_date: string | null; end_date: string | null }[];
   number?: number | null;
   calendar_snapshot?: Record<string, unknown> | null;
+  /** Baseline 0 (at contract) is locked. */
+  locked?: boolean;
   reason: string | null;
   approved_by: string | null;
   approved_at: string | null;

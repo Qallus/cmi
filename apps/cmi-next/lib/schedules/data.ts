@@ -4,7 +4,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { addWorkdays, parseISO, fmtISO, workdaysBetween, workdayDiff } from "./workdays";
 import { notifyScheduleEvent, assigneeStaffIds } from "./notify";
 import { engineModeFor, recalcSchedule, assertMoveAllowed, assertNoLoop, durationOnCalendar, nextActivityId, loadNetwork } from "./engine";
-import { addW, CALENDAR_DAYS, dayNum, isoOf, nextW, spanW, workDiff, type DayCalendar } from "./calendar.ts";
+import { addW, CALENDAR_DAYS, dayNum, isoOf, mergeCalendars, nextW, spanW, workDiff, type DayCalendar } from "./calendar.ts";
 import { calendarFor } from "./engine-core.ts";
 import { DEFAULT_WORKDAYS } from "./types";
 import { isFeatureEnabled } from "@/lib/flags";
@@ -877,9 +877,22 @@ export async function captureBaseline(scheduleId: string, name: string, reason: 
   const snapshot = items.map((i) => ({ item_id: i.id, start_date: i.start_date, end_date: i.end_date }));
   // Stamp baseline_start/end on the items so the Gantt can render variance.
   await Promise.all(items.map((i) => sb.from("schedule_items").update({ baseline_start: i.start_date, baseline_end: i.end_date }).eq("id", i.id)));
-  const { data, error } = await sb.from("schedule_baselines").insert({ schedule_id: scheduleId, name: name || "Baseline", snapshot, reason: reason ?? null, captured_by: actor?.id ?? null }).select("*").single();
+  // Numbered per schedule; Baseline 0 (the first, at contract) is locked. The
+  // calendar it was worked out on is kept so later holidays don't skew it.
+  const { data: last } = await sb.from("schedule_baselines").select("number").eq("schedule_id", scheduleId).order("number", { ascending: false, nullsFirst: false }).limit(1).maybeSingle();
+  const number = last?.number == null ? 0 : (last.number as number) + 1;
+  let calendar: Record<string, unknown> | null = null;
+  try {
+    const net = await loadNetwork(scheduleId);
+    const me = net.schedules.find((s) => s.id === scheduleId);
+    if (me) calendar = mergeCalendars(net.company, { workdays: me.workdays }, net.job, net.scheduleCals?.[me.id]) as unknown as Record<string, unknown>;
+  } catch { /* the calendar is a nicety; never block a capture */ }
+  const { data, error } = await sb.from("schedule_baselines").insert({
+    schedule_id: scheduleId, name: name || (number === 0 ? "Baseline 0 (contract)" : `Baseline ${number}`), snapshot, reason: reason ?? null,
+    captured_by: actor?.id ?? null, number, locked: number === 0, calendar_snapshot: calendar,
+  }).select("*").single();
   if (error) throw new Error(error.message);
-  await logActivity({ scheduleId, action: "baseline_captured", detail: { name, items: snapshot.length }, actor });
+  await logActivity({ scheduleId, action: "baseline_captured", detail: { name, number, items: snapshot.length }, actor });
   return data as ScheduleBaseline;
 }
 

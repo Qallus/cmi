@@ -10,6 +10,8 @@ export type ChangeOrder = {
   amount: number | null;
   co_date: string | null;
   approved_date: string | null;
+  /** Working days this adds to the contract dates when approved (Schedules Phase 2). */
+  schedule_days?: number | null;
   requested_by: string | null;
   client_visible: boolean;
   created_by: string | null;

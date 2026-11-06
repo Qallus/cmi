@@ -60,6 +60,12 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
   const [zoom, setZoom] = React.useState<"day" | "week" | "month">("week");
   const [kanbanGroup, setKanbanGroup] = React.useState<"status" | "priority">("status");
   const [showBaseline, setShowBaseline] = React.useState(false);
+  // Baselines for the open schedule (newest = current); the Gantt can show an earlier one.
+  type BaselineLite = { id: string; number: number | null; name: string; locked: boolean; created_at: string; snapshot: { item_id: string; start_date: string | null; end_date: string | null }[] };
+  const [baselines, setBaselines] = React.useState<BaselineLite[]>([]);
+  const [baselinePickRaw, setBaselinePick] = React.useState<string | null>(null);
+  // A pick from another schedule's list doesn't apply here (falls back to the current baseline).
+  const baselinePick = baselinePickRaw && baselines.some((b) => b.id === baselinePickRaw) ? baselinePickRaw : null;
   // Double-clicked bar whose colours are being edited.
   const [styling, setStyling] = React.useState<ScheduleItem | null>(null);
   // Gantt link lines, on by default and remembered per person.
@@ -153,6 +159,13 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
     return out;
   }, [selectedIds, bundles]);
   const phases = overlay ? [] : (primaryId ? bundles[primaryId]?.phases ?? [] : []);
+  // Showing an earlier baseline swaps in its dates for the grey bars (variance still reads the current one).
+  const shownItems = React.useMemo(() => {
+    const b = baselinePick ? baselines.find((x) => x.id === baselinePick) : null;
+    if (!b || !showBaseline) return items;
+    const snap = new Map(b.snapshot.map((s) => [s.item_id, s]));
+    return items.map((i) => { const s = snap.get(i.id); return { ...i, baseline_start: s?.start_date ?? null, baseline_end: s?.end_date ?? null }; });
+  }, [items, baselines, baselinePick, showBaseline]);
   // Schedules whose dates the engine works out: a drag sends only the start
   // (move) or the end (resize) and the engine keeps the length in working days.
   const engineIds = React.useMemo(() => new Set(engine?.enabled ? selectedIds.filter((id) => (bundles[id]?.schedule.scheduling_mode ?? "legacy") !== "legacy") : []), [engine?.enabled, selectedIds, bundles]);
@@ -216,11 +229,25 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
     await fetch(`/api/schedules/${primaryId}/phases`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) });
     await loadBundle(primaryId);
   }
+  const loadBaselines = React.useCallback(async (id: string) => {
+    const res = await fetch(`/api/schedules/${id}/baselines`);
+    const d = res.ok ? await res.json() : null;
+    setBaselines(d?.baselines ?? []);
+  }, []);
+  React.useEffect(() => {
+    if (!primaryId || !showBaseline) return;
+    let live = true;
+    fetch(`/api/schedules/${primaryId}/baselines`).then((r) => (r.ok ? r.json() : null)).then((d) => { if (live) setBaselines(d?.baselines ?? []); }).catch(() => {});
+    return () => { live = false; };
+  }, [primaryId, showBaseline]);
   async function captureBaseline() {
     if (!primaryId) return;
-    const name = await promptText({ title: "Capture baseline", body: "Saves today's plan so the Gantt can show planned vs current.", label: "Baseline name", initial: "Baseline", submitLabel: "Capture" }); if (name === null) return;
-    await fetch(`/api/schedules/${primaryId}/baselines`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: name || "Baseline" }) });
-    await loadBundle(primaryId); setShowBaseline(true); setBanner("Baseline captured.");
+    const n = baselines.length ? (baselines[0].number ?? baselines.length - 1) + 1 : 0;
+    const name = await promptText({ title: `Capture Baseline ${n}`, body: n === 0 ? "Baseline 0 is the plan at contract. It's locked once captured." : "Saves today's plan as the new current baseline; variance reads against it. Earlier baselines stay available on the Gantt.", label: "Name or reason (optional)", initial: "", submitLabel: "Capture" }); if (name === null) return;
+    const res = await fetch(`/api/schedules/${primaryId}/baselines`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: name.trim() ? `Baseline ${n}: ${name.trim()}` : "", reason: name.trim() || null }) });
+    if (!res.ok) { const d = await res.json().catch(() => ({})); setBanner(d.error ?? "Couldn't capture the baseline."); return; }
+    await loadBundle(primaryId); await loadBaselines(primaryId); setShowBaseline(true); setBaselinePick(null); setBanner(`Baseline ${n} captured.`);
+    void refreshEngine();
   }
   async function setMaster(id: string) {
     await fetch(`/api/schedules/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ is_master: true }) });
@@ -347,6 +374,14 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
                 {canEdit ? <Button size="sm" variant={linkMode ? "accent" : "ghost"} onClick={() => setLinkMode((v) => !v)}><GitBranch className="h-3.5 w-3.5" /> Link</Button> : null}
                 <Button size="sm" variant={showLinks ? "accent" : "ghost"} onClick={toggleLinks} aria-pressed={showLinks}><Spline className="h-3.5 w-3.5" /> Links</Button>
                 <Button size="sm" variant={showBaseline ? "accent" : "ghost"} onClick={() => setShowBaseline((v) => !v)}><CalendarClock className="h-3.5 w-3.5" /> Baseline</Button>
+                {showBaseline && baselines.length > 1 && !overlay ? (
+                  <select aria-label="Baseline to show" value={baselinePick ?? ""} onChange={(e) => setBaselinePick(e.target.value || null)}
+                    className="h-8 rounded-md border border-border bg-card px-2 text-xs">
+                    {baselines.map((b, n) => (
+                      <option key={b.id} value={n === 0 ? "" : b.id}>{b.name || `Baseline ${b.number ?? ""}`}{n === 0 ? " (current)" : ""}{b.locked ? " 🔒" : ""}</option>
+                    ))}
+                  </select>
+                ) : null}
                 {canManage ? <Button size="sm" variant="ghost" onClick={captureBaseline} disabled={!primaryId}>Capture baseline</Button> : null}
                 <Segmented label="Zoom" value={zoom} onChange={setZoom} options={[["day", "Day"], ["week", "Week"], ["month", "Month"]]} />
               </>
@@ -394,7 +429,7 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
           <div className="flex-1 overflow-auto p-4 md:p-6">
             {loading && !items.length ? <div className="py-16 text-center text-sm text-muted-foreground">Loading schedule…</div> : null}
             {view === "gantt" || view === "timeline" ? (
-              <GanttView items={items} dependencies={dependencies} phases={phases} zoom={view === "timeline" ? "month" : zoom} groupBySchedule={overlay || view === "timeline"} showBaseline={showBaseline} showLinks={showLinks} statusDate={engine?.progress && !overlay ? engine.status_date ?? null : null} onStyleItem={canEdit ? setStyling : undefined} canEdit={canEdit} linkMode={linkMode} onOpenItem={setEditing} onDatesChange={ganttDates} onLink={(s, t) => addDependency(s, t)} />
+              <GanttView items={shownItems} dependencies={dependencies} phases={phases} zoom={view === "timeline" ? "month" : zoom} groupBySchedule={overlay || view === "timeline"} showBaseline={showBaseline} showLinks={showLinks} statusDate={engine?.progress && !overlay ? engine.status_date ?? null : null} onStyleItem={canEdit ? setStyling : undefined} canEdit={canEdit} linkMode={linkMode} onOpenItem={setEditing} onDatesChange={ganttDates} onLink={(s, t) => addDependency(s, t)} />
             ) : view === "calendar" ? (
               <CalendarView items={items} onOpenItem={setEditing} />
             ) : view === "kanban" ? (
@@ -403,7 +438,7 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
               <ResourceView items={items} onOpenItem={setEditing} />
             ) : view === "table" && engine?.enabled && primarySchedule && !overlay ? (
               <ScheduleGrid
-                key={primarySchedule.id} schedule={primarySchedule} items={items} phases={phases} dependencies={dependencies}
+                key={primarySchedule.id} schedule={primarySchedule} items={shownItems} phases={phases} dependencies={dependencies}
                 canEdit={canEdit} zoom={zoom} showBaseline={showBaseline} showLinks={showLinks} onToggleLinks={toggleLinks} onStyleItem={canEdit ? setStyling : undefined} linkMode={linkMode}
                 onOpenItem={setEditing} onBanner={setBanner} onDatesChange={ganttDates} onLink={(s, t) => addDependency(s, t)}
                 onReload={async () => { const b = await loadBundle(primarySchedule.id); void refreshEngine(); void refreshSchedules(); return b?.items ?? null; }}
