@@ -10,7 +10,7 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Bell, Calendar, CalendarCheck, Camera, CheckSquare, ChevronUp, ClipboardList, DollarSign, FileText, FolderKanban,
+  Bell, Calendar, CalendarCheck, Camera, CheckSquare, ChevronDown, ChevronUp, ClipboardList, DollarSign, FileText, FolderKanban,
   House, ListChecks, MessageCircle, Newspaper, Settings, ShieldCheck, SquarePen, TrendingUp, X, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -155,17 +155,23 @@ export function PortalFooterNav() {
   }, []);
   const persist = (v: boolean) => { setOpen(v); try { localStorage.setItem(FOOTER_KEY, v ? "0" : "1"); } catch { /* storage blocked */ } };
   const items = job ? jobItems(job) : portalItems(canvas);
+  // A tab on the bar's top edge, left: "Hide" tucks the bar away and leaves
+  // the same tab docked at the bottom as "Show".
+  const tab = "inline-flex items-center gap-1 rounded-t-lg border border-b-0 border-border bg-card/95 px-3 py-1 text-xs font-medium text-muted-foreground backdrop-blur transition hover:text-foreground";
   if (!open) {
     return (
-      <button type="button" onClick={() => persist(true)}
-        className="fixed bottom-4 left-1/2 z-40 inline-flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-border bg-card px-4 py-2 text-xs font-medium text-muted-foreground shadow-lg lg:hidden"
-        style={{ marginBottom: "env(safe-area-inset-bottom)" }}>
-        <ChevronUp className="h-4 w-4" /> Menu
-      </button>
+      <div className="fixed bottom-0 left-3 z-40 lg:hidden" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+        <button type="button" onClick={() => persist(true)} aria-label="Show the page menu" className={cn(tab, "shadow-[0_-2px_10px_rgba(0,0,0,0.08)]")}>
+          <ChevronUp className="h-3.5 w-3.5" /> Show
+        </button>
+      </div>
     );
   }
   return (
     <div className="fixed inset-x-0 bottom-0 z-40 lg:hidden">
+      <button type="button" onClick={() => persist(false)} aria-label="Hide the page menu" className={cn(tab, "absolute -top-[26px] left-3")}>
+        <ChevronDown className="h-3.5 w-3.5" /> Hide
+      </button>
       <div className="flex items-stretch border-t border-border bg-card/95 shadow-[0_-2px_12px_rgba(0,0,0,0.08)] backdrop-blur">
         <nav aria-label="Pages" className="flex flex-1 gap-1 overflow-x-auto px-2 py-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {items.map((it) => (
@@ -175,9 +181,6 @@ export function PortalFooterNav() {
             </Link>
           ))}
         </nav>
-        <button type="button" onClick={() => persist(false)} aria-label="Hide menu" className="flex shrink-0 items-center border-l border-border px-3 text-muted-foreground hover:text-foreground">
-          <X className="h-4 w-4" />
-        </button>
       </div>
       <div className="bg-card/95" style={{ height: "env(safe-area-inset-bottom)" }} />
     </div>
