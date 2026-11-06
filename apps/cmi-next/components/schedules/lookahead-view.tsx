@@ -36,9 +36,12 @@ export function LookaheadView({ scheduleId, onClose, onOpenItem, canEdit = false
   const [audience, setAudience] = React.useState<LookaheadAudience>("internal");
   const [version, setVersion] = React.useState(0);
   const [busy, setBusy] = React.useState<string | null>(null);
+  // The % just picked shows straight away; saving re-forecasts and takes a moment.
+  const [pending, setPending] = React.useState<Record<string, number>>({});
   const [capture, setCapture] = React.useState<string | null>(null);
   async function setPct(id: string, pct: number) {
     setBusy(id);
+    setPending((p) => ({ ...p, [id]: pct }));
     try {
       const res = await fetch(`/api/schedule-items/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ percent_complete: pct }) });
       if (!res.ok) setError(((await res.json().catch(() => ({}))) as { error?: string }).error ?? "Couldn't save.");
@@ -52,7 +55,7 @@ export function LookaheadView({ scheduleId, onClose, onOpenItem, canEdit = false
     fetch(`/api/schedules/${scheduleId}/lookahead?audience=${audience}`).then(async (res) => {
       const j = await res.json().catch(() => ({}));
       if (!live) return;
-      if (res.ok) { setData(j); setError(null); } else setError(j.error ?? "Couldn't load the lookahead.");
+      if (res.ok) { setData(j); setError(null); setPending({}); } else setError(j.error ?? "Couldn't load the lookahead.");
     }).catch(() => { if (live) setError("Couldn't load the lookahead."); });
     return () => { live = false; };
   }, [scheduleId, audience, version]);
@@ -98,7 +101,7 @@ export function LookaheadView({ scheduleId, onClose, onOpenItem, canEdit = false
                       </div>
                       {canEdit && r.status !== "done" ? (
                         <div className="mt-2 flex flex-wrap items-center gap-2">
-                          <select aria-label={`% complete for ${r.title}`} value={r.pct} disabled={busy === r.id} onChange={(e) => void setPct(r.id, Number(e.target.value))}
+                          <select aria-label={`% complete for ${r.title}`} value={pending[r.id] ?? r.pct} disabled={busy === r.id} onChange={(e) => void setPct(r.id, Number(e.target.value))}
                             className="h-10 rounded-md border border-border bg-background px-2 text-sm">
                             {[0, 10, 25, 50, 75, 90].map((p) => <option key={p} value={p}>{p}%</option>)}
                             {![0, 10, 25, 50, 75, 90].includes(r.pct) ? <option value={r.pct}>{r.pct}%</option> : null}

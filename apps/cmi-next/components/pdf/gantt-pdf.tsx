@@ -91,8 +91,9 @@ export function GanttPdf({ logo, view, rows, scale, project, schedule, showBasel
           </Text>
         </View>
         <View fixed style={{ position: "absolute", right: M, bottom: M - 8, width: 360, borderWidth: 1, borderColor: CMI.ink, flexDirection: "row" }}>
-          <View style={{ width: 120, borderRightWidth: 0.75, borderRightColor: CMI.ink, padding: 5, justifyContent: "center" }}>
-            {logo ? <Image src={logo} style={{ width: 108, height: 22, objectFit: "contain" }} /> : <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold" }}>CONSTRUCTED MATTER, INC.</Text>}
+          <View style={{ width: 120, borderRightWidth: 0.75, borderRightColor: CMI.ink, padding: 5, justifyContent: "center", overflow: "hidden" }}>
+            {/* The wide logo, scaled to fit the cell (react-pdf ignores objectFit on width alone). */}
+            {logo ? <View style={{ width: 108, height: 21, overflow: "hidden" }}><Image src={logo} style={{ width: 108, height: 21 }} /></View> : <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold" }}>CONSTRUCTED MATTER, INC.</Text>}
             <Text style={{ fontSize: 5.5, color: CMI.muted, marginTop: 3 }}>AZ ROC KB-1 #343120</Text>
           </View>
           <View style={{ flexGrow: 1 }}>
