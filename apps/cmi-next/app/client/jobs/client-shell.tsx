@@ -56,10 +56,15 @@ export function ClientShell({ children, preview = null }: { children: React.Reac
               <div className="flex min-w-0 items-center gap-2.5">
                 <button type="button" onClick={() => setMenu(true)} aria-label="Open navigation menu" className={`${iconBtn} lg:hidden`}><Menu className="h-4 w-4" /></button>
                 <Link href="/client/jobs" className="flex min-w-0 items-center gap-3">
-                  {/* eslint-disable-next-line @next/next/no-img-element -- static brand SVG, same as the dashboard */}
-                  <img src="/brand/CMI_Line_Logo_Black.svg" alt="Constructed Matter, Inc." className="h-7 w-auto object-contain dark:hidden" />
+                  {/* Phone / tablet: the app icon. Desktop: the full logo. Each in a light and a dark version. */}
+                  {/* eslint-disable-next-line @next/next/no-img-element -- static brand images, same as the dashboard */}
+                  <img src="/brand/cmi_app_icon_black.png" alt="Constructed Matter, Inc." className="h-8 w-8 object-contain lg:hidden dark:hidden" />
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="/brand/CMI_Line_Logo_White.svg" alt="Constructed Matter, Inc." className="hidden h-7 w-auto object-contain dark:block" />
+                  <img src="/brand/cmi_app_icon_white.png" alt="" aria-hidden className="hidden h-8 w-8 object-contain dark:block lg:dark:hidden" />
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/brand/CMI_Line_Logo_Black.svg" alt="Constructed Matter, Inc." className="hidden h-7 w-auto object-contain lg:block lg:dark:hidden" />
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/brand/CMI_Line_Logo_White.svg" alt="" aria-hidden className="hidden h-7 w-auto object-contain lg:dark:block" />
                   <span className="hidden text-xs uppercase tracking-[0.16em] text-muted-foreground md:inline">Project Portal</span>
                 </Link>
               </div>
