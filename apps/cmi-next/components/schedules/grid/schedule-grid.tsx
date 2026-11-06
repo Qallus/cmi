@@ -10,6 +10,7 @@ import { createPortal } from "react-dom";
 import { ChevronDown, ChevronRight, ChevronLeft, GripVertical, Maximize2, Undo2, Redo2, Columns3, ListOrdered, Plus, History, Loader2, FlaskConical, Check, FileSpreadsheet, Download, FileUp, Spline } from "lucide-react";
 import { ExcelImportDialog } from "./excel-import";
 import { ResourcePicker } from "../resource-picker";
+import { orderByDate } from "@/lib/schedules/order-by";
 import { ScheduleModal } from "../schedule-modal";
 import type { Assignee } from "@/lib/schedules/types";
 import { Button } from "@/components/ui/button";
@@ -165,8 +166,14 @@ export function ScheduleGrid({
         return contractVariances?.get(id);
       },
       baselineVarianceOf: (id) => baselineVariances?.get(id),
+      orderByOf: (id) => {
+        const it = items.find((i) => i.id === id);
+        if (!it?.lead_time_days) return null;
+        const startOf = new Map(allItems.map((i) => [i.id, i.start_date]));
+        return orderByDate(it, dependencies.filter((d) => d.source_item_id === id).map((d) => startOf.get(d.target_item_id)));
+      },
     };
-  }, [items, dependencies, wi, contractVariances, baselineVariances]);
+  }, [items, allItems, dependencies, wi, contractVariances, baselineVariances]);
 
   const rows = React.useMemo(() => scheduleRows(items, phases, { collapsed }), [items, phases, collapsed]);
   const itemRows = React.useMemo(() => rows.flatMap((r) => (r.kind === "item" ? [r.item] : [])), [rows]);
@@ -435,7 +442,7 @@ export function ScheduleGrid({
     applyChanges(changes, `Fill down ${range.bottom - range.top} row${range.bottom - range.top === 1 ? "" : "s"}`);
   }
   function clearRange() {
-    const clearable: ColumnKey[] = ["notes", "cost_code", "constraint", "cdate", "preds", "duration"];
+    const clearable: ColumnKey[] = ["notes", "cost_code", "wbs", "location", "lead", "constraint", "cdate", "preds", "duration"];
     const changes = rangeCells().filter((c) => clearable.includes(c.key)).map((c) => ({ ...c, text: "", change: parseCell(c.item, c.key, "", ctx) }));
     if (changes.length) applyChanges(changes, "Clear cells");
   }

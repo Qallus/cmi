@@ -122,6 +122,18 @@ Float on the finish = working days from the forecast finish to the latest contra
 | Client milestone page | Contract and client-decision milestones with contract date, forecast and variance. |
 | Mobile field update | Tap % or Done from the lookahead on a phone, with a photo or note, through the existing capture flow. |
 
+**Step 8 progress (2026-11-06):**
+- **Built:**
+  - WBS / Location grid columns (and in Excel).
+  - Lead (wd) + Order by columns, with a Procurement layout. Migration `2026-11-06_schedule_lead_times.sql`.
+  - 11×17 Gantt print (`components/pdf/gantt-pdf.tsx`, `/api/schedules/[id]/gantt-pdf?view=`).
+  - Mobile field update cards in the Lookahead.
+- **Steps 6–7 built:** Step 6 is start reminders; Step 7 is resources and the cross-job Resources view.
+- **Still open:**
+  - The client milestone page waits for Jeremy's uncommitted client-portal work (portal schedule page and layout).
+  - Inspection results wait on Brandon (item 2 below).
+  - The "no PO issued" flag waits on purchase orders.
+
 ## Open with Brandon
 
 1. **Friday trade send:** confirm the email plan above (Step 3).

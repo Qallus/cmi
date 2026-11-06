@@ -14,10 +14,10 @@ export const PHASE_HEADER = "Phase";
 /** Exported columns, in order (Task GUID is hidden in the sheet). */
 export const EXPORT_COLUMNS: ColumnKey[] = [
   "id", "name", "duration", "start", "finish", "preds", "succs", "pct", "float",
-  "constraint", "cdate", "calendar", "mtype", "contract", "variance", "cost_code", "assigned", "notes",
+  "constraint", "cdate", "calendar", "mtype", "contract", "variance", "cost_code", "wbs", "location", "lead", "orderby", "assigned", "notes",
 ];
 /** What an upload may change (the rest is worked out or set elsewhere). */
-const IMPORTABLE = new Set<ColumnKey>(["id", "name", "duration", "start", "finish", "preds", "pct", "constraint", "cdate", "calendar", "mtype", "contract", "cost_code", "notes"]);
+const IMPORTABLE = new Set<ColumnKey>(["id", "name", "duration", "start", "finish", "preds", "pct", "constraint", "cdate", "calendar", "mtype", "contract", "cost_code", "wbs", "location", "lead", "notes"]);
 
 export type ImportChange = { field: string; from: string; to: string };
 export type ImportRow = {
@@ -41,7 +41,7 @@ export type ImportPlan = {
 const LABEL: Partial<Record<ColumnKey, string>> = {
   id: "ID", name: "Task name", duration: "Duration", start: "Start", finish: "Finish", preds: "Predecessors",
   pct: "% complete", constraint: "Constraint", cdate: "Constraint date", calendar: "Calendar",
-  mtype: "Milestone type", contract: "Contract date", cost_code: "Cost code", notes: "Notes",
+  mtype: "Milestone type", contract: "Contract date", cost_code: "Cost code", wbs: "WBS", location: "Location", lead: "Lead time", notes: "Notes",
 };
 
 export function planImport(sheet: string[][], items: ScheduleItem[], phases: SchedulePhase[], ctx: GridCtx): ImportPlan {

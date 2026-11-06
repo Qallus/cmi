@@ -109,10 +109,20 @@ export async function sendStartReminders(opts: { staffId?: string; push?: boolea
   } catch { return 0; /* reminders are best-effort */ }
 }
 
+// The bell polls every couple of minutes; one person's reminders only need
+// working out every 15 (the scheduled run covers everyone).
+const lastStartScan = new Map<string, number>();
+function startRemindersFor(staffId: string): Promise<number> {
+  const now = Date.now();
+  if (now - (lastStartScan.get(staffId) ?? 0) < 15 * 60_000) return Promise.resolve(0);
+  lastStartScan.set(staffId, now);
+  return sendStartReminders({ staffId });
+}
+
 export type ScheduleFeedItem = { id: string; title: string; subtitle: string; time: string; href: string };
 
 export async function listScheduleNotifications(staffId: string): Promise<ScheduleFeedItem[]> {
-  await Promise.all([generateDueSoon(staffId), sendStartReminders({ staffId })]);
+  await Promise.all([generateDueSoon(staffId), startRemindersFor(staffId)]);
   const sb = getSupabaseAdmin();
   const { data } = await sb.from("schedule_notifications")
     .select("id, title, subtitle, job_id, created_at")
@@ -122,7 +132,7 @@ export async function listScheduleNotifications(staffId: string): Promise<Schedu
 }
 
 export async function countScheduleNotifications(staffId: string): Promise<number> {
-  await Promise.all([generateDueSoon(staffId), sendStartReminders({ staffId })]);
+  await Promise.all([generateDueSoon(staffId), startRemindersFor(staffId)]);
   const sb = getSupabaseAdmin();
   const { count } = await sb.from("schedule_notifications").select("id", { count: "exact", head: true }).eq("recipient_staff_id", staffId).is("read_at", null);
   return count ?? 0;

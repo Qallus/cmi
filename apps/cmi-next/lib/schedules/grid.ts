@@ -56,7 +56,9 @@ export type ColumnKey =
   | "float" | "constraint" | "cdate" | "calendar" | "assigned" | "status" | "cost_code" | "notes"
   | "mtype" | "contract" | "variance"
   // Phase 2 progress:
-  | "astart" | "afinish" | "remaining" | "bvar";
+  | "astart" | "afinish" | "remaining" | "bvar"
+  // Phase 2 Step 8: work breakdown and where on site.
+  | "wbs" | "location" | "lead" | "orderby";
 
 export type Column = { key: ColumnKey; label: string; width: number; editable: boolean; align?: "right"; aliases?: string[] };
 
@@ -84,14 +86,19 @@ export const GRID_COLUMNS: Column[] = [
   { key: "afinish", label: "Actual finish", width: 100, editable: true, aliases: ["actual finish", "act finish", "finished"] },
   { key: "remaining", label: "Remaining", width: 80, editable: true, align: "right", aliases: ["remaining", "remaining duration", "rem"] },
   { key: "bvar", label: "vs baseline", width: 84, editable: false, align: "right", aliases: ["variance to baseline", "baseline variance"] },
+  { key: "wbs", label: "WBS", width: 72, editable: true, aliases: ["wbs code", "work breakdown"] },
+  { key: "location", label: "Location", width: 110, editable: true, aliases: ["location code", "area", "room"] },
+  { key: "lead", label: "Lead (wd)", width: 72, editable: true, align: "right", aliases: ["lead time", "lead", "lead days"] },
+  { key: "orderby", label: "Order by", width: 92, editable: false, aliases: ["order by", "order date"] },
 ];
 export const COLUMN = Object.fromEntries(GRID_COLUMNS.map((c) => [c.key, c])) as Record<ColumnKey, Column>;
 
 export const GRID_LAYOUTS: Record<string, ColumnKey[]> = {
-  "PM view": ["id", "name", "duration", "start", "finish", "preds", "succs", "pct", "float", "constraint", "assigned", "notes"],
-  "Super view": ["id", "name", "duration", "start", "finish", "pct", "float", "assigned", "notes"],
+  "PM view": ["id", "wbs", "name", "duration", "start", "finish", "preds", "succs", "pct", "float", "constraint", "assigned", "notes"],
+  "Super view": ["id", "name", "location", "duration", "start", "finish", "pct", "float", "assigned", "notes"],
   "Client print": ["name", "start", "finish", "pct"],
   "Milestones": ["id", "name", "start", "mtype", "contract", "variance", "float", "notes"],
+  "Procurement": ["id", "name", "start", "finish", "lead", "orderby", "succs", "assigned", "notes"],
   "Progress": ["id", "name", "duration", "start", "finish", "pct", "astart", "afinish", "remaining", "bvar", "float", "status"],
 };
 
@@ -111,6 +118,8 @@ export type GridCtx = {
   varianceOf?: (itemId: string) => number | null | undefined;
   /** Forecast finish vs baseline finish, working days (Phase 2). */
   baselineVarianceOf?: (itemId: string) => number | null | undefined;
+  /** Order-by date from the lead time (Phase 2). */
+  orderByOf?: (itemId: string) => string | null;
 };
 
 export const CONSTRAINT_TEXT: Record<string, string> = { snet: "SNET", mfo: "MFO", alap: "ALAP", locked: "Locked" };
@@ -137,6 +146,10 @@ export function cellText(item: ScheduleItem, key: ColumnKey, ctx: GridCtx): stri
     case "assigned": return (item.assignees ?? []).map((a) => a.name).join(", ");
     case "status": return item.status ?? "";
     case "cost_code": return item.cost_code ?? "";
+    case "wbs": return item.wbs ?? "";
+    case "location": return item.location ?? "";
+    case "lead": return item.lead_time_days ? String(item.lead_time_days) : "";
+    case "orderby": return ctx.orderByOf?.(item.id) ?? "";
     case "notes": return item.internal_notes ?? "";
     case "mtype": return item.milestone_type ? MILESTONE_TEXT[item.milestone_type] ?? item.milestone_type : "";
     case "contract": return item.contract_date ?? "";
@@ -264,6 +277,13 @@ export function parseCell(item: ScheduleItem, key: ColumnKey, text: string, ctx:
       return { error: "Calendar is Working days or Calendar days." };
     }
     case "cost_code": return { patch: { cost_code: t || null } };
+    case "wbs": return { patch: { wbs: t ? t.slice(0, 40) : null } };
+    case "location": return { patch: { location: t ? t.slice(0, 120) : null } };
+    case "lead": {
+      if (!t) return { patch: { lead_time_days: null } };
+      const n = Number(t.replace(/\s*(wd|days?|d)$/i, ""));
+      return Number.isInteger(n) && n >= 0 && n <= 400 ? { patch: { lead_time_days: n } } : { error: "Lead time is a number of working days (0–400)." };
+    }
     case "mtype": {
       if (!t) return { patch: { milestone_type: null } };
       const hit = Object.entries(MILESTONE_TEXT).find(([k, v]) => k === t.toLowerCase().replace(/\s+/g, "_") || v.toLowerCase() === t.toLowerCase());

@@ -4,7 +4,8 @@
 // after, grouped by phase, with who's doing it and the selection it waits on.
 // Internal or Client version; PDF prints the same rows on one landscape page.
 import * as React from "react";
-import { FileText, Loader2 } from "lucide-react";
+import { Camera, Check, FileText, Loader2 } from "lucide-react";
+import { AddDailyLogDialog } from "@/components/dashboard/add-daily-log";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { LOOKAHEAD_STATUS_LABELS, type Lookahead, type LookaheadAudience, type LookaheadRow } from "@/lib/schedules/lookahead";
@@ -27,8 +28,23 @@ const BAR_CLS: Record<LookaheadRow["status"], string> = {
 };
 const dow = (iso: string) => "MTWTF"[new Date(`${iso}T12:00:00Z`).getUTCDay() - 1] ?? "";
 
-export function LookaheadView({ scheduleId, onClose, onOpenItem }: { scheduleId: string; onClose: () => void; onOpenItem?: (id: string) => void }) {
+export function LookaheadView({ scheduleId, onClose, onOpenItem, canEdit = false, jobId = null, onChanged }: {
+  scheduleId: string; onClose: () => void; onOpenItem?: (id: string) => void;
+  /** Field update from the lookahead (Phase 2 Step 8): % / Done, and a note or photo to today's log. */
+  canEdit?: boolean; jobId?: string | null; onChanged?: () => void;
+}) {
   const [audience, setAudience] = React.useState<LookaheadAudience>("internal");
+  const [version, setVersion] = React.useState(0);
+  const [busy, setBusy] = React.useState<string | null>(null);
+  const [capture, setCapture] = React.useState<string | null>(null);
+  async function setPct(id: string, pct: number) {
+    setBusy(id);
+    try {
+      const res = await fetch(`/api/schedule-items/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ percent_complete: pct }) });
+      if (!res.ok) setError(((await res.json().catch(() => ({}))) as { error?: string }).error ?? "Couldn't save.");
+      setVersion((v) => v + 1); onChanged?.();
+    } finally { setBusy(null); }
+  }
   const [data, setData] = React.useState<Data | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   React.useEffect(() => {
@@ -39,7 +55,7 @@ export function LookaheadView({ scheduleId, onClose, onOpenItem }: { scheduleId:
       if (res.ok) { setData(j); setError(null); } else setError(j.error ?? "Couldn't load the lookahead.");
     }).catch(() => { if (live) setError("Couldn't load the lookahead."); });
     return () => { live = false; };
-  }, [scheduleId, audience]);
+  }, [scheduleId, audience, version]);
 
   const la = data?.lookahead;
   const client = audience === "client";
@@ -63,8 +79,43 @@ export function LookaheadView({ scheduleId, onClose, onOpenItem }: { scheduleId:
         {error ? <div className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</div> : null}
         {!data && !error ? <div className="flex items-center gap-2 py-8 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div> : null}
         {la && !la.count ? <div className="rounded-md border border-dashed border-border px-3 py-8 text-center text-muted-foreground">Nothing is scheduled in these three weeks.</div> : null}
+        {la && la.count && !client ? (
+          /* On a phone: a card per task with big buttons for a field update. */
+          <div className="space-y-3 md:hidden">
+            {la.groups.map((g) => (
+              <div key={g.phase}>
+                <div className="pb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-accent">{g.phase}</div>
+                <ul className="space-y-2">
+                  {g.rows.map((r) => (
+                    <li key={r.id} className="rounded-lg border border-border p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="font-medium">{r.milestone ? "◆ " : ""}{r.title}</div>
+                          <div className="text-xs text-muted-foreground">{fmtDate(r.start)}{r.milestone ? "" : ` – ${fmtDate(r.finish)}`}{r.trade ? ` · ${r.trade}` : ""}</div>
+                          {r.waitsOn ? <div className={cn("text-xs", r.waitsOn.late ? "font-medium text-destructive" : "text-muted-foreground")}>Waits on {r.waitsOn.name}</div> : null}
+                        </div>
+                        <span className={cn("shrink-0 text-xs font-medium", STATUS_CLS[r.status])}>{LOOKAHEAD_STATUS_LABELS[r.status]}{r.status === "in_progress" && r.pct ? ` ${r.pct}%` : ""}</span>
+                      </div>
+                      {canEdit && r.status !== "done" ? (
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <select aria-label={`% complete for ${r.title}`} value={r.pct} disabled={busy === r.id} onChange={(e) => void setPct(r.id, Number(e.target.value))}
+                            className="h-10 rounded-md border border-border bg-background px-2 text-sm">
+                            {[0, 10, 25, 50, 75, 90].map((p) => <option key={p} value={p}>{p}%</option>)}
+                            {![0, 10, 25, 50, 75, 90].includes(r.pct) ? <option value={r.pct}>{r.pct}%</option> : null}
+                          </select>
+                          <Button size="sm" variant="accent" className="h-10" disabled={busy === r.id} onClick={() => void setPct(r.id, 100)}>{busy === r.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Done</Button>
+                          {jobId ? <Button size="sm" variant="outline" className="h-10" onClick={() => setCapture(r.title)}><Camera className="h-4 w-4" /> Note / photo</Button> : null}
+                        </div>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        ) : null}
         {la && la.count ? (
-          <div className="overflow-x-auto">
+          <div className={cn("overflow-x-auto", !client && "hidden md:block")}>
             <table className="w-full min-w-[920px] border-collapse text-xs">
               <thead>
                 <tr className="border-b border-border text-left text-[10px] uppercase tracking-wide text-muted-foreground">
@@ -118,6 +169,9 @@ export function LookaheadView({ scheduleId, onClose, onOpenItem }: { scheduleId:
           </div>
         ) : null}
       </div>
+      {capture && jobId ? (
+        <AddDailyLogDialog preselect={{ kind: "job", id: jobId }} onClose={() => setCapture(null)} onSaved={() => setCapture(null)} />
+      ) : null}
     </ScheduleModal>
   );
 }

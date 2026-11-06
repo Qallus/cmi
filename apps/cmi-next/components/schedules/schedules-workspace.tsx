@@ -5,6 +5,7 @@ import { StatusDateControl } from "./status-date";
 import { WeeklyUpdate } from "./weekly-update";
 import { LookaheadView } from "./lookahead-view";
 import { HealthTiles } from "./health-tiles";
+import { GANTT_PRINT_VIEWS } from "@/lib/schedules/gantt-print";
 import { ReminderSetting } from "./reminder-setting";
 import { ItemColorsPanel } from "./item-colors-panel";
 import { confirmAction, promptText } from "@/components/ui/confirm-action";
@@ -91,6 +92,8 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
   const [calendarOpen, setCalendarOpen] = React.useState(false);
   const [updateOpen, setUpdateOpen] = React.useState(false);
   const [lookaheadOpen, setLookaheadOpen] = React.useState(false);
+  const [pdfMenu, setPdfMenu] = React.useState(false);
+  const [pdfBaseline, setPdfBaseline] = React.useState(false);
   const [engine, setEngine] = React.useState<EngineState | null>(null);
 
   React.useEffect(() => {
@@ -416,7 +419,24 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
             ) : null}
             {engine?.enabled && primarySchedule && !overlay ? <AutoTooltip content={primarySchedule.job_id ? "This job's working days and closed days" : "This schedule's working days and closed days"}><Button size="sm" variant="ghost" onClick={() => setCalendarOpen(true)}><CalendarClock className="h-3.5 w-3.5" /> Calendar</Button></AutoTooltip> : null}
             {primarySchedule && canEdit && !overlay ? <Button size="sm" variant="ghost" onClick={() => setShiftOpen(true)}><CalendarRange className="h-3.5 w-3.5" /> Shift dates</Button> : null}
-            {primarySchedule ? <Button size="sm" variant="ghost" onClick={() => window.open(`/api/schedules/${primarySchedule.id}/pdf`, "_blank")}><FileText className="h-3.5 w-3.5" /> PDF</Button> : null}
+            {primarySchedule ? (
+              <div className="relative">
+                <Button size="sm" variant="ghost" onClick={() => setPdfMenu((o) => !o)} aria-expanded={pdfMenu}><FileText className="h-3.5 w-3.5" /> PDF <ChevronDown className="h-3 w-3 opacity-60" /></Button>
+                {pdfMenu ? (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setPdfMenu(false)} />
+                    <div className="absolute right-0 z-50 mt-1 w-64 rounded-lg border border-border bg-card p-1 text-sm shadow-lg">
+                      <button type="button" onClick={() => { setPdfMenu(false); window.open(`/api/schedules/${primarySchedule.id}/pdf`, "_blank"); }} className="block w-full rounded px-2 py-1.5 text-left hover:bg-muted/50">Schedule list <span className="text-xs text-muted-foreground">(Letter)</span></button>
+                      <div className="mt-1 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Gantt, 11×17</div>
+                      {GANTT_PRINT_VIEWS.map((g) => (
+                        <button key={g.key} type="button" onClick={() => { setPdfMenu(false); window.open(`/api/schedules/${primarySchedule.id}/gantt-pdf?view=${g.key}${pdfBaseline ? "&baseline=1" : ""}`, "_blank"); }} className="block w-full rounded px-2 py-1.5 text-left hover:bg-muted/50">{g.label}</button>
+                      ))}
+                      <label className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground"><input type="checkbox" checked={pdfBaseline} onChange={(e) => setPdfBaseline(e.target.checked)} /> Show the baseline under each bar</label>
+                    </div>
+                  </>
+                ) : null}
+              </div>
+            ) : null}
             {primarySchedule && canManage ? (
               <div className="flex items-center gap-1">
                 {!primarySchedule.is_master ? <Button size="sm" variant="ghost" onClick={() => setMaster(primarySchedule.id)}><Star className="h-3.5 w-3.5" /> Make Master</Button> : null}
@@ -471,7 +491,8 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
           onChanged={async () => { await loadBundle(primarySchedule.id); void refreshEngine(); void refreshSchedules(); }} />
       ) : null}
       {primarySchedule && engine?.progress && lookaheadOpen ? (
-        <LookaheadView scheduleId={primarySchedule.id} onClose={() => setLookaheadOpen(false)}
+        <LookaheadView scheduleId={primarySchedule.id} onClose={() => setLookaheadOpen(false)} canEdit={canEdit} jobId={primarySchedule.job_id ?? null}
+          onChanged={() => { void loadBundle(primarySchedule.id); void refreshEngine(); void refreshSchedules(); }}
           onOpenItem={(id) => { const it = items.find((i) => i.id === id); if (it) { setLookaheadOpen(false); setEditing(it); } }} />
       ) : null}
       {calendarOpen && primarySchedule ? (

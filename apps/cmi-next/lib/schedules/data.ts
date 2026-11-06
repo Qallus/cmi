@@ -221,7 +221,7 @@ export const ITEM_FIELDS = [
   "link_type", "link_id", "link_label",
   // Schedule engine (computed early/late dates and float are written by lib/schedules/engine.ts only):
   "activity_id", "wbs", "duration_unit", "constraint_type", "constraint_date", "actual_start", "actual_finish",
-  "remaining_duration", "milestone_type", "contract_date", "cost_code",
+  "remaining_duration", "milestone_type", "contract_date", "cost_code", "lead_time_days",
   // Gantt appearance:
   "bar_color",
 ] as const;
