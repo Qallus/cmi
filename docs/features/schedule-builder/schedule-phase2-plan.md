@@ -55,6 +55,13 @@ shares it themselves.
 - A view plus a one-page branded PDF: this week, next week, the week after, grouped by phase.
   It shows task, trade, start, finish, status, and the selection it waits on.
 - Client version: client-visible tasks only.
+
+**Built (2026-11-06, internal and client versions, behind `schedule_progress`):** the schedule's
+**Lookahead** button (`components/schedules/lookahead-view.tsx`) and a one-page landscape PDF
+(`components/pdf/lookahead-pdf.tsx`, `/api/schedules/[id]/lookahead/pdf?audience=client`). Rows come from
+`lib/schedules/lookahead.ts` (with tests). "Waits on" is the task's linked selection, shown red
+when it isn't decided before the work starts. The client version leaves out trades, late flags
+and selections the client can't see. The trade version and the Friday send are still waiting on Brandon.
 - **Trade version and Friday send are decisions for Brandon.**
   - They email outside people automatically: from info@, Reply-To the PM, a Friday-morning
     preview and a hold, through the outbound guard and consent checks.
