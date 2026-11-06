@@ -4,7 +4,9 @@
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { sendPushToStaff } from "@/lib/push/web-push";
 import { canSendOutbound } from "@/lib/notifications/dispatch";
+import { isFeatureEnabled } from "@/lib/flags";
 import { fmtISO } from "./workdays";
+import { DEFAULT_REMINDER_DAYS, reminderSubtitle, startReminders, type ReminderTask } from "./reminders.ts";
 import type { Assignee } from "./types";
 
 export function assigneeStaffIds(assignees: Assignee[] | null | undefined): string[] {
@@ -65,10 +67,52 @@ export async function generateDueSoon(staffId: string): Promise<void> {
   } catch { /* best-effort */ }
 }
 
+// "Starts soon" reminders (Phase 2 Step 6, flag schedule_progress): each staff
+// assignee, N working days before a task starts (jobs.schedule_reminder_days,
+// default 5, 0 = off). Lazily for one person's bell; the scheduled run does
+// everyone and pushes the new ones to phones. One per task per start date.
+export async function sendStartReminders(opts: { staffId?: string; push?: boolean; dryRun?: boolean } = {}): Promise<number> {
+  if (!(await isFeatureEnabled("schedule_progress"))) return 0;
+  const sb = getSupabaseAdmin();
+  const now = new Date();
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Phoenix", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+  // 30 working days is the most a job can ask for: about six weeks of calendar.
+  const horizon = fmtISO(new Date(now.getTime() + 44 * 86400000));
+  try {
+    const { data: rows } = await sb.from("schedule_items")
+      .select("id, title, job_id, schedule_id, status, start_date, percent_complete, actual_start, assignees")
+      .gte("start_date", today).lte("start_date", horizon).not("status", "in", "(complete,cancelled)").limit(3000);
+    let tasks = (rows ?? []) as ReminderTask[];
+    if (opts.staffId) tasks = tasks.filter((x) => assigneeStaffIds((x.assignees ?? []) as Assignee[]).includes(opts.staffId!));
+    if (!tasks.length) return 0;
+    const jobIds = Array.from(new Set(tasks.map((x) => x.job_id).filter(Boolean))) as string[];
+    const days = new Map<string, number>();
+    if (jobIds.length) {
+      const { data: jobs, error } = await sb.from("jobs").select("id, schedule_reminder_days").in("id", jobIds);
+      if (!error) for (const j of jobs ?? []) days.set(j.id, (j as { schedule_reminder_days: number | null }).schedule_reminder_days ?? DEFAULT_REMINDER_DAYS);
+    }
+    let due = startReminders(tasks, (job) => (job ? days.get(job) ?? DEFAULT_REMINDER_DAYS : DEFAULT_REMINDER_DAYS), today);
+    if (opts.staffId) due = due.filter((r) => r.staffId === opts.staffId);
+    if (opts.dryRun || !due.length) return due.length;
+    const { data: made } = await sb.from("schedule_notifications").upsert(due.map((r) => ({
+      recipient_staff_id: r.staffId, kind: "starting", title: `Starting soon: ${r.title}`, subtitle: reminderSubtitle(r),
+      job_id: r.jobId, schedule_id: r.scheduleId, item_id: r.itemId, dedupe_key: r.dedupe,
+    })), { onConflict: "recipient_staff_id,dedupe_key", ignoreDuplicates: true }).select("recipient_staff_id, title, subtitle, job_id, item_id");
+    // Phones only hear about the ones that are new, and only in production.
+    if (opts.push && canSendOutbound()) {
+      for (const m of made ?? []) {
+        try { await sendPushToStaff([m.recipient_staff_id], { title: m.title, body: m.subtitle ?? "", url: scheduleHref(m.job_id), tag: `sched-start-${m.item_id}` }); }
+        catch { /* push is best-effort */ }
+      }
+    }
+    return (made ?? []).length;
+  } catch { return 0; /* reminders are best-effort */ }
+}
+
 export type ScheduleFeedItem = { id: string; title: string; subtitle: string; time: string; href: string };
 
 export async function listScheduleNotifications(staffId: string): Promise<ScheduleFeedItem[]> {
-  await generateDueSoon(staffId);
+  await Promise.all([generateDueSoon(staffId), sendStartReminders({ staffId })]);
   const sb = getSupabaseAdmin();
   const { data } = await sb.from("schedule_notifications")
     .select("id, title, subtitle, job_id, created_at")
@@ -78,7 +122,7 @@ export async function listScheduleNotifications(staffId: string): Promise<Schedu
 }
 
 export async function countScheduleNotifications(staffId: string): Promise<number> {
-  await generateDueSoon(staffId);
+  await Promise.all([generateDueSoon(staffId), sendStartReminders({ staffId })]);
   const sb = getSupabaseAdmin();
   const { count } = await sb.from("schedule_notifications").select("id", { count: "exact", head: true }).eq("recipient_staff_id", staffId).is("read_at", null);
   return count ?? 0;

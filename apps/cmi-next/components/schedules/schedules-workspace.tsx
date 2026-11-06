@@ -5,6 +5,7 @@ import { StatusDateControl } from "./status-date";
 import { WeeklyUpdate } from "./weekly-update";
 import { LookaheadView } from "./lookahead-view";
 import { HealthTiles } from "./health-tiles";
+import { ReminderSetting } from "./reminder-setting";
 import { ItemColorsPanel } from "./item-colors-panel";
 import { confirmAction, promptText } from "@/components/ui/confirm-action";
 import { Plus, GitBranch, Flag, Layers, CalendarClock, CalendarRange, FileText, Star, Archive, ChevronDown, CornerDownRight, Route, Spline, ClipboardCheck, CalendarDays } from "lucide-react";
@@ -475,6 +476,7 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
       {calendarOpen && primarySchedule ? (
         <ScheduleModal open title={primarySchedule.job_id ? `Job calendar` : `Calendar: ${primarySchedule.name}`} onClose={() => setCalendarOpen(false)}>
           <div className="pb-4">
+            {primarySchedule.job_id && engine?.progress ? <ReminderSetting jobId={primarySchedule.job_id} canManage={canManage} onSaved={setBanner} /> : null}
             <CalendarEditor
               scope={primarySchedule.job_id ? "job" : "schedule"} scopeId={primarySchedule.job_id ?? primarySchedule.id}
               intro={primarySchedule.job_id

@@ -9,6 +9,7 @@ import { sendEmail, sendSms, shareEmailHtml, escapeHtml } from "@/lib/messaging/
 import { isSuppressed } from "@/lib/messaging/consent";
 import { publicAppUrl } from "@/lib/twilio";
 import { sendApplicantEmail } from "@/lib/prequal/mail";
+import { sendStartReminders } from "@/lib/schedules/notify";
 import {
   TP_REMINDER_KIND, reminderStillDue, renderTradePartnerReminder, scanTradePartnerDocuments, type ReminderPayload,
 } from "@/lib/prequal/reminders";
@@ -55,6 +56,8 @@ export async function runAutomations(opts: { trigger?: string; dryRun?: boolean 
     scanned.awaiting_review = await scanAwaitingReview();
     scanned.queued_bookings = await scanQueuedBookings();
     scanned.stale_applications = await archiveStaleApplications(!!opts.dryRun);
+    // Schedules: remind staff before their tasks start (bell + push; flag schedule_progress).
+    scanned.schedule_start_reminders = await sendStartReminders({ push: true, dryRun: !!opts.dryRun });
   } catch (err) {
     await supabase.from("automation_runs")
       .update({ finished_at: new Date().toISOString(), error: (err as Error).message, scanned })
