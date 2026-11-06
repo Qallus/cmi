@@ -10,7 +10,7 @@ import { htmlToText } from "@/lib/notes/html";
 import { createCommitment } from "@/lib/commitments/data";
 import { recordPhotos, FIELD_REPORTS_FLAG } from "@/lib/photos/data";
 import { dedupeUrls } from "@/lib/photos/urls";
-import { emptySections, mergeCapture, normalizeSections, sectionsText, type LogItem, type LogSections } from "./sections";
+import { cleanItem, emptySections, mergeCapture, normalizeSections, sectionsText, type LogItem, type LogSections } from "./sections";
 import { structureDictation, type StructureContext } from "./structure";
 import type { DailyLog } from "./types";
 
@@ -120,6 +120,24 @@ export async function appendToDayLog(jobId: string, date: string, cap: Capture, 
   if (log.status === "submitted") await logChange(log, actor, "capture added after submit", null, text || `${(cap.photos ?? []).length} photo(s)`);
   if (cap.photos?.length) await recordPhotos(jobId, cap.photos, { source_type: "daily_log", source_id: log.id, uploaded_by: actor?.email ?? null, uploaded_by_id: actor?.id ?? null });
   return next;
+}
+
+/** Add an already-sorted note (no structure pass), e.g. the weekly schedule
+ *  update. The item is capped like any other; the full text goes in the record. */
+export async function addNoteToDayLog(jobId: string, date: string, note: { section: LogItem["section"]; text: string; full?: string }, actor?: Actor): Promise<FieldReport> {
+  const log = await getOrCreateDayLog(jobId, date, actor);
+  const item = cleanItem({ section: note.section, text: note.text, source: "typed", at: new Date().toISOString() }, note.section);
+  if (!item) return log;
+  const sections = mergeCapture(log.sections, {
+    items: [item],
+    raw: { at: new Date().toISOString(), text: note.full ?? note.text, by: actor?.name ?? actor?.email ?? null },
+  });
+  const { data, error } = await getSupabaseAdmin().from("daily_logs").update({
+    sections, notes: sectionsText(sections) || log.notes, updated_at: new Date().toISOString(),
+  }).eq("id", log.id).select("*").single();
+  if (error) throw new Error(error.message);
+  if (log.status === "submitted") await logChange(log, actor, "note added after submit", null, note.text);
+  return asReport(data);
 }
 
 /** Edits from the review screen: the whole sections body (and/or weather). */

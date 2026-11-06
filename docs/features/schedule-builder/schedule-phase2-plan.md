@@ -43,6 +43,13 @@ Each step is usable on its own and ships separately.
   critical path, risks, next two weeks). The PM edits and sends it. Nothing goes out without
   the PM.
 
+**Built (2026-11-06, behind `schedule_progress`):** the schedule's **Update** button opens a side
+panel (`components/schedules/weekly-update.tsx`, API `/api/schedules/[id]/update`, logic in
+`lib/schedules/weekly-update.ts` + `weekly-update-data.ts`). Push reasons log to
+`schedule_activity` (`update_pushed`); Finish update logs `update_finished`. The narrative is
+copied or posted to today's Field Report under Internal notes. There's no email send; the PM
+shares it themselves.
+
 ## Step 3: Three-week lookahead (§7.6). Internal and client versions have no blockers.
 
 - A view plus a one-page branded PDF: this week, next week, the week after, grouped by phase.

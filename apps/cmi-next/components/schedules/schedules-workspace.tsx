@@ -2,9 +2,10 @@
 
 import * as React from "react";
 import { StatusDateControl } from "./status-date";
+import { WeeklyUpdate } from "./weekly-update";
 import { ItemColorsPanel } from "./item-colors-panel";
 import { confirmAction, promptText } from "@/components/ui/confirm-action";
-import { Plus, GitBranch, Flag, Layers, CalendarClock, CalendarRange, FileText, Star, Archive, ChevronDown, CornerDownRight, Route, Spline } from "lucide-react";
+import { Plus, GitBranch, Flag, Layers, CalendarClock, CalendarRange, FileText, Star, Archive, ChevronDown, CornerDownRight, Route, Spline, ClipboardCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Tooltip, AutoTooltip } from "@/components/ui/tooltip";
@@ -79,6 +80,7 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
   const [shiftOpen, setShiftOpen] = React.useState(false);
   const [engineOpen, setEngineOpen] = React.useState(false);
   const [calendarOpen, setCalendarOpen] = React.useState(false);
+  const [updateOpen, setUpdateOpen] = React.useState(false);
   const [engine, setEngine] = React.useState<EngineState | null>(null);
 
   React.useEffect(() => {
@@ -368,6 +370,7 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
                     onChanged={async () => { await loadBundle(primarySchedule.id); await refreshEngine(); setBanner("Status date set; the schedule was re-forecast."); }}
                     onError={setBanner} />
                 ) : null}
+                {engine.progress && canEdit ? <AutoTooltip content="Weekly update: report progress since the last status date, then re-forecast"><Button size="sm" variant="outline" onClick={() => setUpdateOpen(true)}><ClipboardCheck className="h-3.5 w-3.5" /> Update</Button></AutoTooltip> : null}
                 <Tooltip label={engine.canSwitch ? "How this schedule's dates are worked out" : "Admins and Project Managers change this"} side="bottom" className="inline-block"><Button size="sm" variant="ghost" onClick={() => setEngineOpen(true)} disabled={!engine.canSwitch}><Route className="h-3.5 w-3.5" /> {SCHEDULING_MODE_LABELS[engine.mode]}</Button></Tooltip>
               </>
             ) : null}
@@ -418,6 +421,10 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
         if (primaryId) await loadBundle(primaryId);
         void refreshEngine(); void refreshSchedules();
       }} /> : null}
+      {primarySchedule && engine?.progress && updateOpen ? (
+        <WeeklyUpdate scheduleId={primarySchedule.id} open={updateOpen} onClose={() => setUpdateOpen(false)} onBanner={setBanner}
+          onChanged={async () => { await loadBundle(primarySchedule.id); void refreshEngine(); void refreshSchedules(); }} />
+      ) : null}
       {calendarOpen && primarySchedule ? (
         <ScheduleModal open title={primarySchedule.job_id ? `Job calendar` : `Calendar: ${primarySchedule.name}`} onClose={() => setCalendarOpen(false)}>
           <div className="pb-4">
