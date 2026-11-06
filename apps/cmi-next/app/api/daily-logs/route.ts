@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin, AuthError } from "@/lib/auth/require-admin";
 import { createDailyLogs, type LogTarget } from "@/lib/daily-logs/data";
 import { sanitizeHtmlServer } from "@/lib/html/sanitize-server";
-import { appendToDayLog, fieldReportsOn } from "@/lib/daily-logs/reports";
+import { appendToDayLog, fieldReportsOn, submitDayLog } from "@/lib/daily-logs/reports";
 
 const WRITE_ROLES = ["super_admin", "admin", "project_manager", "superintendent"];
 
@@ -34,7 +34,17 @@ export async function POST(request: Request) {
       const actor = { id: staff.id, email: user.email ?? null, name: (staff as { display_name?: string | null }).display_name ?? null };
       const logs = [];
       for (const t of jobs) logs.push(await appendToDayLog(t.id, logDate, { notes, photos, attachments, audioUrl: audio?.url ?? null, dictated: !!audio || draft.dictated === true }, actor));
-      return NextResponse.json({ logs, appended: true }, { status: 201 });
+      // "Save & submit": submit each day's log too (otherwise it stays a Draft).
+      const failed: string[] = [];
+      if (draft.submit === true) {
+        for (const [n, l] of logs.entries()) {
+          if (l.status === "submitted") continue;
+          const r = await submitDayLog(l.id, actor);
+          logs[n] = r.log;
+          failed.push(...r.failed);
+        }
+      }
+      return NextResponse.json({ logs, appended: true, failed }, { status: 201 });
     }
     const logs = await createDailyLogs(targets, {
       ...draft, notes, log_date: logDate, visibility, include_in_brief: !!draft.include_in_brief,

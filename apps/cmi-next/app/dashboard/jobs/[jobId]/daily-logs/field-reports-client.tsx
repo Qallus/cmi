@@ -5,7 +5,7 @@
 // Add to today's log land in that day's log, sorted into the standard sections.
 // Review what Bolt sorted, fix anything flagged in Needs a look, then Submit.
 import * as React from "react";
-import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, FileText, Loader2, Lock, Plus, RotateCcw, Star, Trash2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, FileText, Loader2, Lock, Pencil, Plus, RotateCcw, Star, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -39,6 +39,8 @@ export function FieldReportsClient({ jobId, initial, today, canEdit, canReopen }
   const [rows, setRows] = React.useState<FieldReportRow[]>(initial);
   const [open, setOpen] = React.useState<string | null>(initial[0]?.id ?? null);
   const [adding, setAdding] = React.useState(false);
+  // The full editor for one day's log: photos and attachments, extra notes, or another job.
+  const [editing, setEditing] = React.useState<FieldReportRow | null>(null);
   const [banner, setBanner] = React.useState<string | null>(null);
   const [quick, setQuick] = React.useState("");
   const [busy, setBusy] = React.useState(false);
@@ -90,9 +92,13 @@ export function FieldReportsClient({ jobId, initial, today, canEdit, canReopen }
 
       {rows.map((r) => (
         <ReportCard key={r.id} jobId={jobId} row={r} open={open === r.id} onToggle={() => setOpen(open === r.id ? null : r.id)}
-          canEdit={canEdit} canReopen={canReopen} onChanged={(next) => setRows((all) => all.map((x) => (x.id === next.id ? next : x)))} />
+          canEdit={canEdit} canReopen={canReopen} onChanged={(next) => setRows((all) => all.map((x) => (x.id === next.id ? next : x)))} onEdit={() => setEditing(r)} />
       ))}
 
+      {editing ? (
+        <AddDailyLogDialog editLog={{ ...editing, job_id: jobId, report_version: 2 }} onClose={() => setEditing(null)}
+          onSaved={() => { setEditing(null); void reload(); }} />
+      ) : null}
       {adding ? (
         <AddDailyLogDialog preselect={{ kind: "job", id: jobId }} onClose={() => setAdding(false)} onSaved={() => { setAdding(false); void reload(todayLog?.id); }} />
       ) : null}
@@ -100,9 +106,9 @@ export function FieldReportsClient({ jobId, initial, today, canEdit, canReopen }
   );
 }
 
-function ReportCard({ jobId, row, open, onToggle, canEdit, canReopen, onChanged }: {
+function ReportCard({ jobId, row, open, onToggle, canEdit, canReopen, onChanged, onEdit }: {
   jobId: string; row: FieldReportRow; open: boolean; onToggle: () => void; canEdit: boolean; canReopen: boolean;
-  onChanged: (r: FieldReportRow) => void;
+  onChanged: (r: FieldReportRow) => void; onEdit: () => void;
 }) {
   const [draft, setDraft] = React.useState<LogSections>(row.sections);
   const [dirty, setDirty] = React.useState(false);
@@ -247,6 +253,7 @@ function ReportCard({ jobId, row, open, onToggle, canEdit, canReopen, onChanged 
           <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
             {msg ? <span className="mr-auto text-xs text-muted-foreground">{msg}</span> : <span className="mr-auto" />}
             <a href={`/api/jobs/${jobId}/field-reports/${row.id}/pdf`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground"><FileText className="h-3.5 w-3.5" /> PDF</a>
+            {canEdit ? <Button size="sm" variant="ghost" onClick={onEdit} disabled={dirty} title={dirty ? "Save the section changes first" : "Photos, attachments, more notes, or move to another job"}><Pencil className="h-3.5 w-3.5" /> Edit</Button> : null}
             {canEdit && dirty ? <Button size="sm" variant="outline" onClick={() => void save()} disabled={saving}>Save changes</Button> : null}
             {canEdit && !submitted ? <Button size="sm" variant="accent" onClick={() => void act("submit")} disabled={saving || !count}>{saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Lock className="h-3.5 w-3.5" />} Submit</Button> : null}
             {canReopen && submitted ? <Button size="sm" variant="ghost" onClick={() => void act("reopen")} disabled={saving}><RotateCcw className="h-3.5 w-3.5" /> Reopen</Button> : null}

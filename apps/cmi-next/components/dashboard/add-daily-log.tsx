@@ -10,10 +10,19 @@
 // are looked up for the site — no fields for them.
 //
 // Full-screen on phones (this is used on site), a centred dialog on desktop.
+//
+// Nothing typed is lost: closing with something in it asks first (Keep
+// editing / Save as draft / Discard), and the text, job and settings are kept
+// on this device until the log is saved. With Field Reports on there are two
+// saves: Save as draft (adds to the day's log, still open) and Save & submit.
+// After a save, the dialog says where the log went.
+//
+// The same dialog edits a log (`editLog`): text, photos and attachments (add
+// or remove), who sees it, and the job (moving the log to another job).
 import * as React from "react";
 import {
   BriefcaseBusiness, Camera, Check, HardHat, ImagePlus, Loader2, Mic, NotebookPen, PenLine,
-  Search, Trash2, Upload, Workflow, X,
+  Search, Trash2, Upload, Workflow, X, CheckCircle2, Lock, RotateCcw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -40,23 +49,61 @@ const MODES: { mode: Mode; label: string; hint: string; icon: typeof PenLine }[]
 ];
 let seq = 1;
 
-export function AddDailyLogDialog({ onClose, onSaved, preselect }: {
+/** A log opened for editing. Field Reports (report_version 2) are edited by section on
+ *  their card; here they get photos, attachments, extra notes and the job. */
+export type EditableLog = {
+  id: string; job_id: string | null; log_date: string; notes?: string | null;
+  photos: string[] | null; attachments: { url: string; type: string; name?: string | null }[] | null;
+  visibility?: "team" | "private"; include_in_brief?: boolean; client_visible?: boolean;
+  report_version?: number | null; title?: string | null; status?: string | null; job_label?: string | null;
+};
+
+type Saved = { lines: string[]; href: string | null; note?: string | null };
+const UNSAVED_KEY = "cmi.dailylog.unsaved";
+type Unsaved = { notes: string; picked: Target[]; vis: { client: boolean; brief: boolean; team: boolean; private: boolean }; at: string };
+
+function readUnsaved(): Unsaved | null {
+  try {
+    const raw = window.localStorage.getItem(UNSAVED_KEY);
+    const u = raw ? (JSON.parse(raw) as Unsaved) : null;
+    return u && typeof u.notes === "string" && htmlToText(u.notes).trim() ? u : null;
+  } catch { return null; }
+}
+function clearUnsaved() { try { window.localStorage.removeItem(UNSAVED_KEY); } catch { /* storage blocked */ } }
+const asHtml = (notes: string | null | undefined) =>
+  notes && !/<\w/.test(notes) ? notes.split(/\n+/).map((l) => `<p>${escapeHtml(l)}</p>`).join("") : notes ?? "";
+
+export function AddDailyLogDialog({ onClose, onSaved, preselect: preselectProp, editLog }: {
   onClose: () => void;
   onSaved: (count: number) => void;
   preselect?: { kind: Kind; id: string } | null;
+  /** Open an existing log in the full editor instead of adding one. */
+  editLog?: EditableLog | null;
 }) {
+  const isEdit = !!editLog;
+  const v2Edit = isEdit && editLog!.report_version === 2;
+  const preselect = isEdit && editLog!.job_id ? { kind: "job" as Kind, id: editLog!.job_id } : preselectProp;
   const [targets, setTargets] = React.useState<Target[] | null>(null);
   const [kind, setKind] = React.useState<Kind | null>(preselect?.kind ?? null);
   const [picked, setPicked] = React.useState<Target[]>([]);
   const [q, setQ] = React.useState("");
   const [mode, setMode] = React.useState<Mode>("compose");
-  const [notes, setNotes] = React.useState("");
+  const [notes, setNotes] = React.useState(() => (isEdit && !v2Edit ? asHtml(editLog!.notes) : ""));
+  // Edit: the photos and attachments already on the log (remove any of them).
+  const [keptPhotos, setKeptPhotos] = React.useState<string[]>(() => editLog?.photos ?? []);
+  const [keptFiles, setKeptFiles] = React.useState(() => editLog?.attachments ?? []);
+  const [saved, setSaved] = React.useState<Saved | null>(null);
+  const [confirmClose, setConfirmClose] = React.useState(false);
+  // An unsaved log from last time on this device (adding only).
+  const [restorable, setRestorable] = React.useState<Unsaved | null>(() => (isEdit ? null : readUnsaved()));
   const [editorKey, setEditorKey] = React.useState(0);
   const [media, setMedia] = React.useState<Media[]>([]);
   const [voices, setVoices] = React.useState<Voice[]>([]);
   const [recording, setRecording] = React.useState(false);
   const [dragOver, setDragOver] = React.useState(false);
-  const [vis, setVis] = React.useState({ client: false, brief: false, team: true, private: false });
+  const [vis, setVis] = React.useState(() => (isEdit
+    ? { client: !!editLog!.client_visible, brief: !!editLog!.include_in_brief, team: editLog!.visibility !== "private", private: editLog!.visibility === "private" }
+    : { client: false, brief: false, team: true, private: false }));
   const [saving, setSaving] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   // Field Reports: Jobs only, every capture lands in that day's log, logs stay internal.
@@ -75,16 +122,50 @@ export function AddDailyLogDialog({ onClose, onSaved, preselect }: {
       if (!live) return;
       setTargets(list);
       const pre = preselect && list.find((t) => t.kind === preselect.kind && t.id === preselect.id);
+      // A log on a job that's no longer in the list still shows its job.
       if (pre) setPicked([pre]);
+      else if (preselect && isEdit) setPicked([{ kind: "job", id: preselect.id, label: editLog?.job_label ?? "Current job", sub: "" }]);
     }).catch(() => { if (live) setTargets([]); });
     return () => { live = false; };
-  }, [preselect]);
+  }, [preselect?.kind, preselect?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Anything that would be lost by closing now.
+  const hasText = !!htmlToText(notes).trim();
+  const dirty = !saved && (isEdit
+    ? (!v2Edit && notes !== asHtml(editLog!.notes)) || (v2Edit && hasText) || media.length > 0 || voices.length > 0
+      || keptPhotos.length !== (editLog!.photos ?? []).length || keptFiles.length !== (editLog!.attachments ?? []).length
+      || (picked[0] && picked[0].id !== editLog!.job_id)
+    : hasText || media.length > 0 || voices.length > 0);
+  const requestClose = React.useCallback(() => {
+    if (recording || saving) return;
+    if (saved) { onSaved(saved.lines.length || 1); return; }
+    if (dirty) setConfirmClose(true); else onClose();
+  }, [recording, saving, saved, dirty, onClose, onSaved]);
 
   React.useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !recording) onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") requestClose(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose, recording]);
+  }, [requestClose]);
+
+  // Keep the text, job and settings on this device until the log is saved.
+  React.useEffect(() => {
+    if (isEdit || saved || (restorable && !hasText)) return;
+    const t = setTimeout(() => {
+      try {
+        if (hasText) window.localStorage.setItem(UNSAVED_KEY, JSON.stringify({ notes, picked, vis, at: new Date().toISOString() } satisfies Unsaved));
+        else if (!restorable) window.localStorage.removeItem(UNSAVED_KEY);
+      } catch { /* storage blocked */ }
+    }, 600);
+    return () => clearTimeout(t);
+  }, [isEdit, saved, restorable, hasText, notes, picked, vis]);
+  function restore() {
+    if (!restorable) return;
+    setNotes(restorable.notes); setEditorKey((k) => k + 1); setMode("compose");
+    if (restorable.picked?.length) { setPicked(restorable.picked); setKind(restorable.picked[0].kind); }
+    if (restorable.vis) setVis(restorable.vis);
+    setRestorable(null);
+  }
 
   // Release photo previews when the dialog closes.
   const mediaRef = React.useRef(media);
@@ -93,7 +174,8 @@ export function AddDailyLogDialog({ onClose, onSaved, preselect }: {
 
   const key = (t: { kind: string; id: string }) => `${t.kind}:${t.id}`;
   const isPicked = (t: Target) => picked.some((p) => key(p) === key(t));
-  const toggle = (t: Target) => setPicked((p) => (isPicked(t) ? p.filter((x) => key(x) !== key(t)) : [...p, t]));
+  // Editing moves one log, so it's one job; adding can file to several.
+  const toggle = (t: Target) => setPicked((p) => (isEdit ? [t] : isPicked(t) ? p.filter((x) => key(x) !== key(t)) : [...p, t]));
   function chooseKind(k: Kind) {
     setKind(k);
     setPicked((p) => p.filter((x) => x.kind === k));
@@ -153,7 +235,57 @@ export function AddDailyLogDialog({ onClose, onSaved, preselect }: {
     return j.url as string;
   }
 
-  async function save() {
+  async function uploadAll(folder: string) {
+    const photos: string[] = [];
+    const attachments: { url: string; type: string; name?: string }[] = [];
+    for (const [i, m] of media.entries()) {
+      setSaving(`Uploading ${i + 1} of ${media.length + voices.length}…`);
+      const url = await upload(m.file, folder);
+      if (m.type === "image") photos.push(url); else attachments.push({ url, type: "video", name: m.file.name });
+    }
+    for (const [i, v] of voices.entries()) {
+      setSaving(`Uploading ${media.length + i + 1} of ${media.length + voices.length}…`);
+      const name = `voice-note-${Date.now()}.webm`;
+      attachments.push({ url: await upload(new File([v.blob], name, { type: v.blob.type || "audio/webm" }), folder), type: "audio", name });
+    }
+    return { photos, attachments };
+  }
+
+  async function saveEdit() {
+    if (!editLog || !picked.length) { setError("Choose the job for this log."); return; }
+    if (voices.some((v) => v.state === "transcribing")) { setError("Still transcribing your recording — one moment."); return; }
+    setError(null);
+    try {
+      const job = picked[0];
+      const up = await uploadAll(`daily-logs/job-${job.id}`);
+      setSaving("Saving…");
+      const res = await fetch(`/api/jobs/${editLog.job_id}/daily-logs/${editLog.id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...(v2Edit ? {} : { notes: hasText ? notes : null, client_visible: vis.client && !vis.private }),
+          photos: [...keptPhotos, ...up.photos], attachments: [...keptFiles, ...up.attachments],
+          include_in_brief: vis.brief, visibility: vis.private ? "private" : "team",
+          jobId: job.id,
+        }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((j as { error?: string }).error ?? "Couldn't save the changes.");
+      // Field Reports: new notes are added to that day's log and sorted into sections.
+      if (v2Edit && hasText) {
+        setSaving("Adding your notes…");
+        const r2 = await fetch("/api/daily-logs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ targets: [{ kind: "job", id: job.id }], notes, photos: [], attachments: [], log_date: editLog.log_date }) });
+        if (!r2.ok) throw new Error(((await r2.json().catch(() => ({}))) as { error?: string }).error ?? "Saved, but the new notes couldn't be added.");
+      }
+      const moved = job.id !== editLog.job_id;
+      setSaved({
+        lines: [moved ? `Moved to ${job.label}${(j as { merged?: boolean }).merged ? " and combined with that day's log" : ""}.` : `Saved changes to ${editLog.title ?? "the log"}.`],
+        href: `/dashboard/jobs/${job.id}/daily-logs`,
+      });
+    } catch (e) { setError((e as Error).message); } finally { setSaving(null); }
+  }
+
+  async function save(opts: { submit?: boolean } = {}) {
+    if (isEdit) return saveEdit();
     if (!picked.length) { setError(kind ? "Choose where this log goes (step 2)." : "Choose Pipeline, Pre-Con or Jobs (step 1)."); return; }
     const text = htmlToText(notes);
     if (!text && !media.length && !voices.length) { setError("Add what happened — write it, record it, or add photos."); return; }
@@ -183,11 +315,24 @@ export function AddDailyLogDialog({ onClose, onSaved, preselect }: {
           client_visible: !fieldReports && anyJob && vis.client,
           include_in_brief: vis.brief,
           visibility: vis.private ? "private" : "team",
+          submit: fieldReports && !!opts.submit,
         }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error((json as { error?: string }).error ?? "Couldn't save the log.");
-      onSaved(picked.length);
+      clearUnsaved();
+      // Say exactly where it went.
+      type L = { job_id: string | null; log_number?: number | null; status?: string | null };
+      const logs = ((json as { logs?: L[] }).logs ?? []);
+      const label = (id: string | null) => picked.find((p) => p.id === id)?.label ?? "the job";
+      const failed = (json as { failed?: string[] }).failed ?? [];
+      setSaved({
+        lines: fieldReports
+          ? logs.map((l) => `${l.status === "submitted" ? "Submitted" : "Saved as a draft in"} Daily Log${l.log_number ? ` #${l.log_number}` : ""} · ${label(l.job_id)}`)
+          : picked.map((p) => `Saved to ${p.label}`),
+        href: picked.length === 1 && picked[0].kind === "job" ? `/dashboard/jobs/${picked[0].id}/daily-logs` : "/dashboard/daily-logs",
+        note: failed.length ? `${failed.length} action item${failed.length === 1 ? "" : "s"} couldn't be added to Commitments.` : fieldReports && !opts.submit ? "It stays a draft until someone submits it. You can keep adding to it today." : null,
+      });
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -205,20 +350,39 @@ export function AddDailyLogDialog({ onClose, onSaved, preselect }: {
   const attachedCount = media.length + voices.length;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-stretch justify-center bg-black/40 sm:items-center sm:p-4" onMouseDown={(e) => { if (e.target === e.currentTarget && !recording) onClose(); }}>
+    <div className="fixed inset-0 z-[60] flex items-stretch justify-center bg-black/40 sm:items-center sm:p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) requestClose(); }}>
       <div role="dialog" aria-modal="true" aria-label="Add daily log"
-        className="flex h-full w-full flex-col bg-card shadow-xl sm:h-auto sm:max-h-[92vh] sm:max-w-2xl sm:rounded-xl sm:border sm:border-border">
+        className="relative flex h-full w-full flex-col bg-card shadow-xl sm:h-auto sm:max-h-[92vh] sm:max-w-2xl sm:rounded-xl sm:border sm:border-border">
         <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-5">
           <div>
-            <h2 className="flex items-center gap-2 font-display text-lg font-semibold"><NotebookPen className="h-4 w-4 text-accent" /> Add daily log</h2>
-            <p className="text-[11px] text-muted-foreground">{today} · date, time and weather are added automatically</p>
+            <h2 className="flex items-center gap-2 font-display text-lg font-semibold"><NotebookPen className="h-4 w-4 text-accent" /> {isEdit ? "Edit daily log" : "Add daily log"}</h2>
+            <p className="text-[11px] text-muted-foreground">{isEdit ? `${editLog!.title ?? "Daily log"} · ${editLog!.log_date}` : `${today} · date, time and weather are added automatically`}</p>
           </div>
-          <button type="button" onClick={onClose} aria-label="Close" className="rounded-md p-1.5 text-muted-foreground hover:bg-muted"><X className="h-4 w-4" /></button>
+          <button type="button" onClick={requestClose} aria-label="Close" className="rounded-md p-1.5 text-muted-foreground hover:bg-muted"><X className="h-4 w-4" /></button>
         </div>
 
+        {saved ? (
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-10 text-center">
+            <CheckCircle2 className="h-10 w-10 text-emerald-600" />
+            <div className="space-y-1">{saved.lines.map((l) => <p key={l} className="font-medium">{l}</p>)}</div>
+            {saved.note ? <p className="max-w-sm text-sm text-muted-foreground">{saved.note}</p> : null}
+            <div className="mt-2 flex gap-2">
+              {saved.href ? <a href={saved.href} className="inline-flex h-9 items-center rounded-md border border-border px-3 text-sm font-medium hover:bg-muted">View log</a> : null}
+              <Button variant="accent" onClick={() => onSaved(saved.lines.length || 1)}>Done</Button>
+            </div>
+          </div>
+        ) : (
         <div className="flex-1 space-y-5 overflow-y-auto px-4 py-4 sm:px-5">
+          {restorable ? (
+            <div className="flex flex-wrap items-center gap-2 rounded-md border border-accent/40 bg-accent/10 px-3 py-2 text-sm">
+              <RotateCcw className="h-4 w-4 text-accent" />
+              <span className="min-w-0 flex-1">You have an unsaved log from {new Date(restorable.at).toLocaleString("en-US", { timeZone: "America/Phoenix", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}{restorable.picked?.[0] ? ` (${restorable.picked[0].label})` : ""}.</span>
+              <Button size="sm" variant="accent" onClick={restore}>Restore it</Button>
+              <Button size="sm" variant="ghost" onClick={() => { clearUnsaved(); setRestorable(null); }}>Discard</Button>
+            </div>
+          ) : null}
           {/* 1. Add to */}
-          <section>
+          {!isEdit ? <section>
             {step(1, "Add daily log to", !!kind)}
             {fieldReports ? <p className="mb-2 text-xs text-muted-foreground">Everything you add today goes into this job&apos;s daily log, sorted into the standard sections.</p> : null}
             <div className={cn("grid gap-2", fieldReports ? "grid-cols-1" : "grid-cols-3")}>
@@ -230,12 +394,15 @@ export function AddDailyLogDialog({ onClose, onSaved, preselect }: {
                 </button>
               ))}
             </div>
-          </section>
+          </section> : null}
 
           {/* 2. Which one */}
           {kind && (
             <section>
-              {step(2, `Select the ${KINDS.find((k) => k.kind === kind)!.label === "Jobs" ? "Job" : KINDS.find((k) => k.kind === kind)!.label}`, picked.length > 0)}
+              {isEdit
+                ? step(1, "Job", picked.length > 0)
+                : step(2, `Select the ${KINDS.find((k) => k.kind === kind)!.label === "Jobs" ? "Job" : KINDS.find((k) => k.kind === kind)!.label}`, picked.length > 0)}
+              {isEdit ? <p className="mb-2 text-xs text-muted-foreground">Wrong job? Pick the right one and save to move this log{v2Edit ? " (if that job already has a log that day, the two are combined)" : ""}.</p> : null}
               {picked.length > 0 && (
                 <div className="mb-2 flex flex-wrap gap-1.5">
                   {picked.map((p) => (
@@ -272,7 +439,7 @@ export function AddDailyLogDialog({ onClose, onSaved, preselect }: {
 
           {/* 3. Log type */}
           <section>
-            {step(3, "How do you want to log it?", !!htmlToText(notes) || attachedCount > 0)}
+            {step(isEdit ? 2 : 3, isEdit ? "Add to it" : "How do you want to log it?", !!htmlToText(notes) || attachedCount > 0)}
             <div className="grid grid-cols-4 gap-2">
               {MODES.map(({ mode: m, label, hint, icon: Icon }) => (
                 <button key={m} type="button"
@@ -290,7 +457,30 @@ export function AddDailyLogDialog({ onClose, onSaved, preselect }: {
 
           {/* 4. What happened today */}
           <section>
-            {step(4, "What happened today")}
+            {step(isEdit ? 3 : 4, isEdit ? (v2Edit ? "Add notes (sorted into the log's sections)" : "What happened") : "What happened today")}
+            {isEdit && (keptPhotos.length > 0 || keptFiles.length > 0) ? (
+              <div className="mb-3 space-y-2">
+                <p className="text-xs text-muted-foreground">On this log now. Tap ✕ to remove one (e.g. a photo from another job).</p>
+                {keptPhotos.length ? (
+                  <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
+                    {keptPhotos.map((u) => (
+                      <div key={u} className="relative overflow-hidden rounded-md border border-border">
+                        {/* eslint-disable-next-line @next/next/no-img-element -- remote job photos */}
+                        <img src={u} alt="" className="aspect-square w-full object-cover" />
+                        <button type="button" onClick={() => setKeptPhotos((x) => x.filter((y) => y !== u))} aria-label="Remove photo"
+                          className="absolute right-1 top-1 grid h-6 w-6 place-items-center rounded-full bg-black/60 text-white"><X className="h-3.5 w-3.5" /></button>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                {keptFiles.map((f) => (
+                  <div key={f.url} className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-xs">
+                    <span className="flex-1 truncate">{f.type === "audio" ? "Voice note" : f.type === "video" ? "Video" : "File"}{f.name ? ` · ${f.name}` : ""}</span>
+                    <button type="button" onClick={() => setKeptFiles((x) => x.filter((y) => y.url !== f.url))} aria-label="Remove attachment" className="text-muted-foreground hover:text-destructive"><Trash2 className="h-3.5 w-3.5" /></button>
+                  </div>
+                ))}
+              </div>
+            ) : null}
             {mode === "compose" && (
               <RichTextEditor key={editorKey} value={notes} onChange={setNotes} placeholder="Work completed, deliveries, decisions — anything the team should know" />
             )}
@@ -354,7 +544,7 @@ export function AddDailyLogDialog({ onClose, onSaved, preselect }: {
 
           {/* 5. Visibility */}
           <section>
-            {step(5, "Who sees it")}
+            {step(isEdit ? 4 : 5, "Who sees it")}
             <div className="grid gap-2 sm:grid-cols-2">
               {([
                 ...(fieldReports ? [] : [["client", "Client visible", anyJob ? "Shows on the client's portal" : "Jobs only", !anyJob || vis.private] as const]),
@@ -376,17 +566,51 @@ export function AddDailyLogDialog({ onClose, onSaved, preselect }: {
 
           {error && <p className="text-sm text-destructive">{error}</p>}
         </div>
+        )}
 
-        <div className="flex items-center justify-between gap-2 border-t border-border px-4 py-3 sm:px-5">
+        {!saved ? (
+        <div className="relative flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-3 sm:px-5">
           <span className="text-xs text-muted-foreground">{saving ?? (attachedCount ? `${attachedCount} attachment${attachedCount === 1 ? "" : "s"}` : "")}</span>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={onClose} disabled={!!saving}>Cancel</Button>
-            <Button variant="accent" onClick={() => void save()} disabled={!!saving}>
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-              {picked.length > 1 ? `Save to ${picked.length}` : "Save log"}
-            </Button>
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button variant="outline" onClick={requestClose} disabled={!!saving}>Cancel</Button>
+            {isEdit ? (
+              <Button variant="accent" onClick={() => void save()} disabled={!!saving}>
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Save changes
+              </Button>
+            ) : fieldReports ? (
+              <>
+                <Button variant="outline" onClick={() => void save()} disabled={!!saving}>
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Save as draft
+                </Button>
+                <Button variant="accent" onClick={() => void save({ submit: true })} disabled={!!saving}>
+                  <Lock className="h-4 w-4" /> {picked.length > 1 ? `Save & submit (${picked.length})` : "Save & submit"}
+                </Button>
+              </>
+            ) : (
+              <Button variant="accent" onClick={() => void save()} disabled={!!saving}>
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                {picked.length > 1 ? `Save to ${picked.length}` : "Save log"}
+              </Button>
+            )}
           </div>
         </div>
+        ) : null}
+
+        {confirmClose ? (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/30 p-4 sm:rounded-xl" onMouseDown={(e) => e.stopPropagation()}>
+            <div role="alertdialog" aria-label="Unsaved daily log" className="w-full max-w-sm rounded-xl border border-border bg-card p-5 shadow-xl">
+              <h3 className="font-display text-lg font-semibold">{isEdit ? "Save your changes?" : "This log isn't saved yet"}</h3>
+              <p className="mt-1 text-sm text-muted-foreground">{isEdit ? "You've changed this log. Closing now loses the changes." : "Closing now loses what you've added."}</p>
+              <div className="mt-4 flex flex-col gap-2">
+                <Button variant="accent" onClick={() => { setConfirmClose(false); void save(); }}>
+                  {isEdit ? "Save changes" : fieldReports ? "Save as draft" : "Save log"}
+                </Button>
+                <Button variant="outline" onClick={() => setConfirmClose(false)}>Keep editing</Button>
+                <Button variant="ghost" className="text-destructive" onClick={() => { if (!isEdit) clearUnsaved(); onClose(); }}>Discard</Button>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <AudioRecorder open={recording} onClose={() => setRecording(false)} onComplete={(blob) => void onRecorded(blob)} />
