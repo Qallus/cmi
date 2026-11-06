@@ -93,8 +93,8 @@ export function GanttPdf({ logo, view, rows, scale, project, schedule, showBasel
         <View fixed style={{ position: "absolute", right: M, bottom: M - 8, width: 360, borderWidth: 1, borderColor: CMI.ink, flexDirection: "row" }}>
           <View style={{ width: 120, borderRightWidth: 0.75, borderRightColor: CMI.ink, padding: 5, justifyContent: "center", overflow: "hidden" }}>
             {/* The logo won't scale into a cell this small in react-pdf, so the name is set as type; the sheet header carries the logo. */}
-            <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold", letterSpacing: 1.2, lineHeight: 1.25 }}>CONSTRUCTED{"
-"}MATTER, INC.</Text>
+            <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold", letterSpacing: 1.2, lineHeight: 1.25 }}>CONSTRUCTED</Text>
+            <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold", letterSpacing: 1.2, lineHeight: 1.25 }}>MATTER, INC.</Text>
             <Text style={{ fontSize: 5.5, color: CMI.muted, marginTop: 3 }}>AZ ROC KB-1 #343120</Text>
           </View>
           <View style={{ flexGrow: 1 }}>
