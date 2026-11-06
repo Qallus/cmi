@@ -15,6 +15,7 @@ import { JOB_TEAM_ROLES, jobTeamRole, jobTeamRoleValue, type JobTeamRole } from 
 // Job Type is limited to these two; the finer scope lives in Job Group.
 const JOB_TYPE_NAMES = ["Residential", "Commercial"];
 import { CONTRACT_TYPES, INSURANCE_STATUSES } from "@/lib/jobs/types";
+import { CLIENT_PERM_GROUPS, clientCan } from "@/lib/client-portal/permissions";
 import type { Job, JobWithRelations, JobType, JobGroup, JobStatus, JobContact, JobInternalUser, JobVendor, JobSettings, JobInsurance, ClientPermissions } from "@/lib/jobs/types";
 import { JobDetailNav } from "../job-detail-nav";
 
@@ -28,12 +29,6 @@ type Contact = { id: string; first_name: string; last_name: string; company: str
 type StaffOpt = { id: string; label: string; role: string };
 const input = "h-9 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-accent";
 
-const CLIENT_PERMS: { key: keyof ClientPermissions; label: string }[] = [
-  { key: "schedule_items", label: "Schedule items" }, { key: "locked_selections", label: "Selections" },
-  { key: "price_summary", label: "Price summary" }, { key: "invoices", label: "Invoices" },
-  { key: "change_order_requests", label: "Submit change orders" }, { key: "warranty_claims", label: "Submit warranty claims" },
-  { key: "messages", label: "Messages" }, { key: "files", label: "Files & photos" },
-];
 
 export function JobInfoClient({ job, types, groups }: { job: JobWithRelations; types: JobType[]; groups: JobGroup[] }) {
   const [tab, setTab] = React.useState<TabKey>("details");
@@ -170,7 +165,7 @@ function ClientsTab({ job, contacts }: { job: JobWithRelations; contacts: Contac
     if (res.ok) { const upd = await res.json(); setList((l) => l.map((x) => (x.id === id ? upd : x))); }
   }
   function togglePerm(c: JobContact, key: keyof ClientPermissions) {
-    const perms = { ...(c.permissions ?? {}), [key]: !c.permissions?.[key] };
+    const perms = { ...(c.permissions ?? {}), [key]: !clientCan(c.permissions, key) };
     void patch(c.id, { permissions: perms });
   }
 
@@ -194,12 +189,19 @@ function ClientsTab({ job, contacts }: { job: JobWithRelations; contacts: Contac
           {c.portal_access_enabled && (
             <div className="mt-3">
               <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">Portal permissions</div>
-              <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
-                {CLIENT_PERMS.map((p) => (
-                  <label key={p.key} className="flex items-center gap-1.5 text-xs"><input type="checkbox" checked={!!c.permissions?.[p.key]} onChange={() => togglePerm(c, p.key)} /> {p.label}</label>
+              <div className="grid gap-3 sm:grid-cols-3">
+                {CLIENT_PERM_GROUPS.map((g) => (
+                  <div key={g.label}>
+                    <div className="mb-1 text-[10px] font-medium text-muted-foreground">{g.label}</div>
+                    <div className="space-y-1">
+                      {g.perms.map((p) => (
+                        <label key={p.key} className="flex items-center gap-1.5 text-xs"><input type="checkbox" checked={clientCan(c.permissions, p.key)} onChange={() => togglePerm(c, p.key)} /> {p.label}</label>
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
-              <p className="mt-2 text-[11px] text-muted-foreground">Client payment settings (cards/ACH/fees) are planned once payment processing is connected.</p>
+              <p className="mt-2 text-[11px] text-muted-foreground">Items still need to be marked &ldquo;client visible&rdquo; on their own tab before the client sees them.</p>
             </div>
           )}
         </div>

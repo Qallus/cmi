@@ -22,7 +22,8 @@ export default function ClientSetAccountPage() {
 
   React.useEffect(() => {
     const hash = typeof window !== "undefined" ? window.location.hash : "";
-    const token = new URLSearchParams(hash.replace(/^#/, "")).get("access_token");
+    const params = new URLSearchParams(hash.replace(/^#/, ""));
+    const token = params.get("access_token");
     if (!token) {
       setError("This link is missing its access token. Request a new invite.");
       setPhase("error");
@@ -31,7 +32,7 @@ export default function ClientSetAccountPage() {
     fetch("/api/client/auth/exchange-token", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ access_token: token }),
+      body: JSON.stringify({ access_token: token, refresh_token: params.get("refresh_token") }),
     })
       .then(async (r) => {
         const j = await r.json();

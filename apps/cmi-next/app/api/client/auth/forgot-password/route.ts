@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { findPortalContactByEmail } from "@/lib/client-portal/auth";
 import { generateRecoveryLink, sendPasswordResetEmail } from "@/lib/email/auth-emails";
 
 // Client-portal password reset request. Always responds { ok: true } so it never
@@ -11,20 +11,10 @@ export async function POST(req: Request) {
     const addr = (email ?? "").trim().toLowerCase();
     if (!addr) return NextResponse.json({ ok: true });
 
-    const sb = getSupabaseAdmin();
-    const { data: contact } = await sb.from("contacts").select("id").eq("email", addr).maybeSingle();
-    if (contact) {
-      const { data: access } = await sb
-        .from("job_contacts")
-        .select("job_id, jobs!inner(client_portal_enabled)")
-        .eq("contact_id", contact.id)
-        .eq("portal_access_enabled", true)
-        .eq("jobs.client_portal_enabled", true)
-        .limit(1);
-      if ((access?.length ?? 0) > 0) {
-        const link = await generateRecoveryLink(addr, "/client/reset-password");
-        if (link) await sendPasswordResetEmail(addr, link);
-      }
+    const { hasAccess } = await findPortalContactByEmail(addr);
+    if (hasAccess) {
+      const link = await generateRecoveryLink(addr, "/client/reset-password");
+      if (link) await sendPasswordResetEmail(addr, link);
     }
     return NextResponse.json({ ok: true });
   } catch {

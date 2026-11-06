@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
-import { verifyClientJob } from "@/lib/client-portal/auth";
+import { verifyClientJob, getJobPerms } from "@/lib/client-portal/auth";
+import { clientCan } from "@/lib/client-portal/permissions";
 import { loadClientScheduleGroups } from "@/lib/client-portal/schedule";
 import { fmtDate } from "../../../portal-ui";
 
@@ -18,6 +19,7 @@ export default async function ClientSchedulePage({ params }: { params: Promise<{
   const { jobId } = await params;
   const contact = await verifyClientJob(jobId);
   if (!contact) redirect("/client/jobs");
+  if (!clientCan(await getJobPerms(contact.id, jobId), "schedule_items")) redirect(`/client/jobs/${jobId}`);
   const groups = await loadClientScheduleGroups(jobId).catch(() => []);
 
   if (!groups.length) {

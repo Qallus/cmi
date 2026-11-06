@@ -2,8 +2,10 @@
 // associated with and returns only client-safe rows (client_visible +
 // permission-gated). Callers must have already run assertJobAccess.
 import { isFeatureEnabled } from "@/lib/flags";
+import { cache } from "react";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { getJobPerms } from "./auth";
+import { getJobPerms, getPreview } from "./auth";
+import { clientCan } from "./permissions";
 import type { ClientContact } from "./auth";
 
 export type ClientJobCard = {
@@ -51,13 +53,17 @@ async function projectManagersFor(jobIds: string[]): Promise<Map<string, { name:
 // The jobs this client may see in the portal.
 export async function loadClientJobs(contactId: string): Promise<ClientJobCard[]> {
   const sb = getSupabaseAdmin();
-  const { data: jcs } = await sb.from("job_contacts").select("job_id").eq("contact_id", contactId).eq("portal_access_enabled", true);
+  // Staff preview: just the job being previewed, portal switch or not.
+  const preview = await getPreview();
+  const { data: jcs } = preview
+    ? { data: [{ job_id: preview.jobId }] }
+    : await sb.from("job_contacts").select("job_id").eq("contact_id", contactId).eq("portal_access_enabled", true);
   const jobIds = (jcs ?? []).map((j) => j.job_id);
   if (jobIds.length === 0) return [];
 
-  const { data: jobs } = await sb.from("jobs")
-    .select("*, job_type:job_types(name)")
-    .in("id", jobIds).eq("client_portal_enabled", true).is("archived_at", null)
+  let jobsQ = sb.from("jobs").select("*, job_type:job_types(name)").in("id", jobIds).is("archived_at", null);
+  if (!preview) jobsQ = jobsQ.eq("client_portal_enabled", true);
+  const { data: jobs } = await jobsQ
     .order("last_client_update_at", { ascending: false, nullsFirst: false });
   const pmMap = await projectManagersFor(jobIds);
 
@@ -71,9 +77,12 @@ export async function loadClientJobs(contactId: string): Promise<ClientJobCard[]
   }));
 }
 
-export async function getClientJob(contactId: string, jobId: string): Promise<ClientJobDetail | null> {
+export const getClientJob = cache(async (contactId: string, jobId: string): Promise<ClientJobDetail | null> => {
   const sb = getSupabaseAdmin();
-  const { data: j } = await sb.from("jobs").select("*, job_type:job_types(name)").eq("id", jobId).eq("client_portal_enabled", true).maybeSingle();
+  const preview = await getPreview();
+  let jq = sb.from("jobs").select("*, job_type:job_types(name)").eq("id", jobId);
+  if (preview?.jobId !== jobId) jq = jq.eq("client_portal_enabled", true);
+  const { data: j } = await jq.maybeSingle();
   if (!j) return null;
 
   const [pmMap, { data: contacts }, permissions] = await Promise.all([
@@ -97,9 +106,11 @@ export async function getClientJob(contactId: string, jobId: string): Promise<Cl
     next_milestone: j.next_milestone, client_description: j.client_description,
     contract_type: j.contract_type, square_feet: j.square_feet, permit_number: j.permit_number,
     funded_by_construction_loan: j.funded_by_construction_loan,
-    client_names, project_manager_contacts: pms, permissions,
+    client_names, permissions,
+    // The PM's phone is only shared when staff allow it.
+    project_manager_contacts: clientCan(permissions, "pm_phone") ? pms : pms.map((p) => ({ ...p, phone: null })),
   };
-}
+});
 
 // ── Client-visible collections (all scoped + visibility filtered) ──
 export async function loadClientUpdates(jobId: string) {
@@ -141,13 +152,15 @@ export async function loadClientChangeOrders(jobId: string) {
 export async function loadClientFinancials(jobId: string, perms: Record<string, boolean>) {
   const sb = getSupabaseAdmin();
   const { data: job } = await sb.from("jobs").select("contract_price").eq("id", jobId).maybeSingle();
-  const invoices = perms.invoices
+  const showInvoices = clientCan(perms, "invoices");
+  const invoices = showInvoices
     ? (await sb.from("invoices").select("invoice_number,title,status,issue_date,due_date,amount,amount_paid").eq("job_id", jobId).eq("client_visible", true).order("issue_date")).data ?? []
     : [];
   const approvedCOs = (await sb.from("change_orders").select("amount").eq("job_id", jobId).eq("status", "approved").eq("client_visible", true)).data ?? [];
   return {
-    show_price_summary: !!perms.price_summary,
-    show_invoices: !!perms.invoices,
+    show_price_summary: clientCan(perms, "price_summary"),
+    show_invoices: showInvoices,
+    show_balance: clientCan(perms, "remaining_invoice_balance"),
     contract_price: job?.contract_price ?? 0,
     approved_change_orders_total: approvedCOs.reduce((s, c) => s + Number(c.amount ?? 0), 0),
     invoices,

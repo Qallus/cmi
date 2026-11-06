@@ -277,8 +277,13 @@ export const DASHBOARD_GUIDE: GuideEntry[] = [
   },
   {
     id: "client-portal", name: "Client Portal (per job)", path: "/dashboard/jobs", nav: "Jobs → open a job → Client Portal",
-    summary: "Turn a job's client portal on, set progress, phase and next milestone, invite clients and publish client updates.",
-    keywords: ["client portal", "portal", "invite client", "client update", "progress"],
+    summary: "Turn a job's client portal on, set progress, phase and next milestone, invite clients and publish client updates. What each client can see is set per contact under Job Info → Clients → Portal permissions (schedule, phases, photos, documents & files and messages are on by default; selections, financials, PM phone and warranty requests are opt-in). Items still need sharing on their own tab: on the job's Files tab, use the Client column (or select several → Share with client) or tick 'Share with client' before uploading.",
+    keywords: ["client portal", "portal", "invite client", "client update", "progress", "preview as client", "milestones", "key dates"],
+    steps: [
+      "See what a client sees: Jobs → open the job → Client Portal → Client Access → Preview next to a client. The portal opens in a new tab as that client, read-only, for 30 minutes (an amber bar says so; nothing can be changed or sent). Works before the portal is switched on or the client is invited. Exit preview returns to the job.",
+      "What clients see on their project: Home (action needed, latest project summary, key dates, recent updates and photos, their team), Updates, Progress (the job's own phases from its shared schedule), Schedule, Milestones (contract and client-decision milestones with the contract date, today's forecast and how many working days apart they are), Photos, Documents, Selections, Action Items, Punch List, Financials, Change Orders, Messages and Warranty — each only when allowed for that client. On a phone the project has a bottom bar: Home, Messages, Decisions, Photos and More.",
+      "Milestones show to the client when the milestone and its schedule are client-visible and it's a Contract or Client decision milestone (or has a contract date).",
+    ],
   },
 
   // ── Files, comms, content ──

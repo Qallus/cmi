@@ -28,7 +28,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
   const content = (row.content ?? {}) as { opening?: string; completed?: string[]; coming_soon?: { item: string; when: string | null }[]; photos?: { url: string; caption: string | null }[] };
   const app = publicAppUrl();
-  const portal = row.job_id ? `${app}/client/jobs/${row.job_id}/overview` : null;
+  const portal = row.job_id ? `${app}/client/jobs/${row.job_id}` : null;
   const when = new Date((row.sent_at ?? row.created_at) as string);
   // Each texted link carries that reader's key (?r=…) so the greeting is theirs.
   const reader = new URL(req.url).searchParams.get("r");

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
-import { verifyClientJob } from "@/lib/client-portal/auth";
+import { verifyClientJob, getJobPerms } from "@/lib/client-portal/auth";
+import { clientCan } from "@/lib/client-portal/permissions";
 import { loadClientFiles } from "@/lib/client-portal/data";
 
 export const dynamic = "force-dynamic";
@@ -8,6 +9,7 @@ export default async function ClientPhotosPage({ params }: { params: Promise<{ j
   const { jobId } = await params;
   const contact = await verifyClientJob(jobId);
   if (!contact) redirect("/client/jobs");
+  if (!clientCan(await getJobPerms(contact.id, jobId), "photos")) redirect(`/client/jobs/${jobId}`);
   const { photos } = await loadClientFiles(jobId);
 
   if (photos.length === 0) return <div className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">No photos have been shared yet.</div>;

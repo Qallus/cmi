@@ -3,11 +3,11 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bell, LogOut, Settings, SquarePen } from "lucide-react";
+import { Bell, Eye, LogOut, Settings, SquarePen } from "lucide-react";
 
 // Authenticated client-portal chrome: brand bar + notifications + sign out.
 // Wraps all authenticated /client pages.
-export function ClientShell({ children }: { children: React.ReactNode }) {
+export function ClientShell({ children, preview = null }: { children: React.ReactNode; preview?: { name: string } | null }) {
   const router = useRouter();
   const [unread, setUnread] = React.useState(0);
   const [canvasOn, setCanvasOn] = React.useState(false);
@@ -27,6 +27,13 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
   }
   return (
     <div className="min-h-screen bg-background">
+      {preview ? (
+        <div className="sticky top-0 z-40 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-amber-500 px-4 py-1.5 text-center text-xs font-medium text-black">
+          <Eye className="h-3.5 w-3.5" />
+          <span>Preview: you&apos;re seeing the portal as {preview.name}. Nothing can be changed or sent.</span>
+          <a href="/api/client/auth/preview-exit" className="rounded bg-black/80 px-2 py-0.5 text-white hover:bg-black">Exit preview</a>
+        </div>
+      ) : null}
       <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-card px-4 md:px-8">
         <Link href="/client/jobs" className="flex items-center gap-3">
           <img src="/brand/cmi-logo-dark.png" alt="Constructed Matter, Inc." className="h-7 object-contain dark:hidden" />
@@ -45,9 +52,9 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
             {unread > 0 && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-bold text-accent-foreground">{unread > 9 ? "9+" : unread}</span>}
           </Link>
           <Link href="/client/settings" className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground hover:text-foreground" title="Settings"><Settings className="h-4 w-4" /></Link>
-          <button type="button" onClick={signOut} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground">
+          {preview ? null : <button type="button" onClick={signOut} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground">
             <LogOut className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Sign out</span>
-          </button>
+          </button>}
         </div>
       </header>
       <main className="mx-auto max-w-5xl px-4 py-6 md:px-8">{children}</main>

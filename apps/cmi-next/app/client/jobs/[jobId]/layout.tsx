@@ -6,6 +6,7 @@ import { getClientJob } from "@/lib/client-portal/data";
 import { ClientStatusBadge, ProgressBar } from "../../portal-ui";
 import { ClientJobNav } from "./client-job-nav";
 import { hasClientPunchLists } from "@/lib/punch/data";
+import { clientCan, clientCanSubmitWarranty } from "@/lib/client-portal/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -16,18 +17,18 @@ function tabsFor(job: { status: string; permissions: Record<string, boolean> }, 
     { slug: "overview", label: "Overview" },
     { slug: "updates", label: "Updates" },
     { slug: "progress", label: "Progress" },
-    { slug: "schedule", label: "Schedule" },
-    { slug: "photos", label: "Photos" },
-    { slug: "documents", label: "Documents" },
   ];
-  if (p.locked_selections) tabs.push({ slug: "selections", label: "Selections" });
+  if (clientCan(p, "schedule_items")) tabs.push({ slug: "schedule", label: "Schedule" }, { slug: "milestones", label: "Milestones" });
+  if (clientCan(p, "photos")) tabs.push({ slug: "photos", label: "Photos" });
+  if (clientCan(p, "files")) tabs.push({ slug: "documents", label: "Documents" });
+  if (clientCan(p, "locked_selections")) tabs.push({ slug: "selections", label: "Selections" });
   tabs.push({ slug: "action-items", label: "Action Items" });
   // Only when staff have shared at least one punch list on this job.
   if (hasPunch) tabs.push({ slug: "punch-list", label: "Punch List" });
-  if (p.price_summary || p.invoices) tabs.push({ slug: "financials", label: "Financials" });
+  if (clientCan(p, "price_summary") || clientCan(p, "invoices")) tabs.push({ slug: "financials", label: "Financials" });
   tabs.push({ slug: "change-orders", label: "Change Orders" });
-  if (p.messages !== false) tabs.push({ slug: "messages", label: "Messages" });
-  if (job.status === "warranty" || p.warranty_claims) tabs.push({ slug: "warranty", label: "Warranty" });
+  if (clientCan(p, "messages")) tabs.push({ slug: "messages", label: "Messages" });
+  if (clientCanSubmitWarranty(p, job.status)) tabs.push({ slug: "warranty", label: "Warranty" });
   return tabs;
 }
 
@@ -64,7 +65,8 @@ export default async function ClientJobLayout({ children, params }: { children: 
       </div>
 
       <div className="mt-4"><ClientJobNav jobId={jobId} tabs={tabsFor(job, hasPunch)} /></div>
-      <div className="py-6">{children}</div>
+      {/* Room under the phone's bottom bar. */}
+      <div className="pb-24 pt-6 sm:pb-6">{children}</div>
     </div>
   );
 }

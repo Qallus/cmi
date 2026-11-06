@@ -1,6 +1,7 @@
 // Client approves or requests changes on a selection.
 import { NextResponse } from "next/server";
-import { requireClient, assertJobAccess, ClientAuthError } from "@/lib/client-portal/auth";
+import { requireClient, assertJobAccess, getJobPerms, ClientAuthError } from "@/lib/client-portal/auth";
+import { clientCan } from "@/lib/client-portal/permissions";
 import { clientDecideSelection } from "@/lib/job-selections/data";
 
 export async function POST(request: Request, { params }: { params: Promise<{ jobId: string; selId: string }> }) {
@@ -8,6 +9,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ job
     const { contact } = await requireClient(request);
     const { jobId, selId } = await params;
     await assertJobAccess(contact.id, jobId);
+    if (!clientCan(await getJobPerms(contact.id, jobId), "locked_selections")) {
+      return NextResponse.json({ error: "Selections are not enabled for your account." }, { status: 403 });
+    }
     const { decision, comment } = await request.json() as { decision?: string; comment?: string };
     if (decision !== "approved" && decision !== "revision_requested") {
       return NextResponse.json({ error: "Invalid decision." }, { status: 400 });

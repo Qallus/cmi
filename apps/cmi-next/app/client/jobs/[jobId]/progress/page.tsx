@@ -1,12 +1,14 @@
 import { redirect } from "next/navigation";
 import { verifyClientJob } from "@/lib/client-portal/auth";
 import { getClientJob } from "@/lib/client-portal/data";
-import { loadClientScheduleItems } from "@/lib/client-portal/schedule";
+import { loadClientPhases, loadClientScheduleItems } from "@/lib/client-portal/schedule";
 import { ProgressBar, fmtDate } from "../../../portal-ui";
+import { clientCan } from "@/lib/client-portal/permissions";
 
 export const dynamic = "force-dynamic";
 
-// A friendly phase ladder; the current phase is highlighted.
+// The job's own phases come from its shared schedule; this friendly ladder is
+// only used when there's no schedule yet. The current phase is highlighted.
 const PHASES = ["Planning", "Design", "Engineering", "Permitting", "Procurement", "Demo", "Framing", "MEP", "Inspections", "Drywall", "Finishes", "Final Walkthrough", "Completed", "Warranty"];
 
 export default async function ClientProgressPage({ params }: { params: Promise<{ jobId: string }> }) {
@@ -15,7 +17,12 @@ export default async function ClientProgressPage({ params }: { params: Promise<{
   if (!contact) redirect("/client/jobs");
   const job = await getClientJob(contact.id, jobId);
   if (!job) redirect("/client/jobs");
-  const milestones = await loadClientScheduleItems(jobId).catch(() => []);
+  const showPhases = clientCan(job.permissions, "schedule_phases");
+  const showMilestones = clientCan(job.permissions, "schedule_items");
+  const [milestones, realPhases] = await Promise.all([
+    showMilestones ? loadClientScheduleItems(jobId).catch(() => []) : Promise.resolve([]),
+    showPhases ? loadClientPhases(jobId).catch(() => []) : Promise.resolve([]),
+  ]);
 
   const currentIdx = job.current_phase ? PHASES.findIndex((p) => p.toLowerCase() === job.current_phase!.toLowerCase()) : -1;
 
@@ -32,8 +39,21 @@ export default async function ClientProgressPage({ params }: { params: Promise<{
           </div>
         </div>
 
-        <div className="rounded-xl border border-border bg-card p-5">
+        {showPhases && <div className="rounded-xl border border-border bg-card p-5">
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-[0.1em] text-muted-foreground">Project Phases</h2>
+          {realPhases.length ? (
+            <ol className="space-y-2">
+              {realPhases.map((p, i) => (
+                <li key={p.id} className="flex items-center gap-3 text-sm">
+                  <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-[10px] ${p.state === "done" ? "bg-accent text-accent-foreground" : p.state === "current" ? "border-2 border-accent text-accent" : "border border-border text-muted-foreground"}`}>{p.state === "done" ? "✓" : i + 1}</span>
+                  <div className="min-w-0 flex-1">
+                    <div className={p.state === "current" ? "font-semibold text-accent" : p.state === "done" ? "text-foreground" : "text-muted-foreground"}>{p.name}</div>
+                    <div className="text-xs text-muted-foreground">{p.start ? `${fmtDate(p.start)} – ${fmtDate(p.end)}` : ""}{p.state === "current" ? ` · ${p.done} of ${p.tasks} done` : ""}</div>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          ) : (
           <ol className="space-y-1.5">
             {PHASES.map((p, i) => {
               const done = currentIdx >= 0 && i < currentIdx;
@@ -46,9 +66,10 @@ export default async function ClientProgressPage({ params }: { params: Promise<{
               );
             })}
           </ol>
-        </div>
+          )}
+        </div>}
 
-        <div className="rounded-xl border border-border bg-card p-5">
+        {showMilestones && <div className="rounded-xl border border-border bg-card p-5">
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-[0.1em] text-muted-foreground">Upcoming Milestones</h2>
           {milestones.length === 0 ? (
             <p className="text-sm text-muted-foreground">No scheduled milestones yet.</p>
@@ -67,7 +88,7 @@ export default async function ClientProgressPage({ params }: { params: Promise<{
               ))}
             </ul>
           )}
-        </div>
+        </div>}
       </div>
 
       <div className="space-y-6">

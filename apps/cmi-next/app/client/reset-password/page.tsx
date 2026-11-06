@@ -21,7 +21,8 @@ export default function ClientResetPasswordPage() {
 
   React.useEffect(() => {
     const hash = window.location.hash.slice(1);
-    const token = new URLSearchParams(hash).get("access_token");
+    const params = new URLSearchParams(hash);
+    const token = params.get("access_token");
     if (!token) {
       setNotice("This reset link is invalid or missing its token. Request a new one.");
       setStage("error");
@@ -30,7 +31,7 @@ export default function ClientResetPasswordPage() {
     fetch("/api/client/auth/exchange-token", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ access_token: token }),
+      body: JSON.stringify({ access_token: token, refresh_token: params.get("refresh_token") }),
     })
       .then(async (r) => {
         const j = await r.json();

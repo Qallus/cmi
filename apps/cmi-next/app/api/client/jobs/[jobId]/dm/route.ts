@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireClient, assertJobAccess, getJobPerms, ClientAuthError } from "@/lib/client-portal/auth";
 import { findOrCreateClientPmConversation, getThread, sendMessage } from "@/lib/direct-messages/data";
+import { clientCan } from "@/lib/client-portal/permissions";
 
 // Client↔PM direct message thread for a job. GET loads (or creates) the thread
 // with the job's project team; POST sends a message as the client.
@@ -9,6 +10,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ jobI
     const { contact } = await requireClient(request);
     const { jobId } = await params;
     await assertJobAccess(contact.id, jobId);
+    if (!clientCan(await getJobPerms(contact.id, jobId), "messages")) return NextResponse.json({ error: "Messaging is not enabled for your account." }, { status: 403 });
     const conversationId = await findOrCreateClientPmConversation(contact.id, jobId);
     const thread = await getThread(contact.id, conversationId);
     return NextResponse.json({ conversationId, conversation: thread?.conversation ?? { id: conversationId, other: null }, messages: thread?.messages ?? [] });
@@ -24,7 +26,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ job
     const { jobId } = await params;
     await assertJobAccess(contact.id, jobId);
     const perms = await getJobPerms(contact.id, jobId);
-    if (perms.messages === false) return NextResponse.json({ error: "Messaging is not enabled for your account." }, { status: 403 });
+    if (!clientCan(perms, "messages")) return NextResponse.json({ error: "Messaging is not enabled for your account." }, { status: 403 });
     const body = (await request.json().catch(() => ({}))) as { body?: string; attachments?: unknown[] };
     if (!body.body?.trim() && !body.attachments?.length) return NextResponse.json({ error: "Message can't be empty." }, { status: 400 });
     const conversationId = await findOrCreateClientPmConversation(contact.id, jobId);

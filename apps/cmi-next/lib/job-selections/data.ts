@@ -6,11 +6,13 @@ import type { ProjectSelection } from "@/lib/selections/types";
 
 export type JobSelectionDraft = Partial<Omit<ProjectSelection, "id" | "created_at" | "updated_at">> & { name: string };
 
-export async function loadJobSelections(jobId: string): Promise<ProjectSelection[]> {
+// Selections attached directly (job_id) OR via a reusable association row.
+async function loadSelectionsForJob(jobId: string, opts: { clientVisibleOnly?: boolean } = {}): Promise<ProjectSelection[]> {
   const sb = getSupabaseAdmin();
-  // Selections attached directly (job_id) OR via a reusable association row.
+  let direct = sb.from("project_selections").select("*").eq("job_id", jobId);
+  if (opts.clientVisibleOnly) direct = direct.eq("client_visible", true);
   const [directRes, assocRes] = await Promise.all([
-    sb.from("project_selections").select("*").eq("job_id", jobId),
+    direct,
     sb.from("selection_associations").select("selection_id").eq("job_id", jobId),
   ]);
   if (directRes.error) throw new Error(directRes.error.message);
@@ -19,11 +21,28 @@ export async function loadJobSelections(jobId: string): Promise<ProjectSelection
   const haveIds = new Set(rows.map((r) => r.id));
   const assocIds = (assocRes.data ?? []).map((a) => a.selection_id).filter((id) => !haveIds.has(id));
   if (assocIds.length) {
-    const { data: assoc } = await sb.from("project_selections").select("*").in("id", assocIds);
+    let assocQ = sb.from("project_selections").select("*").in("id", assocIds);
+    if (opts.clientVisibleOnly) assocQ = assocQ.eq("client_visible", true);
+    const { data: assoc } = await assocQ;
     for (const r of assoc ?? []) rows.push(r);
   }
-  rows.sort((a, b) => String(b.updated_at ?? "").localeCompare(String(a.updated_at ?? "")));
   return rows as ProjectSelection[];
+}
+
+export async function loadJobSelections(jobId: string): Promise<ProjectSelection[]> {
+  const rows = await loadSelectionsForJob(jobId);
+  rows.sort((a, b) => String(b.updated_at ?? "").localeCompare(String(a.updated_at ?? "")));
+  return rows;
+}
+
+// Is this selection on the job, directly or through an association row?
+async function selectionOnJob(selId: string, jobId: string): Promise<boolean> {
+  const sb = getSupabaseAdmin();
+  const [direct, assoc] = await Promise.all([
+    sb.from("project_selections").select("id").eq("id", selId).eq("job_id", jobId).maybeSingle(),
+    sb.from("selection_associations").select("selection_id").eq("selection_id", selId).eq("job_id", jobId).maybeSingle(),
+  ]);
+  return Boolean(direct.data || assoc.data);
 }
 
 // All selections available to attach to a job (for the "Add Existing" picker).
@@ -47,10 +66,9 @@ export async function attachSelectionsToJob(jobId: string, selectionIds: string[
 
 // Client-facing: only client-visible selections for the job.
 export async function loadClientJobSelections(jobId: string): Promise<ProjectSelection[]> {
-  const { data, error } = await getSupabaseAdmin()
-    .from("project_selections").select("*").eq("job_id", jobId).eq("client_visible", true).order("category");
-  if (error) throw new Error(error.message);
-  return (data ?? []) as ProjectSelection[];
+  const rows = await loadSelectionsForJob(jobId, { clientVisibleOnly: true });
+  rows.sort((a, b) => String(a.category ?? "").localeCompare(String(b.category ?? "")));
+  return rows;
 }
 
 // Notify clients when a selection is put into "pending" client approval.
@@ -96,8 +114,9 @@ export async function clientDecideSelection(
       ? { client_approved_at: now, selection_status: "client_approved" }
       : { client_rejected_at: now, selection_status: "rejected_needs_revision" }),
   };
+  if (!(await selectionOnJob(selId, jobId))) throw new Error("Selection not found on this project.");
   const { data, error } = await getSupabaseAdmin()
-    .from("project_selections").update(patch).eq("id", selId).eq("job_id", jobId).eq("client_visible", true).select().single();
+    .from("project_selections").update(patch).eq("id", selId).eq("client_visible", true).select().single();
   if (error) throw new Error(error.message);
   return data as ProjectSelection;
 }

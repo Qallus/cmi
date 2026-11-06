@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { Download, FileText } from "lucide-react";
-import { verifyClientJob } from "@/lib/client-portal/auth";
+import { verifyClientJob, getJobPerms } from "@/lib/client-portal/auth";
+import { clientCan } from "@/lib/client-portal/permissions";
 import { loadClientFiles } from "@/lib/client-portal/data";
 import { fmtDate } from "../../../portal-ui";
 
@@ -10,6 +11,7 @@ export default async function ClientDocumentsPage({ params }: { params: Promise<
   const { jobId } = await params;
   const contact = await verifyClientJob(jobId);
   if (!contact) redirect("/client/jobs");
+  if (!clientCan(await getJobPerms(contact.id, jobId), "files")) redirect(`/client/jobs/${jobId}`);
   const { documents } = await loadClientFiles(jobId);
 
   if (documents.length === 0) return <div className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">No documents have been shared yet.</div>;

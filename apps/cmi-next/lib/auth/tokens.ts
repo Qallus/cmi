@@ -8,6 +8,11 @@ export const SESSION_COOKIE = "cmi-session";
 export const REFRESH_COOKIE = "cmi-refresh";
 export const SESSION_MAX_AGE = 60 * 60 * 8;       // 8 hours
 export const REFRESH_MAX_AGE = 60 * 60 * 24 * 30; // 30 days
+// Client portal uses its own pair so a client token never satisfies the staff gate.
+export const CLIENT_SESSION_COOKIE = "cmi-client-session";
+export const CLIENT_REFRESH_COOKIE = "cmi-client-refresh";
+export const CLIENT_SESSION_MAX_AGE = 60 * 60 * 12;      // 12 hours
+export const CLIENT_REFRESH_MAX_AGE = 60 * 60 * 24 * 30; // 30 days
 /** Refresh this many seconds before the access token actually expires. */
 export const REFRESH_SKEW_SECONDS = 120;
 

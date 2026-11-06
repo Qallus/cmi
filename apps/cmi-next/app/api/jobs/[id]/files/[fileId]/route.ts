@@ -8,8 +8,8 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   try {
     const { staff } = await requireAdmin(request);
     if (!WRITE_ROLES.includes(staff.role_slug)) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
-    const { fileId } = await params;
-    await deleteJobFile(fileId);
+    const { id, fileId } = await params;
+    await deleteJobFile(id, fileId);
     return new NextResponse(null, { status: 204 });
   } catch (err) { const e = err as AuthError; return NextResponse.json({ error: e.message }, { status: e.status ?? 500 }); }
 }

@@ -4,6 +4,18 @@ import { verifyClientJob } from "@/lib/client-portal/auth";
 import { getClientJob, loadClientUpdates, loadClientFiles } from "@/lib/client-portal/data";
 import { loadClientActionItems } from "@/lib/action-items/data";
 import { fmtDate, humanize } from "../../portal-ui";
+import { clientCan } from "@/lib/client-portal/permissions";
+import { loadClientMilestones } from "@/lib/client-portal/schedule";
+import { standing } from "@/lib/client-portal/milestones";
+import { loadClientJobSelections } from "@/lib/job-selections/data";
+import { getSupabaseAdmin } from "@/lib/supabase/server";
+
+// The newest summary written for and sent to the client.
+async function latestClientSummary(jobId: string) {
+  const { data } = await getSupabaseAdmin().from("executive_summaries").select("id, headline, sent_at, period_start, period_end")
+    .eq("job_id", jobId).eq("audience", "client").eq("status", "sent").order("sent_at", { ascending: false }).limit(1).maybeSingle();
+  return data as { id: string; headline: string | null; sent_at: string | null; period_start: string | null; period_end: string | null } | null;
+}
 
 export const dynamic = "force-dynamic";
 
@@ -11,19 +23,34 @@ export default async function ClientJobOverview({ params }: { params: Promise<{ 
   const { jobId } = await params;
   const contact = await verifyClientJob(jobId);
   if (!contact) redirect("/client/jobs");
-  const [job, updates, files, actionItems] = await Promise.all([getClientJob(contact.id, jobId), loadClientUpdates(jobId), loadClientFiles(jobId), loadClientActionItems(contact.id, jobId)]);
+  const [job, updates, files, actionItems, milestones, summary] = await Promise.all([
+    getClientJob(contact.id, jobId), loadClientUpdates(jobId), loadClientFiles(jobId), loadClientActionItems(contact.id, jobId),
+    loadClientMilestones(jobId).catch(() => []), latestClientSummary(jobId).catch(() => null),
+  ]);
   if (!job) redirect("/client/jobs");
+  const showSchedule = clientCan(job.permissions, "schedule_items");
+  const nextDates = showSchedule ? milestones.filter((m) => !m.done).slice(0, 3) : [];
+  // Selections waiting on the client's decision (when they can approve).
+  const pendingSelections = clientCan(job.permissions, "locked_selections")
+    ? (await loadClientJobSelections(jobId).catch(() => [])).filter((s) => s.approval_status === "pending").length : 0;
   const recentUpdates = updates.slice(0, 3);
+  const showPhotos = clientCan(job.permissions, "photos");
   const recentPhotos = files.photos.slice(0, 6);
   const openActions = actionItems.filter((a) => a.status === "open" || a.status === "in_progress");
+  const needsYou = openActions.length > 0 || pendingSelections > 0;
   const pm = job.project_manager_contacts[0];
 
   return (
     <div className="grid gap-6 lg:grid-cols-3">
       <div className="space-y-6 lg:col-span-2">
-        {openActions.length > 0 && (
+        {needsYou && (
           <div className="rounded-xl border border-accent/40 bg-accent/5 p-5">
-            <div className="mb-2 flex items-center justify-between"><h2 className="text-sm font-semibold uppercase tracking-[0.1em] text-accent">Action Needed</h2><Link href={`/client/jobs/${jobId}/action-items`} className="text-xs text-accent hover:underline">View all</Link></div>
+            <div className="mb-2 flex items-center justify-between"><h2 className="text-sm font-semibold uppercase tracking-[0.1em] text-accent">Action Needed</h2>{openActions.length ? <Link href={`/client/jobs/${jobId}/action-items`} className="text-xs text-accent hover:underline">View all</Link> : null}</div>
+            {pendingSelections ? (
+              <Link href={`/client/jobs/${jobId}/selections`} className="mb-2 flex items-center justify-between rounded-lg bg-card px-3 py-2 text-sm font-medium hover:bg-muted">
+                <span>{pendingSelections} selection{pendingSelections === 1 ? "" : "s"} waiting for your decision</span><span className="text-xs text-accent">Review →</span>
+              </Link>
+            ) : null}
             <ul className="space-y-1.5">
               {openActions.slice(0, 3).map((a) => (
                 <li key={a.id} className="flex items-center justify-between text-sm"><span>{a.title}</span>{a.due_date && <span className="text-xs text-muted-foreground">due {fmtDate(a.due_date)}</span>}</li>
@@ -31,6 +58,13 @@ export default async function ClientJobOverview({ params }: { params: Promise<{ 
             </ul>
           </div>
         )}
+        {summary ? (
+          <Link href={`/summary/${summary.id}`} target="_blank" className="block rounded-xl border border-border bg-card p-5 transition hover:border-accent/50">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-accent">Latest project summary{summary.period_start && summary.period_end ? ` · ${fmtDate(summary.period_start)} – ${fmtDate(summary.period_end)}` : ""}</div>
+            <div className="mt-1 font-display text-lg font-semibold">{summary.headline ?? "Your project update"}</div>
+            <div className="mt-2 text-xs font-medium text-accent">Read the full summary →</div>
+          </Link>
+        ) : null}
         {job.client_description && (
           <Card title="About This Project"><p className="whitespace-pre-wrap text-sm text-muted-foreground">{job.client_description}</p></Card>
         )}
@@ -52,7 +86,7 @@ export default async function ClientJobOverview({ params }: { params: Promise<{ 
           )}
         </Card>
 
-        <Card title="Recent Photos" action={<Link href={`/client/jobs/${jobId}/photos`} className="text-xs text-accent hover:underline">View all</Link>}>
+        {showPhotos && <Card title="Recent Photos" action={<Link href={`/client/jobs/${jobId}/photos`} className="text-xs text-accent hover:underline">View all</Link>}>
           {recentPhotos.length === 0 ? <Empty>No photos yet.</Empty> : (
             <div className="grid grid-cols-3 gap-2">
               {recentPhotos.map((p) => (
@@ -62,7 +96,7 @@ export default async function ClientJobOverview({ params }: { params: Promise<{ 
               ))}
             </div>
           )}
-        </Card>
+        </Card>}
       </div>
 
       <div className="space-y-6">
@@ -77,6 +111,21 @@ export default async function ClientJobOverview({ params }: { params: Promise<{ 
             </div>
           ) : <Empty>Your project manager will be assigned soon.</Empty>}
         </Card>
+
+        {showSchedule ? (
+          <Card title="Key dates" action={<Link href={`/client/jobs/${jobId}/milestones`} className="text-xs text-accent hover:underline">All</Link>}>
+            {nextDates.length ? (
+              <ul className="space-y-2.5">
+                {nextDates.map((m) => { const s = standing(m); return (
+                  <li key={m.id} className="text-sm">
+                    <div className="flex items-start justify-between gap-2"><span className="font-medium">{m.title}</span><span className="shrink-0 text-xs text-muted-foreground">{fmtDate(m.forecast)}</span></div>
+                    <div className={`text-xs ${s.tone === "late" ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground"}`}>{s.label}</div>
+                  </li>
+                ); })}
+              </ul>
+            ) : <Empty>Key dates will show once your schedule is shared.</Empty>}
+          </Card>
+        ) : null}
 
         <Card title="Details">
           <KV label="Job Type">{humanize(job.job_type_name)}</KV>

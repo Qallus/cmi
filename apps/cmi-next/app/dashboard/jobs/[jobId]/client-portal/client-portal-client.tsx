@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Megaphone, Mic, Send, Trash2, UserPlus, Video, X } from "lucide-react";
+import { Eye, Megaphone, Mic, Send, Trash2, UserPlus, Video, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, Textarea } from "@/components/ui/input";
@@ -103,7 +103,12 @@ export function ClientPortalClient({ job, initialUpdates, clients }: { job: JobW
                     <div className="text-sm font-medium">{`${c.contact?.first_name ?? ""} ${c.contact?.last_name ?? ""}`.trim() || "Client"}</div>
                     <div className="text-xs text-muted-foreground">{c.contact?.email ?? "No email"} {c.portal_access_enabled && <Badge tone="success">Portal on</Badge>}</div>
                   </div>
-                  <Button size="sm" variant="outline" disabled={!c.contact?.email || inviting === c.id} onClick={() => void invite(c)}><UserPlus className="h-3.5 w-3.5" /> {inviting === c.id ? "Sending…" : "Invite"}</Button>
+                  <div className="flex items-center gap-2">
+                    {/* Read-only look at the portal exactly as this client would see it; nothing is sent. */}
+                    {c.contact_id ? <a href={`/api/jobs/${job.id}/client-preview?contact=${c.contact_id}`} target="_blank" rel="noreferrer"
+                      className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-3 text-xs font-medium hover:bg-muted" title="Open the portal as this client (read-only, 30 minutes)"><Eye className="h-3.5 w-3.5" /> Preview</a> : null}
+                    <Button size="sm" variant="outline" disabled={!c.contact?.email || inviting === c.id} onClick={() => void invite(c)}><UserPlus className="h-3.5 w-3.5" /> {inviting === c.id ? "Sending…" : "Invite"}</Button>
+                  </div>
                 </div>
               ))}
             </div>
