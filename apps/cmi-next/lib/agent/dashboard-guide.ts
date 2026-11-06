@@ -20,6 +20,7 @@ export type GuideEntry = {
 };
 
 export const GLOSSARY = [
+  "Search: the Search Constructed Matter box at the top of every dashboard page (Ctrl/⌘+K; on a phone, the magnifying glass next to the light/dark button). Every word must match, in any order, so 'waters 26' finds The Waters Residence and 'ben framing' finds Ben's framing task. It finds dashboard pages (Go to, e.g. 'consent' → Messaging Consent), jobs, contacts, Pipeline deals, Pre-Con projects, trade partners, selections, change orders, invoices, schedule tasks (by title, location, assignee, job or schedule), daily logs (private ones only for their author), punch list items, Cloud files and Workspace documents. Pipeline, Pre-Con, trade partners and invoices show for Admins, Project Managers and Estimators. Pick a result to open its page.",
   "Contact: any person in the CRM (Contacts). Its Type says what they are: Lead, Client, Prospect, Customer, Vendor, Sub Contractor, Designer or Other.",
   "Lead: a Contact whose Type is Lead (Contacts → Leads tab). 'How many leads' means count contacts with type Lead, not quotes.",
   "Quote: an estimate request from the website's quote form (Quotes & Leads page).",

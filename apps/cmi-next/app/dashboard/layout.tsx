@@ -125,9 +125,11 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           <div className="flex items-center gap-2">
             {/* Job pages only: Calls / SMS / Email / Notes / Prints for this job. */}
             {onJobPage && <JobCommsBar />}
-            <GlobalSearch />
+            <GlobalSearch role={(sessionUser?.role ?? "viewer") as UserRole} />
             <InstallAppButton variant="outline" size="sm" label="Get the App" className="hidden sm:inline-flex" />
             <ThemeToggle />
+            {/* Phones: the search box doesn't fit, so a button opens a search window. */}
+            <GlobalSearch variant="icon" role={(sessionUser?.role ?? "viewer") as UserRole} />
             <NotificationBell />
             <Tooltip label="Sign out" side="bottom" className="inline-block">
               <button
