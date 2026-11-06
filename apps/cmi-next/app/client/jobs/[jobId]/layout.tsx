@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { getClientSession, assertJobAccess, ClientAuthError } from "@/lib/client-portal/auth";
 import { getClientJob } from "@/lib/client-portal/data";
 import { ClientStatusBadge, ProgressBar } from "../../portal-ui";
-import { ClientJobNav } from "./client-job-nav";
+import { PortalSidebar, RegisterJobNav } from "../../portal-nav";
 import { hasClientPunchLists } from "@/lib/punch/data";
 import { clientCan, clientCanSubmitWarranty } from "@/lib/client-portal/permissions";
 
@@ -46,27 +46,32 @@ export default async function ClientJobLayout({ children, params }: { children: 
   if (!job) redirect("/client/jobs");
   const hasPunch = await hasClientPunchLists(jobId).catch(() => false);
 
+  const tabs = tabsFor(job, hasPunch);
+  // Desktop: the project's pages down the left (lined up with the logo), the
+  // project header and page on the right. Phone: the hamburger and the footer
+  // bar carry the same pages.
   return (
-    <div>
-      <Link href="/client/jobs" className="text-xs text-muted-foreground hover:text-foreground">← My Projects</Link>
-      <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="font-display text-2xl font-semibold tracking-tight">{job.job_name}</h1>
-            <ClientStatusBadge status={job.status} />
+    <div className="lg:grid lg:grid-cols-[13rem_minmax(0,1fr)] lg:gap-10">
+      <RegisterJobNav jobId={jobId} jobName={job.job_name} tabs={tabs} />
+      <PortalSidebar jobId={jobId} tabs={tabs} />
+      <div className="min-w-0">
+        <Link href="/client/jobs" className="text-xs text-muted-foreground hover:text-foreground">← My Projects</Link>
+        <div className="mt-2 flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="font-display text-2xl font-semibold tracking-tight">{job.job_name}</h1>
+              <ClientStatusBadge status={job.status} />
+            </div>
+            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+              <span className="font-mono text-xs">{job.job_number ?? ""}</span>
+              {job.full_address && <span>{job.full_address}</span>}
+              {job.project_managers.length > 0 && <span>PM: {job.project_managers.join(", ")}</span>}
+            </div>
           </div>
-          <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-            <span className="font-mono text-xs">{job.job_number ?? ""}</span>
-            {job.full_address && <span>{job.full_address}</span>}
-            {job.project_managers.length > 0 && <span>PM: {job.project_managers.join(", ")}</span>}
-          </div>
+          <div className="w-full sm:max-w-[16rem]"><ProgressBar percent={job.progress_percentage} /></div>
         </div>
-        <div className="w-full max-w-xs"><ProgressBar percent={job.progress_percentage} /></div>
+        <div className="mt-6 border-t border-border pt-6">{children}</div>
       </div>
-
-      <div className="mt-4"><ClientJobNav jobId={jobId} tabs={tabsFor(job, hasPunch)} /></div>
-      {/* Room under the phone's bottom bar. */}
-      <div className="pb-24 pt-6 sm:pb-6">{children}</div>
     </div>
   );
 }

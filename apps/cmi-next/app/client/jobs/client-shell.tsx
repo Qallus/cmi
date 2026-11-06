@@ -3,14 +3,22 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bell, Eye, LogOut, Settings, SquarePen } from "lucide-react";
+import { Bell, Eye, LogOut, Menu, Settings, SquarePen } from "lucide-react";
+import { ThemeToggle } from "@/components/dashboard/theme-toggle";
+import { PortalFooterNav, PortalMobileMenu, PortalNavProvider } from "../portal-nav";
 
-// Authenticated client-portal chrome: brand bar + notifications + sign out.
-// Wraps all authenticated /client pages.
+// Authenticated client-portal chrome, wrapping every signed-in /client page:
+// the brand bar (logo, notifications, theme, settings, sign out), the phone
+// menu and footer, and the content column. The bar's contents sit in the same
+// column as the content below, so the logo lines up with the left edge of the
+// page and the icons with the right.
+export const PORTAL_COLUMN = "mx-auto w-full max-w-6xl px-4 md:px-8";
+
 export function ClientShell({ children, preview = null }: { children: React.ReactNode; preview?: { name: string } | null }) {
   const router = useRouter();
   const [unread, setUnread] = React.useState(0);
   const [canvasOn, setCanvasOn] = React.useState(false);
+  const [menu, setMenu] = React.useState(false);
 
   React.useEffect(() => {
     let active = true;
@@ -25,39 +33,59 @@ export function ClientShell({ children, preview = null }: { children: React.Reac
     await fetch("/api/client/auth/signout", { method: "POST" });
     router.push("/client/login");
   }
+  const signOutButton = preview ? null : (
+    <button type="button" onClick={signOut} className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-3 text-xs font-medium text-muted-foreground hover:border-red-400 hover:text-red-500">
+      <LogOut className="h-3.5 w-3.5" /> Sign out
+    </button>
+  );
+  const iconBtn = "relative inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-card text-muted-foreground transition hover:text-foreground";
+
   return (
-    <div className="min-h-screen bg-background">
-      {preview ? (
-        <div className="sticky top-0 z-40 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-amber-500 px-4 py-1.5 text-center text-xs font-medium text-black">
-          <Eye className="h-3.5 w-3.5" />
-          <span>Preview: you&apos;re seeing the portal as {preview.name}. Nothing can be changed or sent.</span>
-          <a href="/api/client/auth/preview-exit" className="rounded bg-black/80 px-2 py-0.5 text-white hover:bg-black">Exit preview</a>
+    <PortalNavProvider canvas={canvasOn}>
+      <div className="min-h-screen bg-background text-foreground">
+        <div className="sticky top-0 z-30">
+          {preview ? (
+            <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-amber-500 px-4 py-1.5 text-center text-xs font-medium text-black">
+              <Eye className="h-3.5 w-3.5" />
+              <span>Preview: you&apos;re seeing the portal as {preview.name}. Nothing can be changed or sent.</span>
+              <a href="/api/client/auth/preview-exit" className="rounded bg-black/80 px-2 py-0.5 text-white hover:bg-black">Exit preview</a>
+            </div>
+          ) : null}
+          <header className="border-b border-border bg-background/92 backdrop-blur">
+            <div className={`${PORTAL_COLUMN} flex h-14 items-center justify-between gap-3`}>
+              <div className="flex min-w-0 items-center gap-2.5">
+                <button type="button" onClick={() => setMenu(true)} aria-label="Open navigation menu" className={`${iconBtn} lg:hidden`}><Menu className="h-4 w-4" /></button>
+                <Link href="/client/jobs" className="flex min-w-0 items-center gap-3">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- static brand SVG, same as the dashboard */}
+                  <img src="/brand/CMI_Line_Logo_Black.svg" alt="Constructed Matter, Inc." className="h-7 w-auto object-contain dark:hidden" />
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/brand/CMI_Line_Logo_White.svg" alt="Constructed Matter, Inc." className="hidden h-7 w-auto object-contain dark:block" />
+                  <span className="hidden text-xs uppercase tracking-[0.16em] text-muted-foreground md:inline">Project Portal</span>
+                </Link>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <Link href="/client/jobs" className="hidden px-1 text-sm font-medium text-muted-foreground hover:text-foreground lg:inline">My Projects</Link>
+                {canvasOn && (
+                  <Link href="/client/canvas" className="hidden items-center gap-1.5 px-1 text-sm font-medium text-muted-foreground hover:text-foreground lg:inline-flex" title="Project Canvas">
+                    <SquarePen className="h-4 w-4" /> Canvas
+                  </Link>
+                )}
+                <ThemeToggle />
+                <Link href="/client/notifications" className={iconBtn} title="Notifications" aria-label={unread ? `Notifications, ${unread} unread` : "Notifications"}>
+                  <Bell className="h-4 w-4" />
+                  {unread > 0 && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-bold text-accent-foreground">{unread > 9 ? "9+" : unread}</span>}
+                </Link>
+                <Link href="/client/settings" className={iconBtn} title="Settings" aria-label="Settings"><Settings className="h-4 w-4" /></Link>
+                <span className="hidden lg:inline-flex">{signOutButton}</span>
+              </div>
+            </div>
+          </header>
         </div>
-      ) : null}
-      <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-card px-4 md:px-8">
-        <Link href="/client/jobs" className="flex items-center gap-3">
-          <img src="/brand/CMI_Line_Logo_Black.svg" alt="Constructed Matter, Inc." className="h-7 object-contain dark:hidden" />
-          <img src="/brand/CMI_Line_Logo_White.svg" alt="Constructed Matter, Inc." className="hidden h-7 object-contain dark:block" />
-          <span className="hidden text-xs uppercase tracking-[0.16em] text-muted-foreground sm:inline">Project Portal</span>
-        </Link>
-        <div className="flex items-center gap-2 sm:gap-3">
-          <Link href="/client/jobs" className="hidden text-sm font-medium text-muted-foreground hover:text-foreground sm:inline">My Projects</Link>
-          {canvasOn && (
-            <Link href="/client/canvas" className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground" title="Project Canvas">
-              <SquarePen className="h-4 w-4" /><span className="hidden sm:inline">Canvas</span>
-            </Link>
-          )}
-          <Link href="/client/notifications" className="relative inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground hover:text-foreground" title="Notifications">
-            <Bell className="h-4 w-4" />
-            {unread > 0 && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-bold text-accent-foreground">{unread > 9 ? "9+" : unread}</span>}
-          </Link>
-          <Link href="/client/settings" className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground hover:text-foreground" title="Settings"><Settings className="h-4 w-4" /></Link>
-          {preview ? null : <button type="button" onClick={signOut} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground">
-            <LogOut className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Sign out</span>
-          </button>}
-        </div>
-      </header>
-      <main className="mx-auto max-w-5xl px-4 py-6 md:px-8">{children}</main>
-    </div>
+        {/* Bottom padding on phones leaves room for the footer bar. */}
+        <main className={`${PORTAL_COLUMN} pb-28 pt-6 lg:pb-10`}>{children}</main>
+        <PortalFooterNav />
+        <PortalMobileMenu open={menu} onClose={() => setMenu(false)} footer={signOutButton ?? <span className="text-xs text-muted-foreground">Preview: nothing can be changed or sent.</span>} />
+      </div>
+    </PortalNavProvider>
   );
 }
