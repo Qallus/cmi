@@ -81,7 +81,8 @@ export function ClientShell({ children, preview = null }: { children: React.Reac
                   {unread > 0 && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-bold text-accent-foreground">{unread > 9 ? "9+" : unread}</span>}
                 </Link>
                 <Link href="/client/settings" className={iconBtn} title="Settings" aria-label="Settings"><Settings className="h-4 w-4" /></Link>
-                <span className="hidden lg:inline-flex">{signOutButton}</span>
+                {/* Only when there is a Sign out (not in a preview), so no empty gap shifts the right edge. */}
+                {signOutButton ? <span className="hidden lg:inline-flex">{signOutButton}</span> : null}
               </div>
             </div>
           </header>

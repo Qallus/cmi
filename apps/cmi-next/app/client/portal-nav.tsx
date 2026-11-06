@@ -60,8 +60,8 @@ function portalItems(canvas: boolean): Item[] {
 function useActive() {
   const pathname = usePathname();
   return (href: string) => {
-    // A project's Home is only active on the project root.
-    if (/^\/client\/jobs\/[^/]+$/.test(href)) return pathname === href;
+    // My Projects and a project's Home are only active on exactly that page.
+    if (href === "/client/jobs" || /^\/client\/jobs\/[^/]+$/.test(href)) return pathname === href;
     return pathname === href || pathname.startsWith(`${href}/`);
   };
 }
@@ -78,13 +78,14 @@ export function RegisterJobNav({ jobId, jobName, tabs }: { jobId: string; jobNam
   return null;
 }
 
-/** Desktop: the project's pages down the left, grouped. */
+/** Desktop: the project's pages down the left, grouped. Pulled left by the
+ *  links' padding so the icons and labels line up with the logo above. */
 export function PortalSidebar({ jobId, tabs }: { jobId: string; tabs: PortalTab[] }) {
   const isActive = useActive();
   const base = `/client/jobs/${jobId}`;
   const allowed = new Map(tabs.map((t) => [t.slug, t.label]));
   return (
-    <nav aria-label="Project" className="sticky top-[5.5rem] hidden self-start lg:block">
+    <nav aria-label="Project" className="sticky top-[5.5rem] -ml-3 hidden self-start lg:block">
       {GROUPS.map((g) => {
         const slugs = g.slugs.filter((s) => allowed.has(s));
         if (!slugs.length) return null;
@@ -97,7 +98,7 @@ export function PortalSidebar({ jobId, tabs }: { jobId: string; tabs: PortalTab[
               const on = isActive(href);
               return (
                 <Link key={s} href={href} aria-current={on ? "page" : undefined}
-                  className={cn("flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition", on ? "bg-accent/12 text-accent" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
+                  className={cn("flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition", on ? "bg-accent/10 text-accent" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
                   <Icon className="h-4 w-4 shrink-0" />{HOME_LABEL[s] ?? allowed.get(s)}
                 </Link>
               );
@@ -117,7 +118,7 @@ export function PortalMobileMenu({ open, onClose, footer }: { open: boolean; onC
   React.useEffect(() => { onClose(); }, [pathname]); // eslint-disable-line react-hooks/exhaustive-deps -- close on navigation
   if (!open) return null;
   const row = (it: Item) => (
-    <Link key={it.href} href={it.href} className={cn("flex min-h-[48px] items-center gap-3 rounded-lg px-3 text-[15px] font-medium", isActive(it.href) ? "bg-accent/12 text-accent" : "text-foreground hover:bg-muted")}>
+    <Link key={it.href} href={it.href} className={cn("flex min-h-[48px] items-center gap-3 rounded-lg px-3 text-[15px] font-medium", isActive(it.href) ? "bg-accent/10 text-accent" : "text-foreground hover:bg-muted")}>
       <it.icon className="h-5 w-5 shrink-0 text-muted-foreground" />{it.label}
     </Link>
   );
@@ -176,7 +177,7 @@ export function PortalFooterNav() {
         <nav aria-label="Pages" className="flex flex-1 gap-1 overflow-x-auto px-2 py-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {items.map((it) => (
             <Link key={it.href} href={it.href} aria-current={isActive(it.href) ? "page" : undefined}
-              className={cn("flex min-w-[64px] shrink-0 flex-col items-center gap-1 rounded-lg px-2 py-1.5 text-[10px] font-medium transition", isActive(it.href) ? "bg-accent/12 text-accent" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
+              className={cn("flex min-w-[64px] shrink-0 flex-col items-center gap-1 rounded-lg px-2 py-1.5 text-[10px] font-medium transition", isActive(it.href) ? "bg-accent/10 text-accent" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
               <it.icon className="h-5 w-5" />{it.label}
             </Link>
           ))}
