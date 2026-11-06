@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Select, Textarea } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { RecordPicker } from "./record-picker";
+import { ResourcePicker } from "./resource-picker";
 import {
   ITEM_STATUS_LABELS, PRIORITY_LABELS, DEPENDENCY_LABELS, DEPENDENCY_ABBR, MILESTONE_TYPE_LABELS,
   type MilestoneType, type ScheduleItem, type SchedulePhase, type ScheduleDependency, type ItemStatus,
@@ -17,7 +18,7 @@ import {
 type Staff = { id: string; name: string };
 
 export function ItemDrawer({
-  open, item, phases, staff, allItems, dependencies, isMasterSchedule, canEdit, linkable = false, engine = false,
+  open, item, phases, staff, allItems, dependencies, isMasterSchedule, canEdit, linkable = false, engine = false, resources = false,
   onClose, onSave, onDelete, onAddDependency, onRemoveDependency,
 }: {
   open: boolean;
@@ -32,6 +33,8 @@ export function ItemDrawer({
   linkable?: boolean;
   /** Schedule engine on: activity ID, duration, constraint, actuals, float. */
   engine?: boolean;
+  /** Phase 2 resources: pick staff, trade partners or trades, not just staff. */
+  resources?: boolean;
   onClose: () => void;
   onSave: (patch: Partial<ScheduleItem>) => void | Promise<void>;
   onDelete?: () => void;
@@ -147,12 +150,17 @@ export function ItemDrawer({
         ) : null}
 
         <Field label="Assignees">
-          <div className="flex flex-wrap gap-1.5">
-            {staff.map((s) => { const on = selectedAssignees.some((a) => a.id === s.id); return (
-              <button key={s.id} type="button" disabled={!canEdit} onClick={() => toggleAssignee(s)} className={cn("rounded-full border px-2.5 py-1 text-xs transition", on ? "border-accent bg-accent/10 text-accent" : "border-border text-muted-foreground hover:bg-muted")}>{s.name}</button>
-            ); })}
-            {!staff.length ? <span className="text-xs text-muted-foreground">No staff available.</span> : null}
-          </div>
+          {/* Staff, trade partners or a generic trade (Phase 2 resources); the staff list without it. */}
+          {resources ? (
+            <ResourcePicker value={selectedAssignees} onChange={(next) => set("assignees", next)} disabled={!canEdit} />
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {staff.map((s) => { const on = selectedAssignees.some((a) => a.id === s.id); return (
+                <button key={s.id} type="button" disabled={!canEdit} onClick={() => toggleAssignee(s)} className={cn("rounded-full border px-2.5 py-1 text-xs transition", on ? "border-accent bg-accent/10 text-accent" : "border-border text-muted-foreground hover:bg-muted")}>{s.name}</button>
+              ); })}
+              {!staff.length ? <span className="text-xs text-muted-foreground">No staff available.</span> : null}
+            </div>
+          )}
         </Field>
 
         <div className="grid grid-cols-2 gap-3">

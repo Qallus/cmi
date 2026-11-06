@@ -4,7 +4,7 @@ import * as React from "react";
 import { confirmAction } from "@/components/ui/confirm-action";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Search, CalendarClock, AlertTriangle, Clock, Flag, TriangleAlert, CircleCheck, Timer, Plus, Archive, Trash2, Activity, CircleDot } from "lucide-react";
+import { Search, CalendarClock, AlertTriangle, Clock, Flag, TriangleAlert, CircleCheck, Timer, Plus, Archive, Trash2, Activity, CircleDot, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSort, SortableTh, useRowSelection, HeaderCheckbox, RowCheckbox, SelectionBar, BarAction } from "@/components/ui/data-table";
 import { AddScheduleWizard, type ScheduleSource } from "@/components/schedules/add-schedule-wizard";
@@ -34,9 +34,11 @@ type Item = GlobalItem & { job_number?: string | null; job_name?: string | null 
 
 const HEALTH_RANK: Record<string, number> = { on_track: 0, watch: 1, at_risk: 2, delayed: 3, critical: 4 };
 
-export function SchedulesDashboardClient({ schedules, metrics, items, staff, jobs: jobOptions, canEdit, canManage, builder = false }: {
+export function SchedulesDashboardClient({ schedules, metrics, items, staff, jobs: jobOptions, canEdit, canManage, builder = false, resources = false }: {
   schedules: GlobalScheduleRow[]; metrics: DashboardMetrics; items: Item[]; staff: { id: string; name: string }[];
   jobs: { id: string; label: string }[]; canEdit: boolean; canManage: boolean; builder?: boolean;
+  /** Phase 2: link to the cross-job Resources view. */
+  resources?: boolean;
 }) {
   const router = useRouter();
   const [wizardOpen, setWizardOpen] = React.useState(false);
@@ -143,6 +145,7 @@ export function SchedulesDashboardClient({ schedules, metrics, items, staff, job
           </div>
           <div className="flex items-center gap-2">
             <StatsToggle shown={showStats} onToggle={toggleStats} />
+            {resources ? <Link href="/dashboard/schedules/resources" className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-3 text-sm font-medium hover:bg-muted"><Users className="h-3.5 w-3.5" /> Resources</Link> : null}
             {canEdit ? <Button variant="accent" size="sm" onClick={() => setWizardOpen(true)}><Plus className="h-3.5 w-3.5" /> Add Schedule</Button> : null}
           </div>
         </div>

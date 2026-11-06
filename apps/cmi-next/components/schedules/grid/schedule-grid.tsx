@@ -9,6 +9,9 @@ import { confirmAction } from "@/components/ui/confirm-action";
 import { createPortal } from "react-dom";
 import { ChevronDown, ChevronRight, ChevronLeft, GripVertical, Maximize2, Undo2, Redo2, Columns3, ListOrdered, Plus, History, Loader2, FlaskConical, Check, FileSpreadsheet, Download, FileUp, Spline } from "lucide-react";
 import { ExcelImportDialog } from "./excel-import";
+import { ResourcePicker } from "../resource-picker";
+import { ScheduleModal } from "../schedule-modal";
+import type { Assignee } from "@/lib/schedules/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tooltip, AutoTooltip } from "@/components/ui/tooltip";
@@ -54,8 +57,10 @@ function store(key: string, value: unknown) {
 
 export function ScheduleGrid({
   schedule, items: allItems, phases, dependencies: realDeps, canEdit, zoom, showBaseline, showLinks, onToggleLinks, onStyleItem, linkMode,
-  onOpenItem, onReload, onBanner, onDatesChange, onLink, mode = "legacy", contractVariances, baselineVariances, statusDate,
+  onOpenItem, onReload, onBanner, onDatesChange, onLink, mode = "legacy", contractVariances, baselineVariances, statusDate, resources = false,
 }: {
+  /** Phase 2 resources: right-click → Assign… for the selected rows. */
+  resources?: boolean;
   schedule: JobSchedule;
   items: ScheduleItem[];
   phases: SchedulePhase[];
@@ -662,6 +667,18 @@ export function ScheduleGrid({
 
   const menuItem = menu ? byId.get(menu.id) : null;
   const selectedIds = range ? itemRows.slice(range.top, range.bottom + 1).map((i) => i.id) : active ? [active.id] : [];
+  // Assign… (Phase 2 resources): the rows it applies to, who, and add vs replace.
+  const [assigning, setAssigning] = React.useState<{ ids: string[]; who: Assignee[]; mode: "add" | "replace"; busy?: boolean } | null>(null);
+  async function applyAssign() {
+    if (!assigning) return;
+    setAssigning({ ...assigning, busy: true });
+    const res = await fetch(`/api/schedules/${schedule.id}/assign`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ itemIds: assigning.ids, resources: assigning.who, mode: assigning.mode }) });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) { onBanner(d.error ?? "Couldn't assign."); setAssigning({ ...assigning, busy: false }); return; }
+    setAssigning(null);
+    await onReload();
+    onBanner(`Assigned ${d.updated} task${d.updated === 1 ? "" : "s"}.`);
+  }
 
   return (
     <div className="space-y-2">
@@ -857,6 +874,25 @@ export function ScheduleGrid({
           onApply={async (ops, summary) => { await run(ops, { label: "Import from Excel", undo: null, redo: null }); onBanner(summary); }} />
       ) : null}
 
+      {assigning ? (
+        <ScheduleModal open title={`Assign ${assigning.ids.length} task${assigning.ids.length === 1 ? "" : "s"}`} onClose={() => setAssigning(null)}
+          footer={
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              {assigning.ids.length > 1 ? (
+                <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <input type="checkbox" checked={assigning.mode === "replace"} onChange={(e) => setAssigning({ ...assigning, mode: e.target.checked ? "replace" : "add" })} />
+                  Replace who&apos;s on them now (otherwise add)
+                </label>
+              ) : <span />}
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={() => setAssigning(null)}>Cancel</Button>
+                <Button size="sm" variant="accent" disabled={assigning.busy || (!assigning.who.length && assigning.mode === "add")} onClick={() => void applyAssign()}>{assigning.busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Assign</Button>
+              </div>
+            </div>
+          }>
+          <div className="pb-4"><ResourcePicker value={assigning.who} onChange={(who) => setAssigning({ ...assigning, who })} /></div>
+        </ScheduleModal>
+      ) : null}
       {menu && menuItem ? (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setMenu(null)} onContextMenu={(e) => { e.preventDefault(); setMenu(null); }} />
@@ -872,6 +908,11 @@ export function ScheduleGrid({
                   const id = menuItem.id;
                   navigator.clipboard?.readText().then((text) => paste(text, id)).catch(() => onBanner("The browser didn't allow reading the clipboard. Select the row and press Ctrl+V instead."));
                 }}>Paste as new tasks below</MenuButton>
+                {resources ? <MenuButton onClick={() => {
+                  setMenu(null);
+                  const ids = selectedIds.includes(menuItem.id) ? selectedIds : [menuItem.id];
+                  setAssigning({ ids, who: ids.length === 1 ? [...(menuItem.assignees ?? [])] : [], mode: ids.length === 1 ? "replace" : "add" });
+                }}>Assign{selectedIds.length > 1 && selectedIds.includes(menuItem.id) ? ` ${selectedIds.length} tasks` : ""}…</MenuButton> : null}
                 <MenuButton onClick={() => { setMenu(null); moveRow(menuItem.id, -1); }}>Move up</MenuButton>
                 <MenuButton onClick={() => { setMenu(null); moveRow(menuItem.id, 1); }}>Move down</MenuButton>
                 <MenuButton danger onClick={() => { setMenu(null); deleteRows(selectedIds.includes(menuItem.id) ? selectedIds : [menuItem.id]); }}>Delete{selectedIds.length > 1 && selectedIds.includes(menuItem.id) ? ` ${selectedIds.length} tasks` : ""}</MenuButton>

@@ -27,9 +27,9 @@ export default async function SchedulesDashboardPage() {
   if (!canViewSchedules(staffMember?.role_slug)) {
     return <div className="p-10 text-center text-sm text-muted-foreground">You don&apos;t have access to schedules.</div>;
   }
-  const [schedules, metrics, items, staff, jobs, builder] = await Promise.all([listAllSchedules(), dashboardMetrics(), listAllItems(), loadStaff(), loadJobs(), isFeatureEnabled("schedule_builder")]);
+  const [schedules, metrics, items, staff, jobs, builder, progress] = await Promise.all([listAllSchedules(), dashboardMetrics(), listAllItems(), loadStaff(), loadJobs(), isFeatureEnabled("schedule_builder"), isFeatureEnabled("schedule_progress")]);
   return (
     <SchedulesDashboardClient schedules={schedules} metrics={metrics} items={items} staff={staff} jobs={jobs}
-      canEdit={canEditSchedules(staffMember?.role_slug)} canManage={canManageSchedules(staffMember?.role_slug)} builder={builder} />
+      canEdit={canEditSchedules(staffMember?.role_slug)} canManage={canManageSchedules(staffMember?.role_slug)} builder={builder} resources={progress} />
   );
 }

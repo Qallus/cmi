@@ -80,7 +80,8 @@ export const MILESTONE_TYPE_LABELS: Record<MilestoneType, string> = {
   contract: "Contract", inspection: "Inspection", client_decision: "Client decision", internal: "Internal",
 };
 
-export type Assignee = { id: string; name: string; type?: "staff" | "vendor" | "contractor" | "client" };
+/** A staff member, a trade partner (vendor = company id), a contractor contact, a client, or a generic trade label ("trade:electrician"). */
+export type Assignee = { id: string; name: string; type?: "staff" | "vendor" | "contractor" | "client" | "trade" };
 
 // What a schedule belongs to. Jobs are the main case; a Pipeline deal, a
 // Pre-Con record or a selection can have schedules too (Schedule Builder).

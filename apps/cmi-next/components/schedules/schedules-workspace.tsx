@@ -451,6 +451,7 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
                 mode={engine.mode} contractVariances={new Map((engine.summary?.contract ?? []).map((c) => [c.id, c.variance]))}
                 baselineVariances={engine.progress ? new Map((engine.summary?.baseline ?? []).map((b) => [b.id, b.variance])) : undefined}
                 statusDate={engine.progress ? engine.status_date ?? null : null}
+                resources={!!engine.progress}
               />
             ) : (
               <ListView items={items} mode={view === "table" ? "table" : view === "card" ? "card" : "list"} showSchedule={overlay} onOpenItem={setEditing} />
@@ -504,7 +505,7 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
       <ItemDrawer
         open={!!editing} item={editing} phases={phases.length ? phases : (primaryId ? bundles[primaryId]?.phases ?? [] : [])} staff={staff}
         allItems={items} dependencies={dependencies} isMasterSchedule={primarySchedule?.is_master} canEdit={canEdit} linkable={builder}
-        engine={!!engine?.enabled}
+        engine={!!engine?.enabled} resources={!!engine?.progress}
         onClose={() => setEditing(null)} onSave={saveItem} onDelete={editing?.id ? deleteItem : undefined}
         onAddDependency={(sourceId, type, lag) => { if (editing?.id) void addDependency(sourceId, editing.id, type, lag); }}
         onRemoveDependency={removeDependency}
