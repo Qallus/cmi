@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Bell, Eye, LogOut, Menu, Settings, SquarePen } from "lucide-react";
 import { ThemeToggle } from "@/components/dashboard/theme-toggle";
-import { PortalFooterNav, PortalMobileMenu, PortalNavProvider } from "../portal-nav";
+import { PortalFooterNav, PortalMobileMenu, PortalNavProvider, PortalSidebar } from "../portal-nav";
 
 // Authenticated client-portal chrome, wrapping every signed-in /client page:
 // the brand bar (logo, notifications, theme, settings, sign out), the phone
@@ -14,7 +14,7 @@ import { PortalFooterNav, PortalMobileMenu, PortalNavProvider } from "../portal-
 // page and the icons with the right.
 export const PORTAL_COLUMN = "mx-auto w-full max-w-6xl px-4 md:px-8";
 
-export function ClientShell({ children, preview = null }: { children: React.ReactNode; preview?: { name: string } | null }) {
+export function ClientShell({ children, preview = null, contactId = null }: { children: React.ReactNode; preview?: { name: string } | null; contactId?: string | null }) {
   const router = useRouter();
   const [unread, setUnread] = React.useState(0);
   const [canvasOn, setCanvasOn] = React.useState(false);
@@ -41,7 +41,7 @@ export function ClientShell({ children, preview = null }: { children: React.Reac
   const iconBtn = "relative inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-card text-muted-foreground transition hover:text-foreground";
 
   return (
-    <PortalNavProvider canvas={canvasOn}>
+    <PortalNavProvider canvas={canvasOn} contactId={contactId}>
       <div className="min-h-screen bg-background text-foreground">
         <div className="sticky top-0 z-30">
           {preview ? (
@@ -65,7 +65,6 @@ export function ClientShell({ children, preview = null }: { children: React.Reac
                   <img src="/brand/CMI_Line_Logo_Black.svg" alt="Constructed Matter, Inc." className="hidden h-7 w-auto object-contain lg:block lg:dark:hidden" />
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src="/brand/CMI_Line_Logo_White.svg" alt="" aria-hidden className="hidden h-7 w-auto object-contain lg:dark:block" />
-                  <span className="hidden text-xs uppercase tracking-[0.16em] text-muted-foreground md:inline">Project Portal</span>
                 </Link>
               </div>
               <div className="flex shrink-0 items-center gap-2">
@@ -88,7 +87,11 @@ export function ClientShell({ children, preview = null }: { children: React.Reac
           </header>
         </div>
         {/* Bottom padding on phones leaves room for the footer bar. */}
-        <main className={`${PORTAL_COLUMN} pb-28 pt-6 lg:pb-10`}>{children}</main>
+        {/* Desktop: the menu down the left on every page, lined up with the logo. */}
+        <main className={`${PORTAL_COLUMN} pb-28 pt-6 lg:grid lg:grid-cols-[13rem_minmax(0,1fr)] lg:gap-10 lg:pb-10`}>
+          <PortalSidebar />
+          <div className="min-w-0">{children}</div>
+        </main>
         <PortalFooterNav />
         <PortalMobileMenu open={menu} onClose={() => setMenu(false)} footer={signOutButton ?? <span className="text-xs text-muted-foreground">Preview: nothing can be changed or sent.</span>} />
       </div>

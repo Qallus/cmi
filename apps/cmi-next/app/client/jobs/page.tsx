@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getClientSession } from "@/lib/client-portal/auth";
-import { loadClientJobs } from "@/lib/client-portal/data";
+import { getClientJob, loadClientJobs } from "@/lib/client-portal/data";
+import { clientTabsFor } from "@/lib/client-portal/tabs";
+import { hasClientPunchLists } from "@/lib/punch/data";
+import { RegisterJobNav } from "../portal-nav";
 import { ClientStatusBadge, ProgressBar, fmtDate } from "../portal-ui";
 
 export const dynamic = "force-dynamic";
@@ -11,9 +14,13 @@ export default async function ClientJobsPage() {
   const session = await getClientSession();
   if (!session) redirect("/client/login");
   const jobs = await loadClientJobs(session.contact.id);
+  // One project: its pages are in the menus straight away (otherwise the last one opened is).
+  const only = jobs.length === 1 ? await getClientJob(session.contact.id, jobs[0].id) : null;
+  const onlyTabs = only ? clientTabsFor(only, await hasClientPunchLists(only.id).catch(() => false)) : null;
 
   return (
     <div>
+      {only && onlyTabs ? <RegisterJobNav jobId={only.id} jobName={only.job_name} tabs={onlyTabs} /> : null}
       <h1 className="font-display text-2xl font-semibold tracking-tight">My Projects</h1>
       <p className="mt-1 text-sm text-muted-foreground">Welcome back{session.contact.first_name ? `, ${session.contact.first_name}` : ""}.</p>
 

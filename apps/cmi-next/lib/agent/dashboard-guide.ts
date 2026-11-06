@@ -326,7 +326,7 @@ export const DASHBOARD_GUIDE: GuideEntry[] = [
   {
     id: "site-content", name: "Site Content", path: "/dashboard/site-content", nav: "Sidebar → Site Content",
     roles: "Super Admin, Admin, Designer",
-    summary: "The public website's content: Portfolio, Team, Blog and Messaging Consent (SMS/email opt-in records).",
+    summary: "The public website's content: Portfolio, Team and Blog. (Messaging Consent, the SMS/email opt-in records, is under Communications → Messaging Consent.)",
     steps: [
       "Landing pages (Super Admin): Site Content → Landing pages lists them with Preview and Live links. Create or edit them by asking Claude (CMI connector), e.g. \"draft a landing page at /lp/kitchen-remodels\"; Claude shares a private preview link and publishes only after you confirm. Every publish is kept in history and can be rolled back.",
     ],
@@ -354,7 +354,7 @@ export const DASHBOARD_GUIDE: GuideEntry[] = [
 
   // ── Account & admin ──
   {
-    id: "notifications", name: "Notifications (Broadcasts & Morning Briefing)", path: "/dashboard/notifications", nav: "Sidebar → Notifications",
+    id: "notifications", name: "Notifications (Broadcasts & Morning Briefing)", path: "/dashboard/notifications", nav: "Sidebar → Communications → Notifications",
     roles: "Super Admin",
     summary: "Broadcasts: send an announcement to everyone, staff, clients or a role. Morning Briefing: turn the 6 AM email on/off, weekdays only, choose recipients, include the AI summary, Send now, preview anyone's email and see send history.",
     steps: [

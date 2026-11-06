@@ -4,33 +4,12 @@ import { redirect } from "next/navigation";
 import { getClientSession, assertJobAccess, ClientAuthError } from "@/lib/client-portal/auth";
 import { getClientJob } from "@/lib/client-portal/data";
 import { ClientStatusBadge, ProgressBar } from "../../portal-ui";
-import { PortalSidebar, RegisterJobNav } from "../../portal-nav";
+import { RegisterJobNav } from "../../portal-nav";
 import { hasClientPunchLists } from "@/lib/punch/data";
-import { clientCan, clientCanSubmitWarranty } from "@/lib/client-portal/permissions";
+import { clientTabsFor } from "@/lib/client-portal/tabs";
 
 export const dynamic = "force-dynamic";
 
-// Which tabs a client sees depends on their per-job permissions + job status.
-function tabsFor(job: { status: string; permissions: Record<string, boolean> }, hasPunch: boolean) {
-  const p = job.permissions;
-  const tabs = [
-    { slug: "overview", label: "Overview" },
-    { slug: "updates", label: "Updates" },
-    { slug: "progress", label: "Progress" },
-  ];
-  if (clientCan(p, "schedule_items")) tabs.push({ slug: "schedule", label: "Schedule" }, { slug: "milestones", label: "Milestones" });
-  if (clientCan(p, "photos")) tabs.push({ slug: "photos", label: "Photos" });
-  if (clientCan(p, "files")) tabs.push({ slug: "documents", label: "Documents" });
-  if (clientCan(p, "locked_selections")) tabs.push({ slug: "selections", label: "Selections" });
-  tabs.push({ slug: "action-items", label: "Action Items" });
-  // Only when staff have shared at least one punch list on this job.
-  if (hasPunch) tabs.push({ slug: "punch-list", label: "Punch List" });
-  if (clientCan(p, "price_summary") || clientCan(p, "invoices")) tabs.push({ slug: "financials", label: "Financials" });
-  tabs.push({ slug: "change-orders", label: "Change Orders" });
-  if (clientCan(p, "messages")) tabs.push({ slug: "messages", label: "Messages" });
-  if (clientCanSubmitWarranty(p, job.status)) tabs.push({ slug: "warranty", label: "Warranty" });
-  return tabs;
-}
 
 export default async function ClientJobLayout({ children, params }: { children: ReactNode; params: Promise<{ jobId: string }> }) {
   const { jobId } = await params;
@@ -46,14 +25,12 @@ export default async function ClientJobLayout({ children, params }: { children: 
   if (!job) redirect("/client/jobs");
   const hasPunch = await hasClientPunchLists(jobId).catch(() => false);
 
-  const tabs = tabsFor(job, hasPunch);
-  // Desktop: the project's pages down the left (lined up with the logo), the
-  // project header and page on the right. Phone: the hamburger and the footer
-  // bar carry the same pages.
+  const tabs = clientTabsFor(job, hasPunch);
+  // The shell draws the menus (sidebar, phone menu, footer); this tells it
+  // which project they're for. They stay on every portal page after this.
   return (
-    <div className="lg:grid lg:grid-cols-[13rem_minmax(0,1fr)] lg:gap-10">
+    <>
       <RegisterJobNav jobId={jobId} jobName={job.job_name} tabs={tabs} />
-      <PortalSidebar jobId={jobId} tabs={tabs} />
       <div className="min-w-0">
         <Link href="/client/jobs" className="text-xs text-muted-foreground hover:text-foreground">← My Projects</Link>
         <div className="mt-2 flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
@@ -72,6 +49,6 @@ export default async function ClientJobLayout({ children, params }: { children: 
         </div>
         <div className="mt-6 border-t border-border pt-6">{children}</div>
       </div>
-    </div>
+    </>
   );
 }

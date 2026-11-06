@@ -8,5 +8,5 @@ import { getClientSession } from "@/lib/client-portal/auth";
 export async function PortalShell({ children }: { children: ReactNode }) {
   const session = await getClientSession();
   const preview = session?.preview ? { name: `${session.contact.first_name ?? ""} ${session.contact.last_name ?? ""}`.trim() || "this client" } : null;
-  return <ClientShell preview={preview}>{children}</ClientShell>;
+  return <ClientShell preview={preview} contactId={session?.contact.id ?? null}>{children}</ClientShell>;
 }

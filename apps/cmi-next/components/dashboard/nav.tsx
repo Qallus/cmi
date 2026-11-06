@@ -47,14 +47,6 @@ export const NAV_ITEMS: NavItem[] = [
     ],
   },
   { href: "/dashboard/pipeline",       label: "Pipeline",       icon: Workflow,       roles: ["super_admin", "admin", "project_manager", "estimator"] },
-  { href: "/dashboard/projections",    label: "Projections",    icon: TrendingUp,     roles: ["super_admin", "admin"], flag: "projections" },
-  {
-    href: "/dashboard/reporting",      label: "Reporting",      icon: FileBarChart,   roles: ["super_admin", "admin", "project_manager", "estimator"], flag: "reporting",
-    children: [
-      { href: "/dashboard/reporting/analytics", label: "Analytics", icon: BarChart3, roles: ["super_admin", "admin", "project_manager", "estimator"], flag: "reporting" },
-    ],
-  },
-  { href: "/dashboard/take-off",       label: "Take-Off",       icon: Ruler, roles: ["super_admin", "admin", "project_manager", "staff", "estimator"], flag: "take_off" },
   {
     href: "/dashboard/jobs",           label: "Jobs",           icon: HardHat,        roles: ["super_admin", "admin", "project_manager", "estimator", "superintendent", "designer"],
     children: [
@@ -68,6 +60,14 @@ export const NAV_ITEMS: NavItem[] = [
       { href: "/dashboard/client-engagement",       label: "Client Engagement", icon: Users,     roles: ["super_admin", "admin", "project_manager"] },
     ],
   },
+  { href: "/dashboard/projections",    label: "Projections",    icon: TrendingUp,     roles: ["super_admin", "admin"], flag: "projections" },
+  {
+    href: "/dashboard/reporting",      label: "Reporting",      icon: FileBarChart,   roles: ["super_admin", "admin", "project_manager", "estimator"], flag: "reporting",
+    children: [
+      { href: "/dashboard/reporting/analytics", label: "Analytics", icon: BarChart3, roles: ["super_admin", "admin", "project_manager", "estimator"], flag: "reporting" },
+    ],
+  },
+  { href: "/dashboard/take-off",       label: "Take-Off",       icon: Ruler, roles: ["super_admin", "admin", "project_manager", "staff", "estimator"], flag: "take_off" },
   { href: "/dashboard/cloud",          label: "Cloud",          icon: Cloud,          roles: ["super_admin", "admin", "project_manager", "estimator", "superintendent", "designer", "staff"] },
   { href: "/dashboard/billing",        label: "Billing",        icon: CreditCard,     roles: ["super_admin", "admin", "estimator", "client"] },
   { href: "/dashboard/bookings",       label: "Bookings",       icon: CalendarRange,  roles: ["super_admin", "admin", "project_manager", "estimator", "client"] },
@@ -75,6 +75,8 @@ export const NAV_ITEMS: NavItem[] = [
     href: "/dashboard/communications", label: "Communications", icon: MessageCircle,  roles: ["super_admin", "admin", "project_manager", "estimator"],
     children: [
       { href: "/dashboard/direct-messages",  label: "Direct Messages",  icon: MessagesSquare, roles: ["super_admin", "admin", "project_manager", "designer", "estimator", "superintendent", "staff"] },
+      { href: "/dashboard/notifications",    label: "Notifications",    icon: Megaphone,   roles: ["super_admin"] },
+      { href: "/dashboard/messaging-consent", label: "Messaging Consent", icon: ShieldCheck, roles: ["super_admin", "admin"] },
       { href: "/dashboard/business-cards",   label: "Business Cards",   icon: IdCard, roles: ["super_admin", "admin", "project_manager", "designer", "estimator", "superintendent", "staff"] },
       { href: "/dashboard/recording-studio", label: "Recording Studio", icon: Mic,    roles: ["super_admin", "admin", "project_manager", "designer", "estimator", "superintendent", "staff"] },
     ],
@@ -86,14 +88,12 @@ export const NAV_ITEMS: NavItem[] = [
       { href: "/dashboard/portfolio",         label: "Portfolio",         icon: LayoutGrid,  roles: ["super_admin", "admin", "designer"] },
       { href: "/dashboard/team",              label: "Team",              icon: Users,       roles: ["super_admin", "admin"] },
       { href: "/dashboard/blog",              label: "Blog",              icon: Newspaper,   roles: ["super_admin", "admin", "designer"] },
-      { href: "/dashboard/messaging-consent", label: "Messaging Consent", icon: ShieldCheck, roles: ["super_admin", "admin"] },
     ],
   },
   { href: "/dashboard/agent",          label: "AI Agents",      icon: Sparkles,       roles: ["super_admin", "admin", "project_manager", "designer", "estimator", "superintendent"] },
 
   // ── Account / administration ──
   { section: "Account" },
-  { href: "/dashboard/notifications",  label: "Notifications", icon: Megaphone,     roles: ["super_admin"] },
   { href: "/dashboard/users",          label: "User Management", icon: UserRoundCog,  roles: ["super_admin", "admin"] },
   { href: "/dashboard/my-profile",     label: "My Profile",     icon: User },
   { href: "/dashboard/settings",       label: "Settings",       icon: Settings,       roles: ["super_admin", "admin"] },
