@@ -4,6 +4,7 @@ import * as React from "react";
 import { StatusDateControl } from "./status-date";
 import { WeeklyUpdate } from "./weekly-update";
 import { LookaheadView } from "./lookahead-view";
+import { HealthTiles } from "./health-tiles";
 import { ItemColorsPanel } from "./item-colors-panel";
 import { confirmAction, promptText } from "@/components/ui/confirm-action";
 import { Plus, GitBranch, Flag, Layers, CalendarClock, CalendarRange, FileText, Star, Archive, ChevronDown, CornerDownRight, Route, Spline, ClipboardCheck, CalendarDays } from "lucide-react";
@@ -423,6 +424,10 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
             ) : null}
           </div>
 
+          {engine?.progress && primarySchedule && !overlay ? (
+            <HealthTiles scheduleId={primarySchedule.id} refreshKey={bundles[primarySchedule.id]?.items}
+              onOpenItem={(id) => { const it = items.find((i) => i.id === id); if (it) setEditing(it); }} />
+          ) : null}
           {banner ? <div className="flex items-center justify-between bg-accent/10 px-4 py-1.5 text-xs text-accent md:px-6"><span>{banner}</span><button type="button" onClick={() => setBanner(null)} className="font-medium">Dismiss</button></div> : null}
 
           {/* View body */}

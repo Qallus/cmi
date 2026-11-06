@@ -92,6 +92,11 @@ and selections the client can't see. The trade version and the Friday send are s
 - Tasks behind the status date, critical tasks, float on the finish, weather days, late selections.
 - Each tile links to the filtered grid. Also shown on the Today page.
 
+**Built (2026-11-06):** `lib/schedules/health.ts` (pure, tested) + `health-data.ts`, `/api/schedules/[id]/health`,
+`components/schedules/health-tiles.tsx` under the action bar, and a "Schedules needing a look" section on Today.
+Each tile opens the list of tasks behind it, and clicking a task opens it. There's no grid filter.
+Float on the finish = working days from the forecast finish to the latest contract milestone's contract date (or the target).
+
 ## Step 6: Notifications (§7.6)
 
 - Staff assignees are notified N working days before a task starts (default 5, set per job) and

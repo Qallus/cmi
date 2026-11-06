@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { CalendarClock, CheckSquare, Inbox, History, Sparkles } from "lucide-react";
+import { CalendarClock, CheckSquare, Inbox, History, Sparkles, GanttChart } from "lucide-react";
 import { getSessionStaff } from "@/lib/auth/server-session";
 import { buildBriefing, briefingCounts, type Briefing, type BriefingItem, type BriefingUpdate } from "@/lib/briefing/build";
 import { briefingSummary } from "@/lib/briefing/summary";
@@ -8,6 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { CollapsibleStats, StatsProvider, StatsToggleButton } from "@/components/ui/page-header-bits";
+import { canViewSchedules } from "@/lib/schedules/permissions";
+import { schedulesNeedingALook } from "@/lib/schedules/health-data";
 
 export const metadata = { title: "Today — CMI Dashboard" };
 export const dynamic = "force-dynamic";
@@ -79,8 +81,41 @@ export default async function TodayPage() {
           <Updates updates={briefing.updates} />
         </Section>
       </div>
+
+      {/* Schedule health (Schedules Phase 2): job schedules with a warning, worst first. */}
+      {canViewSchedules(staff.role_slug) ? (
+        <Suspense fallback={null}>
+          <ScheduleHealth />
+        </Suspense>
+      ) : null}
     </div>
     </StatsProvider>
+  );
+}
+
+const HEALTH_TONE = { bad: "text-destructive", warn: "text-amber-700 dark:text-amber-400", good: "text-emerald-700", neutral: "text-foreground" } as const;
+
+async function ScheduleHealth() {
+  const rows = await schedulesNeedingALook().catch(() => []);
+  if (!rows.length) return null;
+  return (
+    <Section icon={GanttChart} title="Schedules needing a look" count={rows.length}>
+      <ul className="divide-y divide-border">
+        {rows.map((r) => (
+          <li key={r.scheduleId}>
+            <Link href={`/dashboard/jobs/${r.jobId}/schedule?schedule=${r.scheduleId}`} className="-mx-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-md px-2 py-2.5 hover:bg-muted">
+              <span className="min-w-0">
+                <span className="block text-sm font-medium">{r.jobLabel}</span>
+                <span className="block truncate text-xs text-muted-foreground">{r.scheduleName}</span>
+              </span>
+              <span className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs">
+                {r.tiles.map((t) => <span key={t.key}><span className="text-muted-foreground">{t.label} </span><span className={cn("font-semibold", HEALTH_TONE[t.tone])}>{t.value}</span></span>)}
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </Section>
   );
 }
 
