@@ -55,6 +55,8 @@ export type UpdateFacts = {
   finishBefore: string | null; finishAfter: string | null;
   completed: string[]; inProgress: { title: string; pct: number }[]; started: string[];
   pushed: { title: string; reason: string; to?: string | null }[];
+  /** How many tasks the re-forecast moved, and the critical ones by name (the rest is noise). */
+  movedCount: number;
   moved: { title: string; from: string | null; to: string | null }[];
   critical: string[];
   nextTwoWeeks: { title: string; start: string | null; end: string | null }[];
@@ -80,7 +82,7 @@ export function fallbackNarrative(f: UpdateFacts): string {
     lines.push(`- Forecast finish moved from ${fmt(f.finishBefore)} to ${fmt(f.finishAfter)}${d ? ` (${d > 0 ? "+" : ""}${d} days)` : ""}.`);
   } else lines.push(`- Forecast finish holds at ${fmt(f.finishAfter)}.`);
   for (const p of f.pushed) lines.push(`- ${p.title} was pushed${p.to ? ` to ${fmt(p.to)}` : ""}: ${p.reason}`);
-  if (f.moved.length) lines.push(`- ${f.moved.length} task${f.moved.length === 1 ? "" : "s"} moved with the re-forecast.`);
+  if (f.movedCount) lines.push(`- ${f.movedCount} task${f.movedCount === 1 ? "" : "s"} moved with the re-forecast${f.moved.length ? `, including on the critical path: ${f.moved.map((m) => `${m.title} (${fmt(m.from)} → ${fmt(m.to)})`).join("; ")}` : ""}.`);
   if (f.critical.length) { lines.push(""); lines.push("Critical path"); lines.push(`- ${f.critical.slice(0, 8).join(" → ")}`); }
   lines.push("");
   lines.push("Next two weeks");

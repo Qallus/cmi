@@ -36,11 +36,12 @@ test("the fallback narrative covers progress, changes and the next two weeks", (
     schedule: "Construction", job: "26_001", from: "2026-10-27", to: "2026-11-04",
     finishBefore: "2027-03-01", finishAfter: "2027-03-04",
     completed: ["Framing"], started: ["Roofing"], inProgress: [{ title: "Roofing", pct: 30 }],
-    pushed: [{ title: "Windows", reason: "Supplier delay", to: "2026-11-09" }], moved: [{ title: "Drywall", from: "2026-11-10", to: "2026-11-13" }],
+    pushed: [{ title: "Windows", reason: "Supplier delay", to: "2026-11-09" }], movedCount: 12, moved: [{ title: "Drywall", from: "2026-11-10", to: "2026-11-13" }],
     critical: ["Roofing", "Drywall"], nextTwoWeeks: [{ title: "Drywall", start: "2026-11-13", end: "2026-11-20" }],
   });
   assert.match(text, /Completed: Framing/);
   assert.match(text, /moved from Mar 1 to Mar 4 \(\+3 days\)/);
   assert.match(text, /Windows was pushed to Nov 9: Supplier delay/);
+  assert.match(text, /12 tasks moved with the re-forecast, including on the critical path: Drywall \(Nov 10 → Nov 13\)/);
   assert.match(text, /Drywall: Nov 13 – Nov 20/);
 });

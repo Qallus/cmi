@@ -113,7 +113,8 @@ async function factsFor(scheduleId: string, f: FinishResult): Promise<UpdateFact
     inProgress: live.filter((i) => i.status !== "complete" && (i.percent_complete ?? 0) > 0).map((i) => ({ title: i.title, pct: i.percent_complete ?? 0 })),
     pushed: ((pushes ?? []) as { detail: { title?: string; reason?: string; to?: string } }[])
       .map((p) => ({ title: p.detail?.title ?? "A task", reason: p.detail?.reason ?? "", to: p.detail?.to ?? null })).filter((p) => p.reason),
-    moved: f.moved.map((m) => ({ title: m.title, from: m.from, to: m.to })),
+    movedCount: f.moved.length,
+    moved: f.moved.filter((m) => f.critical.includes(m.title)).slice(0, 8).map((m) => ({ title: m.title, from: m.from, to: m.to })),
     critical: f.critical,
     nextTwoWeeks: live.filter((i) => i.status !== "complete" && i.start_date && i.start_date > f.to && i.start_date <= horizon)
       .sort((a, b) => (a.start_date ?? "").localeCompare(b.start_date ?? "")).map((i) => ({ title: i.title, start: i.start_date, end: i.end_date })),
@@ -124,7 +125,7 @@ const RULES = `You write the weekly schedule update for Constructed Matter, Inc.
 Use ONLY the facts given. Never invent tasks, dates, people, causes or numbers. If something isn't in the facts, leave it out.
 Plain language, short sentences, no hype. Dates like "Nov 9". Use these headings on their own lines, each followed by short "- " bullets:
 Progress this period / Changes / Critical path / Risks / Next two weeks
-Under Changes, give each push with its reason as given, and the forecast finish before → after.
+Under Changes, give each push with its reason as given, and the forecast finish before → after. Tasks that moved with the re-forecast go in ONE bullet: the count (movedCount), naming only the critical ones listed in "moved". Never list every moved task.
 Under Risks, only name risks the facts show (a later forecast finish, pushes, late critical tasks); if none, say "None reported."
 Reply with the text only.`;
 
