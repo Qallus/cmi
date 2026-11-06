@@ -36,8 +36,8 @@ export function ClientShell({ children, preview = null }: { children: React.Reac
       ) : null}
       <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-card px-4 md:px-8">
         <Link href="/client/jobs" className="flex items-center gap-3">
-          <img src="/brand/cmi-logo-dark.png" alt="Constructed Matter, Inc." className="h-7 object-contain dark:hidden" />
-          <img src="/brand/cmi-logo-light.png" alt="Constructed Matter, Inc." className="hidden h-7 object-contain dark:block" />
+          <img src="/brand/CMI_Line_Logo_Black.svg" alt="Constructed Matter, Inc." className="h-7 object-contain dark:hidden" />
+          <img src="/brand/CMI_Line_Logo_White.svg" alt="Constructed Matter, Inc." className="hidden h-7 object-contain dark:block" />
           <span className="hidden text-xs uppercase tracking-[0.16em] text-muted-foreground sm:inline">Project Portal</span>
         </Link>
         <div className="flex items-center gap-2 sm:gap-3">

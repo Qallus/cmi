@@ -12,13 +12,16 @@ const PRIORITY_TONE: Record<string, "default" | "info" | "warning" | "danger"> =
 export function ActionItemsClient({ jobId, initial }: { jobId: string; initial: ActionItem[] }) {
   const [rows, setRows] = React.useState<ActionItem[]>(initial);
   const [busy, setBusy] = React.useState<string | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
 
   async function complete(id: string) {
-    setBusy(id);
+    setBusy(id); setError(null);
     try {
       const res = await fetch(`/api/client/jobs/${jobId}/action-items/${id}/complete`, { method: "POST" });
-      const j = await res.json(); if (res.ok) setRows((r) => r.map((x) => (x.id === id ? j : x)));
-    } finally { setBusy(null); }
+      const j = await res.json().catch(() => ({}));
+      if (res.ok) setRows((r) => r.map((x) => (x.id === id ? j : x)));
+      else setError(j.error ?? "That didn't save. Please try again.");
+    } catch { setError("That didn't save. Please try again."); } finally { setBusy(null); }
   }
 
   const open = rows.filter((r) => r.status === "open" || r.status === "in_progress");
@@ -28,6 +31,7 @@ export function ActionItemsClient({ jobId, initial }: { jobId: string; initial: 
 
   return (
     <div className="space-y-6">
+      {error ? <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div> : null}
       <div className="space-y-3">
         {open.map((a) => (
           <div key={a.id} className="rounded-xl border border-border bg-card p-5">

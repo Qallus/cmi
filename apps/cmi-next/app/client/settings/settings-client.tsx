@@ -14,7 +14,8 @@ export function SettingsClient({ initial }: { initial: { email_enabled: boolean;
     try {
       const res = await fetch("/api/client/preferences", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(next) });
       if (res.ok) setSaved("Saved");
-    } catch { /* */ }
+      else setSaved(((await res.json().catch(() => ({}))) as { error?: string }).error ?? "That didn't save. Please try again.");
+    } catch { setSaved("That didn't save. Please try again."); }
   }
 
   return (
