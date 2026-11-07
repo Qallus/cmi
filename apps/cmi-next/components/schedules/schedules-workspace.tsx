@@ -9,7 +9,7 @@ import { GANTT_PRINT_VIEWS } from "@/lib/schedules/gantt-print";
 import { ReminderSetting } from "./reminder-setting";
 import { ItemColorsPanel } from "./item-colors-panel";
 import { confirmAction, promptText } from "@/components/ui/confirm-action";
-import { Plus, GitBranch, Flag, Layers, CalendarClock, CalendarRange, FileText, Star, Archive, ChevronDown, CornerDownRight, Route, Spline, ClipboardCheck, CalendarDays } from "lucide-react";
+import { Plus, GitBranch, Flag, Layers, CalendarClock, CalendarRange, FileText, Star, Archive, ChevronDown, CornerDownRight, Route, Spline, ClipboardCheck, CalendarDays, ListFilter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Tooltip, AutoTooltip } from "@/components/ui/tooltip";
@@ -92,6 +92,8 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
   const [calendarOpen, setCalendarOpen] = React.useState(false);
   const [updateOpen, setUpdateOpen] = React.useState(false);
   const [lookaheadOpen, setLookaheadOpen] = React.useState(false);
+  // Phones and tablets: the Tools menu that holds the action bar.
+  const [toolsOpen, setToolsOpen] = React.useState(false);
   const [pdfMenu, setPdfMenu] = React.useState(false);
   const [pdfBaseline, setPdfBaseline] = React.useState(false);
   const [engine, setEngine] = React.useState<EngineState | null>(null);
@@ -278,14 +280,98 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
 
   const newItem = (kind: "task" | "milestone") => setEditing({ kind, schedule_id: primaryId ?? undefined, status: "not_started", priority: "normal", percent_complete: 0, all_day: true });
 
+  // ── Toolbar pieces. Desktop shows them in one action bar; phones and tablets
+  // (under 1024px) fold them into the Tools menu so the schedule itself is on screen.
+  const isGantt = view === "gantt" || view === "timeline";
+  const eng = engine?.enabled && primarySchedule && !overlay ? engine : null;
+  const itemButtons = canEdit ? (
+    <>
+      <Button size="sm" variant="outline" onClick={() => newItem("task")} disabled={!primaryId}><Plus className="h-3.5 w-3.5" /> Item</Button>
+      <Button size="sm" variant="outline" onClick={() => newItem("milestone")} disabled={!primaryId}><Flag className="h-3.5 w-3.5" /> Milestone</Button>
+      <Button size="sm" variant="ghost" onClick={addPhase} disabled={!primaryId}>Phase</Button>
+    </>
+  ) : null;
+  const ganttButtons = isGantt ? (
+    <>
+      {canEdit ? <Button size="sm" variant={linkMode ? "accent" : "ghost"} onClick={() => setLinkMode((v) => !v)}><GitBranch className="h-3.5 w-3.5" /> Link</Button> : null}
+      <Button size="sm" variant={showLinks ? "accent" : "ghost"} onClick={toggleLinks} aria-pressed={showLinks}><Spline className="h-3.5 w-3.5" /> Links</Button>
+      <Button size="sm" variant={showBaseline ? "accent" : "ghost"} onClick={() => setShowBaseline((v) => !v)} data-keep-open><CalendarClock className="h-3.5 w-3.5" /> Baseline</Button>
+      {showBaseline && baselines.length > 1 && !overlay ? (
+        <select aria-label="Baseline to show" value={baselinePick ?? ""} onChange={(e) => setBaselinePick(e.target.value || null)}
+          className="h-8 rounded-md border border-border bg-card px-2 text-xs">
+          {baselines.map((b, n) => (
+            <option key={b.id} value={n === 0 ? "" : b.id}>{b.name || `Baseline ${b.number ?? ""}`}{n === 0 ? " (current)" : ""}{b.locked ? " 🔒" : ""}</option>
+          ))}
+        </select>
+      ) : null}
+      {canManage ? <Button size="sm" variant="ghost" onClick={captureBaseline} disabled={!primaryId}>Capture baseline</Button> : null}
+    </>
+  ) : null;
+  const zoomControl = isGantt ? <Segmented label="Zoom" value={zoom} onChange={setZoom} options={[["day", "Day"], ["week", "Week"], ["month", "Month"]]} /> : null;
+  const kanbanControl = view === "kanban" ? <Segmented label="Group by" value={kanbanGroup} onChange={setKanbanGroup} options={[["status", "Status"], ["priority", "Priority"]]} /> : null;
+  const addInsideButton = builder && primarySchedule && canEdit && !overlay ? <AutoTooltip content="Add a schedule inside this one"><Button size="sm" variant="ghost" onClick={() => { setParentForNew(primarySchedule.id); setWizardOpen(true); }}><CornerDownRight className="h-3.5 w-3.5" /> Add inside</Button></AutoTooltip> : null;
+  const finishInfo = eng?.summary ? <AutoTooltip content="Worked out from the links, the work calendar and holidays"><span className="whitespace-nowrap text-xs text-muted-foreground">Finish <span className="font-medium text-foreground">{fmtDate(eng.summary.finish)}</span> · {eng.summary.critical.length} critical{eng.summary.loops ? <span className="text-destructive"> · {eng.summary.loops} loop{eng.summary.loops === 1 ? "" : "s"} ignored</span> : null}</span></AutoTooltip> : null;
+  const contractChip = (() => {
+    // The contract milestone furthest behind (Spec R2 §7.2: "vs. contract +5 wd").
+    const worst = (eng?.summary?.contract ?? []).filter((c) => c.variance != null).sort((a, b) => (b.variance ?? 0) - (a.variance ?? 0))[0];
+    if (!worst) return null;
+    const v = worst.variance!;
+    return <AutoTooltip content={`${worst.title}: contract ${fmtDate(worst.contract_date)}, forecast ${fmtDate(worst.forecast)}`}><span className={cn("shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium", v > 0 ? "bg-destructive/10 text-destructive" : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400")}>vs contract {v === 0 ? "on date" : `${v > 0 ? "+" : ""}${v} wd`}</span></AutoTooltip>;
+  })();
+  const statusControl = eng?.progress && primarySchedule ? (
+    <StatusDateControl scheduleId={primarySchedule.id} value={eng.status_date ?? null} canEdit={canEdit}
+      finishVariance={eng.summary?.finishVariance} baselineFinish={eng.summary?.baselineFinish} behind={eng.summary?.behind}
+      onChanged={async () => { await loadBundle(primarySchedule.id); await refreshEngine(); setBanner("Status date set; the schedule was re-forecast."); }}
+      onError={setBanner} />
+  ) : null;
+  const updateButton = eng?.progress && canEdit ? <AutoTooltip content="Weekly update: report progress since the last status date, then re-forecast"><Button size="sm" variant="outline" onClick={() => setUpdateOpen(true)}><ClipboardCheck className="h-3.5 w-3.5" /> Update</Button></AutoTooltip> : null;
+  const lookaheadButton = eng?.progress ? <AutoTooltip content="Three-week lookahead: this week, next week and the week after, by phase (internal or client, with PDF)"><Button size="sm" variant="ghost" onClick={() => setLookaheadOpen(true)}><CalendarDays className="h-3.5 w-3.5" /> Lookahead</Button></AutoTooltip> : null;
+  const modeButton = eng ? <Tooltip label={eng.canSwitch ? "How this schedule's dates are worked out" : "Admins and Project Managers change this"} side="bottom" className="inline-block"><Button size="sm" variant="ghost" onClick={() => setEngineOpen(true)} disabled={!eng.canSwitch}><Route className="h-3.5 w-3.5" /> {SCHEDULING_MODE_LABELS[eng.mode]}</Button></Tooltip> : null;
+  const calendarButton = eng && primarySchedule ? <AutoTooltip content={primarySchedule.job_id ? "This job's working days and closed days" : "This schedule's working days and closed days"}><Button size="sm" variant="ghost" onClick={() => setCalendarOpen(true)}><CalendarClock className="h-3.5 w-3.5" /> Calendar</Button></AutoTooltip> : null;
+  const shiftButton = primarySchedule && canEdit && !overlay ? <Button size="sm" variant="ghost" onClick={() => setShiftOpen(true)}><CalendarRange className="h-3.5 w-3.5" /> Shift dates</Button> : null;
+  const pdfOptions = primarySchedule ? [
+    { key: "list", label: "Schedule list (Letter)", href: `/api/schedules/${primarySchedule.id}/pdf` },
+    ...GANTT_PRINT_VIEWS.map((g) => ({ key: g.key, label: `Gantt 11×17: ${g.label}`, href: `/api/schedules/${primarySchedule.id}/gantt-pdf?view=${g.key}${pdfBaseline ? "&baseline=1" : ""}` })),
+  ] : [];
+  const masterButtons = (withLabels: boolean) => primarySchedule && canManage ? (
+    <>
+      {!primarySchedule.is_master ? <Button size="sm" variant="ghost" onClick={() => setMaster(primarySchedule.id)}><Star className="h-3.5 w-3.5" /> Make Master</Button> : null}
+      <Button size="sm" variant="ghost" onClick={() => archiveSchedule(primarySchedule.id)} className="text-muted-foreground" aria-label="Archive schedule" title="Archive schedule"><Archive className="h-3.5 w-3.5" />{withLabels ? " Archive" : null}</Button>
+    </>
+  ) : null;
+  const packageList = (
+    <>
+      <div className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Job Schedule Packages</div>
+      <label className="flex items-center gap-2 px-2 py-1 text-xs text-muted-foreground">Start date
+        <input type="date" value={pkgStart} onChange={(e) => setPkgStart(e.target.value)} className="h-7 flex-1 rounded border border-border bg-background px-2 text-xs text-foreground" />
+      </label>
+      {packages.map((p) => (
+        <button key={p.id} type="button" onClick={() => applyPackage(p.id)} className="block w-full rounded px-2 py-1.5 text-left hover:bg-muted/50">
+          <div className="text-sm font-medium">{p.name}</div><div className="text-xs text-muted-foreground">{p.description}</div>
+        </button>
+      ))}
+    </>
+  );
+
   return (
     <div className="flex h-full flex-col">
       {/* Header rollup */}
-      <div className="border-b border-border bg-card px-4 py-3 md:px-6">
+      <div className="relative border-b border-border bg-card px-4 py-3 md:px-6">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-          <div>
-            <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">{scopeLabel}</div>
-            <h1 className="font-display text-xl font-semibold tracking-tight">Schedules</h1>
+          <div className="flex w-full items-start justify-between gap-3 lg:w-auto">
+            <div>
+              <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">{scopeLabel}</div>
+              <h1 className="font-display text-xl font-semibold tracking-tight">Schedules</h1>
+            </div>
+            {/* Phones and tablets: every schedule tool in one menu. The 4px nudge (mr-1; -mr-1 from md)
+                puts it in the same column as the top bar's sign-out button (px-5 there). */}
+            {schedules.length ? (
+              <button type="button" onClick={() => setToolsOpen((o) => !o)} aria-expanded={toolsOpen} aria-controls="schedule-tools"
+                aria-label="Schedule tools" title="Schedule tools"
+                className={cn("mr-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border bg-card transition hover:text-foreground md:-mr-1 lg:hidden", toolsOpen ? "border-accent text-accent" : "border-border text-muted-foreground")}>
+                <ListFilter className="h-4 w-4" />
+              </button>
+            ) : null}
           </div>
           <Stat label="Schedules" value={String(header.schedule_count)} />
           <div className="min-w-[120px]"><div className="text-[10px] uppercase tracking-wide text-muted-foreground">Progress</div><div className="mt-1 flex items-center gap-2"><Progress value={header.overall_progress} className="w-20" /><span className="text-sm font-medium tabular-nums">{header.overall_progress}%</span></div></div>
@@ -293,48 +379,101 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
           <Stat label="Projected completion" value={fmtDate(header.projected_completion)} />
           {header.next_milestone ? <Stat label="Next milestone" value={`◆ ${header.next_milestone.title}`} /> : null}
           <div className="flex-1" />
-          {canEdit && packages.length ? (
-            <div className="relative">
-              <Button size="sm" variant="outline" onClick={() => setPkgMenu((o) => !o)}><Layers className="h-3.5 w-3.5" /> Package <ChevronDown className="h-3 w-3 opacity-60" /></Button>
-              {pkgMenu ? (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setPkgMenu(false)} />
-                  <div className="absolute right-0 z-50 mt-1 w-72 rounded-lg border border-border bg-card p-1 shadow-lg">
-                    <div className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Job Schedule Packages</div>
-                    <label className="flex items-center gap-2 px-2 py-1 text-xs text-muted-foreground">Start date
-                      <input type="date" value={pkgStart} onChange={(e) => setPkgStart(e.target.value)} className="h-7 flex-1 rounded border border-border bg-background px-2 text-xs text-foreground" />
-                    </label>
-                    {packages.map((p) => (
-                      <button key={p.id} type="button" onClick={() => applyPackage(p.id)} className="block w-full rounded px-2 py-1.5 text-left hover:bg-muted/50">
-                        <div className="text-sm font-medium">{p.name}</div><div className="text-xs text-muted-foreground">{p.description}</div>
-                      </button>
-                    ))}
+          {/* Phones and tablets: Package and Add Schedule are in the Tools menu (or the empty state). */}
+          <div className={cn("items-center gap-2", schedules.length ? "hidden lg:flex" : "flex")}>
+            {canEdit && packages.length ? (
+              <div className="relative">
+                <Button size="sm" variant="outline" onClick={() => setPkgMenu((o) => !o)}><Layers className="h-3.5 w-3.5" /> Package <ChevronDown className="h-3 w-3 opacity-60" /></Button>
+                {pkgMenu ? (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setPkgMenu(false)} />
+                    <div className="absolute right-0 z-50 mt-1 w-72 rounded-lg border border-border bg-card p-1 shadow-lg">{packageList}</div>
+                  </>
+                ) : null}
+              </div>
+            ) : null}
+            {canEdit ? <Button size="sm" variant="accent" onClick={() => setWizardOpen(true)}><Plus className="h-3.5 w-3.5" /> Add Schedule</Button> : null}
+          </div>
+        </div>
+        {toolsOpen && schedules.length ? (
+          <>
+            <div className="fixed inset-0 z-40 bg-black/20 lg:hidden" onClick={() => setToolsOpen(false)} />
+            {/* Taps on a tool close the menu (it opens its window or applies); [data-keep-open] ones keep it open. */}
+            <div id="schedule-tools" className="absolute inset-x-0 top-full z-50 max-h-[70dvh] space-y-3 overflow-y-auto border-b border-border bg-card px-4 py-3 shadow-xl lg:hidden"
+              onClickCapture={(e) => { const b = (e.target as HTMLElement).closest("button"); if (b && !b.closest("[data-keep-open]")) setToolsOpen(false); }}>
+              <ToolSection title="View">
+                <div className="grid w-full grid-cols-4 gap-1">
+                  {VIEWS.map((v) => (
+                    <button key={v.key} type="button" onClick={() => setView(v.key)} aria-pressed={view === v.key}
+                      className={cn("flex flex-col items-center gap-1 rounded-md border px-1 py-2 text-[11px] font-medium transition", view === v.key ? "border-accent bg-accent/10 text-accent" : "border-border text-muted-foreground hover:bg-muted")}>
+                      <v.icon className="h-4 w-4" />{v.label}
+                    </button>
+                  ))}
+                </div>
+              </ToolSection>
+              {canEdit ? (
+                <ToolSection title="Add">
+                  {itemButtons}
+                  {addInsideButton}
+                  <Button size="sm" variant="accent" onClick={() => setWizardOpen(true)}><Plus className="h-3.5 w-3.5" /> Add Schedule</Button>
+                  {packages.length ? <Button size="sm" variant="outline" onClick={() => setPkgMenu((o) => !o)} data-keep-open><Layers className="h-3.5 w-3.5" /> Package <ChevronDown className={cn("h-3 w-3 opacity-60 transition", pkgMenu && "rotate-180")} /></Button> : null}
+                  {pkgMenu && packages.length ? <div className="w-full rounded-lg border border-border p-1">{packageList}</div> : null}
+                </ToolSection>
+              ) : null}
+              {ganttButtons || kanbanControl ? (
+                <ToolSection title={isGantt ? "Gantt" : "Board"}>
+                  {ganttButtons}
+                  {zoomControl}
+                  {kanbanControl}
+                </ToolSection>
+              ) : null}
+              {eng ? (
+                <ToolSection title="Progress">
+                  {finishInfo || contractChip ? <div className="flex w-full flex-wrap items-center gap-2">{finishInfo}{contractChip}</div> : null}
+                  {statusControl ? <div data-keep-open className="w-full">{statusControl}</div> : null}
+                  {updateButton}
+                  {lookaheadButton}
+                  {modeButton}
+                </ToolSection>
+              ) : null}
+              {calendarButton || shiftButton || masterButtons(true) ? (
+                <ToolSection title="Schedule">
+                  {calendarButton}
+                  {shiftButton}
+                  {masterButtons(true)}
+                </ToolSection>
+              ) : null}
+              {pdfOptions.length ? (
+                <ToolSection title="PDF">
+                  <div className="w-full space-y-0.5">
+                    {pdfOptions.map((o) => <button key={o.key} type="button" onClick={() => window.open(o.href, "_blank")} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-muted/50"><FileText className="h-3.5 w-3.5 text-muted-foreground" />{o.label}</button>)}
+                    <label className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground"><input type="checkbox" checked={pdfBaseline} onChange={(e) => setPdfBaseline(e.target.checked)} /> Show the baseline under each bar</label>
                   </div>
-                </>
+                </ToolSection>
               ) : null}
             </div>
-          ) : null}
-          {canEdit ? <Button size="sm" variant="accent" onClick={() => setWizardOpen(true)}><Plus className="h-3.5 w-3.5" /> Add Schedule</Button> : null}
-        </div>
+          </>
+        ) : null}
+
       </div>
 
       {schedules.length === 0 ? (
         <EmptyState canEdit={canEdit} onAdd={() => setWizardOpen(true)} />
       ) : (
         <>
-          {/* Toolbar: schedule selector + views + actions */}
-          <div className="flex flex-wrap items-center gap-2 border-b border-border bg-card px-4 py-2 md:px-6">
+          {/* Toolbar: schedule selector + views (+ the Tools menu on phones and tablets) */}
+          <div className="relative flex flex-wrap items-center gap-2 border-b border-border bg-card px-4 py-2 md:px-6">
             {/* Schedule selector / overlay */}
-            <div className="relative">
-              <button type="button" onClick={() => setSelectorOpen((o) => !o)} className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted">
-                <Layers className="h-3.5 w-3.5 text-muted-foreground" />
-                {selectedIds.length === 1 ? (primarySchedule?.name ?? "Schedule") : `${selectedIds.length} schedules`}
-                <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+            <div className="relative min-w-0">
+              <button type="button" onClick={() => setSelectorOpen((o) => !o)} className="inline-flex max-w-full items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted">
+                <Layers className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <span className="truncate">{selectedIds.length === 1 ? (primarySchedule?.name ?? "Schedule") : `${selectedIds.length} schedules`}</span>
+                <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" />
               </button>
               {selectorOpen ? (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setSelectorOpen(false)} />
-                  <div className="absolute left-0 z-50 mt-1 w-72 rounded-lg border border-border bg-card p-1 shadow-lg">
+                  <div className="absolute left-0 z-50 mt-1 w-72 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-card p-1 shadow-lg">
                     <div className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Overlay schedules</div>
                     {scheduleTree(schedules).map(({ schedule: s, depth }) => (
                       <div key={s.id} className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-muted/50" style={{ paddingLeft: 8 + depth * 14 }}>
@@ -350,75 +489,38 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
               ) : null}
             </div>
 
-            {primarySchedule ? <TypeBadge type={primarySchedule.type} /> : null}
+            {primarySchedule ? <span className="hidden sm:contents"><TypeBadge type={primarySchedule.type} /></span> : null}
             {primarySchedule?.is_master ? <span className="inline-flex items-center gap-1 rounded-full bg-accent/15 px-2 py-0.5 text-[11px] font-medium text-accent"><Star className="h-3 w-3" /> Master</span> : null}
 
             <div className="flex-1" />
 
-            {/* View switcher */}
-            <div className="flex items-center gap-0.5 rounded-md border border-border p-0.5">
+            {/* View switcher (desktop) */}
+            <div className="hidden items-center gap-0.5 rounded-md border border-border p-0.5 lg:flex">
               {VIEWS.map((v) => (
                 <AutoTooltip key={v.key} content={v.label}><button type="button" onClick={() => setView(v.key)} aria-label={v.label} className={cn("inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium transition", view === v.key ? "bg-accent/15 text-accent" : "text-muted-foreground hover:bg-muted")}>
                   <v.icon className="h-3.5 w-3.5" /><span className="hidden lg:inline">{v.label}</span>
                 </button></AutoTooltip>
               ))}
             </div>
+
           </div>
 
-          {/* Contextual action bar */}
-          <div className="flex flex-wrap items-center gap-2 border-b border-border bg-muted/20 px-4 py-1.5 md:px-6">
-            {canEdit ? (
-              <>
-                <Button size="sm" variant="outline" onClick={() => newItem("task")} disabled={!primaryId}><Plus className="h-3.5 w-3.5" /> Item</Button>
-                <Button size="sm" variant="outline" onClick={() => newItem("milestone")} disabled={!primaryId}><Flag className="h-3.5 w-3.5" /> Milestone</Button>
-                <Button size="sm" variant="ghost" onClick={addPhase} disabled={!primaryId}>Phase</Button>
-              </>
-            ) : null}
-            {view === "gantt" || view === "timeline" ? (
-              <>
-                {canEdit ? <Button size="sm" variant={linkMode ? "accent" : "ghost"} onClick={() => setLinkMode((v) => !v)}><GitBranch className="h-3.5 w-3.5" /> Link</Button> : null}
-                <Button size="sm" variant={showLinks ? "accent" : "ghost"} onClick={toggleLinks} aria-pressed={showLinks}><Spline className="h-3.5 w-3.5" /> Links</Button>
-                <Button size="sm" variant={showBaseline ? "accent" : "ghost"} onClick={() => setShowBaseline((v) => !v)}><CalendarClock className="h-3.5 w-3.5" /> Baseline</Button>
-                {showBaseline && baselines.length > 1 && !overlay ? (
-                  <select aria-label="Baseline to show" value={baselinePick ?? ""} onChange={(e) => setBaselinePick(e.target.value || null)}
-                    className="h-8 rounded-md border border-border bg-card px-2 text-xs">
-                    {baselines.map((b, n) => (
-                      <option key={b.id} value={n === 0 ? "" : b.id}>{b.name || `Baseline ${b.number ?? ""}`}{n === 0 ? " (current)" : ""}{b.locked ? " 🔒" : ""}</option>
-                    ))}
-                  </select>
-                ) : null}
-                {canManage ? <Button size="sm" variant="ghost" onClick={captureBaseline} disabled={!primaryId}>Capture baseline</Button> : null}
-                <Segmented label="Zoom" value={zoom} onChange={setZoom} options={[["day", "Day"], ["week", "Week"], ["month", "Month"]]} />
-              </>
-            ) : null}
-            {view === "kanban" ? (
-              <Segmented label="Group by" value={kanbanGroup} onChange={setKanbanGroup} options={[["status", "Status"], ["priority", "Priority"]]} />
-            ) : null}
+          {/* Contextual action bar (desktop) */}
+          <div className="hidden flex-wrap items-center gap-2 border-b border-border bg-muted/20 px-4 py-1.5 md:px-6 lg:flex">
+            {itemButtons}
+            {ganttButtons}
+            {zoomControl}
+            {kanbanControl}
             <div className="flex-1" />
-            {builder && primarySchedule && canEdit && !overlay ? <AutoTooltip content="Add a schedule inside this one"><Button size="sm" variant="ghost" onClick={() => { setParentForNew(primarySchedule.id); setWizardOpen(true); }}><CornerDownRight className="h-3.5 w-3.5" /> Add inside</Button></AutoTooltip> : null}
-            {engine?.enabled && primarySchedule && !overlay ? (
-              <>
-                {engine.summary ? <AutoTooltip content="Worked out from the links, the work calendar and holidays"><span className="text-xs text-muted-foreground">Finish <span className="font-medium text-foreground">{fmtDate(engine.summary.finish)}</span> · {engine.summary.critical.length} critical{engine.summary.loops ? <span className="text-destructive"> · {engine.summary.loops} loop{engine.summary.loops === 1 ? "" : "s"} ignored</span> : null}</span></AutoTooltip> : null}
-                {(() => {
-                  // The contract milestone furthest behind (Spec R2 §7.2: "vs. contract +5 wd").
-                  const worst = (engine.summary?.contract ?? []).filter((c) => c.variance != null).sort((a, b) => (b.variance ?? 0) - (a.variance ?? 0))[0];
-                  if (!worst) return null;
-                  const v = worst.variance!;
-                  return <AutoTooltip content={`${worst.title}: contract ${fmtDate(worst.contract_date)}, forecast ${fmtDate(worst.forecast)}`}><span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", v > 0 ? "bg-destructive/10 text-destructive" : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400")}>vs contract {v === 0 ? "on date" : `${v > 0 ? "+" : ""}${v} wd`}</span></AutoTooltip>;
-                })()}
-                {engine.progress && primarySchedule && !overlay ? (
-                  <StatusDateControl scheduleId={primarySchedule.id} value={engine.status_date ?? null} canEdit={canEdit}
-                    finishVariance={engine.summary?.finishVariance} baselineFinish={engine.summary?.baselineFinish} behind={engine.summary?.behind}
-                    onChanged={async () => { await loadBundle(primarySchedule.id); await refreshEngine(); setBanner("Status date set; the schedule was re-forecast."); }}
-                    onError={setBanner} />
-                ) : null}
-                {engine.progress && canEdit ? <AutoTooltip content="Weekly update: report progress since the last status date, then re-forecast"><Button size="sm" variant="outline" onClick={() => setUpdateOpen(true)}><ClipboardCheck className="h-3.5 w-3.5" /> Update</Button></AutoTooltip> : null}
-                {engine.progress ? <AutoTooltip content="Three-week lookahead: this week, next week and the week after, by phase (internal or client, with PDF)"><Button size="sm" variant="ghost" onClick={() => setLookaheadOpen(true)}><CalendarDays className="h-3.5 w-3.5" /> Lookahead</Button></AutoTooltip> : null}
-                <Tooltip label={engine.canSwitch ? "How this schedule's dates are worked out" : "Admins and Project Managers change this"} side="bottom" className="inline-block"><Button size="sm" variant="ghost" onClick={() => setEngineOpen(true)} disabled={!engine.canSwitch}><Route className="h-3.5 w-3.5" /> {SCHEDULING_MODE_LABELS[engine.mode]}</Button></Tooltip>
-              </>
-            ) : null}
-            {engine?.enabled && primarySchedule && !overlay ? <AutoTooltip content={primarySchedule.job_id ? "This job's working days and closed days" : "This schedule's working days and closed days"}><Button size="sm" variant="ghost" onClick={() => setCalendarOpen(true)}><CalendarClock className="h-3.5 w-3.5" /> Calendar</Button></AutoTooltip> : null}
-            {primarySchedule && canEdit && !overlay ? <Button size="sm" variant="ghost" onClick={() => setShiftOpen(true)}><CalendarRange className="h-3.5 w-3.5" /> Shift dates</Button> : null}
+            {addInsideButton}
+            {finishInfo}
+            {contractChip}
+            {statusControl}
+            {updateButton}
+            {lookaheadButton}
+            {modeButton}
+            {calendarButton}
+            {shiftButton}
             {primarySchedule ? (
               <div className="relative">
                 <Button size="sm" variant="ghost" onClick={() => setPdfMenu((o) => !o)} aria-expanded={pdfMenu}><FileText className="h-3.5 w-3.5" /> PDF <ChevronDown className="h-3 w-3 opacity-60" /></Button>
@@ -426,10 +528,10 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
                   <>
                     <div className="fixed inset-0 z-40" onClick={() => setPdfMenu(false)} />
                     <div className="absolute right-0 z-50 mt-1 w-64 rounded-lg border border-border bg-card p-1 text-sm shadow-lg">
-                      <button type="button" onClick={() => { setPdfMenu(false); window.open(`/api/schedules/${primarySchedule.id}/pdf`, "_blank"); }} className="block w-full rounded px-2 py-1.5 text-left hover:bg-muted/50">Schedule list <span className="text-xs text-muted-foreground">(Letter)</span></button>
+                      <button type="button" onClick={() => { setPdfMenu(false); window.open(pdfOptions[0].href, "_blank"); }} className="block w-full rounded px-2 py-1.5 text-left hover:bg-muted/50">Schedule list <span className="text-xs text-muted-foreground">(Letter)</span></button>
                       <div className="mt-1 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Gantt, 11×17</div>
-                      {GANTT_PRINT_VIEWS.map((g) => (
-                        <button key={g.key} type="button" onClick={() => { setPdfMenu(false); window.open(`/api/schedules/${primarySchedule.id}/gantt-pdf?view=${g.key}${pdfBaseline ? "&baseline=1" : ""}`, "_blank"); }} className="block w-full rounded px-2 py-1.5 text-left hover:bg-muted/50">{g.label}</button>
+                      {GANTT_PRINT_VIEWS.map((g, n) => (
+                        <button key={g.key} type="button" onClick={() => { setPdfMenu(false); window.open(pdfOptions[n + 1].href, "_blank"); }} className="block w-full rounded px-2 py-1.5 text-left hover:bg-muted/50">{g.label}</button>
                       ))}
                       <label className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground"><input type="checkbox" checked={pdfBaseline} onChange={(e) => setPdfBaseline(e.target.checked)} /> Show the baseline under each bar</label>
                     </div>
@@ -437,12 +539,7 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
                 ) : null}
               </div>
             ) : null}
-            {primarySchedule && canManage ? (
-              <div className="flex items-center gap-1">
-                {!primarySchedule.is_master ? <Button size="sm" variant="ghost" onClick={() => setMaster(primarySchedule.id)}><Star className="h-3.5 w-3.5" /> Make Master</Button> : null}
-                <Button size="sm" variant="ghost" onClick={() => archiveSchedule(primarySchedule.id)} className="text-muted-foreground"><Archive className="h-3.5 w-3.5" /></Button>
-              </div>
-            ) : null}
+            {primarySchedule && canManage ? <div className="flex items-center gap-1">{masterButtons(false)}</div> : null}
           </div>
 
           {engine?.progress && primarySchedule && !overlay ? (
@@ -536,6 +633,15 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
 }
 
 /** A small labelled segmented control, sized to sit in the action bar with the buttons. */
+function ToolSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="border-t border-border pt-3 first:border-t-0 first:pt-0">
+      <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{title}</div>
+      <div className="flex flex-wrap items-center gap-2">{children}</div>
+    </div>
+  );
+}
+
 function Segmented<V extends string>({ label, value, onChange, options }: { label: string; value: V; onChange: (v: V) => void; options: [V, string][] }) {
   return (
     <div className="ml-1 flex items-center gap-1.5">

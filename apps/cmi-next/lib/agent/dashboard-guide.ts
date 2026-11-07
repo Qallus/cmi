@@ -229,6 +229,7 @@ export const DASHBOARD_GUIDE: GuideEntry[] = [
     id: "schedules", name: "Schedules", path: "/dashboard/schedules", nav: "Sidebar → Jobs → Schedules",
     summary: "Schedules across all jobs (Gantt, timeline, list, table, card, calendar, kanban and resource views), with templates and client-facing dates. Templates include New Construction (76 tasks from the initial site visit to the final walkthrough, in 9 phases).",
     steps: [
+      "A job's schedule on a phone or tablet: the filter button at the right of the Schedules title opens every schedule tool, in sections: View (Gantt, List, Table, Calendar, Kanban, Timeline, Cards, Resource), Add (Item, Milestone, Phase, Add inside, Add Schedule, Package), Gantt (Link, Links, Baseline, Capture baseline, Zoom), Progress (finish, vs contract, status date, Update, Lookahead, scheduling mode), Schedule (Calendar, Shift dates, Make Master, Archive) and PDF. On a computer they stay in the action bar.",
       "Search or filter the Schedules page on a phone: tap the filter button at the right of the Schedules / Items tabs; search, job, type and health (or the Items views) are inside. A number on it shows how many are on.",
       "Add a schedule from the Schedules page: Add Schedule (top right) → pick the job → name it → choose a source (template, copy or blank) → Create. You're taken to that job's schedule.",
       "Start from a template right away: Add Schedule opens on Start → Template (New Construction is first) → pick the Start date (the Estimated finish shows) → Next for the name and details.",

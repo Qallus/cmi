@@ -33,7 +33,7 @@ export function StatusDateControl({ scheduleId, value, canEdit, finishVariance, 
   }
   const v = finishVariance;
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex flex-wrap items-center gap-1.5">
       <AutoTooltip content="Status date: work up to here is reported. Unstarted tasks can't sit before it and remaining work runs after it.">
         <span className="text-xs text-muted-foreground">Status</span>
       </AutoTooltip>
@@ -47,14 +47,14 @@ export function StatusDateControl({ scheduleId, value, canEdit, finishVariance, 
       {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" /> : null}
       {v != null ? (
         <AutoTooltip content={`Forecast finish vs the baseline finish${baselineFinish ? ` (${baselineFinish})` : ""}, in working days`}>
-          <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", v > 0 ? "bg-destructive/10 text-destructive" : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400")}>
+          <span className={cn("shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium", v > 0 ? "bg-destructive/10 text-destructive" : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400")}>
             vs baseline {v === 0 ? "on date" : `${v > 0 ? "+" : ""}${v} wd`}
           </span>
         </AutoTooltip>
       ) : null}
       {behind ? (
         <AutoTooltip content="Tasks that should have started or finished by the status date but haven't">
-          <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400">{behind} behind</span>
+          <span className="shrink-0 whitespace-nowrap rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400">{behind} behind</span>
         </AutoTooltip>
       ) : null}
     </div>
