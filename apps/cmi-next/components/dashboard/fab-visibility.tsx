@@ -16,7 +16,8 @@ export function FabVisibility() {
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">
         The round Quick Actions button in the bottom-right corner opens notes, requests and direct messages.
-        Hide it when it covers the last row of a long list.
+        Hide it when it covers the last row of a long list. On phones and tablets it starts hidden
+        (the footer bar covers quick actions there) until you choose Show.
       </p>
 
       <div role="radiogroup" aria-label="Quick Actions button" className="flex gap-2">

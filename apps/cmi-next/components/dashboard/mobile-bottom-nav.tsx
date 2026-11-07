@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarRange, Camera, CheckCircle2, ChevronDown, ChevronUp, Eye, HardHat, Home, IdCard, Image as ImageIcon, Images, LayoutDashboard, Loader2, Mail, Mic, NotebookPen, Package, Phone, Sparkles, Users, Video, X } from "lucide-react";
+import { CalendarRange, Camera, CheckCircle2, ChevronDown, ChevronUp, Eye, HardHat, Home, Image as ImageIcon, Images, LayoutDashboard, Loader2, Mail, MessageSquare, Mic, NotebookPen, Package, Phone, Sparkles, Users, Video, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { JobVoiceRecorder } from "./job-voice-recorder";
 import {
@@ -16,18 +16,18 @@ import {
 type NavItem = { label: string; icon: typeof Home; href?: string; action?: "camera" | "record" };
 const ITEMS: NavItem[] = [
   { href: "/dashboard/overview", label: "Dashboard", icon: Home },
-  { href: "/dashboard/contacts", label: "Contacts", icon: Users },
-  { href: "/dashboard/selections", label: "Selections", icon: Package },
-  { href: "/dashboard/jobs", label: "Jobs", icon: HardHat },
   { href: "/dashboard/daily-logs?new=1", label: "Daily Log", icon: NotebookPen },
+  { href: "/dashboard/jobs", label: "Jobs", icon: HardHat },
   { href: "/dashboard/schedules", label: "Schedules", icon: CalendarRange },
-  { href: "/dashboard/documents", label: "Workspace", icon: LayoutDashboard },
+  { href: "/dashboard/selections", label: "Selections", icon: Package },
+  { href: "/dashboard/agent", label: "Bolt", icon: Sparkles },
+  { href: "/dashboard/contacts", label: "Contacts", icon: Users },
   { href: "/dashboard/communications?panel=dialer", label: "Call", icon: Phone },
+  { href: "/dashboard/communications?panel=sms", label: "SMS", icon: MessageSquare },
   { href: "/dashboard/communications?panel=email", label: "Email", icon: Mail },
   { action: "record", label: "Record", icon: Mic },
   { action: "camera", label: "Camera", icon: Camera },
-  { href: "/dashboard/business-cards", label: "Cards", icon: IdCard },
-  { href: "/dashboard/agent", label: "Bolt", icon: Sparkles },
+  { href: "/dashboard/documents", label: "Workspace", icon: LayoutDashboard },
 ];
 
 const STORAGE_KEY = "cmi_mobilenav_closed";
