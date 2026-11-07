@@ -20,7 +20,7 @@ import { RecordsImportModal } from "@/components/dashboard/records-import-modal"
 import { exportJobsCsv } from "@/lib/records-io/export";
 import { QuickActionBar } from "@/components/dashboard/quick-action-bar";
 import { DELETE_ROLES, WRITE_ROLES } from "@/lib/records-io/fields";
-import { MobileSubNav, MobileSubNavSection, MobileSubNavToggle } from "@/components/ui/mobile-sub-nav";
+import { MobileSubNav, MobileSubNavMultiSelect, MobileSubNavSection, MobileSubNavToggle } from "@/components/ui/mobile-sub-nav";
 
 type SortKey = "job_name" | "job_number" | "city" | "status" | "projected_start_date" | "projected_completion_date" | "updated_at";
 type ViewMode = "list" | "table" | "card" | "kanban" | "calendar";
@@ -55,9 +55,10 @@ export function JobsListClient({
   const [rows, setRows] = React.useState<JobListRow[]>(initialRows);
   const [view, setView] = React.useState<ViewMode>("table");
   const [search, setSearch] = React.useState("");
-  const [statusFilter, setStatusFilter] = React.useState("all");
-  const [typeFilter, setTypeFilter] = React.useState("all");
-  const [pmFilter, setPmFilter] = React.useState("all");
+  // Each filter is a list; empty means all. Desktop picks one per dropdown, the phone sheet several.
+  const [statusFilter, setStatusFilter] = React.useState<string[]>([]);
+  const [typeFilter, setTypeFilter] = React.useState<string[]>([]);
+  const [pmFilter, setPmFilter] = React.useState<string[]>([]);
   const [activeOnly, setActiveOnly] = React.useState(false);
   const [sort, setSort] = React.useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "updated_at", dir: "desc" });
   const [newMenu, setNewMenu] = React.useState(false);
@@ -76,9 +77,9 @@ export function JobsListClient({
       // "Show archived" switches the list to archived jobs only, so Restore
       // always acts on what is on screen.
       if (showArchived ? !r.archived_at : r.archived_at) return false;
-      if (view !== "kanban" && statusFilter !== "all" && r.status !== statusFilter) return false;
-      if (typeFilter !== "all" && r.job_type_id !== typeFilter) return false;
-      if (pmFilter !== "all" && !r.project_managers.includes(pmFilter)) return false;
+      if (view !== "kanban" && statusFilter.length && !statusFilter.includes(r.status)) return false;
+      if (typeFilter.length && !typeFilter.includes(r.job_type_id ?? "")) return false;
+      if (pmFilter.length && !r.project_managers.some((p) => pmFilter.includes(p))) return false;
       if (activeOnly && !JOB_STATUS_META[r.status].open) return false;
       if (q) {
         const hay = `${r.job_name} ${r.job_number ?? ""} ${r.lead_number ?? ""} ${r.full_address ?? ""} ${r.city ?? ""} ${r.clients.map((c) => c.name).join(" ")} ${r.type_name ?? ""}`.toLowerCase();
@@ -151,19 +152,21 @@ export function JobsListClient({
       <input type="text" placeholder="Search jobs…" aria-label="Search jobs" value={search} onChange={(e) => setSearch(e.target.value)} className="h-8 w-full rounded-md border border-border bg-background pl-8 pr-3 text-[16px] outline-none focus:border-accent md:text-sm" />
     </div>
   );
-  const filterSelects = (wide: boolean) => (
+  const one = (list: string[]) => (list.length === 1 ? list[0] : "all");
+  const pick = (v: string) => (v === "all" ? [] : [v]);
+  const filterSelects = (
     <>
       {view !== "kanban" && (
-        <div className={wide ? "w-full" : "w-36"}><Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} aria-label="Status">
+        <div className="w-36"><Select value={one(statusFilter)} onChange={(e) => setStatusFilter(pick(e.target.value))} aria-label="Status">
           <option value="all">All statuses</option>
           {FILTER_STATUSES.map((s) => <option key={s} value={s}>{JOB_STATUS_META[s].label}</option>)}
         </Select></div>
       )}
-      <div className={wide ? "w-full" : "w-36"}><Select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} aria-label="Type">
+      <div className="w-36"><Select value={one(typeFilter)} onChange={(e) => setTypeFilter(pick(e.target.value))} aria-label="Type">
         <option value="all">All types</option>
         {types.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
       </Select></div>
-      <div className={wide ? "w-full" : "w-36"}><Select value={pmFilter} onChange={(e) => setPmFilter(e.target.value)} aria-label="Project manager">
+      <div className="w-36"><Select value={one(pmFilter)} onChange={(e) => setPmFilter(pick(e.target.value))} aria-label="Project manager">
         <option value="all">All PMs</option>
         {pms.map((p) => <option key={p} value={p}>{p}</option>)}
       </Select></div>
@@ -192,7 +195,12 @@ export function JobsListClient({
       <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}><Upload className="h-3.5 w-3.5" /> Import</Button>
     </>
   );
-  const activeCount = [search.trim(), view !== "kanban" && statusFilter !== "all", typeFilter !== "all", pmFilter !== "all", activeOnly, showArchived].filter(Boolean).length;
+  const activeCount = [search.trim(), view !== "kanban" && statusFilter.length, typeFilter.length, pmFilter.length, activeOnly, showArchived].filter(Boolean).length;
+  const filterGroups = [
+    ...(view !== "kanban" ? [{ key: "status", label: "Status", options: FILTER_STATUSES.map((s) => ({ value: s, label: JOB_STATUS_META[s].label })), selected: statusFilter, onChange: setStatusFilter }] : []),
+    { key: "type", label: "Type", options: types.map((t) => ({ value: t.id, label: t.name })), selected: typeFilter, onChange: setTypeFilter },
+    { key: "pm", label: "PM", options: pms.map((p) => ({ value: p, label: p })), selected: pmFilter, onChange: setPmFilter },
+  ];
 
   const tiles = [
     { label: "Total", value: report.total },
@@ -217,22 +225,21 @@ export function JobsListClient({
               </TitleRow>
             </div>
             {/* Phones: views, search, filters, Export and Import in a bottom sheet. */}
-            <MobileSubNav title="Jobs" activeCount={activeCount}>
-              <MobileSubNavSection title="View">
+            <MobileSubNav title="Jobs views, search and filters" activeCount={activeCount}>
+              <MobileSubNavSection>
                 <div className="grid w-full grid-cols-6 overflow-hidden rounded-md border border-border">{viewButtons(true)}</div>
               </MobileSubNavSection>
-              <MobileSubNavSection title="Search">{searchBox}</MobileSubNavSection>
-              <MobileSubNavSection title="Filters" className="grid grid-cols-2">
-                {filterSelects(true)}
-                {/* Right of the last select: the yes/no filters as switches. */}
-                <div className={cn("flex flex-col justify-center gap-1 pl-1", view === "kanban" && "col-span-2")}>
+              <MobileSubNavSection>{searchBox}</MobileSubNavSection>
+              <MobileSubNavSection>
+                <MobileSubNavMultiSelect groups={filterGroups} />
+                <div className="grid w-full grid-cols-2 gap-x-6">
                   <MobileSubNavToggle label="Active only" checked={activeOnly} onChange={setActiveOnly} />
                   <MobileSubNavToggle label="Show archived" checked={showArchived} onChange={toggleArchived} />
                   {view !== "table" ? <MobileSubNavToggle label="Select all" checked={allChecked} onChange={toggleAll} /> : null}
                 </div>
-                {activeCount ? <button type="button" onClick={() => { setSearch(""); setStatusFilter("all"); setTypeFilter("all"); setPmFilter("all"); setActiveOnly(false); if (showArchived) toggleArchived(false); }} className="col-span-2 justify-self-start text-xs text-accent hover:underline">Clear search and filters</button> : null}
+                {activeCount ? <button type="button" onClick={() => { setSearch(""); setStatusFilter([]); setTypeFilter([]); setPmFilter([]); setActiveOnly(false); if (showArchived) toggleArchived(false); }} className="text-xs text-accent hover:underline">Clear search and filters</button> : null}
               </MobileSubNavSection>
-              <MobileSubNavSection title="Export and import">{exportImport}</MobileSubNavSection>
+              <MobileSubNavSection className="grid grid-cols-2 [&>button]:w-full">{exportImport}</MobileSubNavSection>
             </MobileSubNav>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -265,7 +272,7 @@ export function JobsListClient({
         {/* Filters (desktop; phones use the sheet) */}
         <div className="mt-3 hidden flex-wrap items-center gap-2 md:flex">
           {searchBox}
-          {filterSelects(false)}
+          {filterSelects}
           {checkboxes}
         </div>
       </div>

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { createPortal } from "react-dom";
-import { ListFilter, X } from "lucide-react";
+import { Check, ChevronDown, ListFilter, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -25,7 +25,7 @@ import { cn } from "@/lib/utils";
 const HIDE_FROM = { md: "md:hidden", lg: "lg:hidden" } as const;
 
 export function MobileSubNav({ title, activeCount = 0, label = "Views, search and filters", hideFrom = "md", children }: {
-  /** Sheet heading, usually the page title. */
+  /** The sheet's accessible name, usually the page title (not shown; the sheet starts with its controls). */
   title: string;
   /** How many searches/filters are on; shown as a number on the button. */
   activeCount?: number;
@@ -49,10 +49,10 @@ export function MobileSubNav({ title, activeCount = 0, label = "Views, search an
 }
 
 /** A titled group inside the sheet. */
-export function MobileSubNavSection({ title, children, className }: { title: string; children: React.ReactNode; className?: string }) {
+export function MobileSubNavSection({ title, children, className }: { title?: string; children: React.ReactNode; className?: string }) {
   return (
     <section className="border-t border-border pt-3 first:border-t-0 first:pt-0">
-      <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{title}</h3>
+      {title ? <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{title}</h3> : null}
       <div className={cn("flex flex-wrap items-center gap-2", className)}>{children}</div>
     </section>
   );
@@ -68,6 +68,51 @@ export function MobileSubNavToggle({ label, checked, onChange }: { label: string
         <span className={cn("absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all", checked ? "left-[18px]" : "left-0.5")} />
       </span>
     </button>
+  );
+}
+
+export type MultiSelectGroup = { key: string; label: string; options: { value: string; label: string }[]; selected: string[]; onChange: (values: string[]) => void };
+
+/**
+ * One full-width field holding several filters: tap to open a checkbox list
+ * with a small heading per filter (e.g. Status, Type, PM). Nothing checked in a
+ * group means "all" for that group.
+ */
+export function MobileSubNavMultiSelect({ groups, placeholder = "All filters" }: { groups: MultiSelectGroup[]; placeholder?: string }) {
+  const [open, setOpen] = React.useState(false);
+  const picked = groups.flatMap((g) => g.selected.map((v) => g.options.find((o) => o.value === v)?.label ?? v));
+  const summary = picked.length === 0 ? placeholder : picked.length <= 2 ? picked.join(", ") : `${picked.slice(0, 2).join(", ")} +${picked.length - 2}`;
+  return (
+    <div className="w-full">
+      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open}
+        className={cn("flex h-9 w-full items-center justify-between gap-2 rounded-md border bg-background px-3 text-left text-sm transition", open ? "border-accent" : "border-border", picked.length ? "text-foreground" : "text-muted-foreground")}>
+        <span className="truncate">{summary}</span>
+        <ChevronDown className={cn("h-4 w-4 shrink-0 opacity-60 transition", open && "rotate-180")} />
+      </button>
+      {open ? (
+        <div className="mt-1.5 max-h-72 overflow-y-auto rounded-md border border-border bg-background p-1">
+          {groups.map((g) => (
+            <div key={g.key} className="py-1">
+              <div className="flex items-center justify-between px-2 pb-0.5">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{g.label}</span>
+                {g.selected.length ? <button type="button" onClick={() => g.onChange([])} className="text-[11px] text-accent hover:underline">Clear</button> : null}
+              </div>
+              {g.options.map((o) => {
+                const on = g.selected.includes(o.value);
+                return (
+                  <button key={o.value} type="button" role="checkbox" aria-checked={on}
+                    onClick={() => g.onChange(on ? g.selected.filter((v) => v !== o.value) : [...g.selected, o.value])}
+                    className="flex w-full items-center gap-2.5 rounded px-2 py-1.5 text-left text-sm hover:bg-muted">
+                    <span className={cn("grid h-4 w-4 shrink-0 place-items-center rounded border", on ? "border-accent bg-accent text-accent-foreground" : "border-border")}>{on ? <Check className="h-3 w-3" /> : null}</span>
+                    <span className="truncate">{o.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -88,10 +133,9 @@ function BottomSheet({ title, onClose, children }: { title: string; onClose: () 
       <div className={cn("absolute inset-0 bg-black/40 transition-opacity duration-200", shown ? "opacity-100" : "opacity-0")} onClick={close} />
       <div role="dialog" aria-modal="true" aria-label={title}
         className={cn("absolute inset-x-0 bottom-0 flex max-h-[85dvh] flex-col rounded-t-2xl border-t border-border bg-card shadow-2xl transition-transform duration-200 ease-out", shown ? "translate-y-0" : "translate-y-full")}>
-        <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-border" aria-hidden />
-        <div className="flex items-center justify-between px-4 pb-2 pt-2">
-          <h2 className="font-display text-lg font-semibold">{title}</h2>
-          <button type="button" onClick={close} aria-label="Close" className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+        <div className="relative flex h-11 shrink-0 items-start justify-center pt-2">
+          <div className="h-1 w-10 rounded-full bg-border" aria-hidden />
+          <button type="button" onClick={close} aria-label="Close" className="absolute right-4 top-2 inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
         </div>
         <div className="flex-1 space-y-3 overflow-y-auto px-4 pb-4" style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}>{children}</div>
       </div>
