@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { StatusDateControl } from "./status-date";
+import { ProgressChips, StatusDateControl } from "./status-date";
 import { WeeklyUpdate } from "./weekly-update";
 import { LookaheadView } from "./lookahead-view";
 import { HealthTiles } from "./health-tiles";
@@ -319,10 +319,19 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
     return <AutoTooltip content={`${worst.title}: contract ${fmtDate(worst.contract_date)}, forecast ${fmtDate(worst.forecast)}`}><span className={cn("shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium", v > 0 ? "bg-destructive/10 text-destructive" : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400")}>vs contract {v === 0 ? "on date" : `${v > 0 ? "+" : ""}${v} wd`}</span></AutoTooltip>;
   })();
   const statusControl = eng?.progress && primarySchedule ? (
-    <StatusDateControl scheduleId={primarySchedule.id} value={eng.status_date ?? null} canEdit={canEdit}
+    <StatusDateControl scheduleId={primarySchedule.id} value={eng.status_date ?? null} canEdit={canEdit} chips={false}
       finishVariance={eng.summary?.finishVariance} baselineFinish={eng.summary?.baselineFinish} behind={eng.summary?.behind}
       onChanged={async () => { await loadBundle(primarySchedule.id); await refreshEngine(); setBanner("Status date set; the schedule was re-forecast."); }}
       onError={setBanner} />
+  ) : null;
+  // The schedule's results as one group: finish and critical count, then the vs contract,
+  // vs baseline and behind pills.
+  const results = finishInfo || contractChip || eng?.progress ? (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {finishInfo}
+      {contractChip}
+      {eng?.progress ? <ProgressChips finishVariance={eng.summary?.finishVariance} baselineFinish={eng.summary?.baselineFinish} behind={eng.summary?.behind} /> : null}
+    </div>
   ) : null;
   const updateButton = eng?.progress && canEdit ? <AutoTooltip content="Weekly update: report progress since the last status date, then re-forecast"><Button size="sm" variant="outline" onClick={() => setUpdateOpen(true)}><ClipboardCheck className="h-3.5 w-3.5" /> Update</Button></AutoTooltip> : null;
   const lookaheadButton = eng?.progress ? <AutoTooltip content="Three-week lookahead: this week, next week and the week after, by phase (internal or client, with PDF)"><Button size="sm" variant="ghost" onClick={() => setLookaheadOpen(true)}><CalendarDays className="h-3.5 w-3.5" /> Lookahead</Button></AutoTooltip> : null;
@@ -429,7 +438,7 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
               ) : null}
               {eng ? (
                 <ToolSection title="Progress">
-                  {finishInfo || contractChip ? <div className="flex w-full flex-wrap items-center gap-2">{finishInfo}{contractChip}</div> : null}
+                  {results ? <div className="w-full">{results}</div> : null}
                   {statusControl ? <div data-keep-open className="w-full">{statusControl}</div> : null}
                   {updateButton}
                   {lookaheadButton}
@@ -513,8 +522,7 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
             {kanbanControl}
             <div className="flex-1" />
             {addInsideButton}
-            {finishInfo}
-            {contractChip}
+            {results}
             {statusControl}
             {updateButton}
             {lookaheadButton}
