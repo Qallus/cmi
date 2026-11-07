@@ -144,6 +144,7 @@ export const DASHBOARD_GUIDE: GuideEntry[] = [
     summary: "All construction jobs (list, table, card, kanban, calendar). Open a job for its own menu: Summary, Job Info, Price Summary, Client Portal, Schedule, Daily Logs, Projects & Tasks, Documents, Files, Messages, Communications, Change Orders, Invoices, Selections, Warranty, Notes and Activity. The Summary has stat cards (Documents, Contracts, Daily Logs, Selections, Change Orders, Invoices…) that link to each area.",
     steps: [
       "Open a job: Jobs → click the job.",
+      "Jobs on a phone: the filter button at the right of the Jobs title opens a sheet from the bottom with the views (List, Table, Card, Kanban, Calendar, Map), search, the Status / Type / PM filters, Active only, Show archived, and Export / Import. A number on the button shows how many filters are on.",
       "Filter jobs by status, type or project manager. The PM list shows every CMI staff member; anyone set up as a Project Manager on a job (including owners who also run jobs) appears under their name.",
       "On a phone, the job's menu is the row under All jobs / Edit Job Info; swipe it sideways.",
     ],

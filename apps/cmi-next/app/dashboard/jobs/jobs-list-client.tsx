@@ -20,6 +20,7 @@ import { RecordsImportModal } from "@/components/dashboard/records-import-modal"
 import { exportJobsCsv } from "@/lib/records-io/export";
 import { QuickActionBar } from "@/components/dashboard/quick-action-bar";
 import { DELETE_ROLES, WRITE_ROLES } from "@/lib/records-io/fields";
+import { MobileSubNav, MobileSubNavSection } from "@/components/ui/mobile-sub-nav";
 
 type SortKey = "job_name" | "job_number" | "city" | "status" | "projected_start_date" | "projected_completion_date" | "updated_at";
 type ViewMode = "list" | "table" | "card" | "kanban" | "calendar";
@@ -124,6 +125,69 @@ export function JobsListClient({
     } catch { setRows(snapshot); }
   }
 
+  // Desktop toolbar and the phone sheet render the same controls.
+  const viewButtons = (labels: boolean) => (
+    <>
+      {VIEWS.map((v) => (
+        <button key={v.key} type="button" onClick={() => setView(v.key)} title={v.label} aria-pressed={view === v.key}
+          className={cn("flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium transition", view === v.key ? "bg-accent/15 text-accent" : "text-muted-foreground hover:text-foreground")}>
+          <v.icon className="h-3.5 w-3.5" /> <span className={labels ? "" : "hidden lg:inline"}>{v.label}</span>
+        </button>
+      ))}
+      <Link href="/dashboard/jobs/map" className="flex items-center gap-1.5 border-l border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground" title="Map">
+        <MapIcon className="h-3.5 w-3.5" /> <span className={labels ? "" : "hidden lg:inline"}>Map</span>
+      </Link>
+    </>
+  );
+  const searchBox = (
+    <div className="relative w-full md:max-w-xs md:flex-1">
+      <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+      <input type="text" placeholder="Search jobs…" aria-label="Search jobs" value={search} onChange={(e) => setSearch(e.target.value)} className="h-8 w-full rounded-md border border-border bg-background pl-8 pr-3 text-[16px] outline-none focus:border-accent md:text-sm" />
+    </div>
+  );
+  const filterSelects = (wide: boolean) => (
+    <>
+      {view !== "kanban" && (
+        <div className={wide ? "w-full" : "w-36"}><Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} aria-label="Status">
+          <option value="all">All statuses</option>
+          {FILTER_STATUSES.map((s) => <option key={s} value={s}>{JOB_STATUS_META[s].label}</option>)}
+        </Select></div>
+      )}
+      <div className={wide ? "w-full" : "w-36"}><Select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} aria-label="Type">
+        <option value="all">All types</option>
+        {types.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+      </Select></div>
+      <div className={wide ? "w-full" : "w-36"}><Select value={pmFilter} onChange={(e) => setPmFilter(e.target.value)} aria-label="Project manager">
+        <option value="all">All PMs</option>
+        {pms.map((p) => <option key={p} value={p}>{p}</option>)}
+      </Select></div>
+    </>
+  );
+  const checkboxes = (
+    <>
+      <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <input type="checkbox" checked={activeOnly} onChange={(e) => setActiveOnly(e.target.checked)} /> Active only
+      </label>
+      <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <input type="checkbox" checked={showArchived} onChange={(e) => toggleArchived(e.target.checked)} /> Show archived
+      </label>
+      {view !== "table" && (
+        <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <input type="checkbox" checked={allChecked} onChange={(e) => toggleAll(e.target.checked)} /> Select all
+        </label>
+      )}
+    </>
+  );
+  const exportImport = (
+    <>
+      <Button size="sm" variant="outline" onClick={exportCsv} disabled={filtered.length === 0} title={selectedRows.length ? "Export the checked jobs" : "Export every job shown"}>
+        <Download className="h-3.5 w-3.5" /> {selectedRows.length ? `Export ${selectedRows.length}` : "Export"}
+      </Button>
+      <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}><Upload className="h-3.5 w-3.5" /> Import</Button>
+    </>
+  );
+  const activeCount = [search.trim(), view !== "kanban" && statusFilter !== "all", typeFilter !== "all", pmFilter !== "all", activeOnly, showArchived].filter(Boolean).length;
+
   const tiles = [
     { label: "Total", value: report.total },
     { label: "Active", value: report.active },
@@ -138,31 +202,33 @@ export function JobsListClient({
       {/* Header */}
       <div className="border-b border-border bg-card px-4 py-4 md:px-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Project Management</div>
-            <TitleRow>
-              <h1 className="font-display text-2xl font-semibold tracking-tight">Jobs</h1>
-              <CountPill count={report.total} noun="job" />
-            </TitleRow>
+          <div className="flex w-full items-start justify-between gap-3 md:w-auto">
+            <div>
+              <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Project Management</div>
+              <TitleRow>
+                <h1 className="font-display text-2xl font-semibold tracking-tight">Jobs</h1>
+                <CountPill count={report.total} noun="job" />
+              </TitleRow>
+            </div>
+            {/* Phones: views, search, filters, Export and Import in a bottom sheet. */}
+            <MobileSubNav title="Jobs" activeCount={activeCount}>
+              <MobileSubNavSection title="View">
+                <div className="flex w-full flex-wrap overflow-hidden rounded-md border border-border [&>*]:flex-1 [&>*]:justify-center">{viewButtons(true)}</div>
+              </MobileSubNavSection>
+              <MobileSubNavSection title="Search">{searchBox}</MobileSubNavSection>
+              <MobileSubNavSection title="Filters" className="grid grid-cols-2">
+                {filterSelects(true)}
+                <div className="col-span-2 flex flex-wrap gap-x-4 gap-y-2 pt-1">{checkboxes}</div>
+                {activeCount ? <button type="button" onClick={() => { setSearch(""); setStatusFilter("all"); setTypeFilter("all"); setPmFilter("all"); setActiveOnly(false); if (showArchived) toggleArchived(false); }} className="col-span-2 justify-self-start text-xs text-accent hover:underline">Clear search and filters</button> : null}
+              </MobileSubNavSection>
+              <MobileSubNavSection title="Export and import">{exportImport}</MobileSubNavSection>
+            </MobileSubNav>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <StatsToggle shown={showStats} onToggle={toggleStats} />
-            <div className="flex overflow-hidden rounded-md border border-border">
-              {VIEWS.map((v) => (
-                <button key={v.key} type="button" onClick={() => setView(v.key)} title={v.label}
-                  className={cn("flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium transition", view === v.key ? "bg-accent/15 text-accent" : "text-muted-foreground hover:text-foreground")}>
-                  <v.icon className="h-3.5 w-3.5" /> <span className="hidden lg:inline">{v.label}</span>
-                </button>
-              ))}
-              <Link href="/dashboard/jobs/map" className="flex items-center gap-1.5 border-l border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground" title="Map">
-                <MapIcon className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Map</span>
-              </Link>
-            </div>
-            <div className="w-40"><Select value="standard" onChange={() => {}} disabled><option value="standard">Standard View</option></Select></div>
-            <Button size="sm" variant="outline" onClick={exportCsv} disabled={filtered.length === 0} title={selectedRows.length ? "Export the checked jobs" : "Export every job shown"}>
-              <Download className="h-3.5 w-3.5" /> {selectedRows.length ? `Export ${selectedRows.length}` : "Export"}
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}><Upload className="h-3.5 w-3.5" /> Import</Button>
+            <div className="hidden overflow-hidden rounded-md border border-border md:flex">{viewButtons(false)}</div>
+            <div className="hidden w-40 md:block"><Select value="standard" onChange={() => {}} disabled><option value="standard">Standard View</option></Select></div>
+            <div className="hidden items-center gap-2 md:flex">{exportImport}</div>
             <div className="relative">
               <Button size="sm" variant="accent" onClick={() => setNewMenu((v) => !v)}><Plus className="h-3.5 w-3.5" /> New Job <ChevronDown className="h-3 w-3" /></Button>
               {newMenu && (
@@ -185,37 +251,11 @@ export function JobsListClient({
           ))}
         </div>}
 
-        {/* Filters */}
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <div className="relative max-w-xs flex-1">
-            <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <input type="text" placeholder="Search jobs…" value={search} onChange={(e) => setSearch(e.target.value)} className="h-8 w-full rounded-md border border-border bg-background pl-8 pr-3 text-sm outline-none focus:border-accent" />
-          </div>
-          {view !== "kanban" && (
-            <div className="w-36"><Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-              <option value="all">All statuses</option>
-              {FILTER_STATUSES.map((s) => <option key={s} value={s}>{JOB_STATUS_META[s].label}</option>)}
-            </Select></div>
-          )}
-          <div className="w-36"><Select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
-            <option value="all">All types</option>
-            {types.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-          </Select></div>
-          <div className="w-36"><Select value={pmFilter} onChange={(e) => setPmFilter(e.target.value)}>
-            <option value="all">All PMs</option>
-            {pms.map((p) => <option key={p} value={p}>{p}</option>)}
-          </Select></div>
-          <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <input type="checkbox" checked={activeOnly} onChange={(e) => setActiveOnly(e.target.checked)} /> Active only
-          </label>
-          <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <input type="checkbox" checked={showArchived} onChange={(e) => toggleArchived(e.target.checked)} /> Show archived
-          </label>
-          {view !== "table" && (
-            <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <input type="checkbox" checked={allChecked} onChange={(e) => toggleAll(e.target.checked)} /> Select all
-            </label>
-          )}
+        {/* Filters (desktop; phones use the sheet) */}
+        <div className="mt-3 hidden flex-wrap items-center gap-2 md:flex">
+          {searchBox}
+          {filterSelects(false)}
+          {checkboxes}
         </div>
       </div>
 
