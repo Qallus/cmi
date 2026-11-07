@@ -150,14 +150,13 @@ export function PortalMobileMenu({ open, onClose, footer }: { open: boolean; onC
           <img src="/brand/CMI_Line_Logo_Black.svg" alt="Constructed Matter, Inc." className="h-8 w-auto object-contain dark:hidden" />
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/brand/CMI_Line_Logo_White.svg" alt="" aria-hidden className="hidden h-8 w-auto object-contain dark:block" />
-          <div className="mt-1.5 text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Client Project Portal</div>
+          <div className="mt-1 text-[9px] uppercase tracking-[0.16em] text-muted-foreground">Client Project Portal</div>
         </div>
         <button type="button" onClick={onClose} aria-label="Close menu" className="rounded-md border border-border p-1.5 text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
       </div>
       <div className="flex-1 overflow-y-auto px-3 py-3">
         {job ? (
           <>
-            <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">{job.jobName}</div>
             <div className="mb-4 space-y-0.5">{jobItems(job).map(row)}</div>
           </>
         ) : null}
