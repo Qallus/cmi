@@ -4,7 +4,7 @@ import * as React from "react";
 import { confirmAction } from "@/components/ui/confirm-action";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Search, CalendarClock, AlertTriangle, Clock, Flag, TriangleAlert, CircleCheck, Timer, Plus, Archive, Trash2, Activity, CircleDot, Users } from "lucide-react";
+import { Search, CalendarClock, AlertTriangle, Clock, Flag, TriangleAlert, CircleCheck, Timer, Plus, Archive, Trash2, Activity, CircleDot, Users, ListFilter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSort, SortableTh, useRowSelection, HeaderCheckbox, RowCheckbox, SelectionBar, BarAction } from "@/components/ui/data-table";
 import { AddScheduleWizard, type ScheduleSource } from "@/components/schedules/add-schedule-wizard";
@@ -57,6 +57,15 @@ export function SchedulesDashboardClient({ schedules, metrics, items, staff, job
   const [jobFilter, setJobFilter] = React.useState("");
   const [typeFilter, setTypeFilter] = React.useState("");
   const [healthFilter, setHealthFilter] = React.useState("");
+  // Phones: search and filters fold into one button at the right of the tabs.
+  const [filtersOpen, setFiltersOpen] = React.useState(false);
+  const filtersRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    if (!filtersOpen) return;
+    const onDown = (e: MouseEvent) => { if (!filtersRef.current?.contains(e.target as Node)) setFiltersOpen(false); };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [filtersOpen]);
 
   const jobs = React.useMemo(() => {
     const m = new Map<string, string>();
@@ -161,29 +170,57 @@ export function SchedulesDashboardClient({ schedules, metrics, items, staff, job
           ))}
         </div>}
 
-        {/* Tabs + filters */}
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <div className="flex gap-1 rounded-md border border-border p-0.5">
-            {(["schedules", "items"] as const).map((t) => (
-              <button key={t} type="button" onClick={() => setTab(t)} className={cn("rounded px-3 py-1 text-xs font-medium capitalize transition", tab === t ? "bg-accent/15 text-accent" : "text-muted-foreground hover:bg-muted")}>{t}</button>
-            ))}
-          </div>
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search…" className="h-8 w-48 rounded-md border border-border bg-background pl-8 pr-3 text-sm outline-none focus:border-accent" />
-          </div>
-          <Select value={jobFilter} onChange={(e) => setJobFilter(e.target.value)} className="h-8 w-44 text-sm"><option value="">All jobs</option>{jobs.map((j) => <option key={j.id} value={j.id}>{j.label}</option>)}</Select>
-          {tab === "schedules" ? (
-            <>
-              <Select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="h-8 w-40 text-sm"><option value="">All types</option>{Object.entries(SCHEDULE_TYPE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</Select>
-              <Select value={healthFilter} onChange={(e) => setHealthFilter(e.target.value)} className="h-8 w-36 text-sm"><option value="">All health</option><option value="on_track">On Track</option><option value="watch">Watch</option><option value="at_risk">At Risk</option><option value="delayed">Delayed</option><option value="critical">Critical</option></Select>
-            </>
-          ) : (
-            <div className="flex items-center gap-0.5 rounded-md border border-border p-0.5">
-              {itemViews.map((v) => <button key={v.key} type="button" onClick={() => setView(v.key)} title={v.label} className={cn("inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium transition", view === v.key ? "bg-accent/15 text-accent" : "text-muted-foreground hover:bg-muted")}><v.icon className="h-3.5 w-3.5" /><span className="hidden lg:inline">{v.label}</span></button>)}
+        {/* Tabs + filters. Phones: search and filters sit behind the filter button at the right. */}
+        {(() => {
+          const search = (wide: boolean) => (
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search…" aria-label="Search schedules"
+                className={cn("h-8 rounded-md border border-border bg-background pl-8 pr-3 outline-none focus:border-accent", wide ? "w-full text-[16px]" : "w-48 text-sm")} />
             </div>
-          )}
-        </div>
+          );
+          const filters = (wide: boolean) => (
+            <>
+              <Select value={jobFilter} onChange={(e) => setJobFilter(e.target.value)} className={cn("h-8 text-sm", wide ? "w-full" : "w-44")}><option value="">All jobs</option>{jobs.map((j) => <option key={j.id} value={j.id}>{j.label}</option>)}</Select>
+              {tab === "schedules" ? (
+                <>
+                  <Select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className={cn("h-8 text-sm", wide ? "w-full" : "w-40")}><option value="">All types</option>{Object.entries(SCHEDULE_TYPE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</Select>
+                  <Select value={healthFilter} onChange={(e) => setHealthFilter(e.target.value)} className={cn("h-8 text-sm", wide ? "w-full" : "w-36")}><option value="">All health</option><option value="on_track">On Track</option><option value="watch">Watch</option><option value="at_risk">At Risk</option><option value="delayed">Delayed</option><option value="critical">Critical</option></Select>
+                </>
+              ) : (
+                <div className="flex w-fit items-center gap-0.5 rounded-md border border-border p-0.5">
+                  {itemViews.map((v) => <button key={v.key} type="button" onClick={() => setView(v.key)} title={v.label} className={cn("inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium transition", view === v.key ? "bg-accent/15 text-accent" : "text-muted-foreground hover:bg-muted")}><v.icon className="h-3.5 w-3.5" /><span className="hidden lg:inline">{v.label}</span></button>)}
+                </div>
+              )}
+            </>
+          );
+          const active = [q.trim(), jobFilter, ...(tab === "schedules" ? [typeFilter, healthFilter] : [])].filter(Boolean).length;
+          return (
+            <div className="relative mt-3 flex items-center gap-2 md:flex-wrap">
+              <div className="flex gap-1 rounded-md border border-border p-0.5">
+                {(["schedules", "items"] as const).map((t) => (
+                  <button key={t} type="button" onClick={() => setTab(t)} className={cn("rounded px-3 py-1 text-xs font-medium capitalize transition", tab === t ? "bg-accent/15 text-accent" : "text-muted-foreground hover:bg-muted")}>{t}</button>
+                ))}
+              </div>
+              <div className="hidden md:contents">{search(false)}{filters(false)}</div>
+              <div ref={filtersRef} className="ml-auto md:hidden">
+                <button type="button" onClick={() => setFiltersOpen((o) => !o)} aria-expanded={filtersOpen} aria-controls="schedule-filters"
+                  aria-label={active ? `Search and filters, ${active} on` : "Search and filters"} title="Search and filters"
+                  className={cn("relative inline-flex h-8 w-8 items-center justify-center rounded-md border bg-card transition hover:text-foreground", filtersOpen || active ? "border-accent text-accent" : "border-border text-muted-foreground")}>
+                  <ListFilter className="h-4 w-4" />
+                  {active ? <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-bold text-accent-foreground">{active}</span> : null}
+                </button>
+                {filtersOpen && (
+                  <div id="schedule-filters" className="absolute inset-x-0 top-full z-30 mt-2 space-y-2 rounded-lg border border-border bg-card p-3 shadow-xl">
+                    {search(true)}
+                    <div className="grid grid-cols-2 gap-2 [&>*:first-child]:col-span-2">{filters(true)}</div>
+                    {active ? <button type="button" onClick={() => { setQ(""); setJobFilter(""); setTypeFilter(""); setHealthFilter(""); }} className="text-xs text-accent hover:underline">Clear search and filters</button> : null}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       <div className="flex-1 overflow-auto p-4 md:p-6">
