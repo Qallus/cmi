@@ -61,6 +61,14 @@ export function ProjectionsClient({ initialBoard, initialSettings, initialAction
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
   }, [filtersOpen]);
+  // The Add menu and the settings popover close on a tap or click anywhere else.
+  const toolbarRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    if (!menu) return;
+    const onDown = (e: MouseEvent) => { if (!toolbarRef.current?.contains(e.target as Node)) setMenu(null); };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [menu]);
   const [filters, setFilters] = React.useState<ProjectionFilters>(NO_FILTERS);
   const [editing, setEditing] = React.useState<Editing>(null);
   const [quick, setQuick] = React.useState<{ id: string; expanded: boolean } | null>(initialAction?.open ? { id: initialAction.open, expanded: false } : null);
@@ -128,7 +136,7 @@ export function ProjectionsClient({ initialBoard, initialSettings, initialAction
           </div>
           {/* On phones the popovers below anchor to this whole row (full width), not their
               button, so they never run off the left edge when the buttons wrap. */}
-          <div className="relative flex flex-wrap items-center gap-2">
+          <div ref={toolbarRef} className="relative flex flex-wrap items-center gap-2">
             <StatsToggle shown={showStats} onToggle={toggleStats} />
             <div className="flex items-center overflow-hidden rounded-md border border-border">
               <button type="button" aria-label="Previous month" disabled={loading} onClick={() => void load(addMonths(start, -1))} className="px-2 py-1.5 text-muted-foreground hover:text-foreground disabled:opacity-50"><ChevronLeft className="h-4 w-4" /></button>
@@ -199,18 +207,20 @@ export function ProjectionsClient({ initialBoard, initialSettings, initialAction
           return (
             <div className="relative flex flex-wrap items-center gap-2">
               <div className="hidden md:contents">{viewSwitch}</div>
-              <div className="flex overflow-hidden rounded-md border border-border text-xs">
+              {/* Phones: one line that never wraps, so Filters & Views always sits right of the tabs. */}
+              <div className="flex w-full min-w-0 flex-nowrap items-center gap-2 md:contents">
+              <div className="flex min-w-0 overflow-x-auto rounded-md border border-border text-xs [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {(["all", "committed", "potential"] as const).map((s) => (
-                  <button key={s} type="button" onClick={() => setFilter("scope", s)} className={cn("px-3 py-1.5 font-medium", filters.scope === s ? "bg-accent/15 text-accent" : "text-muted-foreground hover:text-foreground")}>
+                  <button key={s} type="button" onClick={() => setFilter("scope", s)} className={cn("shrink-0 whitespace-nowrap px-2 py-1.5 font-medium sm:px-3", filters.scope === s ? "bg-accent/15 text-accent" : "text-muted-foreground hover:text-foreground")}>
                     {s === "all" ? "Combined" : s === "committed" ? "Committed" : "Potential"}
                   </button>
                 ))}
               </div>
               <div className="hidden md:contents">{filterFields}</div>
               {/* Phones: views and filters fold into one menu so the page starts sooner. */}
-              <div ref={filtersRef} className="ml-auto md:hidden">
+              <div ref={filtersRef} className="ml-auto shrink-0 md:hidden">
                 <button type="button" onClick={() => setFiltersOpen((o) => !o)} aria-expanded={filtersOpen} aria-controls="projection-filters"
-                  className={cn("inline-flex h-8 items-center gap-1 rounded-md px-1.5 text-xs font-medium transition hover:text-foreground", filtersOpen || activeFilters ? "text-accent" : "text-muted-foreground")}>
+                  className={cn("inline-flex h-8 items-center gap-1 whitespace-nowrap rounded-md px-1 text-xs font-medium transition hover:text-foreground", filtersOpen || activeFilters ? "text-accent" : "text-muted-foreground")}>
                   Filters &amp; Views{activeFilters ? ` (${activeFilters})` : ""} <MoreVertical className="h-4 w-4" />
                 </button>
                 {filtersOpen && (
@@ -227,6 +237,7 @@ export function ProjectionsClient({ initialBoard, initialSettings, initialAction
                   </div>
                 )}
               </div>
+              </div>
               {reviewCount > 0 && filters.flag !== "new_actuals" && (
                 <button type="button" onClick={() => setFilter("flag", "new_actuals")} className="md:ml-auto"><Badge tone="info">{reviewCount} with new billing to review</Badge></button>
               )}
@@ -234,11 +245,6 @@ export function ProjectionsClient({ initialBoard, initialSettings, initialAction
           );
         })()}
 
-        {!shown.anyActuals && board.rows.length > 0 && (
-          <p className="text-xs text-muted-foreground">
-            No billing recorded yet, so actuals and variance are blank. They fill in once invoices are issued in CMI (drafts don&apos;t count) or external billing is entered or imported.
-          </p>
-        )}
 
         {board.rows.length === 0 ? (
           <div className="rounded-lg border border-dashed border-border bg-card px-6 py-16 text-center">
