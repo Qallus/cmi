@@ -2,14 +2,14 @@
 
 import type { ReactNode } from "react";
 import * as React from "react";
-import { ArrowLeft, Menu, PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
+import { LogOut, Menu, PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { ThemeToggle } from "@/components/dashboard/theme-toggle";
 import { DashboardNav, type UserRole } from "@/components/dashboard/nav";
 import { NotificationBell } from "@/components/dashboard/notification-bell";
 import { ReviewFab } from "@/components/dashboard/review-fab";
 import { MobileBottomNav } from "@/components/dashboard/mobile-bottom-nav";
-import { GlobalSearch } from "@/components/dashboard/global-search";
+import { GlobalSearch, MobileSearchPanel, MobileSearchToggle } from "@/components/dashboard/global-search";
 import { JobCommsBar } from "@/components/communications/job-comms-bar";
 import { InstallAppButton } from "@/components/pwa/install-app-button";
 import { PushPrompt } from "@/components/pwa/push-prompt";
@@ -41,6 +41,8 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [collapsed, setCollapsed] = React.useState(false);
   const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = React.useState(false);
+  const closeMobileSearch = React.useCallback(() => setMobileSearchOpen(false), []);
   const [sessionUser, setSessionUser] = React.useState<SessionUser | null>(null);
 
   React.useEffect(() => {
@@ -60,6 +62,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   React.useEffect(() => {
     window.dispatchEvent(new CustomEvent("cmi-dashboard-search", { detail: { value: "" } }));
     setMobileNavOpen(false);
+    setMobileSearchOpen(false);
   }, [pathname]);
 
   // On a job's pages, auto-collapse the main sidebar (which flips the job sub-nav
@@ -109,13 +112,14 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         </div>
       </aside>
       <main className="min-w-0 lg:col-start-2">
-        <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-background/92 px-5 backdrop-blur print:hidden">
+        <div className="sticky top-0 z-30 print:hidden">
+        <header className="flex h-14 items-center justify-between border-b border-border bg-background/92 px-5 backdrop-blur">
           <div className="flex items-center gap-2.5">
             <button
               type="button"
               onClick={() => setMobileNavOpen(true)}
               aria-label="Open navigation menu"
-              className="rounded-md border border-border p-1.5 text-muted-foreground transition hover:text-foreground lg:hidden"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-card text-muted-foreground transition hover:text-foreground lg:hidden"
             >
               <Menu className="h-4 w-4" />
             </button>
@@ -128,21 +132,23 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             <GlobalSearch role={(sessionUser?.role ?? "viewer") as UserRole} />
             <InstallAppButton variant="outline" size="sm" label="Get the App" className="hidden sm:inline-flex" />
             <ThemeToggle />
-            {/* Phones: the search box doesn't fit, so a button opens a search window. */}
-            <GlobalSearch variant="icon" role={(sessionUser?.role ?? "viewer") as UserRole} />
+            {/* Phones: the search box doesn't fit, so a button slides a search field down below the bar. */}
+            <MobileSearchToggle open={mobileSearchOpen} onToggle={() => setMobileSearchOpen((v) => !v)} />
             <NotificationBell />
             <Tooltip label="Sign out" side="bottom" className="inline-block">
               <button
-                className="rounded-md border border-border p-1.5 text-muted-foreground transition hover:border-red-400 hover:text-red-500"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-card text-muted-foreground transition hover:border-red-400 hover:text-red-500"
                 type="button"
                 aria-label="Sign out"
                 onClick={handleSignOut}
               >
-                <ArrowLeft className="h-3.5 w-3.5" />
+                <LogOut className="h-4 w-4" />
               </button>
             </Tooltip>
           </div>
         </header>
+        <MobileSearchPanel open={mobileSearchOpen} onClose={closeMobileSearch} role={(sessionUser?.role ?? "viewer") as UserRole} />
+        </div>
         <PushPrompt />
         <div className={cn("min-h-[calc(100vh-56px)] pb-24 lg:pb-0 print:pb-0", onJobPage && collapsed && "lg:pl-52")}>{children}</div>
       </main>
@@ -155,11 +161,11 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       {mobileNavOpen && (
         <div className="fixed inset-0 z-50 flex flex-col bg-background lg:hidden print:hidden">
           <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-5">
-            <div className="flex items-center gap-2.5">
-              <img src="/brand/cmi-mark.svg" alt="Constructed Matter, Inc." className="h-8 w-8 object-contain dark:invert" />
-              <span className="text-sm font-semibold">Menu</span>
-            </div>
-            <button type="button" onClick={() => setMobileNavOpen(false)} aria-label="Close menu" className="rounded-md border border-border p-1.5 text-muted-foreground transition hover:text-foreground">
+            <a href="/" className="block">
+              <img src="/brand/CMI_Line_Logo_Black.svg" alt="Constructed Matter, Inc." className="h-9 w-auto object-contain dark:hidden" />
+              <img src="/brand/CMI_Line_Logo_White.svg" alt="" aria-hidden className="hidden h-9 w-auto object-contain dark:block" />
+            </a>
+            <button type="button" onClick={() => setMobileNavOpen(false)} aria-label="Close menu" className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-card text-muted-foreground transition hover:text-foreground">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -176,8 +182,8 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                 </div>
               </div>
               <Tooltip label="Sign out" side="top" className="inline-block">
-                <button type="button" onClick={handleSignOut} aria-label="Sign out" className="rounded-md border border-border p-1.5 text-muted-foreground transition hover:border-red-400 hover:text-red-500">
-                  <ArrowLeft className="h-3.5 w-3.5" />
+                <button type="button" onClick={handleSignOut} aria-label="Sign out" className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-card text-muted-foreground transition hover:border-red-400 hover:text-red-500">
+                  <LogOut className="h-4 w-4" />
                 </button>
               </Tooltip>
             </div>

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { AlertTriangle, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, FileDown, Grid3x3, LayoutGrid, List, Map as MapIcon, Plus, Settings2, Table2, Upload, Users, X } from "lucide-react";
+import { AlertTriangle, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, FileDown, Grid3x3, LayoutGrid, List, Map as MapIcon, MoreVertical, Plus, Settings2, Table2, Upload, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StatsToggle, useStatsVisible } from "@/components/ui/page-header-bits";
@@ -52,6 +52,15 @@ export function ProjectionsClient({ initialBoard, initialSettings, initialAction
   const [menu, setMenu] = React.useState<"add" | "settings" | null>(null);
   const { shown: showStats, toggle: toggleStats } = useStatsVisible("projections");
   const [view, setView] = React.useState<ViewKey>("grid");
+  // Phones: the view icons and filter fields fold into a "Filters & Views" menu.
+  const [filtersOpen, setFiltersOpen] = React.useState(false);
+  const filtersRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    if (!filtersOpen) return;
+    const onDown = (e: MouseEvent) => { if (!filtersRef.current?.contains(e.target as Node)) setFiltersOpen(false); };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [filtersOpen]);
   const [filters, setFilters] = React.useState<ProjectionFilters>(NO_FILTERS);
   const [editing, setEditing] = React.useState<Editing>(null);
   const [quick, setQuick] = React.useState<{ id: string; expanded: boolean } | null>(initialAction?.open ? { id: initialAction.open, expanded: false } : null);
@@ -117,7 +126,9 @@ export function ProjectionsClient({ initialBoard, initialSettings, initialAction
             <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight">Projections</h1>
             <p className="mt-1 text-sm text-muted-foreground">12-month revenue forecast · {windowLabel}</p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          {/* On phones the popovers below anchor to this whole row (full width), not their
+              button, so they never run off the left edge when the buttons wrap. */}
+          <div className="relative flex flex-wrap items-center gap-2">
             <StatsToggle shown={showStats} onToggle={toggleStats} />
             <div className="flex items-center overflow-hidden rounded-md border border-border">
               <button type="button" aria-label="Previous month" disabled={loading} onClick={() => void load(addMonths(start, -1))} className="px-2 py-1.5 text-muted-foreground hover:text-foreground disabled:opacity-50"><ChevronLeft className="h-4 w-4" /></button>
@@ -126,14 +137,14 @@ export function ProjectionsClient({ initialBoard, initialSettings, initialAction
             </div>
             <Button size="sm" variant="outline" onClick={() => setImporting(true)}><Upload className="h-3.5 w-3.5" /> Import Actuals</Button>
             <a href={pdfHref} target="_blank" rel="noopener noreferrer" className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs font-medium hover:bg-muted"><FileDown className="h-3.5 w-3.5" /> PDF</a>
-            <div className="relative">
+            <div className="sm:relative">
               <Button size="sm" variant="outline" aria-label="Projections settings" onClick={() => setMenu((m) => (m === "settings" ? null : "settings"))}><Settings2 className="h-3.5 w-3.5" /></Button>
               {menu === "settings" && <SettingsPopover settings={settings} onClose={() => setMenu(null)} onSaved={(s) => { setSettings(s); setMenu(null); setNotice("Settings saved."); }} />}
             </div>
-            <div className="relative">
+            <div className="sm:relative">
               <Button size="sm" variant="accent" onClick={() => setMenu((m) => (m === "add" ? null : "add"))}><Plus className="h-3.5 w-3.5" /> Add <ChevronDown className="h-3 w-3" /></Button>
               {menu === "add" && (
-                <div className="absolute right-0 top-10 z-30 w-60 rounded-md border border-border bg-card p-1 text-sm shadow-lg">
+                <div className={cn(POPOVER, "p-1 text-sm sm:w-60")}>
                   <MenuItem onClick={() => { setMenu(null); setAdding(true); }} title="Jobs" sub="Forecast a job's remaining contract value" />
                   <MenuItem onClick={() => { setMenu(null); setAnticipated({ mode: "pipeline" }); }} title="From Pipeline" sub="A deal or Pre-Con opportunity" />
                   <MenuItem onClick={() => { setMenu(null); setAnticipated({ mode: "manual" }); }} title="Anticipated project" sub="Work that isn't in the system yet" />
@@ -161,9 +172,9 @@ export function ProjectionsClient({ initialBoard, initialSettings, initialAction
           <Tile label="Projects" value={String(summary.activeProjects)} sub={`${summary.startingSoon} starting · ${summary.endingSoon} ending in 30 days`} />
         </div>}
 
-        {board.rows.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex overflow-hidden rounded-md border border-border text-xs" role="tablist" aria-label="View">
+        {board.rows.length > 0 && (() => {
+          const viewSwitch = (
+            <div className="flex w-fit overflow-hidden rounded-md border border-border text-xs" role="tablist" aria-label="View">
               {VIEWS.map((v) => (
                 <button key={v.key} type="button" role="tab" aria-selected={view === v.key} title={v.label} onClick={() => setView(v.key)}
                   className={cn("flex items-center gap-1.5 px-2.5 py-1.5 font-medium", view === v.key ? "bg-accent/15 text-accent" : "text-muted-foreground hover:text-foreground")}>
@@ -171,26 +182,57 @@ export function ProjectionsClient({ initialBoard, initialSettings, initialAction
                 </button>
               ))}
             </div>
-            <div className="flex overflow-hidden rounded-md border border-border text-xs">
-              {(["all", "committed", "potential"] as const).map((s) => (
-                <button key={s} type="button" onClick={() => setFilter("scope", s)} className={cn("px-3 py-1.5 font-medium", filters.scope === s ? "bg-accent/15 text-accent" : "text-muted-foreground hover:text-foreground")}>
-                  {s === "all" ? "Combined" : s === "committed" ? "Committed" : "Potential"}
+          );
+          const filterFields = (
+            <>
+              <FilterSelect label="Status" value={filters.status} onChange={(v) => setFilter("status", v)}
+                options={(Object.keys(PROJECTION_STATUS_META) as ProjectionStatus[]).map((s) => [s, PROJECTION_STATUS_META[s].label])} />
+              <FilterSelect label="PM" value={filters.pm} onChange={(v) => setFilter("pm", v)} options={[...people("pms").map((n) => [n, n] as [string, string]), ["Unassigned", "Unassigned"]]} />
+              <FilterSelect label="Super" value={filters.sup} onChange={(v) => setFilter("sup", v)} options={[...people("supers").map((n) => [n, n] as [string, string]), ["Unassigned", "Unassigned"]]} />
+              <FilterSelect label="Allocation" value={filters.allocation} onChange={(v) => setFilter("allocation", v)} options={[["balanced", "Balanced"], ["under", "Unallocated"], ["over", "Over-forecast"]]} />
+              <FilterSelect label="Show" value={filters.flag} onChange={(v) => setFilter("flag", v)}
+                options={[["warnings", "Has warnings"], ["variance", "Has variance"], ["new_actuals", "New billing to review"], ["excluded", "Excluded"]]} />
+              {filtered && <button type="button" onClick={() => setFilters(NO_FILTERS)} className="text-xs text-accent hover:underline">Clear filters</button>}
+            </>
+          );
+          const activeFilters = (["status", "pm", "sup", "allocation", "flag"] as const).filter((k) => filters[k]).length;
+          return (
+            <div className="relative flex flex-wrap items-center gap-2">
+              <div className="hidden md:contents">{viewSwitch}</div>
+              <div className="flex overflow-hidden rounded-md border border-border text-xs">
+                {(["all", "committed", "potential"] as const).map((s) => (
+                  <button key={s} type="button" onClick={() => setFilter("scope", s)} className={cn("px-3 py-1.5 font-medium", filters.scope === s ? "bg-accent/15 text-accent" : "text-muted-foreground hover:text-foreground")}>
+                    {s === "all" ? "Combined" : s === "committed" ? "Committed" : "Potential"}
+                  </button>
+                ))}
+              </div>
+              <div className="hidden md:contents">{filterFields}</div>
+              {/* Phones: views and filters fold into one menu so the page starts sooner. */}
+              <div ref={filtersRef} className="ml-auto md:hidden">
+                <button type="button" onClick={() => setFiltersOpen((o) => !o)} aria-expanded={filtersOpen} aria-controls="projection-filters"
+                  className={cn("inline-flex h-8 items-center gap-1 rounded-md px-1.5 text-xs font-medium transition hover:text-foreground", filtersOpen || activeFilters ? "text-accent" : "text-muted-foreground")}>
+                  Filters &amp; Views{activeFilters ? ` (${activeFilters})` : ""} <MoreVertical className="h-4 w-4" />
                 </button>
-              ))}
+                {filtersOpen && (
+                  <div id="projection-filters" className="absolute inset-x-0 top-full z-30 mt-2 space-y-3 rounded-lg border border-border bg-card p-3 shadow-xl">
+                    <div>
+                      <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">View</div>
+                      {viewSwitch}
+                      <div className="mt-1 text-[11px] text-muted-foreground">{VIEWS.find((v) => v.key === view)?.label}</div>
+                    </div>
+                    <div>
+                      <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Filters</div>
+                      <div className="grid grid-cols-2 gap-2 [&_select]:w-full">{filterFields}</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              {reviewCount > 0 && filters.flag !== "new_actuals" && (
+                <button type="button" onClick={() => setFilter("flag", "new_actuals")} className="md:ml-auto"><Badge tone="info">{reviewCount} with new billing to review</Badge></button>
+              )}
             </div>
-            <FilterSelect label="Status" value={filters.status} onChange={(v) => setFilter("status", v)}
-              options={(Object.keys(PROJECTION_STATUS_META) as ProjectionStatus[]).map((s) => [s, PROJECTION_STATUS_META[s].label])} />
-            <FilterSelect label="PM" value={filters.pm} onChange={(v) => setFilter("pm", v)} options={[...people("pms").map((n) => [n, n] as [string, string]), ["Unassigned", "Unassigned"]]} />
-            <FilterSelect label="Super" value={filters.sup} onChange={(v) => setFilter("sup", v)} options={[...people("supers").map((n) => [n, n] as [string, string]), ["Unassigned", "Unassigned"]]} />
-            <FilterSelect label="Allocation" value={filters.allocation} onChange={(v) => setFilter("allocation", v)} options={[["balanced", "Balanced"], ["under", "Unallocated"], ["over", "Over-forecast"]]} />
-            <FilterSelect label="Show" value={filters.flag} onChange={(v) => setFilter("flag", v)}
-              options={[["warnings", "Has warnings"], ["variance", "Has variance"], ["new_actuals", "New billing to review"], ["excluded", "Excluded"]]} />
-            {filtered && <button type="button" onClick={() => setFilters(NO_FILTERS)} className="text-xs text-accent hover:underline">Clear filters</button>}
-            {reviewCount > 0 && filters.flag !== "new_actuals" && (
-              <button type="button" onClick={() => setFilter("flag", "new_actuals")} className="ml-auto"><Badge tone="info">{reviewCount} with new billing to review</Badge></button>
-            )}
-          </div>
-        )}
+          );
+        })()}
 
         {!shown.anyActuals && board.rows.length > 0 && (
           <p className="text-xs text-muted-foreground">
@@ -257,6 +299,9 @@ export function ProjectionsClient({ initialBoard, initialSettings, initialAction
   );
 }
 
+// Toolbar popovers: full toolbar width under the buttons on phones, right-aligned under their button from 640px.
+const POPOVER = "absolute inset-x-0 top-full z-30 mt-2 rounded-md border border-border bg-card shadow-lg sm:inset-x-auto sm:right-0 sm:top-10 sm:mt-0";
+
 function MenuItem({ title, sub, onClick }: { title: string; sub: string; onClick: () => void }) {
   return (
     <button type="button" onClick={onClick} className="block w-full rounded px-3 py-2 text-left hover:bg-muted">
@@ -288,7 +333,7 @@ function SettingsPopover({ settings, onClose, onSaved }: { settings: ProjectionS
     if (res.ok) onSaved(json); else { setError(json.error ?? "Could not save."); setBusy(false); }
   }
   return (
-    <div className="absolute right-0 top-10 z-30 w-72 space-y-3 rounded-md border border-border bg-card p-3 text-xs shadow-lg">
+    <div className={cn(POPOVER, "space-y-3 p-3 text-xs sm:w-72")}>
       <div className="font-semibold">Projections settings</div>
       {error && <div role="alert" className="text-destructive">{error}</div>}
       <label className="block space-y-1">

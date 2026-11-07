@@ -12,9 +12,9 @@ import { cn } from "@/lib/utils";
  * grouped results list; picking a result navigates to it.
  *
  * Two ways in, one engine:
- *   <GlobalSearch />                the box in the top bar (768px and up)
- *   <GlobalSearch variant="icon" /> a search button on phones (under 768px)
- *                                   that opens a clean search window
+ *   <GlobalSearch />          the box in the top bar (768px and up)
+ *   <MobileSearchToggle /> +  on phones (under 768px), a top-bar button that
+ *   <MobileSearchPanel />     slides a search field down below the bar
  *
  * It also re-broadcasts the term on the existing `cmi-dashboard-search` window
  * event, so pages that filter their own list in place (e.g. Contacts) keep
@@ -134,8 +134,8 @@ function Results({ s, onPick }: { s: SearchState; onPick: () => void }) {
   );
 }
 
-export function GlobalSearch({ variant = "bar", role = "viewer" }: { variant?: "bar" | "icon"; role?: UserRole }) {
-  return variant === "icon" ? <SearchButton role={role} /> : <SearchBar role={role} />;
+export function GlobalSearch({ role = "viewer" }: { role?: UserRole }) {
+  return <SearchBar role={role} />;
 }
 
 function SearchBar({ role }: { role: UserRole }) {
@@ -184,40 +184,47 @@ function SearchBar({ role }: { role: UserRole }) {
   );
 }
 
-/** Phones (under 768px): a search button that opens a clean search window. */
-function SearchButton({ role }: { role: UserRole }) {
-  const s = useSearch(role);
-  const [open, setOpen] = React.useState(false);
-  const close = React.useCallback(() => { setOpen(false); s.change(""); }, [s]);
-  React.useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
-    window.addEventListener("keydown", onKey);
-    document.body.style.overflow = "hidden";
-    return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = ""; };
-  }, [open, close]);
+/** Phones (under 768px): the top-bar button that slides the search field down. */
+export function MobileSearchToggle({ open, onToggle }: { open: boolean; onToggle: () => void }) {
   return (
-    <>
-      <button type="button" onClick={() => setOpen(true)} aria-label="Search"
-        className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-card text-muted-foreground transition hover:text-foreground md:hidden">
-        <Search className="h-4 w-4" />
-      </button>
-      {open ? (
-        <div className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-[2px] md:hidden" onMouseDown={(e) => { if (e.target === e.currentTarget) close(); }}>
-          <div role="dialog" aria-modal="true" aria-label="Search" className="mx-3 mt-3 overflow-hidden rounded-xl border border-border bg-card shadow-2xl" style={{ marginTop: "max(0.75rem, env(safe-area-inset-top))" }}>
-            <div className="flex h-12 items-center gap-2.5 px-3.5">
-              {s.loading ? <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" /> : <Search className="h-4 w-4 shrink-0 text-muted-foreground" />}
-              <input autoFocus value={s.value} onChange={(e) => s.change(e.target.value)} onKeyDown={(e) => s.onKeyDown(e, close)}
-                placeholder={PLACEHOLDER} aria-label="Search the dashboard" enterKeyHint="search"
-                className="h-full min-w-0 flex-1 bg-transparent text-[16px] text-foreground outline-none placeholder:text-muted-foreground" />
-              <button type="button" onClick={close} aria-label="Close search" className="rounded-md p-1 text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
-            </div>
-            {s.value.trim().length >= 2 ? (
-              <div role="listbox" className="max-h-[65dvh] overflow-auto border-t border-border p-1.5"><Results s={s} onPick={close} /></div>
-            ) : null}
-          </div>
+    <button type="button" onClick={onToggle} aria-label={open ? "Close search" : "Search"} aria-expanded={open} aria-controls="mobile-search"
+      className={cn("inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-card transition hover:text-foreground md:hidden", open ? "text-foreground" : "text-muted-foreground")}>
+      <Search className="h-4 w-4" />
+    </button>
+  );
+}
+
+/**
+ * Phones: the search field that slides down below the top bar, above the page
+ * heading. It sits in the header's padding, so its search icon lines up under
+ * the menu button and its close icon under the sign-out button.
+ */
+export function MobileSearchPanel({ open, onClose, role = "viewer" }: { open: boolean; onClose: () => void; role?: UserRole }) {
+  const s = useSearch(role);
+  const inputRef = React.useRef<HTMLInputElement>(null);
+  const close = React.useCallback(() => { onClose(); s.change(""); }, [onClose, s]);
+  React.useEffect(() => { if (open) inputRef.current?.focus(); }, [open]);
+  return (
+    <div id="mobile-search" className={cn("grid transition-[grid-template-rows] duration-200 ease-out md:hidden print:hidden", open ? "grid-rows-[1fr]" : "grid-rows-[0fr]")} inert={!open}>
+      <div className="min-h-0 overflow-hidden">
+        <div className="border-b border-border bg-background/95 px-5 py-2.5 backdrop-blur">
+          {/* Slots match the 32px buttons above (1px border + 30px), so the icons sit on the same centre lines. */}
+          <label className="flex h-10 items-center rounded-md border border-border bg-card focus-within:border-accent focus-within:ring-2 focus-within:ring-ring">
+            <span className="grid w-[30px] shrink-0 place-items-center text-muted-foreground">
+              {s.loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+            </span>
+            <input ref={inputRef} value={s.value} onChange={(e) => s.change(e.target.value)} onKeyDown={(e) => s.onKeyDown(e, close)}
+              placeholder={PLACEHOLDER} aria-label="Search the dashboard" enterKeyHint="search"
+              className="h-full min-w-0 flex-1 bg-transparent px-1 text-[16px] text-foreground outline-none placeholder:text-muted-foreground" />
+            <button type="button" onClick={close} aria-label="Close search" className="grid h-full w-[30px] shrink-0 place-items-center text-muted-foreground hover:text-foreground">
+              <X className="h-4 w-4" />
+            </button>
+          </label>
+          {s.value.trim().length >= 2 ? (
+            <div role="listbox" className="mt-2 max-h-[60dvh] overflow-auto rounded-lg border border-border bg-card p-1.5 shadow-xl"><Results s={s} onPick={close} /></div>
+          ) : null}
         </div>
-      ) : null}
-    </>
+      </div>
+    </div>
   );
 }
