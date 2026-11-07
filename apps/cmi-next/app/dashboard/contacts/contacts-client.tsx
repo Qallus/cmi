@@ -727,7 +727,7 @@ export function ContactsClient({ initialContacts, role = null }: { initialContac
               />
             </TitleRow>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" variant="outline" onClick={() => setShowDuplicates(true)}>
               <Merge className="h-3.5 w-3.5" /> Duplicates
               {dupeCount ? <span className="ml-1 rounded-full bg-amber-500/20 px-1.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300">{dupeCount}</span> : null}

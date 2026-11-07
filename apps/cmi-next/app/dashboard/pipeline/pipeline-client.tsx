@@ -270,7 +270,7 @@ export function PipelineClient({
               Opportunity → Active Budget → Pre-Con → Active Project → Warranty → Closed
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <StatsToggle shown={showStats} onToggle={toggleStats} />
             <div className="flex overflow-hidden rounded-md border border-border">
               <button type="button" onClick={() => setView("table")} className={cn("flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium", view === "table" ? "bg-accent/15 text-accent" : "text-muted-foreground hover:text-foreground")}>

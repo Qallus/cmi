@@ -128,7 +128,7 @@ export function TradePartnersClient({
         <Stat icon={FileWarning} label="Compliance items" value={stats.compliance_items ?? 0} tone="text-destructive" />
       </div>}
 
-      <div className="flex gap-1 rounded-lg border border-border bg-card p-1 text-sm">
+      <div className="flex gap-1 overflow-x-auto rounded-lg border border-border bg-card p-1 text-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {([
           ["applications", "Applications", Inbox],
           ["directory", "Directory", Building2],
@@ -138,7 +138,7 @@ export function TradePartnersClient({
         ] as const).filter(([key]) => key !== "interviews" || interviewsEnabled).map(([key, label, Icon]) => (
           <button
             key={key} onClick={() => pickTab(key)}
-            className={cn("inline-flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-1.5 transition",
+            className={cn("inline-flex flex-1 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md px-3 py-1.5 transition",
               tab === key ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-muted")}
           >
             <Icon className="h-4 w-4" /> {label}

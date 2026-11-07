@@ -150,6 +150,15 @@
     background: var(--accent);
     color: var(--accent-foreground);
   }
+
+  /* A grid with no column rule (e.g. "grid lg:grid-cols-3" on a phone) gets one
+     column that can shrink to the screen, instead of growing to fit its widest
+     line and scrolling the page sideways. :where() keeps this at zero
+     specificity, so any grid-cols-* class (responsive ones too) still wins;
+     grid-flow-col grids keep their implicit columns. */
+  :where(.grid:not(.grid-flow-col)) {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 @layer components {

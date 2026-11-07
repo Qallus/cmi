@@ -211,7 +211,7 @@ export function JobsMapClient({ rows }: { rows: JobListRow[] }) {
           <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Project Management</div>
           <h1 className="mt-0.5 font-display text-xl font-semibold tracking-tight">Jobs Map</h1>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="flex overflow-hidden rounded-md border border-border">
             <Link href="/dashboard/jobs" className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"><TableIcon className="h-3.5 w-3.5" /> List</Link>
             <span className="flex items-center gap-1.5 bg-accent/15 px-3 py-1.5 text-xs font-medium text-accent"><MapPin className="h-3.5 w-3.5" /> Map</span>

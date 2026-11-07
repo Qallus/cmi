@@ -350,7 +350,9 @@ export function AddDailyLogDialog({ onClose, onSaved, preselect: preselectProp, 
   const attachedCount = media.length + voices.length;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-stretch justify-center bg-black/40 sm:items-center sm:p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) requestClose(); }}>
+    // Phones: opens between the top bar (56px) and the footer bar (its height is published
+    // as --cmi-footer-h by MobileBottomNav), so the dashboard navigation stays on screen.
+    <div className="fixed inset-x-0 bottom-[var(--cmi-footer-h,0px)] top-14 z-[35] flex items-stretch justify-center bg-black/40 sm:inset-0 sm:z-[60] sm:items-center sm:p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) requestClose(); }}>
       <div role="dialog" aria-modal="true" aria-label="Add daily log"
         className="relative flex h-full w-full flex-col bg-card shadow-xl sm:h-auto sm:max-h-[92vh] sm:max-w-2xl sm:rounded-xl sm:border sm:border-border">
         <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-5">

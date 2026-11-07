@@ -72,13 +72,13 @@ export function AllDailyLogsClient({ logs }: { logs: DailyLogWithJob[] }) {
 
       <div className="flex-1 space-y-4 p-4 md:p-6">
         <div className="flex flex-wrap items-center gap-2">
-          <div className="relative min-w-[220px] flex-1 sm:max-w-sm">
+          <div className="relative min-w-0 basis-full sm:min-w-[220px] sm:basis-auto sm:flex-1 sm:max-w-sm">
             <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search notes, crew, delays…"
               className="w-full rounded-md border border-border bg-background py-1.5 pl-8 pr-2.5 text-sm outline-none focus:border-accent" />
           </div>
           <select value={job} onChange={(e) => setJob(e.target.value)}
-            className="rounded-md border border-border bg-background px-2.5 py-1.5 text-sm outline-none focus:border-accent">
+            className="w-full min-w-0 max-w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm outline-none focus:border-accent sm:w-auto sm:max-w-xs">
             <option value="">All Jobs & Pre-Con ({jobs.length})</option>
             {jobs.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
           </select>
@@ -102,10 +102,10 @@ export function AllDailyLogsClient({ logs }: { logs: DailyLogWithJob[] }) {
         ) : days.map(({ day, logs: dayLogs }) => (
           <section key={day}>
             <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{fmtDay(day)}</h2>
-            <div className="grid gap-3 lg:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
               {dayLogs.map((l) => (
                 <Link key={l.id} href={targetHref(l)}
-                  className="block rounded-lg border border-border bg-card p-4 transition hover:border-accent/40 hover:shadow-sm">
+                  className="block min-w-0 rounded-lg border border-border bg-card p-4 transition hover:border-accent/40 hover:shadow-sm">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="truncate text-xs font-medium text-accent">{targetLabel(l)}</div>

@@ -20,7 +20,7 @@ const ITEMS: NavItem[] = [
   { href: "/dashboard/selections", label: "Selections", icon: Package },
   { href: "/dashboard/jobs", label: "Jobs", icon: HardHat },
   { href: "/dashboard/daily-logs?new=1", label: "Daily Log", icon: NotebookPen },
-  { href: "/dashboard/bookings", label: "Bookings", icon: CalendarRange },
+  { href: "/dashboard/schedules", label: "Schedules", icon: CalendarRange },
   { href: "/dashboard/documents", label: "Workspace", icon: LayoutDashboard },
   { href: "/dashboard/communications?panel=dialer", label: "Call", icon: Phone },
   { href: "/dashboard/communications?panel=email", label: "Email", icon: Mail },
@@ -67,6 +67,21 @@ export function MobileBottomNav() {
     // eslint-disable-next-line -- one-time restore of the dismissed state on mount
     if (localStorage.getItem(STORAGE_KEY) === "1") setOpen(false);
   }, []);
+
+  // Publish the open bar's height so full-height phone sheets (e.g. Add daily log)
+  // can stop above it instead of covering it.
+  const barRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    const root = document.documentElement;
+    const el = barRef.current;
+    if (!open || !el) { root.style.setProperty("--cmi-footer-h", "0px"); return; }
+    const set = () => root.style.setProperty("--cmi-footer-h", window.matchMedia("(min-width: 1024px)").matches ? "0px" : `${el.offsetHeight}px`);
+    set();
+    const ro = new ResizeObserver(set);
+    ro.observe(el);
+    window.addEventListener("resize", set);
+    return () => { ro.disconnect(); window.removeEventListener("resize", set); root.style.setProperty("--cmi-footer-h", "0px"); };
+  }, [open]);
 
   function setOpenPersist(v: boolean) {
     setOpen(v);
@@ -209,7 +224,7 @@ export function MobileBottomNav() {
       </button>
     </div>
   ) : (
-    <div className="fixed inset-x-0 bottom-0 z-40 lg:hidden print:hidden">
+    <div ref={barRef} className="fixed inset-x-0 bottom-0 z-40 lg:hidden print:hidden">
       <button type="button" onClick={() => setOpenPersist(false)} aria-label="Hide the quick menu" className={cn(tab, "absolute -top-[26px] left-3")}>
         <ChevronDown className="h-3.5 w-3.5" /> Hide
       </button>
