@@ -58,6 +58,19 @@ export function MobileSubNavSection({ title, children, className }: { title: str
   );
 }
 
+/** An on/off switch with its label, for yes/no filters in the sheet (e.g. "Active only"). */
+export function MobileSubNavToggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (on: boolean) => void }) {
+  return (
+    <button type="button" role="switch" aria-checked={checked} onClick={() => onChange(!checked)}
+      className="flex min-h-8 w-full items-center justify-between gap-2 text-left text-xs font-medium text-foreground">
+      <span>{label}</span>
+      <span className={cn("relative h-5 w-9 shrink-0 rounded-full transition", checked ? "bg-accent" : "bg-muted-foreground/30")}>
+        <span className={cn("absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all", checked ? "left-[18px]" : "left-0.5")} />
+      </span>
+    </button>
+  );
+}
+
 /** Slides up from the bottom, over the footer bar; tap outside, the ✕ or Escape to close. */
 function BottomSheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   const [shown, setShown] = React.useState(false);

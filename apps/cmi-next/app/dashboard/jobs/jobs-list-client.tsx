@@ -20,7 +20,7 @@ import { RecordsImportModal } from "@/components/dashboard/records-import-modal"
 import { exportJobsCsv } from "@/lib/records-io/export";
 import { QuickActionBar } from "@/components/dashboard/quick-action-bar";
 import { DELETE_ROLES, WRITE_ROLES } from "@/lib/records-io/fields";
-import { MobileSubNav, MobileSubNavSection } from "@/components/ui/mobile-sub-nav";
+import { MobileSubNav, MobileSubNavSection, MobileSubNavToggle } from "@/components/ui/mobile-sub-nav";
 
 type SortKey = "job_name" | "job_number" | "city" | "status" | "projected_start_date" | "projected_completion_date" | "updated_at";
 type ViewMode = "list" | "table" | "card" | "kanban" | "calendar";
@@ -126,19 +126,25 @@ export function JobsListClient({
   }
 
   // Desktop toolbar and the phone sheet render the same controls.
-  const viewButtons = (labels: boolean) => (
-    <>
-      {VIEWS.map((v) => (
-        <button key={v.key} type="button" onClick={() => setView(v.key)} title={v.label} aria-pressed={view === v.key}
-          className={cn("flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium transition", view === v.key ? "bg-accent/15 text-accent" : "text-muted-foreground hover:text-foreground")}>
-          <v.icon className="h-3.5 w-3.5" /> <span className={labels ? "" : "hidden lg:inline"}>{v.label}</span>
-        </button>
-      ))}
-      <Link href="/dashboard/jobs/map" className="flex items-center gap-1.5 border-l border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground" title="Map">
-        <MapIcon className="h-3.5 w-3.5" /> <span className={labels ? "" : "hidden lg:inline"}>Map</span>
-      </Link>
-    </>
-  );
+  // Desktop: icons in a row (labels from lg). Sheet: one row of six, icon over its label.
+  const viewButtons = (sheet: boolean) => {
+    const cls = sheet
+      ? "flex min-w-0 flex-col items-center gap-1 px-1 py-2 text-[10px] font-medium transition"
+      : "flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium transition";
+    return (
+      <>
+        {VIEWS.map((v) => (
+          <button key={v.key} type="button" onClick={() => setView(v.key)} title={v.label} aria-pressed={view === v.key}
+            className={cn(cls, view === v.key ? "bg-accent/15 text-accent" : "text-muted-foreground hover:text-foreground")}>
+            <v.icon className={sheet ? "h-4 w-4" : "h-3.5 w-3.5"} /> <span className={sheet ? "truncate" : "hidden lg:inline"}>{v.label}</span>
+          </button>
+        ))}
+        <Link href="/dashboard/jobs/map" className={cn(cls, "border-l border-border text-muted-foreground hover:text-foreground")} title="Map">
+          <MapIcon className={sheet ? "h-4 w-4" : "h-3.5 w-3.5"} /> <span className={sheet ? "truncate" : "hidden lg:inline"}>Map</span>
+        </Link>
+      </>
+    );
+  };
   const searchBox = (
     <div className="relative w-full md:max-w-xs md:flex-1">
       <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -213,12 +219,17 @@ export function JobsListClient({
             {/* Phones: views, search, filters, Export and Import in a bottom sheet. */}
             <MobileSubNav title="Jobs" activeCount={activeCount}>
               <MobileSubNavSection title="View">
-                <div className="flex w-full flex-wrap overflow-hidden rounded-md border border-border [&>*]:flex-1 [&>*]:justify-center">{viewButtons(true)}</div>
+                <div className="grid w-full grid-cols-6 overflow-hidden rounded-md border border-border">{viewButtons(true)}</div>
               </MobileSubNavSection>
               <MobileSubNavSection title="Search">{searchBox}</MobileSubNavSection>
               <MobileSubNavSection title="Filters" className="grid grid-cols-2">
                 {filterSelects(true)}
-                <div className="col-span-2 flex flex-wrap gap-x-4 gap-y-2 pt-1">{checkboxes}</div>
+                {/* Right of the last select: the yes/no filters as switches. */}
+                <div className={cn("flex flex-col justify-center gap-1 pl-1", view === "kanban" && "col-span-2")}>
+                  <MobileSubNavToggle label="Active only" checked={activeOnly} onChange={setActiveOnly} />
+                  <MobileSubNavToggle label="Show archived" checked={showArchived} onChange={toggleArchived} />
+                  {view !== "table" ? <MobileSubNavToggle label="Select all" checked={allChecked} onChange={toggleAll} /> : null}
+                </div>
                 {activeCount ? <button type="button" onClick={() => { setSearch(""); setStatusFilter("all"); setTypeFilter("all"); setPmFilter("all"); setActiveOnly(false); if (showArchived) toggleArchived(false); }} className="col-span-2 justify-self-start text-xs text-accent hover:underline">Clear search and filters</button> : null}
               </MobileSubNavSection>
               <MobileSubNavSection title="Export and import">{exportImport}</MobileSubNavSection>
