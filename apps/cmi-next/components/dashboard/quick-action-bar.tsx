@@ -77,8 +77,8 @@ export function QuickActionBar({
   return (
     <>
       {n > 0 && (
-        <div className="pointer-events-none fixed inset-x-0 bottom-4 z-50 flex justify-center px-4">
-          <div className="pointer-events-auto flex max-w-full flex-col gap-2 rounded-xl border border-border bg-card p-2 shadow-xl">
+        <div className="pointer-events-none fixed inset-x-0 bottom-4 z-50 flex justify-center px-2 sm:px-4">
+          <div className="pointer-events-auto flex w-full max-w-full flex-col gap-2 rounded-xl border border-border bg-card p-2 shadow-xl sm:w-auto">
             {panel === "stage" && (
               <Row label={`Move to ${stageWord.toLowerCase()}`}>
                 <div className="flex flex-wrap gap-1">
@@ -96,15 +96,18 @@ export function QuickActionBar({
             )}
             {panel === "next_action" && <NextActionPanel busy={busy} onApply={(text, due) => void run("next_action", text, due)} />}
 
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="px-2 text-sm font-medium">{label} selected</span>
-              <span className="mx-1 h-5 w-px bg-border" />
+            {/* One row: the count on the left, the actions beside it, ✕ pinned far right. On phones
+                the actions are a little tighter and, if they still don't fit, swipe sideways. */}
+            <div className="flex items-center gap-1.5">
+              <span className="shrink-0 whitespace-nowrap px-1 text-xs font-medium sm:px-2 sm:text-sm">{label} selected</span>
+              <span className="mx-1 hidden h-5 w-px shrink-0 bg-border sm:block" />
+              <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:none] sm:gap-1.5 [&::-webkit-scrollbar]:hidden max-sm:[&>button]:shrink-0 max-sm:[&>button]:px-1.5">
 
               {canWrite && (
                 <>
                   <Action icon={Workflow} label={stageWord} active={panel === "stage"} onClick={() => setPanel(panel === "stage" ? null : "stage")} />
                   <Action icon={CheckCircle2} label="Next action" active={panel === "next_action"} onClick={() => setPanel(panel === "next_action" ? null : "next_action")} />
-                  <span className="mx-1 h-5 w-px bg-border" />
+                  <span className="mx-1 hidden h-5 w-px shrink-0 bg-border sm:block" />
                 </>
               )}
 
@@ -114,7 +117,7 @@ export function QuickActionBar({
 
               {canWrite && (
                 <>
-                  <span className="mx-1 h-5 w-px bg-border" />
+                  <span className="mx-1 hidden h-5 w-px shrink-0 bg-border sm:block" />
                   {showingArchived ? (
                     <Action icon={ArchiveRestore} label="Restore" disabled={busy} onClick={() => void run("restore")} />
                   ) : (
@@ -148,10 +151,11 @@ export function QuickActionBar({
                   }}
                 />
               )}
+              </div>
 
-              <span className="mx-1 h-5 w-px bg-border" />
-              {busy && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
-              <button type="button" onClick={onClear} aria-label="Clear selection" className="rounded p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground">
+              <span className="mx-1 hidden h-5 w-px shrink-0 bg-border sm:block" />
+              {busy && <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />}
+              <button type="button" onClick={onClear} aria-label="Clear selection" className="ml-auto shrink-0 rounded p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground sm:ml-0">
                 <X className="h-4 w-4" />
               </button>
             </div>
