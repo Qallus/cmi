@@ -213,7 +213,7 @@ export function App() {
             title="Sign in to CMI"
             body="Connect your CMI dashboard session to start capturing selection cards."
             actionLabel="Sign in"
-            onAction={openSignIn}
+            onAction={() => void openSignIn()}
           />
         )}
 

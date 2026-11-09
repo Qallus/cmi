@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdmin, AuthError } from "@/lib/auth/require-admin";
 import { loadJobSelections, createJobSelection } from "@/lib/job-selections/data";
+import { selectionPatchFromInput } from "@/lib/selections/normalize";
 
 const WRITE_ROLES = ["super_admin", "admin", "project_manager", "designer"];
 
@@ -17,8 +18,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const { staff } = await requireAdmin(request);
     if (!WRITE_ROLES.includes(staff.role_slug)) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
     const { id } = await params;
-    const body = await request.json();
-    if (!body?.name?.trim()) return NextResponse.json({ error: "Selection name is required." }, { status: 400 });
-    return NextResponse.json(await createJobSelection(id, body), { status: 201 });
+    // The full selection form (same as the Selections page), typed for the row.
+    const patch = selectionPatchFromInput(await request.json());
+    if (typeof patch.name !== "string") return NextResponse.json({ error: "Selection name is required." }, { status: 400 });
+    return NextResponse.json(await createJobSelection(id, { ...patch, name: patch.name }), { status: 201 });
   } catch (err) { const e = err as AuthError; return NextResponse.json({ error: e.message }, { status: e.status ?? 500 }); }
 }

@@ -17,8 +17,13 @@ export async function clearToken(): Promise<void> {
   await chrome.storage.session.remove(["cmi_token", "cmi_staff_name"]);
 }
 
-export function openSignIn(): void {
-  chrome.tabs.create({ url: AUTH_URL });
+// Opens the sign-in tab, remembering the page you were on (the vendor page the
+// panel is building from) so the service worker can bring you back to it and
+// close the sign-in tab once the session arrives.
+export async function openSignIn(): Promise<void> {
+  const [current] = await chrome.tabs.query({ active: true, currentWindow: true }).catch(() => []);
+  const authTab = await chrome.tabs.create({ url: AUTH_URL });
+  await chrome.storage.session.set({ cmi_return_tab: current?.id ?? null, cmi_auth_tab: authTab.id ?? null });
 }
 
 // Subscribe to token changes (sign-in completing in the handoff tab). Returns an

@@ -5,27 +5,24 @@ import Link from "next/link";
 import { CalendarDays, CheckCircle2, Columns3, Copy, Download, FileText, Image as ImageIcon, Layers, LayoutGrid, List as ListIcon, Loader2, Pencil, Plus, Search, Sparkles, Table as TableIcon, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Select, Textarea } from "@/components/ui/input";
-import type { ProjectSelection } from "@/lib/selections/types";
+import type { Product, ProjectSelection, SelectionsData } from "@/lib/selections/types";
 import { SelectionCardModal } from "@/components/selections/selection-card-modal";
-import { JobModuleShell, ModuleModal, Field, inputCls, money } from "../job-module-shell";
+import { SelectionEditor, emptySelectionDraft, selectionToDraft, type SelectionDraft } from "@/components/selections/selection-editor";
+import { JobModuleShell, ModuleModal, inputCls, money } from "../job-module-shell";
 
 const SELECTION_STATUSES = ["draft", "needs_review", "pending_client_approval", "client_approved", "rejected_needs_revision", "approved_internally", "ordered", "delivered", "installed", "completed"];
-const APPROVAL_STATUSES = ["not_required", "pending", "approved", "rejected", "revision_requested", "approved_with_changes"];
 const APPROVAL_TONE: Record<string, "default" | "warning" | "success" | "danger"> = { not_required: "default", pending: "warning", approved: "success", rejected: "danger", revision_requested: "danger", approved_with_changes: "success" };
 
-type Draft = {
-  name: string; category: string; room_area_name: string; custom_product_name: string; description: string;
-  size: string; finish: string; colors: string;
-  image_url: string; product_url: string; client_price: string; allowance_amount: string; quantity: string;
-  selection_status: string; approval_status: string; client_visible: boolean; client_approval_required: boolean;
-};
-const EMPTY: Draft = { name: "", category: "", room_area_name: "", custom_product_name: "", description: "", size: "", finish: "", colors: "", image_url: "", product_url: "", client_price: "", allowance_amount: "", quantity: "1", selection_status: "draft", approval_status: "not_required", client_visible: false, client_approval_required: false };
+type FormData = Pick<SelectionsData, "projects" | "contacts" | "subcontractors" | "staffUsers" | "tasks">;
 
-export function StaffSelectionsClient({ jobId, jobName, initial }: { jobId: string; jobName: string; initial: ProjectSelection[] }) {
+export function StaffSelectionsClient({ jobId, jobName, initial, products = [], formData }: {
+  jobId: string; jobName: string; initial: ProjectSelection[];
+  /** Catalog products and pick lists for the editor (the same one the Selections page uses). */
+  products?: Product[]; formData: FormData;
+}) {
   const [rows, setRows] = React.useState<ProjectSelection[]>(initial);
-  const [modal, setModal] = React.useState<{ mode: "add" } | { mode: "edit"; sel: ProjectSelection } | null>(null);
-  const [d, setD] = React.useState<Draft>(EMPTY);
+  // The draft being edited in the slide-out (an id means it's an existing selection).
+  const [draft, setDraft] = React.useState<SelectionDraft | null>(null);
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [showCreateChoice, setShowCreateChoice] = React.useState(false);
@@ -69,22 +66,28 @@ export function StaffSelectionsClient({ jobId, jobName, initial }: { jobId: stri
     } catch (e) { setError(e instanceof Error ? e.message : "Could not attach selections."); } finally { setAttaching(false); }
   }
 
-  function openAdd() { setD({ ...EMPTY }); setError(null); setShowCreateChoice(false); setModal({ mode: "add" }); }
-  function openEdit(s: ProjectSelection) {
-    setD({ name: s.name, category: s.category ?? "", room_area_name: s.room_area_name ?? "", custom_product_name: s.custom_product_name ?? "", description: s.description ?? "", size: s.size ?? "", finish: s.finish ?? "", colors: s.colors ?? "", image_url: s.image_url ?? "", product_url: s.product_url ?? "", client_price: s.client_price?.toString() ?? "", allowance_amount: s.allowance_amount?.toString() ?? "", quantity: s.quantity?.toString() ?? "1", selection_status: s.selection_status ?? "draft", approval_status: s.approval_status ?? "not_required", client_visible: s.client_visible, client_approval_required: s.client_approval_required });
-    setError(null); setModal({ mode: "edit", sel: s });
-  }
+  function openAdd() { setDraft({ ...emptySelectionDraft(), project_name: jobName }); setError(null); setShowCreateChoice(false); }
+  function openEdit(s: ProjectSelection) { setDraft(selectionToDraft(s)); setError(null); }
 
-  async function save() {
-    if (!d.name.trim()) { setError("Name is required."); return; }
+  async function save(d: SelectionDraft) {
+    if (!d.name.trim() && !d.custom_product_name.trim()) { setError("Selection name is required."); return; }
+    // A catalog product fills whatever the form left blank (same as the Selections page).
+    const p = products.find((x) => x.id === d.product_id);
+    const payload = p ? {
+      ...d,
+      name: d.name || p.product_name, custom_product_name: d.custom_product_name || p.product_name,
+      category: d.category || p.category || "", vendor_id: d.vendor_id || p.vendor_id || "", vendor_name: d.vendor_name || p.vendor_name || "",
+      image_url: d.image_url || p.image_url || "", gallery_urls: d.gallery_urls || (p.gallery_urls || []).join("\n"),
+      video_url: d.video_url || p.video_url || "", spec_sheet_url: d.spec_sheet_url || p.spec_sheet_url || "", product_url: d.product_url || p.product_url || "",
+      lead_time_days: d.lead_time_days || String(p.lead_time_days || ""), estimated_cost: d.estimated_cost || String(p.retail_price || ""),
+    } : d;
+    const { id, ...body } = payload;
     setSaving(true); setError(null);
     try {
-      const payload = { ...d, client_price: d.client_price ? Number(d.client_price) : null, allowance_amount: d.allowance_amount ? Number(d.allowance_amount) : null, quantity: d.quantity ? Number(d.quantity) : 1 };
-      const url = modal?.mode === "add" ? `/api/jobs/${jobId}/selections` : `/api/jobs/${jobId}/selections/${(modal as { sel: ProjectSelection }).sel.id}`;
-      const res = await fetch(url, { method: modal?.mode === "add" ? "POST" : "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      const j = await res.json(); if (!res.ok) throw new Error(j.error);
-      setRows((r) => (modal?.mode === "add" ? [j, ...r] : r.map((x) => (x.id === j.id ? j : x))));
-      setModal(null);
+      const res = await fetch(id ? `/api/jobs/${jobId}/selections/${id}` : `/api/jobs/${jobId}/selections`, { method: id ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const j = await res.json(); if (!res.ok) throw new Error(j.error || "Save failed.");
+      setRows((r) => (id ? r.map((x) => (x.id === j.id ? j : x)) : [j, ...r]));
+      setDraft(null);
     } catch (e) { setError(e instanceof Error ? e.message : "Save failed."); } finally { setSaving(false); }
   }
   async function remove(id: string) {
@@ -133,34 +136,10 @@ export function StaffSelectionsClient({ jobId, jobName, initial }: { jobId: stri
         return <SelTable rows={rows} a={a} />;
       })()}
 
-      {modal && (
-        <ModuleModal title={modal.mode === "add" ? "Add Selection" : "Edit Selection"} onClose={() => setModal(null)} wide>
-          <div className="space-y-4">
-            {error && <div className="rounded bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Name" className="sm:col-span-2"><input className={inputCls} value={d.name} onChange={(e) => setD({ ...d, name: e.target.value })} /></Field>
-              <Field label="Room / Area"><input className={inputCls} value={d.room_area_name} onChange={(e) => setD({ ...d, room_area_name: e.target.value })} /></Field>
-              <Field label="Category"><input className={inputCls} value={d.category} onChange={(e) => setD({ ...d, category: e.target.value })} /></Field>
-              <Field label="Product Name"><input className={inputCls} value={d.custom_product_name} onChange={(e) => setD({ ...d, custom_product_name: e.target.value })} /></Field>
-              <Field label="Quantity"><input type="number" className={inputCls} value={d.quantity} onChange={(e) => setD({ ...d, quantity: e.target.value })} /></Field>
-              <Field label="Size"><input className={inputCls} value={d.size} onChange={(e) => setD({ ...d, size: e.target.value })} placeholder={'24" x 48"'} /></Field>
-              <Field label="Finish"><input className={inputCls} value={d.finish} onChange={(e) => setD({ ...d, finish: e.target.value })} placeholder="Matte / Polished" /></Field>
-              <Field label="Colors" className="sm:col-span-2"><input className={inputCls} value={d.colors} onChange={(e) => setD({ ...d, colors: e.target.value })} placeholder="Limo, Melange, Sabbia" /></Field>
-              <Field label="Image URL" className="sm:col-span-2"><input className={inputCls} value={d.image_url} onChange={(e) => setD({ ...d, image_url: e.target.value })} /></Field>
-              <Field label="Product URL" className="sm:col-span-2"><input className={inputCls} value={d.product_url} onChange={(e) => setD({ ...d, product_url: e.target.value })} /></Field>
-              <Field label="Client Price ($)"><input type="number" className={inputCls} value={d.client_price} onChange={(e) => setD({ ...d, client_price: e.target.value })} /></Field>
-              <Field label="Allowance ($)"><input type="number" className={inputCls} value={d.allowance_amount} onChange={(e) => setD({ ...d, allowance_amount: e.target.value })} /></Field>
-              <Field label="Selection Status"><Select value={d.selection_status} onChange={(e) => setD({ ...d, selection_status: e.target.value })}>{SELECTION_STATUSES.map((s) => <option key={s} value={s}>{s.replace(/_/g, " ")}</option>)}</Select></Field>
-              <Field label="Approval Status"><Select value={d.approval_status} onChange={(e) => setD({ ...d, approval_status: e.target.value })}>{APPROVAL_STATUSES.map((s) => <option key={s} value={s}>{s.replace(/_/g, " ")}</option>)}</Select></Field>
-            </div>
-            <Field label="Description"><Textarea value={d.description} onChange={(e) => setD({ ...d, description: e.target.value })} /></Field>
-            <div className="flex flex-wrap gap-4">
-              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={d.client_visible} onChange={(e) => setD({ ...d, client_visible: e.target.checked })} /> Client visible</label>
-              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={d.client_approval_required} onChange={(e) => setD({ ...d, client_approval_required: e.target.checked })} /> Requires client approval</label>
-            </div>
-            <div className="flex justify-end gap-2"><Button size="sm" variant="outline" onClick={() => setModal(null)}>Cancel</Button><Button size="sm" variant="accent" onClick={() => void save()} disabled={saving}>{saving ? "Saving…" : "Save"}</Button></div>
-          </div>
-        </ModuleModal>
+      {/* Same editor as the Selections page: every field, media uploads, slides in from the right. */}
+      {draft && (
+        <SelectionEditor data={formData} products={products} draft={draft} saving={saving} error={error}
+          onChange={setDraft} onClose={() => setDraft(null)} onSave={(d) => void save(d)} />
       )}
 
       {showCreateChoice && (

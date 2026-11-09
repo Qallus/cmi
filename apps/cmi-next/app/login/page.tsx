@@ -13,7 +13,9 @@ const FIELD =
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get("redirectTo") ?? "/dashboard/overview";
+  // Only same-site paths ("/…", not "//host"), so a crafted link can't send someone off-site after sign-in.
+  const requested = searchParams.get("redirectTo");
+  const redirectTo = requested && requested.startsWith("/") && !requested.startsWith("//") ? requested : "/dashboard/overview";
 
   // Forward magic link tokens that land on /login to /register
   React.useEffect(() => {

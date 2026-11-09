@@ -10,14 +10,32 @@ chrome.runtime.onInstalled.addListener(() => {
 
 type AuthMessage = { type?: string; token?: unknown; staffName?: unknown };
 
-chrome.runtime.onMessageExternal.addListener((message: AuthMessage, _sender, sendResponse) => {
+// After sign-in: back to the page you were building from, and close the sign-in tab.
+async function returnFromSignIn(senderTabId: number | undefined): Promise<void> {
+  const r = await chrome.storage.session.get(["cmi_return_tab", "cmi_auth_tab"]);
+  const returnTab = r.cmi_return_tab as number | null | undefined;
+  const authTab = (r.cmi_auth_tab as number | null | undefined) ?? senderTabId;
+  await chrome.storage.session.remove(["cmi_return_tab", "cmi_auth_tab"]);
+  if (returnTab != null) {
+    const tab = await chrome.tabs.update(returnTab, { active: true }).catch(() => null);
+    if (tab?.windowId != null) await chrome.windows.update(tab.windowId, { focused: true }).catch(() => {});
+  }
+  // Only close the tab the extension opened, and only once we've switched away from it.
+  if (authTab != null && authTab === senderTabId && returnTab != null) await chrome.tabs.remove(authTab).catch(() => {});
+}
+
+chrome.runtime.onMessageExternal.addListener((message: AuthMessage, sender, sendResponse) => {
   if (message?.type === "CMI_AUTH" && typeof message.token === "string" && message.token) {
     chrome.storage.session
       .set({
         cmi_token: message.token,
         cmi_staff_name: typeof message.staffName === "string" ? message.staffName : null,
       })
-      .then(() => sendResponse({ ok: true }))
+      .then(() => {
+        sendResponse({ ok: true });
+        // Give the page a moment to show "Connected" before switching tabs.
+        setTimeout(() => void returnFromSignIn(sender.tab?.id), 900);
+      })
       .catch((e: unknown) => sendResponse({ ok: false, error: String(e) }));
     return true; // keep the message channel open for the async response
   }

@@ -59,101 +59,107 @@ type Props = {
   confidence?: Record<string, Confidence>;
 };
 
+type FieldProps = { label: string; k?: keyof CardDraft; children: React.ReactNode } & Pick<Props, "onPick" | "picking" | "confidence">;
+
+// Defined at module level, not inside CardForm: a component declared inside
+// another's render is a new type every render, so React would remount the
+// input on each keystroke and typing would lose focus after one letter.
+function Field({ label, k, children, onPick, picking, confidence }: FieldProps) {
+  const canPick = !!k && !!onPick && PICKABLE.has(k);
+  const conf = k && confidence ? confidence[k] : undefined;
+  return (
+    <label style={{ display: "block" }}>
+      <span className="cmi-label" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          {label}
+          {conf && <ConfidenceDot level={conf} />}
+        </span>
+        {canPick && <PickButton active={picking === k} onClick={() => onPick!(k!)} />}
+      </span>
+      {children}
+    </label>
+  );
+}
+
 // Manual + picker capture fields. Controlled by App.
 export function CardForm({ draft, onChange, onPick, picking, confidence }: Props) {
+  const pick = { onPick, picking, confidence };
   const set =
     (key: keyof CardDraft) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       onChange({ [key]: e.target.value } as Partial<CardDraft>);
 
-  function Field({ label, k, children }: { label: string; k?: keyof CardDraft; children: React.ReactNode }) {
-    const canPick = !!k && !!onPick && PICKABLE.has(k);
-    const conf = k && confidence ? confidence[k] : undefined;
-    return (
-      <label style={{ display: "block" }}>
-        <span className="cmi-label" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
-          <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            {label}
-            {conf && <ConfidenceDot level={conf} />}
-          </span>
-          {canPick && <PickButton active={picking === k} onClick={() => onPick!(k!)} />}
-        </span>
-        {children}
-      </label>
-    );
-  }
-
   return (
     <div style={{ display: "grid", gap: 12 }}>
-      <Field label="Eyebrow (optional)">
+      <Field {...pick} label="Eyebrow (optional)">
         <input className="cmi-input" value={draft.eyebrow} onChange={set("eyebrow")} placeholder="e.g. Kitchen · Plumbing" />
       </Field>
 
-      <Field label="Product title *" k="title">
+      <Field {...pick} label="Product title *" k="title">
         <input className="cmi-input" value={draft.title} onChange={set("title")} placeholder="Product name" />
       </Field>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-        <Field label="Vendor" k="vendor_name">
+        <Field {...pick} label="Vendor" k="vendor_name">
           <input className="cmi-input" value={draft.vendor_name} onChange={set("vendor_name")} placeholder="Ferguson" />
         </Field>
-        <Field label="Category" k="category">
+        <Field {...pick} label="Category" k="category">
           <input className="cmi-input" value={draft.category} onChange={set("category")} placeholder="Fixtures" />
         </Field>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-        <Field label="SKU" k="sku">
+        <Field {...pick} label="SKU" k="sku">
           <input className="cmi-input" value={draft.sku} onChange={set("sku")} placeholder="SKU" />
         </Field>
-        <Field label="Model #" k="model_number">
+        <Field {...pick} label="Model #" k="model_number">
           <input className="cmi-input" value={draft.model_number} onChange={set("model_number")} placeholder="Model" />
         </Field>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-        <Field label="Size" k="size">
+        <Field {...pick} label="Size" k="size">
           <input className="cmi-input" value={draft.size} onChange={set("size")} placeholder={'24" x 48"'} />
         </Field>
-        <Field label="Finish" k="finish">
+        <Field {...pick} label="Finish" k="finish">
           <input className="cmi-input" value={draft.finish} onChange={set("finish")} placeholder="Matte / Polished" />
         </Field>
       </div>
 
-      <Field label="Colors" k="colors">
+      <Field {...pick} label="Colors" k="colors">
         <input className="cmi-input" value={draft.colors} onChange={set("colors")} placeholder="Limo, Melange, Sabbia" />
       </Field>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-        <Field label="Price" k="price">
+        <Field {...pick} label="Price" k="price">
           <input className="cmi-input" value={draft.price} onChange={set("price")} inputMode="decimal" placeholder="0.00" />
         </Field>
-        <Field label="Unit">
+        <Field {...pick} label="Unit">
           <input className="cmi-input" value={draft.price_unit} onChange={set("price_unit")} placeholder="each / sqft / lf" />
         </Field>
       </div>
 
-      <Field label="Short description" k="short_description">
+      <Field {...pick} label="Short description" k="short_description">
         <textarea className="cmi-input" rows={2} value={draft.short_description} onChange={set("short_description")} placeholder="One or two lines shown on the card." />
       </Field>
 
-      <Field label="Long description" k="long_description">
+      <Field {...pick} label="Long description" k="long_description">
         <textarea className="cmi-input" rows={3} value={draft.long_description} onChange={set("long_description")} placeholder="Full details (shown in the expanded view)." />
       </Field>
 
-      <Field label="Features (one per line)">
+      <Field {...pick} label="Features (one per line)">
         <textarea className="cmi-input" rows={3} value={draft.features} onChange={set("features")} placeholder={"Solid brass\nLifetime warranty"} />
       </Field>
 
-      <Field label="Image URL" k="image_url">
+      <Field {...pick} label="Image URL" k="image_url">
         <input className="cmi-input" value={draft.image_url} onChange={set("image_url")} placeholder="https://…/product.jpg" />
       </Field>
 
-      <Field label="Source URL">
+      <Field {...pick} label="Source URL">
         <input className="cmi-input" value={draft.source_url} onChange={set("source_url")} placeholder="https://vendor.com/product" />
       </Field>
 
-      <Field label="Staff notes (never client-visible)">
+      <Field {...pick} label="Staff notes (never client-visible)">
         <textarea className="cmi-input" rows={2} value={draft.staff_notes} onChange={set("staff_notes")} placeholder="Internal notes" />
       </Field>
     </div>

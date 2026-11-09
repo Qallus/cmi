@@ -269,6 +269,7 @@ export const DASHBOARD_GUIDE: GuideEntry[] = [
     id: "selections", name: "Selections", path: "/dashboard/selections", nav: "Sidebar → Jobs → Selections",
     summary: "Product and finish selections for clients, built from vendor pages into selection cards.",
     steps: [
+      "Edit a selection from inside a job (Job → Selections → the pencil, or Create New → Manual Selection): the same editor as the Selections page slides in from the right, with every field (project, room, category, catalog product, size / finish / colors, client, vendor, subcontractor, designer, linked task, the four statuses, costs and dates) and media uploads for the featured image, gallery and video (or URLs instead).",
       "Ask Claude (CMI connector): \"add a Kohler matte black faucet to the kitchen on the Olson job\", \"what selections on the Lillie job still need a decision?\", or \"mark the kitchen faucet ordered\". Claude can also duplicate a selection or reuse one on another job.",
       "Send selections to the client through Claude: \"send the kitchen selections to the client to approve by Nov 15\" — Claude shows which ones and sends only after you say yes; the client is notified and sees them in the portal.",
     ],

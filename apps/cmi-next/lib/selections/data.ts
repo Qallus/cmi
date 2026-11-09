@@ -5,11 +5,18 @@ function optionLabel(first: string | null, second?: string | null, fallback = "U
   return [first, second].filter(Boolean).join(" ").trim() || fallback;
 }
 
-export async function loadSelectionsData(): Promise<SelectionsData> {
+/** Everything the selection editor needs except the selections themselves (a job's tab loads its own). */
+export async function loadSelectionFormOptions(): Promise<SelectionsData> {
+  return loadSelectionsData({ withSelections: false });
+}
+
+export async function loadSelectionsData({ withSelections = true }: { withSelections?: boolean } = {}): Promise<SelectionsData> {
   const supabase = getSupabaseAdmin();
   const [products, selections, projects, tasks, contacts, staffUsers] = await Promise.all([
     supabase.from("products").select("*").order("created_at", { ascending: false }).limit(250),
-    supabase.from("project_selections").select("*").order("updated_at", { ascending: false }).limit(250),
+    withSelections
+      ? supabase.from("project_selections").select("*").order("updated_at", { ascending: false }).limit(250)
+      : Promise.resolve({ data: [] as ProjectSelection[], error: null }),
     supabase.from("projects").select("id, title, status").order("created_at", { ascending: false }).limit(250),
     supabase.from("project_schedule_items").select("id, title, project_title, phase, project_id").order("start_date", { ascending: true }).limit(500),
     supabase.from("contacts").select("id, first_name, last_name, email, company, type").order("last_name", { ascending: true }).limit(500),

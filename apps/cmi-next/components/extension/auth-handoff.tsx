@@ -77,7 +77,7 @@ export function ExtensionAuthHandoff({
           <Panel
             icon={<CheckCircle2 className="h-6 w-6 text-accent" />}
             title="Connected"
-            body={`You're signed in${staffName ? ` as ${staffName}` : ""}. You can close this tab and return to the extension's side panel.`}
+            body={`You're signed in${staffName ? ` as ${staffName}` : ""}. Taking you back to the page you were on…`}
           />
         )}
 
@@ -88,7 +88,7 @@ export function ExtensionAuthHandoff({
             body="Sign in to your CMI dashboard, then this page will hand your session to the extension."
             action={
               <a
-                href="/login?next=/extension-auth"
+                href="/login?redirectTo=/extension-auth"
                 className="inline-flex items-center gap-2 rounded-lg bg-accent px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-accent/90"
               >
                 <LogIn className="h-4 w-4" /> Sign in
