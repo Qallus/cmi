@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import type { CardDraft } from "../../types";
 
 function features(draft: CardDraft): string[] {
@@ -17,9 +18,28 @@ function priceLabel(draft: CardDraft): string | null {
 // Branded, client-ready Selection Card. Used both as the live side-panel preview
 // and (larger) inside the expand modal. Colors come from the CMI CSS tokens, so
 // it renders correctly in light and dark.
+// The product photo at full size: the whole image, as large as the panel allows.
+// Click anywhere or press Escape to close.
+function FullImage({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); onClose(); } };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [onClose]);
+  return (
+    <div role="dialog" aria-label={alt} onClick={onClose}
+      style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(0,0,0,0.9)", display: "flex", alignItems: "center", justifyContent: "center", padding: 12, cursor: "zoom-out" }}>
+      <img src={src} alt={alt} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
+      <button type="button" aria-label="Close" onClick={onClose}
+        style={{ position: "absolute", top: 10, right: 10, width: 32, height: 32, borderRadius: 999, border: "none", background: "rgba(255,255,255,0.18)", color: "#fff", fontSize: 18, cursor: "pointer" }}>×</button>
+    </div>
+  );
+}
+
 export function SelectionCard({ draft, large = false }: { draft: CardDraft; large?: boolean }) {
   const feats = features(draft);
   const price = priceLabel(draft);
+  const [zoom, setZoom] = useState(false);
 
   return (
     <div
@@ -34,8 +54,9 @@ export function SelectionCard({ draft, large = false }: { draft: CardDraft; larg
       <div
         style={{
           width: "100%",
-          height: large ? 240 : 150,
-          background: "var(--card-2)",
+          // Tall enough to show the whole product; the image fits inside (never cropped).
+          height: large ? 340 : 230,
+          background: "#fff",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -43,15 +64,20 @@ export function SelectionCard({ draft, large = false }: { draft: CardDraft; larg
       >
         {draft.image_url ? (
           // eslint-disable-next-line jsx-a11y/alt-text
-          <img
-            src={draft.image_url}
-            alt={draft.title || "Product"}
-            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-          />
+          <button type="button" onClick={() => setZoom(true)} title="View full image"
+            style={{ position: "relative", width: "100%", height: "100%", padding: 8, border: "none", background: "transparent", cursor: "zoom-in" }}>
+            <img
+              src={draft.image_url}
+              alt={draft.title || "Product"}
+              style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
+            />
+            <span style={{ position: "absolute", right: 8, bottom: 8, borderRadius: 999, background: "rgba(0,0,0,0.55)", color: "#fff", fontSize: 11, fontWeight: 600, padding: "3px 9px" }}>⤢ Full image</span>
+          </button>
         ) : (
           <span style={{ color: "var(--muted)", fontSize: 12 }}>No image</span>
         )}
       </div>
+      {zoom && draft.image_url ? <FullImage src={draft.image_url} alt={draft.title || "Product"} onClose={() => setZoom(false)} /> : null}
 
       <div style={{ padding: large ? "18px 20px 20px" : "14px 16px 16px" }}>
         {draft.eyebrow ? (

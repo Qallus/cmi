@@ -1,7 +1,7 @@
 {
   "name": "cmi-selection-card-builder",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "description": "Capture vendor products into branded CMI Selection Cards (Chrome MV3 side panel).",
   "scripts": {

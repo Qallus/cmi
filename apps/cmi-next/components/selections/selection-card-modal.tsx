@@ -4,6 +4,7 @@ import * as React from "react";
 import { X, ExternalLink, Check, Maximize2, Minimize2 } from "lucide-react";
 import type { ProjectSelection, SelectionApprovalStatus } from "@/lib/selections/types";
 import { ClientResponse, type ClientAction } from "./client-response";
+import { ImageLightbox } from "@/components/ui/image-lightbox";
 
 function money(v: number | null | undefined): string | null {
   if (v == null || Number.isNaN(Number(v))) return null;
@@ -57,6 +58,11 @@ export function SelectionCardModal({
 }) {
   const sel = selection;
   const [expanded, setExpanded] = React.useState(false);
+  // Which picture is open full screen (0 = featured image, then the gallery).
+  const [zoom, setZoom] = React.useState<number | null>(null);
+  // Escape closes an open full-screen image first, not the whole card.
+  const zoomRef = React.useRef(zoom);
+  React.useEffect(() => { zoomRef.current = zoom; }, [zoom]);
 
   const price = money(sel.client_price ?? sel.price ?? sel.estimated_cost);
   const feats = features(sel);
@@ -65,7 +71,7 @@ export function SelectionCardModal({
   const status = (sel.approval_status ?? "not_required") as SelectionApprovalStatus;
 
   React.useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && zoomRef.current === null && onClose();
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
@@ -100,24 +106,31 @@ export function SelectionCardModal({
           </button>
         </div>
 
-        {/* Featured image — taller, grows when expanded */}
-        <div className={`flex w-full items-center justify-center bg-muted/40 transition-all ${expanded ? "h-80" : "h-64"}`}>
+        {/* Featured image: the whole product (never cropped), taller when expanded; click for full screen. */}
+        <div className={`flex w-full items-center justify-center bg-white transition-all dark:bg-muted/40 ${expanded ? "h-[26rem]" : "h-80"}`}>
           {sel.image_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={sel.image_url} alt={sel.name} className="h-full w-full object-cover" />
+            <button type="button" onClick={() => setZoom(0)} className="group relative h-full w-full cursor-zoom-in" title="View full image">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={sel.image_url} alt={sel.name} className="h-full w-full object-contain p-2" />
+              <span className="absolute bottom-2 right-2 inline-flex items-center gap-1 rounded-full bg-black/55 px-2.5 py-1 text-[11px] font-medium text-white opacity-90 backdrop-blur transition group-hover:bg-black/75">
+                <Maximize2 className="h-3 w-3" /> Full image
+              </span>
+            </button>
           ) : (
             <span className="text-xs text-muted-foreground">No image</span>
           )}
         </div>
 
         {/* Gallery — directly under the featured image, only when expanded.
-            Every thumb is auto-cropped to the same square via object-cover. */}
+            Thumbs are cropped to matching squares; click one to see it whole. */}
         {expanded && gallery.length > 0 && (
           <div className="border-b border-border bg-muted/20 p-3">
             <div className="grid grid-cols-4 gap-2">
               {gallery.slice(0, 12).map((g, i) => (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img key={i} src={g} alt="" className="aspect-square w-full rounded-md border border-border object-cover" />
+                <button key={i} type="button" onClick={() => setZoom((sel.image_url ? 1 : 0) + i)} className="cursor-zoom-in" title="View full image">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={g} alt="" className="aspect-square w-full rounded-md border border-border object-cover" />
+                </button>
               ))}
             </div>
           </div>
@@ -208,6 +221,9 @@ export function SelectionCardModal({
           )}
         </div>
       </div>
+      {zoom !== null ? (
+        <ImageLightbox images={[sel.image_url, ...gallery].filter((u): u is string => !!u)} index={zoom} alt={sel.name} onClose={() => setZoom(null)} />
+      ) : null}
     </div>
   );
 }

@@ -325,10 +325,10 @@ function SelCards({ rows, a }: { rows: ProjectSelection[]; a: SelActions }) {
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {rows.map((s) => (
         <div key={s.id} className="flex flex-col overflow-hidden rounded-xl border border-border bg-card">
-          <button type="button" onClick={() => a.onView(s)} className="flex h-40 items-center justify-center overflow-hidden border-b border-border bg-muted/30" title="Preview card">
+          <button type="button" onClick={() => a.onView(s)} className="flex h-48 items-center justify-center overflow-hidden border-b border-border bg-white dark:bg-muted/30" title="Preview card">
             {s.image_url
               // eslint-disable-next-line @next/next/no-img-element
-              ? <img src={s.image_url} alt="" className="h-full w-full object-cover" />
+              ? <img src={s.image_url} alt="" className="h-full w-full object-contain p-2" />
               : <ImageIcon className="h-6 w-6 text-muted-foreground" />}
           </button>
           <div className="flex flex-1 flex-col gap-2 p-4">

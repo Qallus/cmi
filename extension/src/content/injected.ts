@@ -24,9 +24,16 @@ export function cmiPageExtractor(): ExtractResult {
       return u;
     }
   };
+  // Page data often keeps HTML codes ("15&quot; High" for 15" High); turn them back into characters.
+  const decoder = document.createElement("textarea");
+  const decode = (v: string) => {
+    if (!/&[#a-z0-9]+;/i.test(v)) return v;
+    decoder.innerHTML = v;
+    return decoder.value;
+  };
   const setF = (k: string, v: string | null | undefined, c: Confidence) => {
     if (!fields[k] && v && String(v).trim()) {
-      fields[k] = String(v).trim();
+      fields[k] = k === "image_url" ? String(v).trim() : decode(String(v)).trim();
       confidence[k] = c;
     }
   };

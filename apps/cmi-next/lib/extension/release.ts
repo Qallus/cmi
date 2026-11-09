@@ -4,7 +4,7 @@
 // *.map) into public/downloads/cmi-selection-card-builder.zip inside a
 // "CMI Selection Card Builder" folder, then update the version and date here.
 export const EXTENSION_RELEASE = {
-  version: "0.1.1",
+  version: "0.1.2",
   updated: "2026-11-09",
   href: "/downloads/cmi-selection-card-builder.zip",
   folder: "CMI Selection Card Builder",

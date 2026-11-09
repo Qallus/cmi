@@ -52,9 +52,9 @@ export function SelectionsClient({ jobId, initial }: { jobId: string; initial: P
             {items.map((s) => (
               <div key={s.id} className="overflow-hidden rounded-xl border border-border bg-card">
                 {s.image_url && (
-                  <button type="button" onClick={() => setViewingId(s.id)} className="block h-40 w-full bg-muted" title="View selection">
+                  <button type="button" onClick={() => setViewingId(s.id)} className="block h-48 w-full bg-white dark:bg-muted" title="View selection">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={s.image_url} alt={s.name} className="h-full w-full object-cover" />
+                    <img src={s.image_url} alt={s.name} className="h-full w-full object-contain p-2" />
                   </button>
                 )}
                 <div className="p-4">
