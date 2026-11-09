@@ -9,7 +9,8 @@ export default defineManifest({
   version: pkg.version,
   description: "Capture vendor products into branded CMI Selection Cards.",
   minimum_chrome_version: "116",
-  permissions: ["sidePanel", "activeTab", "scripting", "storage", "tabs"],
+  // cookies: reuse the CMI dashboard's sign-in in this browser (see panel/auth.ts).
+  permissions: ["sidePanel", "activeTab", "scripting", "storage", "tabs", "cookies"],
   host_permissions: ["<all_urls>"],
   // Only the CMI app may hand the session token to the extension. Live domain is
   // my.constructedmatter.com; app.* kept for a future cutover.

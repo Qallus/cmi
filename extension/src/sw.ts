@@ -30,6 +30,7 @@ chrome.runtime.onMessageExternal.addListener((message: AuthMessage, sender, send
       .set({
         cmi_token: message.token,
         cmi_staff_name: typeof message.staffName === "string" ? message.staffName : null,
+        cmi_paused: false,
       })
       .then(() => {
         sendResponse({ ok: true });

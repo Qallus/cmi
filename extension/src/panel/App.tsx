@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { EMPTY_DRAFT, type CardDraft, type Destination, type SessionInfo } from "../types";
 import { api, ApiError } from "./api";
-import { clearToken, getToken, onTokenChange, openSignIn } from "./auth";
+import { clearToken, forgetToken, getToken, onTokenChange, openSignIn } from "./auth";
 import { API_BASE, EXTENSION_VERSION } from "./config";
 import { autoBuild, startPick, CaptureError } from "./capture";
 import type { Confidence } from "../content/injected";
@@ -122,7 +122,7 @@ export function App() {
       if (e instanceof ApiError && e.code === "EXTENSION_ACCESS_DISABLED") {
         setPhase("disabled");
       } else if (e instanceof ApiError && e.status === 401) {
-        await clearToken();
+        await forgetToken();
         setPhase("signed-out");
       } else {
         setErrorMsg(e instanceof Error ? e.message : "Something went wrong.");
