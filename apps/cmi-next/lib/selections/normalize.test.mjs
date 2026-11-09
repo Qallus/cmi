@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { selectionPatchFromInput } from "./normalize.ts";
+import { selectionPatchFromInput, extensionFieldsFromInput } from "./normalize.ts";
 
 test("form strings become typed values; blanks become null", () => {
   const out = selectionPatchFromInput({
@@ -35,4 +35,9 @@ test("the task link is stored in both columns", () => {
   const out = selectionPatchFromInput({ related_task_id: "t1" });
   assert.equal(out.related_task_id, "t1");
   assert.equal(out.project_schedule_item_id, "t1");
+});
+
+test("extension fields: features one per line, visibility flags, only what was sent", () => {
+  const out = extensionFieldsFromInput({ name: "x", eyebrow: "Kitchen", sku: "", features: "Solid brass, lead-free\nLifetime warranty\n", visible_to_vendor: true });
+  assert.deepEqual(out, { eyebrow: "Kitchen", sku: null, features: ["Solid brass, lead-free", "Lifetime warranty"], visible_to_vendor: true });
 });

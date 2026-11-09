@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { denyUnlessStaff } from "@/lib/auth/guard";
+import { extensionFieldsFromInput } from "@/lib/selections/normalize";
 
 function text(value: unknown) {
   const next = String(value || "").trim();
@@ -98,6 +99,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         target_install_date: text(input.target_install_date),
         delivery_date: text(input.target_delivery_date),
         internal_notes: text(input.internal_notes),
+        // Eyebrow, SKU, model, manufacturer, long description, features, source page,
+        // group and contractor/vendor visibility (Chrome extension fields), only when sent.
+        ...extensionFieldsFromInput(input),
         updated_at: new Date().toISOString()
       })
       .eq("id", id)

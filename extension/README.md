@@ -43,3 +43,15 @@ in the CMI app (Coolify) so CORS + the auth handoff target the right ID.
 `/api/extension/{session,jobs,selections,cards,images}` — Bearer token, CORS to
 the `chrome-extension://` origin, per-user access enforced by
 `requireExtensionAccess()`.
+
+## Releasing to staff
+
+Staff install from **Dashboard → Selections → Chrome Extension** (`/dashboard/chrome-extension`).
+To post an update:
+
+1. Bump the version in `package.json` and `src/panel/config.ts` (`EXTENSION_VERSION`).
+2. `npm run build`.
+3. Zip `dist/` without the `*.map` files, inside a folder named `CMI Selection Card Builder`, to
+   `apps/cmi-next/public/downloads/cmi-selection-card-builder.zip`.
+4. Update `apps/cmi-next/lib/extension/release.ts` (version and date), then commit and push.
+

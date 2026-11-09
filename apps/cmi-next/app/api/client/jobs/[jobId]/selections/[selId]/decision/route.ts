@@ -1,8 +1,10 @@
-// Client approves or requests changes on a selection.
+// Client approves, doesn't approve, asks for a change to, or comments on a selection.
 import { NextResponse } from "next/server";
 import { requireClient, assertJobAccess, getJobPerms, ClientAuthError } from "@/lib/client-portal/auth";
 import { clientCan } from "@/lib/client-portal/permissions";
-import { clientDecideSelection } from "@/lib/job-selections/data";
+import { clientDecideSelection, type ClientSelectionAction } from "@/lib/job-selections/data";
+
+const ACTIONS: ClientSelectionAction[] = ["approved", "rejected", "revision_requested", "comment"];
 
 export async function POST(request: Request, { params }: { params: Promise<{ jobId: string; selId: string }> }) {
   try {
@@ -13,13 +15,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ job
       return NextResponse.json({ error: "Selections are not enabled for your account." }, { status: 403 });
     }
     const { decision, comment } = await request.json() as { decision?: string; comment?: string };
-    if (decision !== "approved" && decision !== "revision_requested") {
+    if (!ACTIONS.includes(decision as ClientSelectionAction)) {
       return NextResponse.json({ error: "Invalid decision." }, { status: 400 });
     }
-    if (decision === "revision_requested" && !comment?.trim()) {
-      return NextResponse.json({ error: "Please add a note describing the change you'd like." }, { status: 400 });
+    const note = comment?.trim() ?? "";
+    if (decision !== "approved" && !note) {
+      return NextResponse.json({ error: decision === "comment" ? "Please write a comment." : "Please add a note so your team knows what you'd like instead." }, { status: 400 });
     }
-    return NextResponse.json(await clientDecideSelection(selId, jobId, decision, comment?.trim() ?? null));
+    if (note.length > 2000) return NextResponse.json({ error: "Please keep comments under 2,000 characters." }, { status: 400 });
+    const name = [contact.first_name, contact.last_name].filter(Boolean).join(" ").trim() || contact.email || "Client";
+    return NextResponse.json(await clientDecideSelection(selId, jobId, decision as ClientSelectionAction, note || null, { id: contact.id, name }));
   } catch (err) {
     const e = err as ClientAuthError;
     return NextResponse.json({ error: e.message }, { status: e.status ?? 500 });

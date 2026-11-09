@@ -13,7 +13,7 @@ import { JobModuleShell, ModuleModal, inputCls, money } from "../job-module-shel
 const SELECTION_STATUSES = ["draft", "needs_review", "pending_client_approval", "client_approved", "rejected_needs_revision", "approved_internally", "ordered", "delivered", "installed", "completed"];
 const APPROVAL_TONE: Record<string, "default" | "warning" | "success" | "danger"> = { not_required: "default", pending: "warning", approved: "success", rejected: "danger", revision_requested: "danger", approved_with_changes: "success" };
 
-type FormData = Pick<SelectionsData, "projects" | "contacts" | "subcontractors" | "staffUsers" | "tasks">;
+type FormData = Pick<SelectionsData, "projects" | "contacts" | "subcontractors" | "staffUsers" | "tasks" | "groups">;
 
 export function StaffSelectionsClient({ jobId, jobName, initial, products = [], formData }: {
   jobId: string; jobName: string; initial: ProjectSelection[];

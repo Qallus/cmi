@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Briefcase, CheckCircle2, Columns3, Copy, Download, FileText, Image, LayoutGrid, List as ListIcon, Loader2, Package, Pencil, Plus, Search, Share2, ShoppingCart, Sparkles, Table as TableIcon, Upload } from "lucide-react";
+import { Briefcase, CheckCircle2, Chrome, Columns3, Copy, Download, FileText, Image, LayoutGrid, List as ListIcon, Loader2, Package, Pencil, Plus, Search, Share2, ShoppingCart, Sparkles, Table as TableIcon, Upload } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -345,6 +345,7 @@ export function SelectionsClient({ initialData, demoMode = false, setupMessage }
           </Button>
           <Button variant="outline" onClick={() => setProductDraft(emptyProductDraft())}><Package className="h-4 w-4" /> Add Product</Button>
           <Link href="/dashboard/selections/live-builder"><Button variant="outline"><Sparkles className="h-4 w-4" /> Live Builder</Button></Link>
+          <Link href="/dashboard/chrome-extension" title="Install the Chrome extension that captures products from vendor sites"><Button variant="outline"><Chrome className="h-4 w-4" /> Chrome Extension</Button></Link>
           <Button variant="accent" onClick={() => setSelectionDraft(emptySelectionDraft())}><Plus className="h-4 w-4" /> Add Selection</Button>
         </div>
       </header>

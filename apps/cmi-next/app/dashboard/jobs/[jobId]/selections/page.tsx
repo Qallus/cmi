@@ -15,5 +15,7 @@ export default async function StaffJobSelectionsPage({ params }: { params: Promi
   const [selections, options] = await Promise.all([loadJobSelections(jobId), loadSelectionFormOptions().catch(() => null)]);
   return <StaffSelectionsClient jobId={jobId} jobName={job.job_name} initial={selections}
     products={options?.products ?? []}
-    formData={{ projects: options?.projects ?? [], contacts: options?.contacts ?? [], subcontractors: options?.subcontractors ?? [], staffUsers: options?.staffUsers ?? [], tasks: options?.tasks ?? [] }} />;
+    formData={{ projects: options?.projects ?? [], contacts: options?.contacts ?? [], subcontractors: options?.subcontractors ?? [], staffUsers: options?.staffUsers ?? [], tasks: options?.tasks ?? [],
+      // Library groups plus this job's own (a group's sublabel is its job id).
+      groups: (options?.groups ?? []).filter((g) => !g.sublabel || g.sublabel === jobId) }} />;
 }

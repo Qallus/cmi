@@ -102,21 +102,54 @@ export async function deleteJobSelection(id: string): Promise<void> {
 }
 
 // Client decision on a selection: approve or request changes (with a comment).
+export type ClientSelectionAction = "approved" | "rejected" | "revision_requested" | "comment";
+
+/** The client's notes, newest first, each stamped with the date and who wrote it. */
+export function appendClientComment(existing: string | null | undefined, text: string, who: string, at: Date): string {
+  const day = at.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "America/Phoenix" });
+  return [`${day} · ${who}: ${text}`, existing?.trim()].filter(Boolean).join("\n");
+}
+
+const ACTION_WORD: Record<ClientSelectionAction, string> = {
+  approved: "approved", rejected: "did not approve", revision_requested: "asked for a change to", comment: "commented on",
+};
+
+// A client approves, doesn't approve, asks for a change to, or comments on a
+// selection from their portal. Comments add to the history instead of
+// replacing it; the job's team hears about it (bell + push) and it's logged.
 export async function clientDecideSelection(
-  selId: string, jobId: string, decision: "approved" | "revision_requested", comment: string | null,
+  selId: string, jobId: string, action: ClientSelectionAction, comment: string | null, who: { id: string; name: string },
 ): Promise<ProjectSelection> {
-  const now = new Date().toISOString();
-  const patch: Record<string, unknown> = {
-    approval_status: decision,
-    client_comments: comment ?? null,
-    updated_at: now,
-    ...(decision === "approved"
-      ? { client_approved_at: now, selection_status: "client_approved" }
-      : { client_rejected_at: now, selection_status: "rejected_needs_revision" }),
-  };
   if (!(await selectionOnJob(selId, jobId))) throw new Error("Selection not found on this project.");
-  const { data, error } = await getSupabaseAdmin()
-    .from("project_selections").update(patch).eq("id", selId).eq("client_visible", true).select().single();
+  const sb = getSupabaseAdmin();
+  const { data: current, error: readErr } = await sb.from("project_selections")
+    .select("name, client_comments").eq("id", selId).eq("client_visible", true).maybeSingle();
+  if (readErr) throw new Error(readErr.message);
+  if (!current) throw new Error("Selection not found on this project.");
+
+  const nowDate = new Date();
+  const now = nowDate.toISOString();
+  const note = comment?.trim() || null;
+  const patch: Record<string, unknown> = { updated_at: now };
+  if (note) patch.client_comments = appendClientComment(current.client_comments, note, who.name, nowDate);
+  if (action === "approved") Object.assign(patch, { approval_status: "approved", client_approval_status: "approved", client_approved_at: now, selection_status: "client_approved" });
+  if (action === "rejected" || action === "revision_requested") {
+    Object.assign(patch, { approval_status: action, client_approval_status: action, client_rejected_at: now, selection_status: "rejected_needs_revision" });
+  }
+  const { data, error } = await sb.from("project_selections").update(patch).eq("id", selId).eq("client_visible", true).select().single();
   if (error) throw new Error(error.message);
+
+  const title = `${who.name} ${ACTION_WORD[action]} ${current.name ?? "a selection"}`;
+  await sb.from("selection_activity").insert({ selection_id: selId, action: `client.${action}`, description: note ? `${title}: ${note}` : title, metadata: { contact_id: who.id, job_id: jobId } })
+    .then(() => undefined, () => undefined);
+  try {
+    const { jobTeamRecipients } = await import("@/lib/jobs/data");
+    const { notifyStaff } = await import("@/lib/notifications/dispatch");
+    await notifyStaff({
+      recipientIds: await jobTeamRecipients(jobId), actorId: null,
+      kind: "selection_client_response", title, body: note,
+      url: `/dashboard/jobs/${jobId}/selections`, sourceTable: "project_selections", sourceId: selId,
+    });
+  } catch (err) { console.error("[selections] client response notify failed", err); }
   return data as ProjectSelection;
 }

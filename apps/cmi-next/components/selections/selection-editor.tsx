@@ -55,6 +55,18 @@ export type SelectionDraft = {
   target_install_date: string;
   client_comments: string;
   internal_notes: string;
+  // Also captured by the Chrome extension (all of its fields live here too).
+  eyebrow: string;
+  manufacturer: string;
+  sku: string;
+  model_number: string;
+  long_description: string;
+  /** One feature per line. */
+  features: string;
+  source_url: string;
+  selection_group_id: string;
+  visible_to_contractor: boolean;
+  visible_to_vendor: boolean;
 };
 
 export const categories = ["Cabinets", "Countertops", "Tile", "Flooring", "Appliances", "Plumbing Fixtures", "Lighting Fixtures", "Hardware", "Paint", "Doors", "Windows", "Trim / Millwork", "Roofing", "Exterior Finish", "Landscape", "Outdoor Living", "Bathroom Fixtures", "Kitchen Fixtures", "Specialty Materials", "Custom Fabrication", "Client-Provided Product", "Vendor-Provided Product", "Other"];
@@ -109,7 +121,17 @@ export function emptySelectionDraft(): SelectionDraft {
     target_delivery_date: "",
     target_install_date: "",
     client_comments: "",
-    internal_notes: ""
+    internal_notes: "",
+    eyebrow: "",
+    manufacturer: "",
+    sku: "",
+    model_number: "",
+    long_description: "",
+    features: "",
+    source_url: "",
+    selection_group_id: "",
+    visible_to_contractor: false,
+    visible_to_vendor: false
   };
 }
 
@@ -159,8 +181,25 @@ export function selectionToDraft(selection: ProjectSelection): SelectionDraft {
     target_delivery_date: selection.target_delivery_date || "",
     target_install_date: selection.target_install_date || "",
     client_comments: selection.client_comments || "",
-    internal_notes: selection.internal_notes || ""
+    internal_notes: selection.internal_notes || "",
+    eyebrow: selection.eyebrow || "",
+    manufacturer: selection.manufacturer || "",
+    sku: selection.sku || "",
+    model_number: selection.model_number || "",
+    long_description: selection.long_description || "",
+    features: selectionFeatures(selection).join("\n"),
+    source_url: selection.source_url || "",
+    selection_group_id: selection.selection_group_id || "",
+    visible_to_contractor: Boolean(selection.visible_to_contractor),
+    visible_to_vendor: Boolean(selection.visible_to_vendor)
   };
+}
+
+/** Features from the column, or the copy older extension cards kept in metadata. */
+function selectionFeatures(selection: ProjectSelection): string[] {
+  if (Array.isArray(selection.features)) return selection.features.map(String);
+  const meta = (selection as unknown as { metadata?: { features?: unknown } }).metadata;
+  return meta && Array.isArray(meta.features) ? meta.features.map(String) : [];
 }
 
 /**
@@ -169,7 +208,7 @@ export function selectionToDraft(selection: ProjectSelection): SelectionDraft {
  * Used by the Selections page and by a job's Selections tab, so both edit the
  * same way.
  */
-export function SelectionEditor({ data, products, draft, saving, error, onChange, onClose, onSave }: { data: Pick<SelectionsData, "projects" | "contacts" | "subcontractors" | "staffUsers" | "tasks">; products: Product[]; draft: SelectionDraft; saving: boolean; error?: string | null; onChange: (draft: SelectionDraft) => void; onClose: () => void; onSave: (draft: SelectionDraft) => void }) {
+export function SelectionEditor({ data, products, draft, saving, error, onChange, onClose, onSave }: { data: Pick<SelectionsData, "projects" | "contacts" | "subcontractors" | "staffUsers" | "tasks" | "groups">; products: Product[]; draft: SelectionDraft; saving: boolean; error?: string | null; onChange: (draft: SelectionDraft) => void; onClose: () => void; onSave: (draft: SelectionDraft) => void }) {
   const update = <K extends keyof SelectionDraft>(key: K, value: SelectionDraft[K]) => onChange({ ...draft, [key]: value });
   const selectedProduct = products.find(product => product.id === draft.product_id);
   const [showUrlFields, setShowUrlFields] = React.useState(false);
@@ -229,6 +268,15 @@ export function SelectionEditor({ data, products, draft, saving, error, onChange
             <Field label="Category"><OptionSelect value={draft.category} options={categories} placeholder="Category" onChange={value => update("category", value)} /></Field>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
+            <Field label="Eyebrow"><Input value={draft.eyebrow} onChange={event => update("eyebrow", event.target.value)} placeholder="e.g. Kitchen · Plumbing (small line above the title on the card)" /></Field>
+            <Field label="Selection Group">
+              <Select value={draft.selection_group_id} onChange={event => update("selection_group_id", event.target.value)}>
+                <option value="">No group</option>
+                {(data.groups ?? []).map(group => <option key={group.id} value={group.id}>{group.label}</option>)}
+              </Select>
+            </Field>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
             <Field label="Catalog Product">
               <Select value={draft.product_id} onChange={event => {
                 const product = products.find(row => row.id === event.target.value);
@@ -252,6 +300,11 @@ export function SelectionEditor({ data, products, draft, saving, error, onChange
               </Select>
             </Field>
             <Field label="Custom Product Name"><Input value={draft.custom_product_name} onChange={event => update("custom_product_name", event.target.value)} placeholder={selectedProduct?.product_name || "One-off product name"} /></Field>
+          </div>
+          <div className="grid gap-3 md:grid-cols-3">
+            <Field label="Manufacturer"><Input value={draft.manufacturer} onChange={event => update("manufacturer", event.target.value)} placeholder="Kohler" /></Field>
+            <Field label="SKU"><Input value={draft.sku} onChange={event => update("sku", event.target.value)} /></Field>
+            <Field label="Model #"><Input value={draft.model_number} onChange={event => update("model_number", event.target.value)} /></Field>
           </div>
           <div className="grid gap-3 md:grid-cols-3">
             <Field label="Size"><Input value={draft.size} onChange={event => update("size", event.target.value)} placeholder={'24" x 48"'} /></Field>
@@ -334,24 +387,38 @@ export function SelectionEditor({ data, products, draft, saving, error, onChange
                 <Field label="Featured Image URL"><Input value={draft.image_url} onChange={event => update("image_url", event.target.value)} /></Field>
                 <Field label="Video URL"><Input value={draft.video_url} onChange={event => update("video_url", event.target.value)} /></Field>
                 <Field label="Spec Sheet URL"><Input value={draft.spec_sheet_url} onChange={event => update("spec_sheet_url", event.target.value)} /></Field>
-                <Field label="Product URL"><Input value={draft.product_url} onChange={event => update("product_url", event.target.value)} /></Field>
               </div>
               <Field label="Gallery URLs">
                 <Textarea value={draft.gallery_urls} onChange={event => update("gallery_urls", event.target.value)} placeholder="One image URL per line, or comma-separated URLs." />
               </Field>
             </>
           ) : null}
+          {/* The product's own page (Product URL) and the page it was captured from (Source Page). */}
+          <div className="grid gap-3 md:grid-cols-2">
+            <Field label="Product URL"><Input value={draft.product_url} onChange={event => update("product_url", event.target.value)} placeholder="https://vendor.com/product" /></Field>
+            <Field label="Source Page"><Input value={draft.source_url} onChange={event => update("source_url", event.target.value)} placeholder="Where it was captured from" /></Field>
+          </div>
           <div className="flex flex-wrap gap-3">
             <label className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-3 text-sm">
               <input type="checkbox" checked={draft.client_visible} onChange={event => update("client_visible", event.target.checked)} />
               Client visible
             </label>
             <label className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-3 text-sm">
+              <input type="checkbox" checked={draft.visible_to_contractor} onChange={event => update("visible_to_contractor", event.target.checked)} />
+              Contractor visible
+            </label>
+            <label className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-3 text-sm">
+              <input type="checkbox" checked={draft.visible_to_vendor} onChange={event => update("visible_to_vendor", event.target.checked)} />
+              Vendor visible
+            </label>
+            <label className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-3 text-sm">
               <input type="checkbox" checked={draft.client_approval_required} onChange={event => update("client_approval_required", event.target.checked)} />
               Approval required
             </label>
           </div>
-          <Field label="Description"><Textarea value={draft.description} onChange={event => update("description", event.target.value)} /></Field>
+          <Field label="Short Description"><Textarea value={draft.description} onChange={event => update("description", event.target.value)} placeholder="One or two lines shown on the card." /></Field>
+          <Field label="Long Description"><Textarea value={draft.long_description} onChange={event => update("long_description", event.target.value)} placeholder="Full details (shown in the card's expanded view)." /></Field>
+          <Field label="Features (one per line)"><Textarea value={draft.features} onChange={event => update("features", event.target.value)} placeholder={"Solid brass\nLifetime warranty"} /></Field>
           <Field label="Client Comments"><Textarea value={draft.client_comments} onChange={event => update("client_comments", event.target.value)} /></Field>
           <Field label="Internal Notes"><Textarea value={draft.internal_notes} onChange={event => update("internal_notes", event.target.value)} /></Field>
         </div>
@@ -518,6 +585,8 @@ export function OptionSelect({ value, options, placeholder, onChange }: { value:
   return (
     <Select value={value} onChange={event => onChange(event.target.value)}>
       {placeholder ? <option value="">{placeholder}</option> : null}
+      {/* Keep a value that isn't on the list (e.g. a category the Chrome extension read off a vendor page). */}
+      {value && !options.includes(value) ? <option value={value}>{value}</option> : null}
       {options.map(option => <option key={option} value={option}>{label(option)}</option>)}
     </Select>
   );

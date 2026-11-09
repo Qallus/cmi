@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { requireAdmin, AuthError } from "@/lib/auth/require-admin";
+import { extensionFieldsFromInput } from "@/lib/selections/normalize";
 
 function text(value: unknown) {
   const next = String(value || "").trim();
@@ -126,7 +127,9 @@ async function cleanSelection(supabase: ReturnType<typeof getSupabaseAdmin>, inp
     target_install_date: text(input.target_install_date),
     delivery_date: text(input.target_delivery_date),
     internal_notes: text(input.internal_notes),
-    metadata: input.metadata && typeof input.metadata === "object" ? input.metadata : {}
+    metadata: input.metadata && typeof input.metadata === "object" ? input.metadata : {},
+    // Chrome extension fields (eyebrow, SKU, model, features, source page, group, visibility).
+    ...extensionFieldsFromInput(input)
   };
 }
 

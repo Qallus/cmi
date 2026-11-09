@@ -73,6 +73,9 @@ export type ProjectSelection = {
   price?: number | null;
   source_url?: string | null;
   source_type?: string | null;
+  selection_group_id?: string | null;
+  visible_to_contractor?: boolean | null;
+  visible_to_vendor?: boolean | null;
   image_url: string | null;
   gallery_urls: string[];
   video_url: string | null;
@@ -131,4 +134,6 @@ export type SelectionsData = {
   staffUsers: SelectionOption[];
   vendors: SelectionOption[];
   subcontractors: SelectionOption[];
+  /** Selection groups (the extension's "Selection group"); sublabel is the job id for job groups. */
+  groups?: SelectionOption[];
 };

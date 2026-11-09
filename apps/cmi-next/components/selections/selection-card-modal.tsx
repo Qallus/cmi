@@ -1,8 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { X, ExternalLink, Check, Maximize2, Minimize2, MessageSquare } from "lucide-react";
+import { X, ExternalLink, Check, Maximize2, Minimize2 } from "lucide-react";
 import type { ProjectSelection, SelectionApprovalStatus } from "@/lib/selections/types";
+import { ClientResponse, type ClientAction } from "./client-response";
 
 function money(v: number | null | undefined): string | null {
   if (v == null || Number.isNaN(Number(v))) return null;
@@ -10,7 +11,8 @@ function money(v: number | null | undefined): string | null {
 }
 
 function features(sel: ProjectSelection): string[] {
-  if (Array.isArray(sel.features) && sel.features.length) return sel.features.map(String);
+  // Set (even emptied in the editor) wins; older extension cards only have the metadata copy.
+  if (Array.isArray(sel.features)) return sel.features.map(String);
   const meta = (sel as unknown as { metadata?: { features?: unknown } }).metadata;
   if (meta && Array.isArray(meta.features)) return meta.features.map(String);
   return [];
@@ -34,11 +36,10 @@ const STATUS_STYLE: Record<string, string> = {
 };
 
 export type SelectionDecision = {
-  /** Client may act (client_approval_required && status pending). */
-  canDecide: boolean;
   busy?: boolean;
-  onApprove: () => void;
-  onRequestChange: (comment: string) => void;
+  error?: string | null;
+  /** Client portal: approve, not approve, or comment. Resolves true when saved. */
+  onSubmit: (action: ClientAction, comment: string) => Promise<boolean>;
 };
 
 // Branded, client-ready Selection Card in an expandable modal. Mirrors the
@@ -56,8 +57,6 @@ export function SelectionCardModal({
 }) {
   const sel = selection;
   const [expanded, setExpanded] = React.useState(false);
-  const [askChange, setAskChange] = React.useState(false);
-  const [comment, setComment] = React.useState("");
 
   const price = money(sel.client_price ?? sel.price ?? sel.estimated_cost);
   const feats = features(sel);
@@ -195,49 +194,16 @@ export function SelectionCardModal({
             )}
           </div>
 
-          {/* Client decision */}
-          {decision?.canDecide && (
-            <div className="mt-5 border-t border-border pt-4">
-              {askChange ? (
-                <div className="space-y-2">
-                  <textarea
-                    value={comment}
-                    onChange={(e) => setComment(e.target.value)}
-                    rows={2}
-                    placeholder="What change would you like?"
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
-                  />
-                  <div className="flex justify-end gap-2">
-                    <button type="button" onClick={() => setAskChange(false)} className="rounded-lg border border-border px-3 py-1.5 text-sm font-medium transition hover:border-accent/40">Cancel</button>
-                    <button
-                      type="button"
-                      disabled={!comment.trim() || decision.busy}
-                      onClick={() => decision.onRequestChange(comment)}
-                      className="rounded-lg bg-accent px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-accent/90 disabled:opacity-60"
-                    >
-                      Send request
-                    </button>
-                  </div>
+          {/* Client portal: their notes so far, then Approve / Not approved / Comment */}
+          {decision && (
+            <div className="mt-5 space-y-3 border-t border-border pt-4">
+              {sel.client_comments ? (
+                <div className="rounded-lg bg-muted/50 px-3 py-2 text-xs">
+                  <div className="mb-1 font-semibold">Your notes</div>
+                  <p className="whitespace-pre-line text-muted-foreground">{sel.client_comments}</p>
                 </div>
-              ) : (
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    disabled={decision.busy}
-                    onClick={decision.onApprove}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-5 py-2 text-sm font-semibold text-white transition hover:bg-accent/90 disabled:opacity-60"
-                  >
-                    <Check className="h-4 w-4" /> Approve
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setAskChange(true); setComment(""); }}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-border px-5 py-2 text-sm font-semibold transition hover:border-accent/40"
-                  >
-                    <MessageSquare className="h-4 w-4" /> Not interested / request change
-                  </button>
-                </div>
-              )}
+              ) : null}
+              <ClientResponse selection={sel} busy={decision.busy} error={decision.error} onSubmit={decision.onSubmit} size="md" />
             </div>
           )}
         </div>

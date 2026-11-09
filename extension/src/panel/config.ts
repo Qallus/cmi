@@ -3,4 +3,4 @@
 // routed). Change here if the domain moves.
 export const API_BASE = "https://my.constructedmatter.com";
 export const AUTH_URL = `${API_BASE}/extension-auth`;
-export const EXTENSION_VERSION = "0.1.0";
+export const EXTENSION_VERSION = "0.1.1";

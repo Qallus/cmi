@@ -22,6 +22,8 @@ export async function loadSelectionsData({ withSelections = true }: { withSelect
     supabase.from("contacts").select("id, first_name, last_name, email, company, type").order("last_name", { ascending: true }).limit(500),
     supabase.from("staff_users").select("id, display_name, email, role_slug").order("display_name", { ascending: true }).limit(250)
   ]);
+  // Selection groups (the extension's "Selection group"). Optional: a missing table leaves the list empty.
+  const groups = await supabase.from("selection_groups").select("id, name, category, job_id").order("sort_order", { ascending: true }).limit(500);
 
   const error = products.error || selections.error || projects.error || tasks.error || contacts.error || staffUsers.error;
   if (error) throw error;
@@ -49,6 +51,8 @@ export async function loadSelectionsData({ withSelections = true }: { withSelect
       sublabel: row.role_slug
     })),
     vendors: contactOptions.filter(option => option.sublabel?.includes("Vendor")),
-    subcontractors: contactOptions.filter(option => option.sublabel?.includes("Sub Contractor"))
+    subcontractors: contactOptions.filter(option => option.sublabel?.includes("Sub Contractor")),
+    // sublabel carries the job id ("" for library groups) so a job's editor can narrow the list.
+    groups: (groups.data || []).map(row => ({ id: row.id, label: [row.name, row.category].filter(Boolean).join(" · ") || "Untitled group", sublabel: row.job_id ?? "" }))
   };
 }
