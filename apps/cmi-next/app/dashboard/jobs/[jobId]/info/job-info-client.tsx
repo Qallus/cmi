@@ -18,6 +18,11 @@ import { CONTRACT_TYPES, INSURANCE_STATUSES } from "@/lib/jobs/types";
 import { CLIENT_PERM_GROUPS, clientCan } from "@/lib/client-portal/permissions";
 import type { Job, JobWithRelations, JobType, JobGroup, JobStatus, JobContact, JobInternalUser, JobVendor, JobSettings, JobInsurance, ClientPermissions } from "@/lib/jobs/types";
 import { JobDetailNav } from "../job-detail-nav";
+import { CONDITION_GROUPS, INSPECTION_SCOPES, suggestJurisdiction, type InspectionScope } from "@/lib/inspections/conditions";
+import type { InspectionJurisdiction } from "@/lib/inspections/data";
+
+/** Inspection milestones on: the jurisdictions to pick from. Null hides the section. */
+type InspectionsProp = { jurisdictions: InspectionJurisdiction[] } | null;
 
 type TabKey = "details" | "clients" | "internal" | "vendors" | "advanced" | "insurance";
 const TABS: { key: TabKey; label: string }[] = [
@@ -30,7 +35,7 @@ type StaffOpt = { id: string; label: string; role: string };
 const input = "h-9 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-accent";
 
 
-export function JobInfoClient({ job, types, groups }: { job: JobWithRelations; types: JobType[]; groups: JobGroup[] }) {
+export function JobInfoClient({ job, types, groups, inspections = null }: { job: JobWithRelations; types: JobType[]; groups: JobGroup[]; inspections?: InspectionsProp }) {
   const [tab, setTab] = React.useState<TabKey>("details");
   const [contacts, setContacts] = React.useState<Contact[]>([]);
   const [staff, setStaff] = React.useState<StaffOpt[]>([]);
@@ -56,7 +61,7 @@ export function JobInfoClient({ job, types, groups }: { job: JobWithRelations; t
 
       <div className="flex-1 overflow-auto p-4 md:p-6">
         <div className="max-w-5xl">
-          {tab === "details" && <DetailsTab job={job} types={types} groups={groups} />}
+          {tab === "details" && <DetailsTab job={job} types={types} groups={groups} inspections={inspections} />}
           {tab === "clients" && <ClientsTab job={job} contacts={contacts} />}
           {tab === "internal" && <InternalTab job={job} staff={staff} />}
           {tab === "vendors" && <VendorsTab job={job} contacts={contacts} />}
@@ -78,13 +83,19 @@ function toDetails(job: Job) {
     projected_completion_date: job.projected_completion_date ?? "", actual_completion_date: job.actual_completion_date ?? "",
     square_feet: job.square_feet?.toString() ?? "", permit_number: job.permit_number ?? "", lot_info: job.lot_info ?? "",
     funded_by_construction_loan: !!job.funded_by_construction_loan, internal_notes: job.internal_notes ?? "", vendor_notes: job.vendor_notes ?? "",
+    jurisdiction_code: job.jurisdiction_code ?? "", inspection_scope: (job.inspection_scope ?? "") as InspectionScope | "",
+    inspection_conditions: job.inspection_conditions ?? [],
   };
 }
 
-function DetailsTab({ job, types, groups }: { job: JobWithRelations; types: JobType[]; groups: JobGroup[] }) {
+function DetailsTab({ job, types, groups, inspections }: { job: JobWithRelations; types: JobType[]; groups: JobGroup[]; inspections: InspectionsProp }) {
   const [d, setD] = React.useState(() => toDetails(job));
+  // The inspection fields are only sent while the feature is on (the columns arrive with its migration).
+  const { jurisdiction_code, inspection_scope, inspection_conditions, ...rest } = d;
   const saver = useJobAutoSaver(job.id, job.updated_at ?? null, () => ({
-    ...d, contract_price: d.contract_price ? Number(d.contract_price) : null, square_feet: d.square_feet ? Number(d.square_feet) : null,
+    ...rest,
+    ...(inspections ? { jurisdiction_code: jurisdiction_code || null, inspection_scope: inspection_scope || null, inspection_conditions } : {}),
+    contract_price: d.contract_price ? Number(d.contract_price) : null, square_feet: d.square_feet ? Number(d.square_feet) : null,
     contract_type: d.contract_type || null, job_type_id: d.job_type_id || null, job_group_id: d.job_group_id || null,
     projected_start_date: d.projected_start_date || null, actual_start_date: d.actual_start_date || null,
     projected_completion_date: d.projected_completion_date || null, actual_completion_date: d.actual_completion_date || null,
@@ -141,6 +152,11 @@ function DetailsTab({ job, types, groups }: { job: JobWithRelations; types: JobT
         <Field label="Notes for internal users" className="mt-3"><Textarea value={d.internal_notes} onChange={(e) => setD({ ...d, internal_notes: e.target.value })} /></Field>
         <Field label="Notes for subs / vendors" className="mt-3"><Textarea value={d.vendor_notes} onChange={(e) => setD({ ...d, vendor_notes: e.target.value })} /></Field>
       </Section>
+      {inspections ? (
+        <InspectionsSection jurisdictions={inspections.jurisdictions} city={d.city}
+          value={{ jurisdiction_code, inspection_scope, inspection_conditions }}
+          onChange={(patch) => setD({ ...d, ...patch })} />
+      ) : null}
       <AutoSaveBar saver={saver} onLoadTheirs={(row) => setD(toDetails(row as unknown as Job))} />
     </div>
   );
@@ -479,6 +495,77 @@ function SaveBar({ saving, msg, onSave }: { saving: boolean; msg: { ok: boolean;
 function Field({ label, className, children }: { label: string; className?: string; children: React.ReactNode }) {
   return <div className={cn("flex flex-col gap-1", className)}><label className="text-xs font-medium text-muted-foreground">{label}</label>{children}</div>;
 }
+// The job's inspection profile: which jurisdiction's inspection list applies, the
+// scope (NEW / ADD / REN) and the conditions that switch on "If …" inspections.
+function InspectionsSection({ jurisdictions, city, value, onChange }: {
+  jurisdictions: InspectionJurisdiction[];
+  city: string;
+  value: { jurisdiction_code: string; inspection_scope: InspectionScope | ""; inspection_conditions: string[] };
+  onChange: (patch: Partial<{ jurisdiction_code: string; inspection_scope: InspectionScope | ""; inspection_conditions: string[] }>) => void;
+}) {
+  const current = jurisdictions.find((j) => j.code === value.jurisdiction_code) ?? null;
+  const suggested = value.jurisdiction_code ? null : suggestJurisdiction(city);
+  const suggestedName = suggested ? jurisdictions.find((j) => j.code === suggested)?.name ?? null : null;
+  const has = new Set(value.inspection_conditions);
+  const toggle = (key: string) => onChange({ inspection_conditions: has.has(key) ? value.inspection_conditions.filter((k) => k !== key) : [...value.inspection_conditions, key] });
+  return (
+    <Section title="Inspections">
+      <p className="mb-3 text-xs text-muted-foreground">Picks this job&apos;s inspections from the inspection library. Jurisdiction goes by the parcel, not the mailing address: Phoenix and Scottsdale addresses can sit in unincorporated County, and Paradise Valley can carry a Phoenix or Scottsdale ZIP.</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Jurisdiction">
+          <Select value={value.jurisdiction_code} onChange={(e) => onChange({ jurisdiction_code: e.target.value })}>
+            <option value="">— Select —</option>
+            {jurisdictions.map((j) => <option key={j.code} value={j.code}>{j.name}</option>)}
+          </Select>
+          {suggestedName ? (
+            <button type="button" onClick={() => onChange({ jurisdiction_code: suggested! })} className="mt-1 text-xs font-medium text-accent hover:underline">
+              Use {suggestedName} (from the city; confirm by parcel)
+            </button>
+          ) : null}
+        </Field>
+        <div className="text-xs text-muted-foreground sm:pt-6">
+          {current ? (
+            <>
+              <div><span className="font-medium text-foreground">Request by:</span> {current.cutoff_label ?? "—"}</div>
+              {current.scheduling_method ? <div className="mt-0.5 line-clamp-2" title={current.scheduling_method}>{current.scheduling_method}</div> : null}
+            </>
+          ) : jurisdictions.length === 0 ? "The inspection library hasn't been loaded yet." : null}
+        </div>
+      </div>
+      <div className="mt-4">
+        <div className="mb-1.5 text-sm font-medium">Scope</div>
+        <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Scope">
+          {INSPECTION_SCOPES.map((s) => (
+            <button key={s.value} type="button" role="radio" aria-checked={value.inspection_scope === s.value}
+              onClick={() => onChange({ inspection_scope: value.inspection_scope === s.value ? "" : s.value })}
+              className={cn("rounded-md border px-3 py-2 text-left text-sm transition", value.inspection_scope === s.value ? "border-accent bg-accent/10" : "border-border hover:bg-muted")}>
+              <span className="block font-medium">{s.value} · {s.label}</span>
+              <span className="block text-[11px] text-muted-foreground">{s.hint}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="mt-4">
+        <div className="mb-1.5 text-sm font-medium">Conditions <span className="font-normal text-muted-foreground">(switch on the library&apos;s &ldquo;If …&rdquo; inspections)</span></div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {CONDITION_GROUPS.map((g) => (
+            <div key={g.label}>
+              <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{g.label}</div>
+              <div className="space-y-1">
+                {g.items.map((c) => (
+                  <label key={c.key} className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" checked={has.has(c.key)} onChange={() => toggle(c.key)} /> {c.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </Section>
+  );
+}
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return <div><div className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">{title}</div><div className="rounded-lg border border-border p-4">{children}</div></div>;
 }

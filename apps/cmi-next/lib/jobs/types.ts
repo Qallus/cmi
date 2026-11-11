@@ -70,6 +70,12 @@ export type Job = {
   square_feet: number | null;
   permit_number: string | null;
   lot_info: string | null;
+  // Inspection profile (2026-11-11_inspection_milestones.sql, behind inspection_milestones):
+  /** Building jurisdiction code (SCOT, PHX, …), by parcel. */
+  jurisdiction_code?: string | null;
+  inspection_scope?: "NEW" | "ADD" | "REN" | null;
+  /** Condition keys from lib/inspections/conditions.ts. */
+  inspection_conditions?: string[] | null;
   internal_notes: string | null;
   vendor_notes: string | null;
   next_action: string | null;

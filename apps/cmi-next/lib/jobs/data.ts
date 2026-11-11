@@ -6,6 +6,7 @@ import { opportunityStageToJobStatus } from "./status";
 import { jobTeamRole } from "./team-roles";
 import { linkOpportunityToJob } from "@/lib/projections/links";
 import { notifyJobTeamAdded } from "@/lib/notifications/assignments";
+import { cleanConditions } from "@/lib/inspections/conditions";
 import type {
   Job, JobDraft, JobType, JobGroup, JobContact, JobInternalUser, JobVendor,
   JobSettings, JobInsurance, JobWithRelations, JobStats, PriceSummary, JobStatus,
@@ -47,6 +48,13 @@ function fullAddress(d: Partial<Job>): string | null {
 function sanitize(draft: Partial<Job>): Partial<Job> {
   const clone = { ...draft } as Record<string, unknown>;
   delete clone.id; delete clone.job_number; delete clone.created_at; delete clone.updated_at; delete clone.archived_at;
+  // Inspection profile: blanks become null, unknown conditions are dropped.
+  if ("jurisdiction_code" in clone) clone.jurisdiction_code = String(clone.jurisdiction_code ?? "").trim().toUpperCase() || null;
+  if ("inspection_scope" in clone) {
+    const s = String(clone.inspection_scope ?? "").trim().toUpperCase();
+    clone.inspection_scope = s === "NEW" || s === "ADD" || s === "REN" ? s : null;
+  }
+  if ("inspection_conditions" in clone) clone.inspection_conditions = cleanConditions(clone.inspection_conditions);
   return clone as Partial<Job>;
 }
 
