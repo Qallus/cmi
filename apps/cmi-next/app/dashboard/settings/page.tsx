@@ -11,6 +11,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/server";
 import type { FeatureFlag } from "@/lib/flags";
 import { FeatureFlagsPanel } from "./features/feature-flags-panel";
 import { CalendarEditor } from "@/components/schedules/calendar-editor";
+import { InspectionSettingsPanel } from "@/components/inspections/inspection-settings-panel";
 import { SettingsTabs } from "./settings-tabs";
 
 export const metadata = { title: "Settings — CMI Dashboard" };
@@ -98,6 +99,16 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
             ? <CalendarEditor scope="company" />
             : <p className="text-sm text-muted-foreground">Turn on the schedule engine (Features → schedule_engine) to use work calendars.</p>}
         </CardContent>
+      </Card>
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle>Inspections</CardTitle>
+          <CardDescription>
+            The building jurisdictions jobs pick from, how each takes inspection requests and its next-day cutoff, and who can update an inspection&apos;s status. Claude can change these too.
+            {flags.some((f) => f.key === "inspection_milestones" && f.enabled) ? null : " Inspection milestones are off (Features → inspection_milestones); you can set these up first."}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-0"><InspectionSettingsPanel /></CardContent>
       </Card>
     </div>
   );

@@ -182,6 +182,23 @@ without the PM reviewing and confirming it first. The content still needs a conv
 - **Content:** what each partner sees (their tasks only, dates, linked inspections, notes) is decided
   with Joe before any of this is built.
 
+## Decisions (Nov 11, 2026)
+
+Brandon answered the first three open questions, and they are built:
+
+- **Cutoffs are set in the dashboard.** They live in Settings → Scheduling → Inspections, along with how
+  each jurisdiction takes requests, phone, portal, hours, notes and the last-verified date. Chandler,
+  Cave Creek, Carefree and Mesa show "Cutoff to confirm" until someone enters them. Claude can edit
+  them too, through `cmi_inspection_jurisdiction_save`.
+- **Both PMs and Superintendents update inspection status.** The roles are controlled by Super Admins
+  in the same card (`inspection_settings.status_editor_roles`; Super Admin and Admin always can).
+  Step 4 checks this with `mayUpdateInspectionStatus`. Claude can read and change it through
+  `cmi_inspection_settings` and `cmi_inspection_settings_update`.
+- **Jurisdictions come from a list per job.** The list is edited in the dashboard: add, edit, or retire
+  with `active`. Claude can change it, and can set a job's profile with `cmi_job_inspection_profile`.
+- **Migration:** `2026-11-11_inspection_settings.sql`. Run it after the milestones migration and its
+  seed.
+
 ## Open questions
 
 1. **Cutoffs to confirm:** Chandler, Cave Creek and Carefree next-day cutoffs, and Mesa's exact cutoff.

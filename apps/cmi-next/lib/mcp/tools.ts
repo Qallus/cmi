@@ -22,6 +22,7 @@ import { opsTools } from "./tools-ops";
 import { financeTools } from "./tools-finance";
 import { siteTools } from "./tools-site";
 import { selectionTools } from "./tools-selections";
+import { inspectionTools } from "./tools-inspections";
 
 export type Json = Record<string, unknown>;
 export type ToolOutput = {
@@ -304,6 +305,7 @@ export const MCP_TOOLS: McpTool[] = [
   ...financeTools(),
   ...siteTools(),
   ...selectionTools(),
+  ...inspectionTools(),
 ];
 
 /** The tools this caller may see and call: available to them, and within their app's tiers. */
