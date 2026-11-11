@@ -352,7 +352,23 @@ export function PipelineDealsClient({
     return `${json.error ?? "Could not change stage."}${missing}`;
   }, [refresh]);
 
-  const cellEdit: CellEdit = { patch: patchDeal, setStage: setDealStage, canWrite };
+  /**
+   * Number and name go through their own route, which keeps the title's
+   * leading number in step, refuses a number another deal or Pre-Con project
+   * holds, and logs the correction on the deal.
+   */
+  const renameDeal = React.useCallback(async (id: string, jobNumber: string, name: string): Promise<string | null> => {
+    const res = await fetch(`/api/deals/${id}/number`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ job_number: jobNumber, name }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok || !json.deal) return json.error ?? "Could not save.";
+    setDeals((list) => list.map((d) => (d.id === id ? { ...d, ...json.deal } : d)));
+    return null;
+  }, []);
+
+  const cellEdit: CellEdit = { patch: patchDeal, setStage: setDealStage, rename: renameDeal, canWrite };
 
   const selection: Selection = {
     ids: selected, toggleOne, toggleAll,
@@ -783,8 +799,17 @@ function TableView({ deals, ownerName, onOpen, renderActions, reorder, sortState
               <tr key={d.id} className="group/row transition hover:bg-muted/20">
                 <RowCheck id={d.id} selection={selection} />
                 {reorder && <td className="border-b border-border px-2 py-1"><ReorderCell id={d.id} index={i} reorder={reorder} /></td>}
-                <td className={cn(td, "px-2 font-mono text-[11px] text-muted-foreground")}>{d.job_number ?? "—"}</td>
-                <td className={td}><SheetInput {...base} col={0} label={`Deal name, ${d.title}`} value={d.title ?? ""} save={async (raw) => (raw.trim() ? edit.patch(d.id, { title: raw.trim() }) : "A deal needs a name.")} /></td>
+                {/* Number and name edit separately but save together, keeping the title's leading number in step. */}
+                <td className={cn(td, "font-mono text-[11px]")}>
+                  {edit.rename && d.job_number
+                    ? <SheetInput {...base} col={12} label={`Job number, ${d.title}`} value={d.job_number} save={(raw) => edit.rename!(d.id, raw.trim(), dealName(d))} placeholder="26_058" />
+                    : <span className="px-2 text-muted-foreground">{d.job_number ?? "—"}</span>}
+                </td>
+                <td className={td}>
+                  {edit.rename && d.job_number
+                    ? <SheetInput {...base} col={0} label={`Deal name, ${d.title}`} value={dealName(d)} save={async (raw) => (raw.trim() ? edit.rename!(d.id, d.job_number!, raw.trim()) : "A deal needs a name.")} />
+                    : <SheetInput {...base} col={0} label={`Deal name, ${d.title}`} value={d.title ?? ""} save={async (raw) => (raw.trim() ? edit.patch(d.id, { title: raw.trim() }) : "A deal needs a name.")} />}
+                </td>
                 {show("stage") && <td className={td}><SheetSelect {...base} col={1} label="Stage" value={d.stage} options={STAGE_OPTIONS} save={(raw) => edit.setStage(d.id, raw as DealStage)} /></td>}
                 {show("owner") && <td className={td}>{ro ? <span className="px-2 text-muted-foreground">{ownerName(d.owner_id)}</span> : <SheetSelect {...base} col={2} label="Owner" value={d.owner_id ?? ""} options={ownerOptions} save={(raw) => edit.patch(d.id, { owner_id: raw || null })} />}</td>}
                 {show("job_type") && <td className={td}><SheetSelect {...base} col={3} label="Job type" value={d.job_type ?? ""} options={JOB_TYPE_OPTIONS} save={(raw) => edit.patch(d.id, { job_type: raw || null })} /></td>}

@@ -23,6 +23,7 @@ import { DEAL_STAGE_META, DEAL_STAGES, DEAL_STAGE_CHECKLIST, LOST_REASONS, DEAL_
 import { PIPELINE_ORDER_KEY } from "@/lib/deals/order";
 import { CONTACT_TYPES } from "@/lib/contacts/types";
 import { DealContactsCard } from "./deal-contacts-card";
+import { DealTitleEditor } from "./deal-title-editor";
 import { ProjectionLinkButton } from "@/components/projections/projection-link-button";
 import type { Activity, ActivityType, Deal, DealChecklistItem, DealChecklistProgress, DealStage, DealStageHistoryRow, DealTask } from "@/lib/deals/types";
 
@@ -352,7 +353,7 @@ export function DealDetailClient({
             <span className="grid h-10 w-10 place-items-center rounded-lg bg-accent/15 text-accent"><FolderKanban className="h-5 w-5" /></span>
             <div>
               <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Deal</div>
-              <h1 className="font-display text-2xl font-semibold">{deal.title}</h1>
+              <DealTitleEditor deal={deal} canWrite={canWrite} onSaved={(d) => { setDeal(d); void refresh(); }} />
             </div>
           </div>
           <div className="flex items-center gap-2">

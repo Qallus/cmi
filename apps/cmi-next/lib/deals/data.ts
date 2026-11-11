@@ -8,6 +8,7 @@ import { linkDealToOpportunity } from "@/lib/projections/links";
 import { geocodeAddress } from "@/lib/jobs/geocode";
 import { notifyDealOwner, notifyTaskAssignee } from "@/lib/notifications/assignments";
 import { requiredFieldsForStage, DEAL_STAGE_META } from "./stages";
+import { isPipelineNumber, nameFromTitle, titleFor } from "./numbering";
 import type {
   Actor, Activity, ActivityDraft, Deal, DealChecklistItem, DealChecklistProgress, DealDraft, DealSourceType,
   DealStage, DealStageHistoryRow, DealTask, DealTaskDraft,
@@ -93,6 +94,74 @@ export async function updateDeal(id: string, patch: Partial<DealDraft>, actor?: 
   const updated = data as Deal;
   if (previousOwner !== undefined) await notifyDealOwner(updated, actor?.id, previousOwner);
   return updated;
+}
+
+export class DealRenameError extends Error {
+  constructor(message: string, public status = 400) { super(message); }
+}
+
+/**
+ * Correct a deal's pipeline number and name together (title = "26_058_Name",
+ * deals.job_number = "26_058"). The number must be YY_### and not belong to
+ * another deal or Pre-Con record; the counter is moved past it so it is never
+ * issued again. A linked Pre-Con record carrying the old number is renumbered
+ * too. A Job already made from it keeps its own name, which is returned so the
+ * screen can say so. The change is logged on the deal's timeline.
+ */
+export async function renameDeal(
+  id: string,
+  input: { job_number: string; name: string },
+  actor?: Actor,
+): Promise<{ deal: Deal; job: { id: string; job_name: string } | null }> {
+  const supabase = getSupabaseAdmin();
+  const number = String(input.job_number ?? "").trim();
+  const name = nameFromTitle(String(input.name ?? ""));
+  if (!isPipelineNumber(number)) throw new DealRenameError("The number must look like 26_058 (two-digit year, underscore, three digits).");
+  if (!name) throw new DealRenameError("Add a name after the number.");
+
+  const { data: current, error: readErr } = await supabase.from("deals").select("id, title, job_number, opportunity_id").eq("id", id).maybeSingle();
+  if (readErr) throw new Error(readErr.message);
+  if (!current) throw new DealRenameError("Deal not found.", 404);
+
+  if (number !== current.job_number) {
+    const [{ data: otherDeal }, { data: otherOpp }] = await Promise.all([
+      supabase.from("deals").select("id, title").eq("job_number", number).neq("id", id).limit(1).maybeSingle(),
+      supabase.from("pipeline_opportunities").select("id, opportunity_name").eq("job_number", number).limit(1).maybeSingle(),
+    ]);
+    if (otherDeal) throw new DealRenameError(`${number} is already used by “${otherDeal.title}”.`, 409);
+    if (otherOpp && otherOpp.id !== current.opportunity_id) throw new DealRenameError(`${number} is already used by the Pre-Con project “${otherOpp.opportunity_name}”.`, 409);
+  }
+
+  const title = titleFor(number, name);
+  const { data, error } = await supabase.from("deals")
+    .update({ job_number: number, title, ...(actor?.id ? { updated_by: actor.id } : {}) })
+    .eq("id", id).select().single();
+  if (error) throw new Error(error.message);
+  // Hand-set numbers move the counter past them, like typed ones (see 2026-10-30_pipeline_numbers.sql).
+  await supabase.rpc("note_pipeline_number", { num: number });
+
+  // The Pre-Con record made from this deal shares its number.
+  let job: { id: string; job_name: string } | null = null;
+  if (current.opportunity_id) {
+    const { data: opp } = await supabase.from("pipeline_opportunities").select("id, job_number, opportunity_name").eq("id", current.opportunity_id).maybeSingle();
+    if (opp && (opp.job_number === current.job_number || !opp.job_number)) {
+      await supabase.from("pipeline_opportunities")
+        .update({ job_number: number, opportunity_name: titleFor(number, opp.opportunity_name ?? name) })
+        .eq("id", opp.id);
+    }
+    const { data: linkedJob } = await supabase.from("jobs").select("id, job_name").eq("related_opportunity_id", current.opportunity_id).is("archived_at", null).maybeSingle();
+    job = (linkedJob as { id: string; job_name: string } | null) ?? null;
+  }
+
+  const changes = [
+    current.job_number !== number ? `number ${current.job_number ?? "(none)"} → ${number}` : null,
+    current.title !== title ? `name “${current.title}” → “${title}”` : null,
+  ].filter(Boolean);
+  if (changes.length) {
+    await logActivity({ type: "note", deal_id: id, summary: "Deal number / name corrected", body: `Changed ${changes.join(" and ")}.`, metadata: { from_number: current.job_number, to_number: number, from_title: current.title, to_title: title } }, actor)
+      .catch(() => undefined);
+  }
+  return { deal: data as Deal, job };
 }
 
 /**

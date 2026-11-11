@@ -18,6 +18,8 @@ export type OwnerOption = { id: string; name: string };
 export type CellEdit = {
   patch: (id: string, patch: Partial<Deal>) => Promise<string | null>;
   setStage: (id: string, to: DealStage) => Promise<string | null>;
+  /** Number and name together (title "26_058_Name"), through the checked rename route. */
+  rename?: (id: string, jobNumber: string, name: string) => Promise<string | null>;
   canWrite: boolean;
 };
 
