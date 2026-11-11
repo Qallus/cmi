@@ -6,13 +6,19 @@ import type { ProjectSelection } from "@/lib/selections/types";
 import { SelectionCardModal } from "@/components/selections/selection-card-modal";
 import { ClientResponse, type ClientAction } from "@/components/selections/client-response";
 import { money, humanize } from "../../../portal-ui";
+import type { ClientThreadEntry } from "@/lib/selection-comments/data";
 
 const APPROVAL_TONE: Record<string, "default" | "info" | "warning" | "success" | "danger"> = {
   not_required: "default", pending: "warning", approved: "success", rejected: "danger", revision_requested: "danger", approved_with_changes: "success",
 };
 const APPROVAL_LABEL: Record<string, string> = { pending: "Needs your approval", rejected: "Not approved", revision_requested: "Change requested" };
 
-export function SelectionsClient({ jobId, initial }: { jobId: string; initial: ProjectSelection[] }) {
+export function SelectionsClient({ jobId, initial, threads: initialThreads = null }: {
+  jobId: string; initial: ProjectSelection[];
+  /** Each selection's conversation with the team; null before the comments update (then the old notes show). */
+  threads?: Record<string, ClientThreadEntry[]> | null;
+}) {
+  const [threads, setThreads] = React.useState(initialThreads);
   const [rows, setRows] = React.useState<ProjectSelection[]>(initial);
   const [busy, setBusy] = React.useState<string | null>(null);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
@@ -30,6 +36,7 @@ export function SelectionsClient({ jobId, initial }: { jobId: string; initial: P
       const j = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(j.error || "That didn't save. Please try again.");
       setRows((r) => r.map((x) => (x.id === sel.id ? j : x)));
+      setThreads((t) => (t ? { ...t, [sel.id]: [...(t[sel.id] ?? []), { author_kind: "client", author_name: "You", action, body: comment || null, created_at: new Date().toISOString() }] } : t));
       return true;
     } catch (e) {
       setErrors((x) => ({ ...x, [sel.id]: e instanceof Error ? e.message : "That didn't save. Please try again." }));
@@ -71,7 +78,7 @@ export function SelectionsClient({ jobId, initial }: { jobId: string; initial: P
                     {s.allowance_amount != null && <span className="text-muted-foreground">Allowance: {money(s.allowance_amount)}</span>}
                     {s.product_url && <a href={s.product_url} target="_blank" rel="noreferrer" className="text-accent hover:underline">View product</a>}
                   </div>
-                  {s.client_comments && (
+                  {threads ? <Conversation entries={threads[s.id] ?? []} /> : s.client_comments && (
                     <div className="mt-3 rounded-md bg-muted/50 px-3 py-2 text-xs">
                       <div className="mb-0.5 font-medium">Your notes</div>
                       <p className="whitespace-pre-line text-muted-foreground">{s.client_comments}</p>
@@ -94,6 +101,27 @@ export function SelectionsClient({ jobId, initial }: { jobId: string; initial: P
           decision={{ busy: busy === viewing.id, error: errors[viewing.id] || null, onSubmit: (action, comment) => respond(viewing, action, comment) }}
         />
       )}
+    </div>
+  );
+}
+
+const ACTION_WORD: Record<string, string> = { approved: "Approved", rejected: "Not approved", revision_requested: "Asked for a change" };
+
+// Your notes and the team's replies, oldest first.
+function Conversation({ entries }: { entries: ClientThreadEntry[] }) {
+  if (!entries.length) return null;
+  return (
+    <div className="mt-3 space-y-1.5 rounded-md bg-muted/50 px-3 py-2 text-xs">
+      <div className="font-medium">Conversation</div>
+      {entries.map((e, i) => (
+        <div key={i} className={e.author_kind === "staff" ? "border-l-2 border-accent pl-2" : ""}>
+          <div className="text-[11px] text-muted-foreground">
+            <span className="font-semibold text-foreground">{e.author_kind === "staff" ? ` · CMI` : "You"}</span>
+            {ACTION_WORD[e.action] ? ` · ${ACTION_WORD[e.action]}` : ""} · {new Date(e.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+          </div>
+          {e.body && <p className="whitespace-pre-line break-words text-muted-foreground">{e.body}</p>}
+        </div>
+      ))}
     </div>
   );
 }

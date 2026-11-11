@@ -36,7 +36,7 @@ export async function loadJobSelections(jobId: string): Promise<ProjectSelection
 }
 
 // Is this selection on the job, directly or through an association row?
-async function selectionOnJob(selId: string, jobId: string): Promise<boolean> {
+export async function selectionOnJob(selId: string, jobId: string): Promise<boolean> {
   const sb = getSupabaseAdmin();
   const [direct, assoc] = await Promise.all([
     sb.from("project_selections").select("id").eq("id", selId).eq("job_id", jobId).maybeSingle(),
@@ -130,6 +130,9 @@ export async function clientDecideSelection(
   const nowDate = new Date();
   const now = nowDate.toISOString();
   const note = comment?.trim() || null;
+  // The thread row first: it imports the old text before the new note is added to it.
+  const { addClientComment } = await import("@/lib/selection-comments/data");
+  await addClientComment(selId, jobId, who, action, note);
   const patch: Record<string, unknown> = { updated_at: now };
   if (note) patch.client_comments = appendClientComment(current.client_comments, note, who.name, nowDate);
   if (action === "approved") Object.assign(patch, { approval_status: "approved", client_approval_status: "approved", client_approved_at: now, selection_status: "client_approved" });
@@ -142,14 +145,14 @@ export async function clientDecideSelection(
   const title = `${who.name} ${ACTION_WORD[action]} ${current.name ?? "a selection"}`;
   await sb.from("selection_activity").insert({ selection_id: selId, action: `client.${action}`, description: note ? `${title}: ${note}` : title, metadata: { contact_id: who.id, job_id: jobId } })
     .then(() => undefined, () => undefined);
-  try {
-    const { jobTeamRecipients } = await import("@/lib/jobs/data");
-    const { notifyStaff } = await import("@/lib/notifications/dispatch");
-    await notifyStaff({
-      recipientIds: await jobTeamRecipients(jobId), actorId: null,
-      kind: "selection_client_response", title, body: note,
-      url: `/dashboard/jobs/${jobId}/selections`, sourceTable: "project_selections", sourceId: selId,
-    });
-  } catch (err) { console.error("[selections] client response notify failed", err); }
+  // The team, the PM (even if muted) or else admins: bell, push and email.
+  const { notifyClientActivity } = await import("@/lib/notifications/client-activity");
+  await notifyClientActivity({
+    jobId, kind: "selection_client_response", title, note,
+    url: `/dashboard/jobs/${jobId}/selections?sel=${selId}&comments=1`, sourceTable: "project_selections", sourceId: selId,
+    label: action === "comment" ? "Selection comment" : "Selection decision",
+    facts: [{ label: "Selection", value: current.name ?? "Selection" }],
+    ctaLabel: "Open the selection",
+  });
   return data as ProjectSelection;
 }

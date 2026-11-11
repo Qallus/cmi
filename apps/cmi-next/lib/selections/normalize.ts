@@ -9,7 +9,8 @@ const TEXT = [
   "custom_product_name", "description", "size", "finish", "colors", "image_url", "video_url", "spec_sheet_url",
   "product_url", "vendor_id", "vendor_name", "subcontractor_id", "subcontractor_name", "designer_user_id",
   "designer_name", "related_task_id", "unit", "target_decision_date", "target_order_date", "target_delivery_date",
-  "target_install_date", "client_comments", "internal_notes",
+  // client_comments is not here: it's the client's own text, never overwritten by a staff save.
+  "target_install_date", "internal_notes",
   // Captured by the Chrome extension too.
   "eyebrow", "manufacturer", "sku", "model_number", "long_description", "source_url", "selection_group_id",
 ] as const;

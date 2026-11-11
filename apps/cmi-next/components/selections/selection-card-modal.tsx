@@ -51,10 +51,13 @@ export function SelectionCardModal({
   selection,
   onClose,
   decision,
+  staffComments,
 }: {
   selection: ProjectSelection;
   onClose: () => void;
   decision?: SelectionDecision;
+  /** Staff view: the client ↔ team thread under the card. */
+  staffComments?: React.ReactNode;
 }) {
   const sel = selection;
   const [expanded, setExpanded] = React.useState(false);
@@ -206,6 +209,13 @@ export function SelectionCardModal({
               </a>
             )}
           </div>
+
+          {staffComments && (
+            <div className="mt-5 border-t border-border pt-4">
+              <div className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Client comments</div>
+              {staffComments}
+            </div>
+          )}
 
           {/* Client portal: their notes so far, then Approve / Not approved / Comment */}
           {decision && (

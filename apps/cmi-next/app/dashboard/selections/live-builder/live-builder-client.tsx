@@ -202,9 +202,12 @@ export function LiveBuilderClient({ vendors, jobs, projects, initialJobId = "" }
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-3">
-          <Link href="/dashboard/selections" className="text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /></Link>
+          {/* Opened from a job ("Create New" on its Selections tab): back returns to that job, not the library. */}
+          <Link href={initialJobId ? `/dashboard/jobs/${initialJobId}/selections` : "/dashboard/selections"}
+            title={initialJobId ? "Back to the job's selections" : "Back to Selections"} aria-label={initialJobId ? "Back to the job's selections" : "Back to Selections"}
+            className="text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /></Link>
           <div>
-            <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Selections</div>
+            <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">{initialJobId ? "Job selections" : "Selections"}</div>
             <h1 className="font-display text-lg font-semibold tracking-tight">Live Selection Builder</h1>
           </div>
         </div>

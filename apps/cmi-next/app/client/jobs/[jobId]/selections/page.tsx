@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { verifyClientJob, getJobPerms } from "@/lib/client-portal/auth";
 import { loadClientJobSelections } from "@/lib/job-selections/data";
 import { SelectionsClient } from "./selections-client";
+import { clientThreads } from "@/lib/selection-comments/data";
 import { clientCan } from "@/lib/client-portal/permissions";
 
 export const dynamic = "force-dynamic";
@@ -13,5 +14,7 @@ export default async function ClientSelectionsPage({ params }: { params: Promise
   const perms = await getJobPerms(contact.id, jobId);
   if (!clientCan(perms, "locked_selections")) redirect(`/client/jobs/${jobId}`);
   const selections = await loadClientJobSelections(jobId);
-  return <SelectionsClient jobId={jobId} initial={selections} />;
+  // Their notes and the team's replies, per selection (null before the comments update is applied).
+  const threads = await clientThreads(jobId, selections).catch(() => null);
+  return <SelectionsClient jobId={jobId} initial={selections} threads={threads} />;
 }

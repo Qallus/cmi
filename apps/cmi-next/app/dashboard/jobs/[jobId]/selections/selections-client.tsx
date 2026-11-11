@@ -2,7 +2,9 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { CalendarDays, CheckCircle2, Columns3, Copy, Download, FileText, Image as ImageIcon, Layers, LayoutGrid, List as ListIcon, Loader2, Pencil, Plus, Search, Sparkles, Table as TableIcon, Trash2 } from "lucide-react";
+import { CalendarDays, CheckCircle2, Columns3, Copy, Download, FileText, Image as ImageIcon, Layers, LayoutGrid, List as ListIcon, Loader2, MessageSquare, Pencil, Plus, Search, Sparkles, Table as TableIcon, Trash2 } from "lucide-react";
+import { CommentsButton, LatestComment, SelectionCommentsPanel, SelectionCommentsThread } from "@/components/selections/selection-comments";
+import type { CommentSummary } from "@/lib/selection-comments/thread";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { Product, ProjectSelection, SelectionsData } from "@/lib/selections/types";
@@ -15,12 +17,20 @@ const APPROVAL_TONE: Record<string, "default" | "warning" | "success" | "danger"
 
 type FormData = Pick<SelectionsData, "projects" | "contacts" | "subcontractors" | "staffUsers" | "tasks" | "groups">;
 
-export function StaffSelectionsClient({ jobId, jobName, initial, products = [], formData }: {
+export function StaffSelectionsClient({ jobId, jobName, initial, products = [], formData, commentSummaries = {}, openSelectionId = null, openComments = false }: {
   jobId: string; jobName: string; initial: ProjectSelection[];
   /** Catalog products and pick lists for the editor (the same one the Selections page uses). */
   products?: Product[]; formData: FormData;
+  /** Client ↔ team comment counts per selection (lib/selection-comments). */
+  commentSummaries?: Record<string, CommentSummary>;
+  /** From ?sel=<id>&comments=1: open that selection's comments (or its card) on arrival. */
+  openSelectionId?: string | null; openComments?: boolean;
 }) {
   const [rows, setRows] = React.useState<ProjectSelection[]>(initial);
+  const [summaries, setSummaries] = React.useState<Record<string, CommentSummary>>(commentSummaries);
+  const [commentsFor, setCommentsFor] = React.useState<ProjectSelection | null>(() => (openSelectionId && openComments ? initial.find((r) => r.id === openSelectionId) ?? null : null));
+  const openTotal = Object.values(summaries).reduce((n, s) => n + (s.open ?? 0), 0);
+  const setSummary = React.useCallback((id: string, s: CommentSummary) => setSummaries((m) => ({ ...m, [id]: s })), []);
   // The draft being edited in the slide-out (an id means it's an existing selection).
   const [draft, setDraft] = React.useState<SelectionDraft | null>(null);
   const [saving, setSaving] = React.useState(false);
@@ -32,7 +42,7 @@ export function StaffSelectionsClient({ jobId, jobName, initial, products = [], 
   const [existingSearch, setExistingSearch] = React.useState("");
   const [picked, setPicked] = React.useState<Set<string>>(new Set());
   const [attaching, setAttaching] = React.useState(false);
-  const [viewing, setViewing] = React.useState<ProjectSelection | null>(null);
+  const [viewing, setViewing] = React.useState<ProjectSelection | null>(() => (openSelectionId && !openComments ? initial.find((r) => r.id === openSelectionId) ?? null : null));
   const [view, setView] = React.useState<"list" | "table" | "kanban" | "cards" | "calendar">("table");
 
   const onJob = React.useMemo(() => new Set(rows.map((r) => r.id)), [rows]);
@@ -106,7 +116,20 @@ export function StaffSelectionsClient({ jobId, jobName, initial, products = [], 
 
   return (
     <JobModuleShell jobId={jobId} jobName={jobName} active="selections" title="Selections">
-      {viewing && <SelectionCardModal selection={viewing} onClose={() => setViewing(null)} />}
+      {viewing && (
+        <SelectionCardModal selection={viewing} onClose={() => setViewing(null)}
+          staffComments={<SelectionCommentsThread jobId={jobId} selectionId={viewing.id} compact onChanged={(s) => setSummary(viewing.id, s)} />} />
+      )}
+      {commentsFor && (
+        <SelectionCommentsPanel jobId={jobId} selection={commentsFor} onClose={() => setCommentsFor(null)} onChanged={(s) => setSummary(commentsFor.id, s)} />
+      )}
+      {openTotal > 0 && (
+        <button type="button" onClick={() => { const first = rows.find((r) => (summaries[r.id]?.open ?? 0) > 0); if (first) setCommentsFor(first); }}
+          className="mb-3 flex w-full items-center gap-2 rounded-lg border border-accent/50 bg-accent/10 px-3 py-2 text-left text-sm hover:bg-accent/15">
+          <MessageSquare className="h-4 w-4 shrink-0 fill-current text-accent" />
+          <span><strong>{openTotal} new client comment{openTotal === 1 ? "" : "s"}</strong> on {rows.filter((r) => (summaries[r.id]?.open ?? 0) > 0).length} selection{rows.filter((r) => (summaries[r.id]?.open ?? 0) > 0).length === 1 ? "" : "s"}. Open to read and reply.</span>
+        </button>
+      )}
 
       {/* View toolbar. Add / Create sit beside the view switcher so they stay
           in one place whether the job nav is a top bar or the side rail. */}
@@ -128,7 +151,8 @@ export function StaffSelectionsClient({ jobId, jobName, initial, products = [], 
       {rows.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted-foreground">No selections yet.</div>
       ) : (() => {
-        const a: SelActions = { onView: setViewing, onEdit: openEdit, onDuplicate: (s) => void duplicate(s), onDelete: (s) => void remove(s.id), onCsv: csvOne, onPrint: printOne };
+        const a: SelActions = { onView: setViewing, onEdit: openEdit, onDuplicate: (s) => void duplicate(s), onDelete: (s) => void remove(s.id), onCsv: csvOne, onPrint: printOne,
+          onComments: setCommentsFor, summary: (s) => summaries[s.id] };
         if (view === "list") return <SelList rows={rows} a={a} />;
         if (view === "kanban") return <SelKanban rows={rows} a={a} />;
         if (view === "cards") return <SelCards rows={rows} a={a} />;
@@ -138,7 +162,7 @@ export function StaffSelectionsClient({ jobId, jobName, initial, products = [], 
 
       {/* Same editor as the Selections page: every field, media uploads, slides in from the right. */}
       {draft && (
-        <SelectionEditor data={formData} products={products} draft={draft} saving={saving} error={error}
+        <SelectionEditor data={formData} products={products} draft={draft} saving={saving} error={error} commentsJobId={jobId}
           onChange={setDraft} onClose={() => setDraft(null)} onSave={(d) => void save(d)} />
       )}
 
@@ -211,6 +235,8 @@ type SelActions = {
   onDelete: (s: ProjectSelection) => void;
   onCsv: (s: ProjectSelection) => void;
   onPrint: (s: ProjectSelection) => void;
+  onComments: (s: ProjectSelection) => void;
+  summary: (s: ProjectSelection) => CommentSummary | undefined;
 };
 
 function esc(v: unknown) { return String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
@@ -251,6 +277,7 @@ function RowActions({ s, a }: { s: ProjectSelection; a: SelActions }) {
   const btn = "rounded p-1 text-muted-foreground transition";
   return (
     <div className="flex shrink-0 items-center gap-0.5">
+      <CommentsButton summary={a.summary(s)} onClick={() => a.onComments(s)} />
       <button type="button" title="Edit" onClick={() => a.onEdit(s)} className={`${btn} hover:text-foreground`}><Pencil className="h-3.5 w-3.5" /></button>
       <button type="button" title="Duplicate" onClick={() => a.onDuplicate(s)} className={`${btn} hover:text-accent`}><Copy className="h-3.5 w-3.5" /></button>
       <button type="button" title="Download CSV" onClick={() => a.onCsv(s)} className={`${btn} hover:text-foreground`}><Download className="h-3.5 w-3.5" /></button>
@@ -285,6 +312,11 @@ function SelList({ rows, a }: { rows: ProjectSelection[]; a: SelActions }) {
           <div className="min-w-0 flex-1">
             <button type="button" onClick={() => a.onView(s)} className="block max-w-full truncate text-left font-medium hover:text-accent hover:underline">{s.name}</button>
             <div className="truncate text-xs text-muted-foreground">{[s.vendor_name, s.category, s.room_area_name].filter(Boolean).join(" · ") || "—"}</div>
+            {a.summary(s)?.latest && (
+              <button type="button" onClick={() => a.onComments(s)} className={`mt-0.5 block max-w-full truncate text-left text-xs ${(a.summary(s)?.open ?? 0) > 0 ? "font-medium text-accent" : "text-muted-foreground"} hover:underline`}>
+                💬 {a.summary(s)!.latest!.author_name ?? "Client"}: {a.summary(s)!.latest!.body ?? "No note"}
+              </button>
+            )}
           </div>
           <div className="hidden w-24 shrink-0 text-right text-sm font-semibold sm:block">{money(s.client_price)}</div>
           <div className="hidden shrink-0 md:block"><ApprovalPill s={s} /></div>
@@ -300,7 +332,7 @@ function SelTable({ rows, a }: { rows: ProjectSelection[]; a: SelActions }) {
     <div className="overflow-x-auto rounded-lg border border-border">
       <table className="w-full min-w-[820px] border-collapse text-sm">
         <thead className="bg-muted/40"><tr className="border-b border-border text-left">
-          {["Selection", "Room", "Category", "Client Price", "Approval", "Client", "Actions"].map((h) => <th key={h} className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">{h}</th>)}
+          {["Selection", "Room", "Category", "Client Price", "Approval", "Client", "Latest comment", "Actions"].map((h) => <th key={h} className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">{h}</th>)}
         </tr></thead>
         <tbody className="divide-y divide-border">
           {rows.map((s) => (
@@ -311,6 +343,7 @@ function SelTable({ rows, a }: { rows: ProjectSelection[]; a: SelActions }) {
               <td className="px-4 py-3">{money(s.client_price)}</td>
               <td className="px-4 py-3"><ApprovalPill s={s} /></td>
               <td className="px-4 py-3">{s.client_visible ? <Badge tone="success">Visible</Badge> : <span className="text-xs text-muted-foreground">Hidden</span>}</td>
+              <td className="w-64 max-w-[16rem] px-4 py-3">{a.summary(s)?.latest ? <LatestComment summary={a.summary(s)} onClick={() => a.onComments(s)} /> : <span className="text-xs text-muted-foreground">—</span>}</td>
               <td className="px-4 py-3"><RowActions s={s} a={a} /></td>
             </tr>
           ))}
@@ -341,6 +374,7 @@ function SelCards({ rows, a }: { rows: ProjectSelection[]; a: SelActions }) {
               <span className="text-sm font-semibold">{money(s.client_price)}</span>
               <ApprovalPill s={s} />
             </div>
+            <LatestComment summary={a.summary(s)} onClick={() => a.onComments(s)} />
             <div className="border-t border-border pt-2"><RowActions s={s} a={a} /></div>
           </div>
         </div>

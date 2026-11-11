@@ -255,6 +255,13 @@ function InternalTab({ job, staff }: { job: JobWithRelations; staff: StaffOpt[] 
         <div className="flex-1"><Field label="Add internal users"><SearchableMultiSelect placeholder="Search staff to add…" values={picked} onChange={setPicked} options={avail.map((s) => ({ value: s.id, label: s.label, sublabel: s.role }))} /></Field></div>
         <Button size="sm" variant="accent" onClick={() => void add()} disabled={!picked.length || adding}>{adding ? "Adding…" : picked.length ? `Add ${picked.length}` : "Add"}</Button>
       </div>
+      {(() => {
+        // Who hears about client comments, messages and requests (lib/jobs/client-alert.ts).
+        const hasPm = list.some((u) => jobTeamRole(u.role) === "Project Manager");
+        const anyOn = list.some((u) => u.notifications_enabled);
+        if (!hasPm && !anyOn) return <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">Nobody on this job will be alerted about client comments, messages or requests, so they go to the Admins. Add a Project Manager.</div>;
+        return <p className="text-xs text-muted-foreground">Client comments, messages and requests alert everyone with Notifications on{hasPm ? ", and always the Project Manager" : ". Add a Project Manager so someone owns them"}.</p>;
+      })()}
       {list.length === 0 ? <Empty>No internal users assigned.</Empty> : list.map((u) => (
         <div key={u.id} className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
           <div>

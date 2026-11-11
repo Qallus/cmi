@@ -396,6 +396,25 @@ export async function jobTeamRecipients(jobId: string): Promise<string[]> {
     .map((r) => r.staff_user_id)
     .filter((id): id is string => !!id);
 }
+/**
+ * Who hears about something a CLIENT did on this job: the team with
+ * Notifications on, plus the PM (roster role or the job's PM field) even if
+ * their box is off, else Admins and Super Admins. See lib/jobs/client-alert.ts.
+ */
+export async function clientAlertRecipients(jobId: string): Promise<import("./client-alert").AlertPlan> {
+  const { clientAlertPlan } = await import("./client-alert");
+  const sb = getSupabaseAdmin();
+  const [roster, job, staff] = await Promise.all([
+    sb.from("job_internal_users").select("staff_user_id, role, notifications_enabled").eq("job_id", jobId),
+    sb.from("jobs").select("project_manager").eq("id", jobId).maybeSingle(),
+    sb.from("staff_users").select("id, display_name, email, role_slug, status").limit(500),
+  ]);
+  return clientAlertPlan(
+    (roster.data ?? []) as import("./client-alert").AlertRosterRow[],
+    (job.data as { project_manager?: string | null } | null)?.project_manager ?? null,
+    (staff.data ?? []) as import("./client-alert").AlertStaff[],
+  );
+}
 export async function updateJobInternalUser(id: string, patch: Partial<JobInternalUser>): Promise<JobInternalUser> {
   const { data, error } = await getSupabaseAdmin().from("job_internal_users").update(patch).eq("id", id)
     .select("*, user:staff_users(id,display_name,email,role_slug)").single();

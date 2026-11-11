@@ -197,7 +197,7 @@ export async function sendMessage(
   // Tell the other people in the thread. Until this existed a DM produced no
   // signal at all unless the recipient happened to have the dashboard open
   // when the bell polled.
-  await notifyConversation(conversationId, userId, body, attachments.length, input.importance ?? "normal");
+  await notifyConversation(conversationId, userId, body, attachments.length, input.importance ?? "normal", senderKind);
 
   return { id: message.id, created_at: message.created_at };
 }
@@ -218,6 +218,7 @@ async function notifyConversation(
   body: string,
   attachmentCount: number,
   importance: DmImportance,
+  senderKind: DmPartyKind = "staff",
 ): Promise<void> {
   try {
     const supabase = getSupabaseAdmin();
@@ -227,16 +228,34 @@ async function notifyConversation(
       .select("user_id, user_kind, muted")
       .eq("conversation_id", conversationId);
 
-    const recipients = ((parts ?? []) as { user_id: string; user_kind: string; muted: boolean }[])
+    const staffParts = ((parts ?? []) as { user_id: string; user_kind: string; muted: boolean }[])
       .filter((p) => p.user_kind === "staff" && p.user_id !== senderId && !p.muted)
       .map((p) => p.user_id);
-    if (recipients.length === 0) return;
 
-    const { data: sender } = await supabase
-      .from("staff_users").select("display_name, email").eq("id", senderId).maybeSingle();
-    const senderName = (sender as { display_name: string | null; email: string | null } | null)?.display_name
-      || (sender as { email: string | null } | null)?.email
-      || "A teammate";
+    // A client writing about a job: the job's team and PM hear about it too
+    // (clientAlertRecipients), and the link opens the job's Messages tab.
+    const fromClient = senderKind === "client";
+    const { data: convo } = await supabase.from("dm_conversations").select("job_id").eq("id", conversationId).maybeSingle();
+    const jobId = (convo as { job_id: string | null } | null)?.job_id ?? null;
+    let recipients = staffParts;
+    if (fromClient && jobId) {
+      const { clientAlertRecipients } = await import("@/lib/jobs/data");
+      recipients = [...new Set([...staffParts, ...(await clientAlertRecipients(jobId)).ids])];
+    }
+    if (recipients.length === 0) { if (fromClient) console.error("[dm] client message reached nobody", conversationId); return; }
+
+    let senderName = "A teammate";
+    if (fromClient) {
+      const { data: c } = await supabase.from("contacts").select("first_name, last_name, company, email").eq("id", senderId).maybeSingle();
+      const cc = c as { first_name: string | null; last_name: string | null; company: string | null; email: string | null } | null;
+      senderName = (cc ? (` `.trim() || cc.company || cc.email) : null) || "Your client";
+    } else {
+      const { data: sender } = await supabase
+        .from("staff_users").select("display_name, email").eq("id", senderId).maybeSingle();
+      senderName = (sender as { display_name: string | null; email: string | null } | null)?.display_name
+        || (sender as { email: string | null } | null)?.email
+        || "A teammate";
+    }
 
     const excerpt = body
       ? (body.length > 180 ? `${body.slice(0, 180)}\u2026` : body)
@@ -245,10 +264,10 @@ async function notifyConversation(
     await notifyStaff({
       recipientIds: recipients,
       actorId: senderId,
-      kind: "dm",
+      kind: fromClient ? "client_message" : "dm",
       title: `${senderName} sent you a message`,
       body: excerpt,
-      url: "/dashboard/direct-messages",
+      url: jobId ? `/dashboard/jobs/${jobId}/messages` : "/dashboard/direct-messages",
       sourceTable: "dm_messages",
       // One notification per message, not per conversation, so a second
       // message still gets through.
@@ -259,7 +278,7 @@ async function notifyConversation(
           : `${senderName} sent you a message`,
         ctaLabel: "Read and reply",
         content: {
-          eyebrow: importance === "urgent" ? "Urgent message" : "Direct message",
+          eyebrow: importance === "urgent" ? "Urgent message" : fromClient ? "Client message" : "Direct message",
           heading: `${senderName} sent you a message`,
           quote: excerpt,
           closing: "Replying in the dashboard keeps the thread together.",

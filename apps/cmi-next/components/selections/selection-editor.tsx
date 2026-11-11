@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input, Select, Textarea } from "@/components/ui/input";
 import type { Product, ProjectSelection, SelectionsData } from "@/lib/selections/types";
+import { SelectionCommentsThread } from "./selection-comments";
 
 export type SelectionDraft = {
   id?: string;
@@ -208,7 +209,9 @@ function selectionFeatures(selection: ProjectSelection): string[] {
  * Used by the Selections page and by a job's Selections tab, so both edit the
  * same way.
  */
-export function SelectionEditor({ data, products, draft, saving, error, onChange, onClose, onSave }: { data: Pick<SelectionsData, "projects" | "contacts" | "subcontractors" | "staffUsers" | "tasks" | "groups">; products: Product[]; draft: SelectionDraft; saving: boolean; error?: string | null; onChange: (draft: SelectionDraft) => void; onClose: () => void; onSave: (draft: SelectionDraft) => void }) {
+export function SelectionEditor({ data, products, draft, saving, error, onChange, onClose, onSave, commentsJobId }: { data: Pick<SelectionsData, "projects" | "contacts" | "subcontractors" | "staffUsers" | "tasks" | "groups">; products: Product[]; draft: SelectionDraft; saving: boolean; error?: string | null; onChange: (draft: SelectionDraft) => void; onClose: () => void; onSave: (draft: SelectionDraft) => void;
+  /** Opened from a job: show the client ↔ team thread (with reply) instead of the old notes text. */
+  commentsJobId?: string }) {
   const update = <K extends keyof SelectionDraft>(key: K, value: SelectionDraft[K]) => onChange({ ...draft, [key]: value });
   const selectedProduct = products.find(product => product.id === draft.product_id);
   const [showUrlFields, setShowUrlFields] = React.useState(false);
@@ -419,7 +422,14 @@ export function SelectionEditor({ data, products, draft, saving, error, onChange
           <Field label="Short Description"><Textarea value={draft.description} onChange={event => update("description", event.target.value)} placeholder="One or two lines shown on the card." /></Field>
           <Field label="Long Description"><Textarea value={draft.long_description} onChange={event => update("long_description", event.target.value)} placeholder="Full details (shown in the card's expanded view)." /></Field>
           <Field label="Features (one per line)"><Textarea value={draft.features} onChange={event => update("features", event.target.value)} placeholder={"Solid brass\nLifetime warranty"} /></Field>
-          <Field label="Client Comments"><Textarea value={draft.client_comments} onChange={event => update("client_comments", event.target.value)} /></Field>
+          {/* The client's words are theirs: read-only here (staff answer in the thread). */}
+          <Field label="Client Comments">
+            {commentsJobId && draft.id
+              ? <div className="rounded-md border border-border p-3"><SelectionCommentsThread jobId={commentsJobId} selectionId={draft.id} compact /></div>
+              : draft.client_comments
+                ? <p className="whitespace-pre-line break-words rounded-md border border-border bg-muted/30 px-3 py-2 text-sm">{draft.client_comments}</p>
+                : <p className="text-xs text-muted-foreground">No client comments yet. Clients comment from their portal; open the selection from its job to reply.</p>}
+          </Field>
           <Field label="Internal Notes"><Textarea value={draft.internal_notes} onChange={event => update("internal_notes", event.target.value)} /></Field>
         </div>
         <ModalFooter saving={saving} saveLabel="Save Selection" onClose={onClose} onSave={() => onSave(draft)} />

@@ -200,5 +200,15 @@ export async function createClientWarranty(jobId: string, contact: ClientContact
     priority: input.priority ?? "normal", photos: input.photos ?? null, status: "submitted",
   }).select().single();
   if (error) throw new Error(error.message);
+  const { notifyClientActivity } = await import("@/lib/notifications/client-activity");
+  await notifyClientActivity({
+    jobId, kind: "warranty_client_request", title: `${name} sent a warranty request: ${input.request_title}`,
+    note: input.request_description ?? null, url: `/dashboard/jobs/${jobId}/activity`,
+    sourceTable: "warranty_requests", sourceId: (data as { id?: string } | null)?.id ?? null, label: "Warranty request",
+    facts: [
+      ...(input.location_in_home ? [{ label: "Where", value: input.location_in_home }] : []),
+      ...(input.priority ? [{ label: "Priority", value: input.priority }] : []),
+    ],
+  });
   return data;
 }

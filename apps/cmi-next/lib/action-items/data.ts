@@ -46,7 +46,19 @@ export async function completeActionItemForClient(id: string, contactId: string)
     .from("job_action_items").update({ status: "completed", completed_at: new Date().toISOString(), updated_at: new Date().toISOString() })
     .eq("id", id).eq("assigned_contact_id", contactId).select().single();
   if (error) throw new Error(error.message);
-  return data as ActionItem;
+  const item = data as ActionItem;
+  if (item.job_id) {
+    const sb = getSupabaseAdmin();
+    const { data: c } = await sb.from("contacts").select("first_name, last_name, company, email").eq("id", contactId).maybeSingle();
+    const who = c ? (`${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || c.company || c.email || "The client") : "The client";
+    const { notifyClientActivity } = await import("@/lib/notifications/client-activity");
+    await notifyClientActivity({
+      jobId: item.job_id, kind: "action_item_client_done", title: `${who} finished "${item.title ?? "an action item"}"`,
+      url: `/dashboard/jobs/${item.job_id}/client-portal`, sourceTable: "job_action_items", sourceId: id,
+      label: "Client action item", ctaLabel: "Open the job",
+    });
+  }
+  return item;
 }
 
 export async function deleteActionItem(id: string): Promise<void> {

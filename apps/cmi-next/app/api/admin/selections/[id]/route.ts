@@ -80,7 +80,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         client_visible: Boolean(input.client_visible),
         client_approval_required: Boolean(input.client_approval_required),
         client_approval_status: approvalStatus === "not_required" ? "not_sent" : approvalStatus === "approved_with_changes" ? "approved" : approvalStatus,
-        client_comments: text(input.client_comments),
+        // client_comments is the client's own text (and the thread in selection_comments); staff saves don't overwrite it.
         quantity: numberOrNull(input.quantity) || 1,
         unit: text(input.unit),
         price: numberOrNull(input.client_price) || numberOrNull(input.estimated_cost),

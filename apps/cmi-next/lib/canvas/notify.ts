@@ -6,6 +6,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { isSuppressed } from "@/lib/messaging/consent";
 import type { CanvasProject } from "./types";
 import { fromAddress } from "@/lib/email/from";
+import { canSendOutbound, logHeld } from "@/lib/notifications/outbound";
 
 async function teamEmails(): Promise<string[]> {
   const env = process.env.CANVAS_TEAM_EMAILS;
@@ -21,6 +22,20 @@ async function teamEmails(): Promise<string[]> {
 export async function notifyBriefSubmitted(canvas: CanvasProject): Promise<void> {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://my.constructedmatter.com";
   const link = `${appUrl}/dashboard/canvas-briefs/${canvas.id}`;
+
+  // Bell + push for the job's team (PM even if muted, else admins). When the
+  // brief isn't on a job yet, the email below is the alert.
+  if (canvas.job_id) {
+    const { notifyClientActivity } = await import("@/lib/notifications/client-activity");
+    await notifyClientActivity({
+      jobId: canvas.job_id, kind: "canvas_brief_submitted", title: `A client submitted the Project Canvas brief "${canvas.title}"`,
+      url: `/dashboard/canvas-briefs/${canvas.id}`, sourceTable: "canvas_projects", sourceId: canvas.id,
+      label: "Project Canvas brief", ctaLabel: "Review the brief",
+    });
+  }
+
+  // Outbound is held outside production (lib/notifications/outbound.ts).
+  if (!canSendOutbound()) { logHeld("email", "canvas team", `brief ${canvas.id}`); return; }
 
   // Email
   try {
