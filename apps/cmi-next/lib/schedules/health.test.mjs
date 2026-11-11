@@ -46,3 +46,13 @@ test("late selections: undecided past due, or due after the work starts", () => 
   assert.deepEqual(tile(h, "selections").tasks.map((t) => t.id), ["tile"]);
   assert.ok(h.issues >= 1);
 });
+
+test("waiting on inspection tile only when the schedule has inspections", () => {
+  assert.equal(tile(scheduleHealth({ ...base, items: [it("a", "2026-11-02", "2026-11-04")] }), "inspections"), undefined);
+  const ms = (id, st) => it(id, "2026-11-10", "2026-11-10", { kind: "milestone", inspection_step_id: id, inspection_status: st });
+  const h = scheduleHealth({ ...base, items: [ms("m1", "scheduled"), ms("m2", "failed"), ms("m3", "not_ready")] });
+  const t = tile(h, "inspections");
+  assert.equal(t.value, "2");
+  assert.equal(t.tone, "bad");
+  assert.match(t.note, /1 failed/);
+});

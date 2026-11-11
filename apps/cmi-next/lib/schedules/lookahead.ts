@@ -5,6 +5,8 @@
 // the selection a task waits on. The client version keeps client-visible tasks
 // only, drops the trade and internal flags, and shows only client selections.
 
+import { requestBy, inspectionStatusLabel, CLEARS_HOLD } from "../inspections/status.ts";
+
 export type LookaheadAudience = "internal" | "client";
 
 export type LookaheadItem = {
@@ -13,6 +15,7 @@ export type LookaheadItem = {
   actual_start?: string | null; actual_finish?: string | null; client_visible?: boolean;
   responsible_company?: string | null; assignees?: { name: string; type?: string }[];
   link_type?: string | null; link_id?: string | null; link_label?: string | null; sort_order?: number;
+  inspection_step_id?: string | null; inspection_status?: string | null;
 };
 export type LookaheadSelection = { id: string; name: string; status: string | null; target_decision_date: string | null; client_visible?: boolean };
 export type LookaheadPhase = { id: string; name: string; sort_order?: number };
@@ -24,7 +27,11 @@ export type LookaheadRow = {
   /** Day indexes (0–14) in the window the task is planned on. */
   days: number[];
   waitsOn: { name: string; decided: boolean; due: string | null; late: boolean } | null;
+  /** Inspection milestones (internal only): status and when to request it; `callNow` = request by today or overdue. */
+  inspection?: { status: string; requestBy: string | null; callNow: boolean } | null;
 };
+/** The job's jurisdiction cutoff, for request-by dates on inspection milestones. */
+export type LookaheadCutoff = { minutes: number | null; method: string | null } | null;
 export type LookaheadGroup = { phase: string; rows: LookaheadRow[] };
 export type Lookahead = { from: string; to: string; days: string[]; weeks: { label: string; start: string }[]; groups: LookaheadGroup[]; count: number };
 
@@ -62,7 +69,7 @@ function tradeOf(i: LookaheadItem): string | null {
   return names.length ? names.join(", ") : null;
 }
 
-export function buildLookahead(items: LookaheadItem[], phases: LookaheadPhase[], selections: LookaheadSelection[], today: string, audience: LookaheadAudience = "internal"): Lookahead {
+export function buildLookahead(items: LookaheadItem[], phases: LookaheadPhase[], selections: LookaheadSelection[], today: string, audience: LookaheadAudience = "internal", cutoff: LookaheadCutoff = null): Lookahead {
   const days = lookaheadDays(today);
   const from = days[0], to = days[days.length - 1];
   const sel = new Map(selections.map((s) => [s.id, s]));
@@ -89,6 +96,11 @@ export function buildLookahead(items: LookaheadItem[], phases: LookaheadPhase[],
       days: days.map((d, n) => (d >= start && d <= finish ? n : -1)).filter((n) => n >= 0),
       waitsOn: showSel ? { name: s!.name, decided, due: s!.target_decision_date, // Late: not decided, and due after the task starts or already overdue.
       late: !decided && !!s!.target_decision_date && (s!.target_decision_date > start || s!.target_decision_date < today) } : null,
+      inspection: audience === "internal" && i.inspection_step_id ? (() => {
+        const st = i.inspection_status ?? "not_ready";
+        const by = CLEARS_HOLD.has(st) || st === "scheduled" ? null : requestBy(start, cutoff?.minutes ?? null, cutoff?.method ?? null);
+        return { status: inspectionStatusLabel(st), requestBy: by?.label ?? null, callNow: !!by && by.date <= today && (st === "not_ready" || st === "ready_to_call") };
+      })() : null,
       sort: i.sort_order ?? 0,
     };
     const key = i.phase_id && phaseOrder.has(i.phase_id) ? i.phase_id : "";

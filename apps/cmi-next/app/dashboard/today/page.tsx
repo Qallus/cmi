@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { CalendarClock, CheckSquare, Inbox, History, Sparkles, GanttChart } from "lucide-react";
+import { CalendarClock, CheckSquare, Inbox, History, Sparkles, GanttChart, ShieldCheck } from "lucide-react";
 import { getSessionStaff } from "@/lib/auth/server-session";
 import { buildBriefing, briefingCounts, type Briefing, type BriefingItem, type BriefingUpdate } from "@/lib/briefing/build";
 import { briefingSummary } from "@/lib/briefing/summary";
@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { CollapsibleStats, StatsProvider, StatsToggleButton } from "@/components/ui/page-header-bits";
 import { canViewSchedules } from "@/lib/schedules/permissions";
 import { schedulesNeedingALook } from "@/lib/schedules/health-data";
+import { inspectionsToCall } from "@/lib/inspections/today";
 
 export const metadata = { title: "Today — CMI Dashboard" };
 export const dynamic = "force-dynamic";
@@ -88,6 +89,13 @@ export default async function TodayPage() {
           <ScheduleHealth />
         </Suspense>
       ) : null}
+
+      {/* Inspection milestones (flag inspection_milestones): inspections to request today. */}
+      {canViewSchedules(staff.role_slug) ? (
+        <Suspense fallback={null}>
+          <InspectionsToCall />
+        </Suspense>
+      ) : null}
     </div>
     </StatsProvider>
   );
@@ -111,6 +119,28 @@ async function ScheduleHealth() {
               <span className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs">
                 {r.tiles.map((t) => <span key={t.key}><span className="text-muted-foreground">{t.label} </span><span className={cn("font-semibold", HEALTH_TONE[t.tone])}>{t.value}</span></span>)}
               </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </Section>
+  );
+}
+
+async function InspectionsToCall() {
+  const rows = await inspectionsToCall().catch(() => []);
+  if (!rows.length) return null;
+  return (
+    <Section icon={ShieldCheck} title="Call today for upcoming inspections" count={rows.length}>
+      <ul className="divide-y divide-border">
+        {rows.map((r) => (
+          <li key={r.itemId}>
+            <Link href={`/dashboard/jobs/${r.jobId}/schedule?schedule=${r.scheduleId}`} className="-mx-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-md px-2 py-2.5 hover:bg-muted">
+              <span className="min-w-0">
+                <span className="block text-sm font-medium">{r.title}</span>
+                <span className="block truncate text-xs text-muted-foreground">{r.jobLabel}{r.jurisdiction ? ` · ${r.jurisdiction}` : ""} · {r.status}</span>
+              </span>
+              <span className={cn("text-xs font-medium", r.overdue ? "text-destructive" : "text-amber-700 dark:text-amber-400")}>{r.overdue ? "Overdue · " : ""}{r.requestBy}</span>
             </Link>
           </li>
         ))}

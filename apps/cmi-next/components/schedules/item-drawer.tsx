@@ -9,6 +9,7 @@ import { Input, Select, Textarea } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { RecordPicker } from "./record-picker";
 import { ResourcePicker } from "./resource-picker";
+import { InspectionPanel } from "./inspection-panel";
 import {
   ITEM_STATUS_LABELS, PRIORITY_LABELS, DEPENDENCY_LABELS, DEPENDENCY_ABBR, MILESTONE_TYPE_LABELS,
   type MilestoneType, type ScheduleItem, type SchedulePhase, type ScheduleDependency, type ItemStatus,
@@ -19,7 +20,7 @@ type Staff = { id: string; name: string };
 
 export function ItemDrawer({
   open, item, phases, staff, allItems, dependencies, isMasterSchedule, canEdit, linkable = false, engine = false, resources = false,
-  onClose, onSave, onDelete, onAddDependency, onRemoveDependency,
+  onClose, onSave, onDelete, onAddDependency, onRemoveDependency, inspections = false, onInspectionChanged,
 }: {
   open: boolean;
   item: Partial<ScheduleItem> | null;
@@ -40,6 +41,9 @@ export function ItemDrawer({
   onDelete?: () => void;
   onAddDependency?: (sourceItemId: string, type: DependencyType, lag: number) => void;
   onRemoveDependency?: (id: string) => void;
+  /** Inspection milestones on (flag inspection_milestones): status box on milestones loaded from the library. */
+  inspections?: boolean;
+  onInspectionChanged?: (message: string) => void;
 }) {
   const [draft, setDraft] = React.useState<Partial<ScheduleItem>>({});
   const [saving, setSaving] = React.useState(false);
@@ -107,6 +111,10 @@ export function ItemDrawer({
           <Field label="Start"><Input type="date" value={draft.start_date ?? ""} disabled={!canEdit} onChange={(e) => set("start_date", e.target.value || null)} /></Field>
           <Field label={kind === "milestone" ? "Date" : "Finish"}><Input type="date" value={kind === "milestone" ? (draft.start_date ?? "") : (draft.end_date ?? "")} disabled={!canEdit || kind === "milestone"} onChange={(e) => set("end_date", e.target.value || null)} /></Field>
         </div>
+
+        {inspections && item?.id && (item as Record<string, unknown>).inspection_step_id ? (
+          <InspectionPanel key={item.id} itemId={item.id} onChanged={(m) => onInspectionChanged?.(m)} />
+        ) : null}
 
         {engine ? (
           <div className="space-y-3 rounded-lg border border-border p-3">
@@ -238,7 +246,7 @@ const HISTORY_LABEL: Record<string, string> = {
   title: "Name", start_date: "Start", end_date: "Finish", duration_days: "Duration", duration_unit: "Counts", status: "Status",
   percent_complete: "% complete", kind: "Kind", constraint_type: "Constraint", constraint_date: "Constraint date", is_locked: "Locked",
   actual_start: "Actual start", actual_finish: "Actual finish", milestone_type: "Milestone type", contract_date: "Contract date",
-  cost_code: "Cost code", phase_id: "Phase", activity_id: "Activity ID", remaining_duration: "Remaining", bar_color: "Bar color",
+  cost_code: "Cost code", phase_id: "Phase", activity_id: "Activity ID", remaining_duration: "Remaining", bar_color: "Bar color", inspection_status: "Inspection",
 };
 // Colours read as their swatch name ("Green"), custom ones as the hex.
 const SWATCH_NAME = new Map(COLOR_SWATCHES.map(([hex, name]) => [hex.toLowerCase(), name]));

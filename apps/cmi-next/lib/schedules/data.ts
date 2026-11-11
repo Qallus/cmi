@@ -50,7 +50,7 @@ export function mapItem(r: any): ScheduleItem {
 const HISTORY_FIELDS = [
   "title", "start_date", "end_date", "duration_days", "duration_unit", "status", "percent_complete", "kind",
   "constraint_type", "constraint_date", "is_locked", "actual_start", "actual_finish", "milestone_type", "contract_date",
-  "cost_code", "phase_id", "activity_id", "remaining_duration", "bar_color",
+  "cost_code", "phase_id", "activity_id", "remaining_duration", "bar_color", "inspection_status",
 ] as const;
 export function fieldChanges(before: Record<string, unknown> | null | undefined, after: Record<string, unknown> | null | undefined): Record<string, [unknown, unknown]> {
   const out: Record<string, [unknown, unknown]> = {};
@@ -283,11 +283,13 @@ export async function createItem(scheduleId: string, input: Partial<ScheduleItem
   return created;
 }
 
-export async function updateItem(id: string, patch: Partial<ScheduleItem>, actor?: Actor, opts: { cascade?: boolean } = {}): Promise<{ item: ScheduleItem; cascaded: ScheduleItem[] }> {
+// `inspectionStatus`: only the inspection status route (which checks who may update it) writes inspection_status.
+export async function updateItem(id: string, patch: Partial<ScheduleItem>, actor?: Actor, opts: { cascade?: boolean; inspectionStatus?: boolean } = {}): Promise<{ item: ScheduleItem; cascaded: ScheduleItem[] }> {
   const sb = getSupabaseAdmin();
   const { data: prev } = await sb.from("schedule_items").select("*").eq("id", id).maybeSingle();
   const clean: Record<string, unknown> = { updated_by: actor?.id ?? null, updated_at: new Date().toISOString() };
   for (const k of ITEM_FIELDS) if (k in patch) clean[k] = (patch as Record<string, unknown>)[k];
+  if (opts.inspectionStatus && "inspection_status" in patch) clean.inspection_status = (patch as Record<string, unknown>).inspection_status;
   // Progress (Phase 2): % complete stamps actual dates and status.
   if (prev && (await isFeatureEnabled(PROGRESS_FLAG))) Object.assign(clean, progressPatch(prev, clean, todayAZ()));
 

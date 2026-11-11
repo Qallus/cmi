@@ -96,6 +96,7 @@ export function LookaheadView({ scheduleId, onClose, onOpenItem, canEdit = false
                           <div className="font-medium">{r.milestone ? "◆ " : ""}{r.title}</div>
                           <div className="text-xs text-muted-foreground">{fmtDate(r.start)}{r.milestone ? "" : ` – ${fmtDate(r.finish)}`}{r.trade ? ` · ${r.trade}` : ""}</div>
                           {r.waitsOn ? <div className={cn("text-xs", r.waitsOn.late ? "font-medium text-destructive" : "text-muted-foreground")}>Waits on {r.waitsOn.name}</div> : null}
+                          {r.inspection ? <div className={cn("text-xs", r.inspection.callNow ? "font-medium text-amber-700 dark:text-amber-400" : "text-muted-foreground")}>{r.inspection.status}{r.inspection.requestBy ? ` · ${r.inspection.requestBy}` : ""}</div> : null}
                         </div>
                         <span className={cn("shrink-0 text-xs font-medium", STATUS_CLS[r.status])}>{LOOKAHEAD_STATUS_LABELS[r.status]}{r.status === "in_progress" && r.pct ? ` ${r.pct}%` : ""}</span>
                       </div>
@@ -148,6 +149,7 @@ export function LookaheadView({ scheduleId, onClose, onOpenItem, canEdit = false
                       <tr key={r.id} className="border-b border-border/60 hover:bg-muted/40">
                         <td className="py-1 pr-2">
                           {onOpenItem ? <button type="button" onClick={() => onOpenItem(r.id)} className="text-left font-medium hover:text-accent">{r.milestone ? "◆ " : ""}{r.title}</button> : <span className="font-medium">{r.title}</span>}
+                          {r.inspection ? <div className={cn("text-[11px]", r.inspection.callNow ? "font-medium text-amber-700 dark:text-amber-400" : "text-muted-foreground")}>{r.inspection.status}{r.inspection.requestBy ? ` · ${r.inspection.requestBy}` : ""}</div> : null}
                         </td>
                         {!client ? <td className="py-1 pr-2 text-muted-foreground">{r.trade ?? ""}</td> : null}
                         <td className="whitespace-nowrap py-1 pr-2 tabular-nums">{fmtDate(r.start)}</td>

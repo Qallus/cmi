@@ -48,3 +48,13 @@ test("the client version keeps client tasks only, without trades, internal selec
   assert.equal(rows[0].status, "not_started");
   assert.equal(rows[1].waitsOn, null);
 });
+
+test("inspection milestones carry their status and request-by (internal only)", () => {
+  const m = it("insp", "2026-11-10", "2026-11-10", { kind: "milestone", inspection_step_id: "S-M01", inspection_status: "ready_to_call" });
+  const la = buildLookahead([m], phases, [], "2026-11-09", "internal", { minutes: 21 * 60, method: "IVR" });
+  assert.deepEqual(la.groups[0].rows[0].inspection, { status: "Ready to Call", requestBy: "Request by Mon 9:00 PM (IVR)", callNow: true });
+  const client = buildLookahead([m], phases, [], "2026-11-09", "client", { minutes: 1260, method: null });
+  assert.equal(client.groups[0].rows[0].inspection, null);
+  const passed = buildLookahead([{ ...m, inspection_status: "passed" }], phases, [], "2026-11-09", "internal", { minutes: 1260, method: null });
+  assert.equal(passed.groups[0].rows[0].inspection.requestBy, null);
+});

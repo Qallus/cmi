@@ -10,6 +10,7 @@
 //   Late selections         tasks waiting on a selection that isn't decided in time
 // Every tile carries the tasks behind it so the page can list them.
 import { dayNum, workDiff, countExceptions, type DayCalendar, type WorkCalendar } from "./calendar.ts";
+import { inspectionStatusLabel, WAITING } from "../inspections/status.ts";
 
 export type HealthItem = {
   id: string; title: string; kind: string; status: string | null;
@@ -17,6 +18,7 @@ export type HealthItem = {
   baseline_end?: string | null; is_critical?: boolean | null; total_float?: number | null;
   milestone_type?: string | null; contract_date?: string | null;
   link_type?: string | null; link_id?: string | null;
+  inspection_step_id?: string | null; inspection_status?: string | null;
 };
 export type HealthSelection = { id: string; name: string; status: string | null; target_decision_date: string | null };
 export type HealthInput = {
@@ -28,7 +30,7 @@ export type HealthInput = {
 
 export type HealthTone = "good" | "warn" | "bad" | "neutral";
 export type HealthTile = {
-  key: "baseline" | "contract" | "behind" | "critical" | "float" | "weather" | "selections";
+  key: "baseline" | "contract" | "behind" | "critical" | "float" | "weather" | "selections" | "inspections";
   label: string; value: string; note?: string; tone: HealthTone;
   /** The tasks this tile is about (for the drill-down list). */
   tasks: { id: string; title: string; detail?: string }[];
@@ -104,6 +106,20 @@ export function scheduleHealth(h: HealthInput): Health {
     return lateNow ? [{ id: i.id, title: i.title, detail: `${s.name}${due ? ` · due ${fmt(due)}` : " · no decision date"}` }] : [];
   });
   tiles.push({ key: "selections", label: "Late selections", value: String(late.length), note: "not decided in time", tone: late.length ? "bad" : "good", tasks: late });
+
+  // Waiting on inspection (only on schedules with inspection milestones): requested, scheduled,
+  // failed, partial or re-inspect requested, and not yet passed.
+  const insp = live.filter((i) => i.inspection_step_id && open(i));
+  if (insp.length) {
+    const waiting = insp.filter((i) => WAITING.has(i.inspection_status ?? ""));
+    const failed = waiting.filter((i) => i.inspection_status === "failed").length;
+    tiles.push({
+      key: "inspections", label: "Waiting on inspection", value: String(waiting.length),
+      note: failed ? `${failed} failed / correction` : `${insp.length} inspection${insp.length === 1 ? "" : "s"} open`,
+      tone: failed ? "bad" : waiting.length ? "warn" : "good",
+      tasks: waiting.map((i) => ({ id: i.id, title: i.title, detail: `${inspectionStatusLabel(i.inspection_status)}${i.start_date ? ` · ${fmt(i.start_date)}` : ""}` })),
+    });
+  }
 
   const issues = tiles.filter((t) => t.tone === "bad" || t.tone === "warn").length;
   return { finish, tiles, issues };

@@ -7,6 +7,7 @@ import { canEditSchedules, canManageSchedules, canViewSchedules } from "@/lib/sc
 import { SchedulesWorkspace } from "@/components/schedules/schedules-workspace";
 import { JobDetailNav } from "../job-detail-nav";
 import { isFeatureEnabled } from "@/lib/flags";
+import { inspectionsEnabled } from "@/lib/inspections/data";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Schedules — CMI Dashboard" };
@@ -30,6 +31,7 @@ export default async function JobSchedulePage({ params, searchParams }: { params
   const staffMember = await getSessionStaff();
   const role = staffMember?.role_slug ?? null;
   const [schedules, header, staff, builder] = await Promise.all([listSchedules(job.id), jobScheduleHeader(job.id), loadStaff(), isFeatureEnabled("schedule_builder")]);
+  const inspections = await inspectionsEnabled();
   const jobLabel = [job.job_number, job.job_name].filter(Boolean).join(" · ") || job.job_name;
 
   return (
@@ -42,6 +44,7 @@ export default async function JobSchedulePage({ params, searchParams }: { params
           scope={{ type: "job", id: job.id }}
           scopeLabel={jobLabel}
           builder={builder}
+          inspections={inspections}
           initialScheduleId={initialScheduleId ?? null}
           initialSchedules={schedules}
           initialHeader={header}

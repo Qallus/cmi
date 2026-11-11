@@ -17,6 +17,9 @@ import { updateJob } from "@/lib/jobs/data";
 import { WRITE_ROLES } from "@/lib/records-io/fields";
 import { canViewSchedules } from "@/lib/schedules/permissions";
 import { resolveJobId } from "./tools-crm";
+import { inspectionInfo, setInspectionStatus } from "@/lib/inspections/status-data";
+import { INSPECTION_STATUSES, inspectionStatusLabel, requestBy, CLEARS_HOLD, TO_REQUEST } from "@/lib/inspections/status";
+import { todayAZ } from "@/lib/schedules/progress";
 import type { McpCaller } from "./auth";
 import type { McpTool } from "./tools";
 
@@ -166,6 +169,72 @@ export function inspectionTools(): McpTool[] {
           if (!Object.keys(patch).length) return { result: { job: job.label, ...profile(before) } };
           const after = await updateJob(job.id, patch, { id: c.ctx.id, name: c.ctx.displayName ?? "Claude" });
           return { result: { job: job.label, ...profile(after) }, entity: "job", recordId: job.id, before: profile(before), after: profile(after) };
+        } catch (e) { return errorOut(e); }
+      },
+    },
+    {
+      name: "cmi_job_inspections",
+      title: "A job's inspection milestones",
+      description: "The inspection milestones on a job's schedules (loaded from its jurisdiction's library): step ID, date, status (Not Ready, Ready to Call, Requested, Scheduled, Passed, Partial, Failed / Correction, Re-inspect Requested, N/A), hold point, and when to request it (the jurisdiction's cutoff on the working day before). Also says which ones need a call today. Use item_id from here with cmi_inspection_status_update.",
+      risk: "read",
+      available: (c) => canViewSchedules(role(c)),
+      inputSchema: () => obj({ job: str("Job id, number or name") }, ["job"]),
+      run: async (a) => {
+        try {
+          if (!(await inspectionsEnabled())) return { result: { error: "Inspection milestones are turned off." } };
+          const jobId = await resolveJobId(a.job);
+          if (!jobId) return { result: { error: "No job matches that." } };
+          const sb = getSupabaseAdmin();
+          const [{ data: job }, { data: items, error }] = await Promise.all([
+            sb.from("jobs").select("id, job_number, job_name, jurisdiction_code, inspection_scope").eq("id", jobId).maybeSingle(),
+            sb.from("schedule_items").select("id, schedule_id, title, start_date, status, inspection_step_id, inspection_status, inspection_code").eq("job_id", jobId).not("inspection_step_id", "is", null).order("start_date"),
+          ]);
+          if (error) return { result: { error: error.message } };
+          const jur = job?.jurisdiction_code ? (await loadJurisdictions({ includeInactive: true })).find((j) => j.code === job.jurisdiction_code) ?? null : null;
+          const { data: lib } = items?.length
+            ? await sb.from("inspection_library").select("milestone_id, hold_point").in("milestone_id", Array.from(new Set(items.map((i) => i.inspection_step_id as string))))
+            : { data: [] };
+          const hold = new Map((lib ?? []).map((l) => [l.milestone_id, !!l.hold_point]));
+          const today = todayAZ();
+          const rows = (items ?? []).map((i) => {
+            const st = i.inspection_status ?? "not_ready";
+            const by = CLEARS_HOLD.has(st) || i.status === "cancelled" ? null : requestBy(i.start_date, jur?.cutoff_minutes ?? null, jur?.scheduling_method ?? null);
+            return {
+              item_id: i.id, schedule_id: i.schedule_id, step_id: i.inspection_step_id, title: i.title, code: i.inspection_code, date: i.start_date,
+              status: inspectionStatusLabel(st), status_value: st, hold_point: hold.get(i.inspection_step_id as string) ?? false,
+              request_by: by?.label ?? null, call_today: !!by && by.date <= today && TO_REQUEST.has(st),
+            };
+          });
+          return { result: {
+            job: job ? [job.job_number, job.job_name].filter(Boolean).join(" · ") : jobId,
+            jurisdiction: jur ? { code: jur.code, name: jur.name, cutoff: jur.cutoff_minutes == null ? "not published (to confirm)" : formatCutoff(jur.cutoff_minutes) } : null,
+            scope: job?.inspection_scope ?? null,
+            count: rows.length, call_today: rows.filter((r) => r.call_today).length,
+            statuses: INSPECTION_STATUSES.map((x) => ({ value: x.value, label: x.label })),
+            inspections: rows,
+          } };
+        } catch (e) { return errorOut(e); }
+      },
+    },
+    {
+      name: "cmi_inspection_status_update",
+      title: "Update an inspection's status",
+      description: "Set an inspection milestone's status (item_id from cmi_job_inspections). status: not_ready, ready_to_call, requested, scheduled, passed, partial, failed, reinspect_requested, na. passed finishes it (date = the day it passed, default today) so the work it holds can start; failed needs the re-inspection date and a note on the corrections, and moves the milestone there so the forecast pushes what follows; a date on requested / scheduled / reinspect_requested / partial moves it too; na keeps it on record out of the way. Each change adds a dated line to the item's notes. Roles: Settings → Scheduling → Inspections (PMs and Superintendents by default). Confirm in one line first.",
+      risk: "write",
+      available: (c) => canViewSchedules(role(c)),
+      inputSchema: () => obj({
+        item_id: str("The inspection milestone's item_id"),
+        status: { type: "string", enum: INSPECTION_STATUSES.map((x) => x.value) },
+        date: str("YYYY-MM-DD: re-inspection date (failed), inspection date (requested / scheduled), or the day it passed"),
+        note: str("Inspector, result, ticket number, or the corrections (required for failed)"),
+      }, ["item_id", "status"]),
+      run: async (a, c) => {
+        try {
+          if (!(await inspectionsEnabled())) return { result: { error: "Inspection milestones are turned off." } };
+          await setInspectionStatus(s(a.item_id), { status: s(a.status), date: s(a.date) || null, note: s(a.note) || null },
+            { id: c.ctx.id, name: c.ctx.displayName ?? "Claude", role: role(c) ?? null });
+          const info = await inspectionInfo(s(a.item_id), role(c));
+          return { result: { ok: true, step_id: info.step_id, status: info.status_label, date: info.date, request_by: info.request_by?.label ?? null } };
         } catch (e) { return errorOut(e); }
       },
     },

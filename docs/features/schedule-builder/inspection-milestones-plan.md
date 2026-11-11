@@ -108,6 +108,16 @@ four tasks are replaced by the library's milestones.
 
 ### Step 3. Load inspections into a schedule
 
+> **Built 2026-11-11 (uncommitted, flag off).** Migration `2026-11-11_inspection_schedule_items.sql`
+> (schedule_items.inspection_step_id / inspection_phase_id / inspection_code / inspection_status) is
+> written, not applied. Code: `lib/inspections/plan.ts` (pure planner, tests in `plan.test.mjs`),
+> `lib/inspections/apply.ts`, `GET/POST /api/schedules/[id]/inspections`,
+> `components/schedules/inspections-dialog.tsx`, and an **Inspections** button on a job schedule
+> (desktop action bar; Tools → Add on phones). Hooks resolve in order: a task named like the hook,
+> then the mapped template task(s), then the proposed ADD task; MILESTONE hooks link to other
+> inspections (Maricopa's "next day or later" adds a 1-day lag). Links that would loop are skipped
+> and listed. Loading again skips rows already on the schedule (unticked, marked "On schedule").
+
 A new **Add inspections** action on a job's schedule:
 
 - **Row picking:** filters the library by the job's jurisdiction and scope.
@@ -134,6 +144,17 @@ A new **Add inspections** action on a job's schedule:
   schedule skips rows already loaded (by step ID).
 
 ### Step 4. Inspection status and hold points
+
+> **Built 2026-11-11 (uncommitted, flag off; no new migration, uses Step 3's columns).** Rules in
+> `lib/inspections/status.ts` (tests in `status.test.mjs`); `lib/inspections/status-data.ts`;
+> `GET/PATCH /api/schedule-items/[id]/inspection` (role check: `mayUpdateInspectionStatus`; the
+> generic item PATCH can't write `inspection_status`); Inspection box in the item drawer
+> (`components/schedules/inspection-panel.tsx`); hold point warning returned by the item PATCH and
+> shown as a banner; request-by on lookahead rows (internal only); "Waiting on inspection" health
+> tile; Today page "Call today for upcoming inspections" (`lib/inspections/today.ts`); MCP
+> `cmi_job_inspections` and `cmi_inspection_status_update`. N/A sets the item cancelled, which the
+> engine holds at its date (it isn't removed from the network). Weekly update and the lookahead PDF
+> don't show inspection status yet.
 
 - **Status:** a new field on inspection milestones, using the values from Brandon's Read Me tab:
   Not Ready · Ready to Call · Requested · Scheduled · Passed · Partial · Failed / Correction ·
