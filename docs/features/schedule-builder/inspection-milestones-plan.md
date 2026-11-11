@@ -173,6 +173,15 @@ A new **Add inspections** action on a job's schedule:
 
 ### Step 5. The permit list wins
 
+> **Built and pushed 2026-11-11 (flag on for testing); migration applied.** Migration `2026-11-12_inspection_permit_list.sql`
+> (jobs.inspection_permit_list / inspection_list_verified_on / inspection_list_verified_by). Rules in
+> `lib/inspections/permit.ts` (parse "615 Footing" / "Footing (615)" / "615 - Footing" lines; match by code,
+> then by name; copies move together; permit/contract and CHK rows aren't inspections) with tests;
+> `lib/inspections/permit-data.ts`; `GET/POST /api/schedules/[id]/inspections/permit`;
+> `components/schedules/permit-dialog.tsx` (**Permit list** button beside Inspections). Matched rows take the
+> permit's name and code; schedule-only rows default to N/A; permit-only rows are added after a chosen task or
+> matched by hand. MCP `cmi_inspection_permit_check` (compare, then apply once confirmed).
+
 - On permit issue, the PM enters or pastes the permit's printed inspection list.
 - **Reconcile screen:**
   - **Matched:** the library row takes the permit's name and code. This covers "Per permit" rows.

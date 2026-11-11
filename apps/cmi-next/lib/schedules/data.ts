@@ -10,6 +10,7 @@ import { DEFAULT_WORKDAYS } from "./types";
 import { isFeatureEnabled } from "@/lib/flags";
 import { PROGRESS_FLAG } from "./engine";
 import { progressPatch, todayAZ, scheduleProgress } from "./progress.ts";
+import { placeByActivityId, type OrderRow } from "./id-order.ts";
 import type {
   JobSchedule, SchedulePhase, ScheduleItem, ScheduleDependency, ScheduleParticipant,
   ScheduleBaseline, ScheduleActivity, ScheduleDraft, Workdays, DependencyType, Assignee,
@@ -263,15 +264,35 @@ export async function getItem(id: string): Promise<ScheduleItem | null> {
   return data ? mapItem(data) : null;
 }
 
+/** Activity IDs are unique per schedule: say which number is taken instead of the database error. */
+function duplicateIdMessage(error: { code?: string; message?: string }, n: unknown): string | null {
+  return error.code === "23505" && /activity/i.test(error.message ?? "") ? `Activity ID ${n} is already used on this schedule. Pick another number, or Renumber by 10s.` : null;
+}
+
+/** Re-order the task's phase so it sits where its activity ID sorts (lib/schedules/id-order.ts). */
+async function placeItemByActivityId(itemId: string): Promise<void> {
+  const sb = getSupabaseAdmin();
+  const { data: it } = await sb.from("schedule_items").select("schedule_id, phase_id").eq("id", itemId).maybeSingle();
+  if (!it) return;
+  let q = sb.from("schedule_items").select("id, activity_id, sort_order").eq("schedule_id", it.schedule_id);
+  q = it.phase_id ? q.eq("phase_id", it.phase_id) : q.is("phase_id", null);
+  const { data: rows } = await q;
+  const moves = placeByActivityId((rows ?? []) as OrderRow[], itemId);
+  for (const m of moves) await sb.from("schedule_items").update({ sort_order: m.sort_order }).eq("id", m.id);
+}
+
 export async function createItem(scheduleId: string, input: Partial<ScheduleItem>, actor?: Actor): Promise<ScheduleItem> {
   const sb = getSupabaseAdmin();
   const { data: sched } = await sb.from("job_schedules").select("job_id").eq("id", scheduleId).maybeSingle();
   const row: Record<string, unknown> = { schedule_id: scheduleId, job_id: sched?.job_id ?? null, created_by: actor?.id ?? null, updated_by: actor?.id ?? null };
   for (const k of ITEM_FIELDS) if (k in input) row[k] = (input as Record<string, unknown>)[k];
   if (!row.title) row.title = input.kind === "milestone" ? "New Milestone" : "New Item";
+  const typedId = row.activity_id != null;
   if (row.activity_id == null) row.activity_id = (await nextActivityId(scheduleId))[0];
   const { data, error } = await sb.from("schedule_items").insert(row).select("*").single();
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(duplicateIdMessage(error, row.activity_id) ?? error.message);
+  // A number typed for the new task puts it where that number sorts (Spec R2 §4.3).
+  if (typedId) await placeItemByActivityId(data.id);
   await logActivity({ jobId: sched?.job_id ?? null, scheduleId, itemId: data.id, action: "item_created", detail: { title: data.title, kind: data.kind }, actor });
   if (await engineModeFor(scheduleId)) await recalcSchedule(scheduleId, actor);
   await syncScheduleProgress(scheduleId);
@@ -311,7 +332,11 @@ export async function updateItem(id: string, patch: Partial<ScheduleItem>, actor
     }
   }
   const { data, error } = await sb.from("schedule_items").update(clean).eq("id", id).select("*").single();
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(duplicateIdMessage(error, clean.activity_id) ?? error.message);
+  // A new activity ID (or a move to another phase) puts the task where that number sorts.
+  if (prev && "activity_id" in clean && !("sort_order" in clean) && (clean.activity_id !== prev.activity_id || data.phase_id !== prev.phase_id)) {
+    await placeItemByActivityId(id);
+  }
   await logActivity({ jobId: data.job_id, scheduleId: data.schedule_id, itemId: id, action: "item_updated", detail: { fields: Object.keys(clean), title: data.title, changes: fieldChanges(prev, data) }, actor });
 
   // Notify newly-added assignees, and (on a date change) the existing assignees.

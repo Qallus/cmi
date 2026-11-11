@@ -717,7 +717,7 @@ export function ScheduleGrid({
         {canEdit ? (
           <>
             <Button size="sm" variant="ghost" onClick={() => { const last = active?.id ?? slots[slots.length - 1]?.id; if (last) insertRow(last, "below"); }} disabled={!slots.length}><Plus className="h-3.5 w-3.5" /> Task</Button>
-            <Tooltip label="Renumber activity IDs 10, 20, 30… in the order shown" side="bottom" className="inline-block"><Button size="sm" variant="ghost" onClick={renumber}><ListOrdered className="h-3.5 w-3.5" /> Renumber by tens</Button></Tooltip>
+            <Tooltip label="Renumber activity IDs 10, 20, 30… in the order shown" side="bottom" className="inline-block"><Button size="sm" variant="ghost" onClick={renumber}><ListOrdered className="h-3.5 w-3.5" /> Renumber by 10s</Button></Tooltip>
             <Tooltip label="Undo (Ctrl+Z)" side="bottom" className="inline-block"><Button size="sm" variant="ghost" onClick={undo} disabled={!past.length} aria-label="Undo"><Undo2 className="h-3.5 w-3.5" /></Button></Tooltip>
             <Tooltip label="Redo (Ctrl+Y)" side="bottom" className="inline-block"><Button size="sm" variant="ghost" onClick={redo} disabled={!future.length} aria-label="Redo"><Redo2 className="h-3.5 w-3.5" /></Button></Tooltip>
             <div className="relative">

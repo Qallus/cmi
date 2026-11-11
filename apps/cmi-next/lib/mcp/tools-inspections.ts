@@ -18,6 +18,7 @@ import { WRITE_ROLES } from "@/lib/records-io/fields";
 import { canViewSchedules } from "@/lib/schedules/permissions";
 import { resolveJobId } from "./tools-crm";
 import { inspectionInfo, setInspectionStatus } from "@/lib/inspections/status-data";
+import { applyPermit, permitPreview } from "@/lib/inspections/permit-data";
 import { INSPECTION_STATUSES, inspectionStatusLabel, requestBy, CLEARS_HOLD, TO_REQUEST } from "@/lib/inspections/status";
 import { todayAZ } from "@/lib/schedules/progress";
 import type { McpCaller } from "./auth";
@@ -236,6 +237,42 @@ export function inspectionTools(): McpTool[] {
             { id: c.ctx.id, name: c.ctx.displayName ?? "Claude", role: role(c) ?? null });
           const info = await inspectionInfo(s(a.item_id), role(c));
           return { result: { ok: true, step_id: info.step_id, status: info.status_label, date: info.date, request_by: info.request_by?.label ?? null } };
+        } catch (e) { return errorOut(e); }
+      },
+    },
+    {
+      name: "cmi_inspection_permit_check",
+      title: "Check a schedule's inspections against the permit",
+      description: "The permit's printed inspection list wins. Pass the list as text (one inspection per line, e.g. \"615 Footing\") and the schedule_id (from cmi_job_inspections). Without apply it only compares: matched (by code, then name), only on the permit, only on the schedule. With apply: true it renames matched inspections to the permit's names and codes, marks the schedule-only ones N/A (unless keep_item_ids lists them), adds the permit-only ones as new inspections (optionally after_item_id for all of them), and records today as the date the list was verified. Always show the comparison and confirm in one line before applying.",
+      risk: "write",
+      available: (c) => canViewSchedules(role(c)),
+      inputSchema: () => obj({
+        schedule_id: str("The job schedule's id"),
+        text: str("The permit's inspection list, one per line"),
+        apply: { type: "boolean", description: "Apply the changes (default: compare only)" },
+        keep_item_ids: { type: "array", items: { type: "string" }, description: "Schedule-only inspections to leave as they are instead of N/A" },
+        after_item_id: str("Optional: add the permit-only inspections after this task"),
+      }, ["schedule_id", "text"]),
+      run: async (a, c) => {
+        try {
+          if (!(await inspectionsEnabled())) return { result: { error: "Inspection milestones are turned off." } };
+          const sid = s(a.schedule_id), text = typeof a.text === "string" ? a.text : "";
+          const r = await permitPreview(sid, text);
+          const summary = {
+            matched: r.matched.map((m) => ({ permit: `${m.line.code ?? ""} ${m.line.name}`.trim(), schedule: m.items.map((i) => i.title), by: m.by })),
+            only_on_permit: r.permitOnly.map((l) => `${l.code ?? ""} ${l.name}`.trim()),
+            only_on_schedule: r.scheduleOnly.map((i) => ({ item_id: i.id, title: i.title })),
+          };
+          if (a.apply !== true) return { result: { preview: true, ...summary } };
+          const keep = new Set(Array.isArray(a.keep_item_ids) ? a.keep_item_ids.map(String) : []);
+          const after = s(a.after_item_id) || null;
+          const done = await applyPermit(sid, {
+            text,
+            matches: r.matched.map((m) => ({ line: m.line.n, item_ids: m.items.map((i) => i.id) })),
+            na: r.scheduleOnly.filter((i) => !keep.has(i.id)).map((i) => i.id),
+            adds: r.permitOnly.map((l) => ({ line: l.n, after_item_id: after })),
+          }, { id: c.ctx.id, name: c.ctx.displayName ?? "Claude", role: role(c) ?? null });
+          return { result: { ok: true, ...done, ...summary } };
         } catch (e) { return errorOut(e); }
       },
     },

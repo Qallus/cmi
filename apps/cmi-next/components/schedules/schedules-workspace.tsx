@@ -9,7 +9,7 @@ import { GANTT_PRINT_VIEWS } from "@/lib/schedules/gantt-print";
 import { ReminderSetting } from "./reminder-setting";
 import { ItemColorsPanel } from "./item-colors-panel";
 import { confirmAction, promptText } from "@/components/ui/confirm-action";
-import { Plus, GitBranch, Flag, Layers, CalendarClock, CalendarRange, FileText, Star, Archive, ChevronDown, CornerDownRight, Route, Spline, ClipboardCheck, CalendarDays, ListFilter, ShieldCheck } from "lucide-react";
+import { Plus, GitBranch, Flag, Layers, CalendarClock, CalendarRange, FileText, Star, Archive, ChevronDown, CornerDownRight, Route, Spline, ClipboardCheck, CalendarDays, ListFilter, ShieldCheck, ClipboardList, ListOrdered } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Tooltip, AutoTooltip } from "@/components/ui/tooltip";
@@ -23,6 +23,7 @@ import { ItemDrawer } from "./item-drawer";
 import { AddScheduleWizard, type ScheduleSource } from "./add-schedule-wizard";
 import { ShiftDialog } from "./shift-dialog";
 import { InspectionsDialog } from "./inspections-dialog";
+import { PermitDialog } from "./permit-dialog";
 import { EngineDialog } from "./engine-dialog";
 import { CalendarEditor } from "./calendar-editor";
 import { ScheduleModal } from "./schedule-modal";
@@ -92,6 +93,7 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
   const [pkgStart, setPkgStart] = React.useState("");
   const [shiftOpen, setShiftOpen] = React.useState(false);
   const [inspectionsOpen, setInspectionsOpen] = React.useState(false);
+  const [permitOpen, setPermitOpen] = React.useState(false);
   const [engineOpen, setEngineOpen] = React.useState(false);
   const [calendarOpen, setCalendarOpen] = React.useState(false);
   const [updateOpen, setUpdateOpen] = React.useState(false);
@@ -343,6 +345,18 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
   const modeButton = eng ? <Tooltip label={eng.canSwitch ? "How this schedule's dates are worked out" : "Admins and Project Managers change this"} side="bottom" className="inline-block"><Button size="sm" variant="ghost" onClick={() => setEngineOpen(true)} disabled={!eng.canSwitch}><Route className="h-3.5 w-3.5" /> {SCHEDULING_MODE_LABELS[eng.mode]}</Button></Tooltip> : null;
   const calendarButton = eng && primarySchedule ? <AutoTooltip content={primarySchedule.job_id ? "This job's working days and closed days" : "This schedule's working days and closed days"}><Button size="sm" variant="ghost" onClick={() => setCalendarOpen(true)}><CalendarClock className="h-3.5 w-3.5" /> Calendar</Button></AutoTooltip> : null;
   const inspectionsButton = inspections && jobId && primarySchedule && canEdit && !overlay ? <AutoTooltip content="Load this job's inspection milestones from its jurisdiction's library, linked to the work around them"><Button size="sm" variant="ghost" onClick={() => setInspectionsOpen(true)}><ShieldCheck className="h-3.5 w-3.5" /> Inspections</Button></AutoTooltip> : null;
+  const permitButton = inspectionsButton ? <AutoTooltip content="Check this schedule's inspections against the list printed on the permit (the permit wins)"><Button size="sm" variant="ghost" onClick={() => setPermitOpen(true)}><ClipboardList className="h-3.5 w-3.5" /> Permit list</Button></AutoTooltip> : null;
+  // Activity IDs 10, 20, 30… in schedule order; predecessors follow (same op as the grid's button).
+  async function renumberByTens() {
+    if (!primarySchedule) return;
+    if (!(await confirmAction({ title: "Renumber activity IDs?", body: "Every ID on this schedule is renumbered by tens in schedule order (10, 20, 30…). Predecessors follow automatically.", confirmLabel: "Renumber" }))) return;
+    const res = await fetch(`/api/schedules/${primarySchedule.id}/grid`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ renumber: true }) });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) { setBanner(d.error ?? "Could not renumber the activity IDs."); return; }
+    await loadBundle(primarySchedule.id); void refreshEngine();
+    setBanner("Activity IDs renumbered by tens.");
+  }
+  const renumberButton = eng && primarySchedule && canEdit && !overlay ? <AutoTooltip content="Renumber activity IDs 10, 20, 30… in schedule order (predecessors follow)"><Button size="sm" variant="ghost" onClick={() => void renumberByTens()}><ListOrdered className="h-3.5 w-3.5" /> Renumber by 10s</Button></AutoTooltip> : null;
   const shiftButton = primarySchedule && canEdit && !overlay ? <Button size="sm" variant="ghost" onClick={() => setShiftOpen(true)}><CalendarRange className="h-3.5 w-3.5" /> Shift dates</Button> : null;
   const pdfOptions = primarySchedule ? [
     { key: "list", label: "Schedule list (Letter)", href: `/api/schedules/${primarySchedule.id}/pdf` },
@@ -431,6 +445,7 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
                   {itemButtons}
                   {addInsideButton}
                   {inspectionsButton}
+                  {permitButton}
                   <Button size="sm" variant="accent" onClick={() => setWizardOpen(true)}><Plus className="h-3.5 w-3.5" /> Add Schedule</Button>
                   {packages.length ? <Button size="sm" variant="outline" onClick={() => setPkgMenu((o) => !o)} data-keep-open><Layers className="h-3.5 w-3.5" /> Package <ChevronDown className={cn("h-3 w-3 opacity-60 transition", pkgMenu && "rotate-180")} /></Button> : null}
                   {pkgMenu && packages.length ? <div className="w-full rounded-lg border border-border p-1">{packageList}</div> : null}
@@ -452,10 +467,11 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
                   {modeButton}
                 </ToolSection>
               ) : null}
-              {calendarButton || shiftButton || masterButtons(true) ? (
+              {calendarButton || shiftButton || renumberButton || masterButtons(true) ? (
                 <ToolSection title="Schedule">
                   {calendarButton}
                   {shiftButton}
+                  {renumberButton}
                   {masterButtons(true)}
                 </ToolSection>
               ) : null}
@@ -525,6 +541,7 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
           <div className="hidden flex-wrap items-center gap-2 border-b border-border bg-muted/20 px-4 py-1.5 md:px-6 lg:flex">
             {itemButtons}
             {inspectionsButton}
+            {permitButton}
             {ganttButtons}
             {zoomControl}
             {kanbanControl}
@@ -537,6 +554,7 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
             {modeButton}
             {calendarButton}
             {shiftButton}
+            {renumberButton}
             {primarySchedule ? (
               <div className="relative">
                 <Button size="sm" variant="ghost" onClick={() => setPdfMenu((o) => !o)} aria-expanded={pdfMenu}><FileText className="h-3.5 w-3.5" /> PDF <ChevronDown className="h-3 w-3 opacity-60" /></Button>
@@ -625,6 +643,9 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
       {inspectionsOpen && primarySchedule && jobId ? <InspectionsDialog key={primarySchedule.id} scheduleId={primarySchedule.id} scheduleName={primarySchedule.name} jobId={jobId}
         onClose={() => setInspectionsOpen(false)}
         onApplied={async (r) => { setBanner(`${r.created} inspection milestone${r.created === 1 ? "" : "s"} added, ${r.linked} link${r.linked === 1 ? "" : "s"}${r.unlinked.length ? `, ${r.unlinked.length} to link by hand` : ""}.`); await loadBundle(primarySchedule.id); void refreshEngine(); }} /> : null}
+      {permitOpen && primarySchedule ? <PermitDialog key={primarySchedule.id} scheduleId={primarySchedule.id} scheduleName={primarySchedule.name}
+        onClose={() => setPermitOpen(false)}
+        onApplied={async (r) => { setBanner(`Permit list applied: ${r.renamed} renamed, ${r.marked_na} N/A, ${r.added} added.`); await loadBundle(primarySchedule.id); void refreshEngine(); }} /> : null}
       {shiftOpen ? <ShiftDialog key={primarySchedule?.id} open schedule={primarySchedule} onClose={() => setShiftOpen(false)} onShifted={async (p) => {
         setShiftOpen(false);
         setBanner(`${p.moved} item${p.moved === 1 ? "" : "s"} moved ${Math.abs(p.workdays)} working day${Math.abs(p.workdays) === 1 ? "" : "s"} ${p.workdays > 0 ? "later" : "earlier"}. Now ${fmtDate(p.to)} to ${fmtDate(p.finish)}.`);
