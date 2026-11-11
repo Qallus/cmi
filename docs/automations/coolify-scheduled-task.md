@@ -186,7 +186,9 @@ choose all staff or a selected list, turn the AI summary on or off, send it now
 to anyone, preview anyone's email, and see every send. Those settings live in
 the `briefing_settings` row and are read on every run.
 
-`BRIEFING_AUDIENCE` in the environment overrides the dashboard, for emergencies:
+The dashboard's **Daily Brief emails (on / off)** switch always wins: while it
+is off, the automatic send goes to nobody. When it is on, `BRIEFING_AUDIENCE`
+in the environment overrides *who* receives it, for emergencies:
 
 | `BRIEFING_AUDIENCE` | Automatic send goes to |
 | --- | --- |

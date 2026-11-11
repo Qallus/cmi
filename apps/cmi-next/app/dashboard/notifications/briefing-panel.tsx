@@ -128,7 +128,7 @@ export function BriefingPanel() {
                 The server setting <code>BRIEFING_AUDIENCE={data.envOverride}</code> is overriding who receives the automatic send. Remove it in Coolify to use the options below.
               </p>
             )}
-            <Toggle label="Send the briefing automatically every morning" checked={draft.auto_enabled} onChange={(v) => setDraft({ ...draft, auto_enabled: v })} />
+            <Toggle label="Daily Brief emails (on / off)" hint="Off stops every automatic Daily Brief until you turn it back on. “Send now” below still works." checked={draft.auto_enabled} onChange={(v) => setDraft({ ...draft, auto_enabled: v })} />
             <Toggle label="Weekdays only (Monday to Friday)" hint="Skips Saturday and Sunday. Manual sends work any day." checked={draft.weekdays_only} onChange={(v) => setDraft({ ...draft, weekdays_only: v })} />
             <Toggle label="Include the AI summary (“Here's what needs you today”)" hint="Off uses a plain sentence built from the counts." checked={draft.include_ai} onChange={(v) => setDraft({ ...draft, include_ai: v })} />
             <Field label="Who receives it">
@@ -280,8 +280,8 @@ function Toggle({ label, hint, checked, onChange }: { label: string; hint?: stri
         {hint && <span className="block text-xs text-muted-foreground">{hint}</span>}
       </span>
       <button type="button" role="switch" aria-checked={checked} onClick={() => onChange(!checked)}
-        className={cn("relative mt-0.5 h-5 w-9 shrink-0 rounded-full transition-colors", checked ? "bg-accent" : "bg-muted-foreground/30")}>
-        <span className={cn("absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all", checked ? "left-[18px]" : "left-0.5")} />
+        className={cn("relative mt-0.5 h-5 w-9 shrink-0 rounded-full border transition-colors", checked ? "border-accent bg-accent" : "border-stone-400 bg-stone-300 dark:border-stone-500 dark:bg-stone-600")}>
+        <span className={cn("absolute top-px h-4 w-4 rounded-full bg-white shadow transition-all", checked ? "left-[17px]" : "left-px")} />
       </button>
     </label>
   );

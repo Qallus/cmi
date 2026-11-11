@@ -93,7 +93,7 @@ We'll roll this out in batches of 3–4 lists, each checked in the browser.
 
 ## Decisions needed from Jeremy
 
-1. **Who it's for:** besides Jobs, should a schedule belong to Pipeline deals, Pre-Con and the company (internal), or to fewer of these?
-2. **Nesting:** unlimited levels, or two (a schedule and the schedules inside it)? Two is simpler to read.
-3. **Records items can point at:** deals, jobs, Pre-Con, vendors and trade partners, selections, projects, punch lists, contacts. Add or remove any?
-4. **Quick actions in Part 2:** OK with the table above, or are there lists where you want different actions?
+1. **Who it's for:** besides Jobs, should a schedule belong to Pipeline deals, Pre-Con and the company (internal), or to fewer of these? These are primarly for jobs but want the ability to add Pipeline, Pre-Con, Selections as well. 
+2. **Nesting:** unlimited levels, or two (a schedule and the schedules inside it)? Two is simpler to read.  - There might be a customer schedule, vendor schedule, trade-partner schedule, etc. This is why we need multiple schedules within a schedule. In other cases there might be a demo schedule, install schedule, electrical schedule, windows, doors schedules etc. 
+3. **Records items can point at:** deals, jobs, Pre-Con, vendors and trade partners, selections, projects, punch lists, contacts. Add or remove any? - Allow records to point at schedules. 
+4. **Quick actions in Part 2:** OK with the table above, or are there lists where you want different actions? 

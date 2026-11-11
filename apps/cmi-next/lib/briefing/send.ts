@@ -10,6 +10,9 @@
 //   BRIEFING_AUDIENCE=a@x.com,b@x.com  → just those staff members
 //   BRIEFING_AUDIENCE=none             → nobody (manual and test sends still work)
 //
+// The dashboard on/off switch always wins: while it is off, the automatic send
+// goes to nobody, whatever BRIEFING_AUDIENCE says.
+//
 // Every send is logged to automation_events (kind morning_briefing), which is
 // both the history the dashboard shows and the once-a-day guard. Anyone who has
 // turned email notifications off in their profile is skipped.
@@ -67,6 +70,8 @@ export async function runBriefings(opts: BriefingRunOptions = {}): Promise<Brief
     const ids = opts.recipientIds ?? [];
     recipients = ids === "all" ? staff : staff.filter((s) => ids.includes(s.id));
     result.audience = ids === "all" ? "all staff (manual)" : `${recipients.length} selected (manual)`;
+  } else if (!settings.auto_enabled) {
+    result.audience = "nobody (automatic send is paused)";
   } else if (settings.weekdays_only && isWeekendAz()) {
     result.audience = "nobody (weekend; the automatic send runs Monday to Friday)";
   } else {
@@ -76,8 +81,6 @@ export async function runBriefings(opts: BriefingRunOptions = {}): Promise<Brief
     } else if (env) {
       recipients = env === "all" ? staff : staff.filter((s) => env.includes(s.email.toLowerCase()));
       result.audience = env === "all" ? "all staff (env)" : `${env.join(", ")} (env)`;
-    } else if (!settings.auto_enabled) {
-      result.audience = "nobody (automatic send is paused)";
     } else {
       recipients = settings.audience === "all" ? staff : staff.filter((s) => settings.recipient_ids.includes(s.id));
       result.audience = settings.audience === "all" ? "all staff" : `${recipients.length} selected`;
