@@ -14,6 +14,7 @@ import { JobCommsBar } from "@/components/communications/job-comms-bar";
 import { InstallAppButton } from "@/components/pwa/install-app-button";
 import { PushPrompt } from "@/components/pwa/push-prompt";
 import { SidebarContext } from "@/components/dashboard/sidebar-context";
+import { JobSwitcher } from "@/components/dashboard/job-switcher";
 import { cn } from "@/lib/utils";
 import { Tooltip } from "@/components/ui/tooltip";
 
@@ -40,6 +41,16 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = React.useState(false);
+  // The job menu's own rail (icons only), remembered per browser.
+  const [jobNavCollapsed, setJobNavCollapsedState] = React.useState(false);
+  React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- per-browser preference, read after mount
+    try { setJobNavCollapsedState(window.localStorage.getItem("cmi.jobNav.collapsed") === "1"); } catch { /* storage unavailable */ }
+  }, []);
+  const setJobNavCollapsed = React.useCallback((v: boolean) => {
+    setJobNavCollapsedState(v);
+    try { window.localStorage.setItem("cmi.jobNav.collapsed", v ? "1" : "0"); } catch { /* storage unavailable */ }
+  }, []);
   const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = React.useState(false);
   const closeMobileSearch = React.useCallback(() => setMobileSearchOpen(false), []);
@@ -77,7 +88,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   }, [onDetailPage]);
 
   return (
-    <SidebarContext.Provider value={{ collapsed }}>
+    <SidebarContext.Provider value={{ collapsed, jobNavCollapsed, setJobNavCollapsed }}>
     <div className={cn("min-h-screen bg-background text-foreground lg:grid print:!block", collapsed ? "lg:grid-cols-[76px_1fr]" : "lg:grid-cols-[232px_1fr]")}>
       <aside className={cn("fixed inset-y-0 left-0 z-40 hidden flex-col border-r border-border bg-card transition-all lg:flex print:hidden", collapsed ? "w-[76px]" : "w-[232px]")}>
         <div className={cn("flex h-[104px] items-start border-b border-border pt-4", collapsed ? "justify-center px-2" : "px-4")}>
@@ -125,6 +136,8 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             </button>
             <img src="/brand/cmi-mark.svg" alt="Constructed Matter, Inc." className="h-7 w-7 object-contain lg:hidden dark:invert" />
             <span className="hidden text-sm font-semibold lg:block">CMI Dashboard</span>
+            {/* Every job, with search and a Status / Type / PM filter. */}
+            <div className="hidden sm:block"><JobSwitcher /></div>
           </div>
           <div className="flex items-center gap-2">
             {/* Job pages only: Calls / SMS / Email / Notes / Prints for this job. */}
@@ -150,7 +163,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         <MobileSearchPanel open={mobileSearchOpen} onClose={closeMobileSearch} role={(sessionUser?.role ?? "viewer") as UserRole} />
         </div>
         <PushPrompt />
-        <div className={cn("min-h-[calc(100vh-56px)] pb-24 lg:pb-0 print:pb-0", onJobPage && collapsed && "lg:pl-52")}>{children}</div>
+        <div className={cn("min-h-[calc(100vh-56px)] pb-24 lg:pb-0 print:pb-0", onJobPage && collapsed && (jobNavCollapsed ? "lg:pl-14" : "lg:pl-52"))}>{children}</div>
       </main>
       {/* Leadership review FAB — Super Admin only, on every dashboard page. */}
       {sessionUser?.role === "super_admin" && <ReviewFab />}
