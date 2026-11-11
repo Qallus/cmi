@@ -96,7 +96,7 @@ export function buildLookahead(items: LookaheadItem[], phases: LookaheadPhase[],
       days: days.map((d, n) => (d >= start && d <= finish ? n : -1)).filter((n) => n >= 0),
       waitsOn: showSel ? { name: s!.name, decided, due: s!.target_decision_date, // Late: not decided, and due after the task starts or already overdue.
       late: !decided && !!s!.target_decision_date && (s!.target_decision_date > start || s!.target_decision_date < today) } : null,
-      inspection: audience === "internal" && i.inspection_step_id ? (() => {
+      inspection: audience === "internal" && i.inspection_step_id && i.inspection_status ? (() => {
         const st = i.inspection_status ?? "not_ready";
         const by = CLEARS_HOLD.has(st) || st === "scheduled" ? null : requestBy(start, cutoff?.minutes ?? null, cutoff?.method ?? null);
         return { status: inspectionStatusLabel(st), requestBy: by?.label ?? null, callNow: !!by && by.date <= today && (st === "not_ready" || st === "ready_to_call") };

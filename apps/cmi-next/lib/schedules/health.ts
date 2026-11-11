@@ -109,7 +109,7 @@ export function scheduleHealth(h: HealthInput): Health {
 
   // Waiting on inspection (only on schedules with inspection milestones): requested, scheduled,
   // failed, partial or re-inspect requested, and not yet passed.
-  const insp = live.filter((i) => i.inspection_step_id && open(i));
+  const insp = live.filter((i) => i.inspection_step_id && i.inspection_status && open(i));
   if (insp.length) {
     const waiting = insp.filter((i) => WAITING.has(i.inspection_status ?? ""));
     const failed = waiting.filter((i) => i.inspection_status === "failed").length;

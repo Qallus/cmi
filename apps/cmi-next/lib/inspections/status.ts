@@ -122,7 +122,7 @@ export function unpassedInspectionsBefore(itemId: string, links: HoldLink[], ite
   const byId = new Map(items.map((i) => [i.id, i]));
   return links.filter((l) => l.target_item_id === itemId)
     .map((l) => byId.get(l.source_item_id))
-    .filter((i): i is HoldItem => !!i && !!i.inspection_step_id && i.status !== "cancelled" && !CLEARS_HOLD.has(i.inspection_status ?? "not_ready"));
+    .filter((i): i is HoldItem => !!i && !!i.inspection_step_id && !!i.inspection_status && i.status !== "cancelled" && !CLEARS_HOLD.has(i.inspection_status));
 }
 
 /** Patches that start or finish a task (status in progress / complete, an actual start, or progress above 0). */

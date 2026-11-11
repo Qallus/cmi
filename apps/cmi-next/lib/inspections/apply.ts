@@ -30,7 +30,7 @@ async function loadContext(scheduleId: string) {
   const { data: sched } = await sb.from("job_schedules").select("id, job_id, name").eq("id", scheduleId).maybeSingle();
   if (!sched) throw new InspectionApplyError("Schedule not found.", 404);
   if (!sched.job_id) throw new InspectionApplyError("Inspections load into job schedules only.");
-  const { data: job } = await sb.from("jobs").select("id, name, jurisdiction_code, inspection_scope, inspection_conditions").eq("id", sched.job_id).maybeSingle();
+  const { data: job } = await sb.from("jobs").select("id, job_number, job_name, jurisdiction_code, inspection_scope, inspection_conditions").eq("id", sched.job_id).maybeSingle();
   if (!job) throw new InspectionApplyError("Job not found.", 404);
   const code = (job.jurisdiction_code as string | null) ?? null;
   const scope = INSPECTION_SCOPES.some((s) => s.value === job.inspection_scope) ? (job.inspection_scope as InspectionScope) : null;
@@ -38,7 +38,7 @@ async function loadContext(scheduleId: string) {
     ? await sb.from("inspection_jurisdictions").select("code, name, cutoff_label, scheduling_method").eq("code", code).maybeSingle()
     : { data: null };
   const profile: InspectionProfile = {
-    job: { id: job.id, name: job.name ?? null },
+    job: { id: job.id, name: [job.job_number, job.job_name].filter(Boolean).join(" · ") || null },
     jurisdiction: jur ?? null,
     scope,
     conditions: cleanConditions(job.inspection_conditions),

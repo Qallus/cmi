@@ -21,7 +21,7 @@ export async function inspectionsToCall(today = todayAZ(), limit = 20): Promise<
   const { data: items, error } = await sb.from("schedule_items")
     .select("id, schedule_id, job_id, title, start_date, status, inspection_status")
     .not("inspection_step_id", "is", null).neq("status", "cancelled")
-    .or("inspection_status.is.null,inspection_status.in.(not_ready,ready_to_call)")
+    .in("inspection_status", ["not_ready", "ready_to_call"])
     .gte("start_date", addDays(today, -14)).lte("start_date", addDays(today, 5))
     .order("start_date").limit(200);
   if (error || !items?.length) return [];

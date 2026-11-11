@@ -175,6 +175,7 @@ export function buildPlan(
   const today = opts.today ?? isoDay(new Date());
   const milestones: PlannedMilestone[] = [];
   const pending: { m: PlannedMilestone; row: InspectionLibraryRow; pred: ReturnType<typeof resolveTasks>; rel: ReturnType<typeof resolveTasks> }[] = [];
+  const dated = new Set<PlannedMilestone>();
   const unlinked: Plan["unlinked"] = [];
 
   for (const { row, count } of picks) {
@@ -183,7 +184,8 @@ export function buildPlan(
     const rel = resolveTasks(row, "released", items, hooks);
     const ends = pred.tasks.map((t) => t.end_date).filter(Boolean) as string[];
     const starts = rel.tasks.map((t) => t.start_date).filter(Boolean) as string[];
-    const date = ends.length ? ends.sort().at(-1)! : starts.length ? starts.sort()[0] : today;
+    const fromTasks = ends.length ? ends.sort().at(-1)! : starts.length ? starts.sort()[0] : null;
+    const date = fromTasks ?? today;
     const notes = [
       row.jurisdiction_name ? `Jurisdiction: ${row.jurisdiction_name}` : null,
       row.code ? `Code: ${row.code}${row.code_basis ? ` (${row.code_basis})` : ""}` : null,
@@ -203,10 +205,23 @@ export function buildPlan(
         internal_notes: notes, hold_point: row.hold_point,
       };
       milestones.push(m);
+      if (fromTasks) dated.add(m);
       pending.push({ m, row, pred, rel });
     }
     for (const note of [...pred.missing, ...rel.missing]) unlinked.push({ step_id: row.milestone_id, note });
   }
+
+  // A milestone with no task to date it from sits with its neighbours: the nearest dated one
+  // before it in library order (phase, then the workbook's order), else the nearest after it.
+  const order = milestones.map((m, n) => ({ m, n, k: `${m.phase_id}|${String(picks.find((p) => p.row.milestone_id === m.step_id)?.row.sort_order ?? 0).padStart(6, "0")}` }))
+    .sort((a, b) => a.k.localeCompare(b.k) || a.n - b.n).map((x) => x.m);
+  order.forEach((m, i) => {
+    if (dated.has(m)) return;
+    const before = order.slice(0, i).reverse().find((x) => dated.has(x));
+    const after = order.slice(i + 1).find((x) => dated.has(x));
+    const near = before ?? after;
+    if (near) { m.date = near.date; m.schedule_phase_id ??= near.schedule_phase_id; }
+  });
 
   // Milestones a "MILESTONE:" hook can point at: this plan's, and ones already on the schedule.
   const pool = [

@@ -89,3 +89,13 @@ test("plan: a link that would loop back is skipped and reported", () => {
   assert.equal(p.skipped.length, 1);
   assert.match(p.skipped[0].note, /loop/);
 });
+
+test("plan: a milestone with no task to date it from sits with its nearest linked neighbour", () => {
+  const items = [task("t1", "Pad Prep, Footings and form boards", { end_date: "2027-01-13" }), task("t2", "Pour and Cure", { start_date: "2027-01-27" })];
+  const footing = row({ milestone_id: "X-M06", sort_order: 6 });
+  const orphan = row({ milestone_id: "X-M07", sort_order: 7, gantt_name: "INSP · Pool steel", predecessor_hook: "Pool steel set", released_hook: "" });
+  const p = buildPlan([{ row: orphan, count: 1 }, { row: footing, count: 1 }], items, hooks, [], { today: "2026-11-11" });
+  assert.equal(p.milestones.find((m) => m.step_id === "X-M07").date, "2027-01-13");
+  const alone = buildPlan([{ row: orphan, count: 1 }], items, hooks, [], { today: "2026-11-11" });
+  assert.equal(alone.milestones[0].date, "2026-11-11"); // nothing dated to borrow from
+});

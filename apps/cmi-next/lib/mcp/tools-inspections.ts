@@ -197,12 +197,13 @@ export function inspectionTools(): McpTool[] {
           const hold = new Map((lib ?? []).map((l) => [l.milestone_id, !!l.hold_point]));
           const today = todayAZ();
           const rows = (items ?? []).map((i) => {
-            const st = i.inspection_status ?? "not_ready";
-            const by = CLEARS_HOLD.has(st) || i.status === "cancelled" ? null : requestBy(i.start_date, jur?.cutoff_minutes ?? null, jur?.scheduling_method ?? null);
+            // Permit / contract (MS) and internal check (CHK) rows carry no inspection status.
+            const st = i.inspection_status ?? null;
+            const by = !st || CLEARS_HOLD.has(st) || i.status === "cancelled" ? null : requestBy(i.start_date, jur?.cutoff_minutes ?? null, jur?.scheduling_method ?? null);
             return {
               item_id: i.id, schedule_id: i.schedule_id, step_id: i.inspection_step_id, title: i.title, code: i.inspection_code, date: i.start_date,
-              status: inspectionStatusLabel(st), status_value: st, hold_point: hold.get(i.inspection_step_id as string) ?? false,
-              request_by: by?.label ?? null, call_today: !!by && by.date <= today && TO_REQUEST.has(st),
+              status: st ? inspectionStatusLabel(st) : "Milestone (not an inspection)", status_value: st, hold_point: hold.get(i.inspection_step_id as string) ?? false,
+              request_by: by?.label ?? null, call_today: !!by && !!st && by.date <= today && TO_REQUEST.has(st),
             };
           });
           return { result: {

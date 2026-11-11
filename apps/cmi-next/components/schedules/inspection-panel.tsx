@@ -76,7 +76,7 @@ export function InspectionPanel({ itemId, onChanged }: { itemId: string; onChang
 
       {info?.can_update ? (
         <div className="space-y-2 border-t border-border pt-2">
-          <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-2">
             <label className="flex flex-col gap-1 text-xs text-muted-foreground">Status
               <select value={status} onChange={(e) => setStatus(e.target.value as InspectionStatus)} className="h-9 rounded-md border border-border bg-card px-2 text-sm text-foreground">
                 {INSPECTION_STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
