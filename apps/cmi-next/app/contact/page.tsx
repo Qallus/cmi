@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Handshake } from "lucide-react";
+import { ArrowDown, Handshake } from "lucide-react";
 import { SiteHeader } from "@/components/site/site-header";
 import { SiteFooter } from "@/components/site/site-footer";
 import { isFeatureEnabled } from "@/lib/flags";
@@ -35,14 +35,26 @@ export default async function ContactPage() {
               <p className="mt-5 text-base leading-relaxed text-muted-foreground">
                 Whether you have a project in mind or just want to learn more about what we do, we&apos;d love to hear from you. Our team typically responds within one business day.
               </p>
-              {tradePartnersOn && (
-                <Link
-                  href="/become-a-trade-partner"
-                  className="mt-6 inline-flex items-center gap-2 rounded-lg border border-accent px-5 py-2.5 text-sm font-semibold text-accent transition hover:bg-accent hover:text-white"
+              {/* Point people at the form: it sits below the fold on most screens. */}
+              <div className="mt-7 flex flex-wrap items-center gap-3">
+                <a
+                  href="#contact-form"
+                  className="inline-flex items-center gap-2 rounded-lg bg-accent px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-accent/90"
                 >
-                  <Handshake className="h-4 w-4" strokeWidth={1.8} /> Interested in working with us?
-                </Link>
-              )}
+                  Send us a message <ArrowDown className="h-4 w-4" strokeWidth={2} />
+                </a>
+                {tradePartnersOn && (
+                  <Link
+                    href="/become-a-trade-partner"
+                    className="inline-flex items-center gap-2 rounded-lg border border-accent px-5 py-2.5 text-sm font-semibold text-accent transition hover:bg-accent hover:text-white"
+                  >
+                    <Handshake className="h-4 w-4" strokeWidth={1.8} /> Interested in working with us?
+                  </Link>
+                )}
+              </div>
+              <p className="mt-4 text-sm text-muted-foreground">
+                Below, choose one of three options: <span className="font-medium text-foreground">build or remodel</span>, <span className="font-medium text-foreground">trade partner</span> or <span className="font-medium text-foreground">present a product</span>. The form changes to match.
+              </p>
             </div>
           </div>
         </section>

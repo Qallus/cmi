@@ -9,10 +9,13 @@ import { Turnstile } from "@/components/site/turnstile";
 // Each visitor picks a path first (trade partner brief §4), so vendor pitches
 // and trade partner applications stop landing in the client lead inbox.
 type Path = "client" | "vendor_pitch" | "trade_partner";
-const PATHS: { key: Path; title: string; body: string; icon: typeof Home }[] = [
-  { key: "client", title: "I'm looking to build or remodel", body: "A new home, addition, casita or remodel.", icon: Home },
-  { key: "trade_partner", title: "I'm a trade partner looking to work with you", body: "Subcontractors, suppliers and consultants.", icon: Hammer },
-  { key: "vendor_pitch", title: "I have a product or service to present", body: "Materials, products, software and services.", icon: Package },
+const PATHS: { key: Path; title: string; body: string; icon: typeof Home; panel: string; panelBody: string }[] = [
+  { key: "client", title: "I'm looking to build or remodel", body: "A new home, addition, casita or remodel.", icon: Home,
+    panel: "Tell us about your project", panelBody: "A few details help us match you with the right person. Only the starred fields are required." },
+  { key: "trade_partner", title: "I'm a trade partner looking to work with you", body: "Subcontractors, suppliers and consultants.", icon: Hammer,
+    panel: "Become a trade partner", panelBody: "" },
+  { key: "vendor_pitch", title: "I have a product or service to present", body: "Materials, products, software and services.", icon: Package,
+    panel: "Tell us what you offer", panelBody: "Share your product or service and we'll pass it to the right person on our team." },
 ];
 
 const HOW_DID_YOU_HEAR = [
@@ -68,7 +71,8 @@ const inputCls =
   "w-full rounded-lg border border-border bg-card px-4 py-2.5 text-sm outline-none placeholder:text-muted-foreground/50 focus:border-accent focus:ring-1 focus:ring-accent";
 
 export function ContactForm({ turnstileSiteKey, tradePartnersOn = true }: { turnstileSiteKey?: string | null; tradePartnersOn?: boolean }) {
-  const [path, setPath] = useState<Path | null>(null);
+  // The most common reason is open by default; a ?path= link picks another.
+  const [path, setPath] = useState<Path>("client");
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const onToken = useCallback((t: string | null) => setTurnstileToken(t), []);
   // When the form was opened: a bot submits faster than a person can type.
@@ -169,31 +173,54 @@ export function ContactForm({ turnstileSiteKey, tradePartnersOn = true }: { turn
   }
 
   const pitch = path === "vendor_pitch";
+  const current = PATHS.find((p) => p.key === path) ?? PATHS[0];
+  const Icon = current.icon;
   return (
-    <div className="space-y-6">
+    <div id="contact-form" className="scroll-mt-28 space-y-5">
+      {/* Step 1: three clear choices, one always selected. */}
       <fieldset>
-        <legend className="mb-3 text-sm font-medium">How can we help? <span className="text-accent">*</span></legend>
-        <div className="grid gap-3 sm:grid-cols-3">
-          {PATHS.map((p) => {
+        <legend className="mb-1 flex flex-wrap items-baseline gap-x-2 text-sm">
+          <span className="font-display text-xl font-semibold text-foreground sm:text-2xl">How can we help?</span>
+          <span className="text-muted-foreground">Choose one of 3 options. The form below changes to match.</span>
+        </legend>
+        <div role="radiogroup" aria-label="How can we help?" className="mt-4 grid gap-3 sm:grid-cols-3">
+          {PATHS.map((p, i) => {
             const on = path === p.key;
             return (
               <button
-                key={p.key} type="button" aria-pressed={on} onClick={() => setPath(p.key)}
-                className={"flex flex-col items-start gap-2 rounded-xl border p-4 text-left transition " +
-                  (on ? "border-accent bg-accent/10" : "border-border bg-card hover:border-accent/40")}
+                key={p.key} type="button" role="radio" aria-checked={on} onClick={() => setPath(p.key)}
+                className={"group relative flex flex-col items-start gap-2 rounded-xl border-2 p-4 pr-10 text-left shadow-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 " +
+                  (on ? "border-accent bg-accent/10 shadow-md" : "border-border bg-card hover:-translate-y-0.5 hover:border-accent/60 hover:shadow-md")}
               >
-                <p.icon className={"h-5 w-5 " + (on ? "text-accent" : "text-muted-foreground")} strokeWidth={1.6} />
+                {/* Radio dot: reads as "pick one" at a glance. */}
+                <span aria-hidden="true" className={"absolute right-3 top-3 grid h-5 w-5 place-items-center rounded-full border-2 transition " + (on ? "border-accent bg-accent text-white" : "border-muted-foreground/40 bg-background group-hover:border-accent/70")}>
+                  {on ? <Check className="h-3 w-3" strokeWidth={3} /> : null}
+                </span>
+                <span className="flex items-center gap-2">
+                  <span className={"grid h-6 w-6 place-items-center rounded-full text-[11px] font-bold " + (on ? "bg-accent text-white" : "bg-muted text-muted-foreground")}>{i + 1}</span>
+                  <p.icon className={"h-5 w-5 " + (on ? "text-accent" : "text-muted-foreground")} strokeWidth={1.6} />
+                </span>
                 <span className="text-sm font-semibold leading-snug">{p.title}</span>
                 <span className="text-xs leading-relaxed text-muted-foreground">{p.body}</span>
+                <span className={"mt-auto pt-1 text-xs font-semibold " + (on ? "text-accent" : "text-muted-foreground group-hover:text-accent")}>{on ? "Selected ↓" : "Choose this →"}</span>
               </button>
             );
           })}
         </div>
       </fieldset>
 
+      {/* Step 2: the form for the chosen option, in its own panel so it reads as a form. */}
+      <div className="rounded-2xl border-2 border-accent/40 bg-card p-5 shadow-sm sm:p-8">
+        <div className="mb-6 flex items-start gap-3 border-b border-border pb-5">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-accent/15 text-accent"><Icon className="h-5 w-5" strokeWidth={1.7} /></span>
+          <div className="min-w-0">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-accent">{current.title}</div>
+            <h2 className="mt-0.5 font-display text-2xl font-semibold leading-tight">{current.panel}</h2>
+            {current.panelBody ? <p className="mt-1 text-sm text-muted-foreground">{current.panelBody}</p> : null}
+          </div>
+        </div>
       {path === "trade_partner" && (
-        <div className="rounded-2xl border border-border bg-card p-8">
-          <h2 className="font-display text-2xl font-semibold">Become a trade partner</h2>
+        <div>
           {tradePartnersOn ? (
             <>
               <p className="mt-2 leading-relaxed text-muted-foreground">
@@ -445,6 +472,7 @@ export function ContactForm({ turnstileSiteKey, tradePartnersOn = true }: { turn
       </button>
     </form>
       )}
+      </div>
     </div>
   );
 }
