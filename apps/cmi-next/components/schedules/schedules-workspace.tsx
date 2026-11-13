@@ -601,7 +601,7 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
             ) : view === "table" && engine?.enabled && primarySchedule && !overlay ? (
               <ScheduleGrid
                 key={primarySchedule.id} schedule={primarySchedule} items={shownItems} phases={phases} dependencies={dependencies}
-                canEdit={canEdit} zoom={zoom} showBaseline={showBaseline} showLinks={showLinks} onToggleLinks={toggleLinks} onStyleItem={canEdit ? setStyling : undefined} linkMode={linkMode}
+                canEdit={canEdit} zoom={zoom} onZoomChange={setZoom} showBaseline={showBaseline} showLinks={showLinks} onToggleLinks={toggleLinks} onStyleItem={canEdit ? setStyling : undefined} linkMode={linkMode}
                 onOpenItem={setEditing} onBanner={setBanner} onDatesChange={ganttDates} onLink={(s, t) => addDependency(s, t)}
                 onReload={async () => { const b = await loadBundle(primarySchedule.id); void refreshEngine(); void refreshSchedules(); return b?.items ?? null; }}
                 mode={engine.mode} contractVariances={new Map((engine.summary?.contract ?? []).map((c) => [c.id, c.variance]))}

@@ -7,7 +7,7 @@
 import * as React from "react";
 import { confirmAction } from "@/components/ui/confirm-action";
 import { createPortal } from "react-dom";
-import { ChevronDown, ChevronRight, ChevronLeft, GripVertical, Maximize2, Undo2, Redo2, Columns3, ListOrdered, Plus, History, Loader2, FlaskConical, Check, FileSpreadsheet, Download, FileUp, Spline, Lock } from "lucide-react";
+import { ChevronDown, ChevronRight, ChevronLeft, GripVertical, Maximize2, Undo2, Redo2, Columns3, ListOrdered, Plus, History, Loader2, FlaskConical, Check, FileSpreadsheet, Download, FileUp, Spline, Lock, Star, Trash2, Save } from "lucide-react";
 import { ExcelImportDialog } from "./excel-import";
 import { RenumberDialog } from "../renumber-dialog";
 import { landingPhase } from "@/lib/schedules/id-order";
@@ -23,7 +23,8 @@ import { ResizablePanelGroup, ResizablePanel, ResizableHandle, type ImperativePa
 import { cn } from "@/lib/utils";
 import { GanttView, ROW_H, HEAD_H } from "../views/gantt-view";
 import {
-  GRID_COLUMNS, COLUMN, GRID_PRESETS, ALWAYS_COLUMNS, presetNamed, normalizeColumns, moveColumn, scheduleRows, cellText, parseCell, parseClipboard, headerMap,
+  GRID_COLUMNS, COLUMN, GRID_PRESETS, ALWAYS_COLUMNS, presetNamed, normalizeColumns, moveColumn, scheduleRows,
+  layoutToConfig, configToLayout, type SavedGridLayout, type GridLayoutConfig, cellText, parseCell, parseClipboard, headerMap,
   type ColumnKey, type GridCtx, type GridOps, type PredEdit, type CellChange,
 } from "@/lib/schedules/grid";
 import { idBetween, type LinkRef } from "@/lib/schedules/predecessors";
@@ -61,8 +62,10 @@ function store(key: string, value: unknown) {
 
 export function ScheduleGrid({
   schedule, items: allItems, phases, dependencies: realDeps, canEdit, zoom, showBaseline, showLinks, onToggleLinks, onStyleItem, linkMode,
-  onOpenItem, onReload, onBanner, onDatesChange, onLink, mode = "legacy", contractVariances, baselineVariances, statusDate, resources = false,
+  onOpenItem, onReload, onBanner, onDatesChange, onLink, mode = "legacy", contractVariances, baselineVariances, statusDate, resources = false, onZoomChange,
 }: {
+  /** A saved layout can carry the Gantt zoom; this sets it on the page. */
+  onZoomChange?: (z: "day" | "week" | "month") => void;
   /** Phase 2 resources: right-click → Assign… for the selected rows. */
   resources?: boolean;
   schedule: JobSchedule;
@@ -144,6 +147,10 @@ export function ScheduleGrid({
   const [busy, setBusy] = React.useState(false);
   const [menu, setMenu] = React.useState<{ x: number; y: number; id: string } | null>(null);
   const [colMenu, setColMenu] = React.useState(false);
+  // Saved layouts (Addendum §3.3): this person's, from the server. `missing` = migration not run yet.
+  const [saved, setSaved] = React.useState<{ layouts: SavedGridLayout[]; type: string | null; missing: boolean; loaded: boolean }>({ layouts: [], type: null, missing: false, loaded: false });
+  const [divider, setDivider] = React.useState<number | null>(null);
+  const [saveAs, setSaveAs] = React.useState<{ name: string; allTypes: boolean; isDefault: boolean; busy: boolean } | null>(null);
   const [histMenu, setHistMenu] = React.useState(false);
   const [xlMenu, setXlMenu] = React.useState(false);
   const [importing, setImporting] = React.useState(false);
@@ -758,6 +765,73 @@ export function ScheduleGrid({
     for (const it of shownItems) w = Math.max(w, ctx2d.measureText(cellText(it, k, ctx)).width + (k === "name" && it.kind === "milestone" ? 16 : 0));
     setWidth(k, w + 20);
   }
+  // ---- saved layouts: load what this schedule opens with, remember changes ----
+  const splitNow = hidden === "gantt" ? "grid" : hidden === "grid" ? "gantt" : "split";
+  function applyConfig(c: Partial<GridLayoutConfig>, name?: string | null) {
+    const l = configToLayout(c);
+    setCols(l.cols); store("cmi.schedgrid.columns", l.cols);
+    setWidths(l.widths); store("cmi.schedgrid.widths", l.widths);
+    const n = name ?? l.name ?? "Custom";
+    setLayout(n); store("cmi.schedgrid.layout", n);
+    if (l.zoom && l.zoom !== zoom) onZoomChange?.(l.zoom);
+    window.requestAnimationFrame(() => {
+      showPanes(l.split === "grid" ? "grid" : l.split === "gantt" ? "gantt" : "both");
+      if (l.split === "split" && l.divider != null && l.divider > 5 && l.divider < 95) gridPanel.current?.resize(l.divider);
+    });
+  }
+  React.useEffect(() => {
+    let live = true;
+    void fetch(`/api/schedules/${schedule.id}/grid-layout`).then(async (r) => {
+      const d = await r.json().catch(() => ({}));
+      if (!live) return;
+      if (!r.ok) { setSaved((x) => ({ ...x, loaded: true })); return; }
+      setSaved({ layouts: d.layouts ?? [], type: d.scheduleType ?? null, missing: !!d.missing, loaded: true });
+      // The browser's own memory is used when there's nothing saved on the server yet.
+      if (d.resolved && d.resolved.source !== "preset") applyConfig(d.resolved.config);
+    });
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schedule.id]);
+  // Remember the layout in use on this schedule (a moment after the last change).
+  const configNow = React.useMemo(() => layoutToConfig({ name: layout === "Custom" ? null : layout, cols, widths, split: splitNow, divider, zoom }), [layout, cols, widths, splitNow, divider, zoom]);
+  const configKey = JSON.stringify(configNow);
+  const lastSent = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    if (!saved.loaded || saved.missing) return;
+    if (lastSent.current === null) { lastSent.current = configKey; return; }
+    if (lastSent.current === configKey) return;
+    const t = window.setTimeout(() => {
+      lastSent.current = configKey;
+      void fetch(`/api/schedules/${schedule.id}/grid-layout`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ config: configNow }) });
+    }, 900);
+    return () => window.clearTimeout(t);
+  }, [configKey, configNow, saved.loaded, saved.missing, schedule.id]);
+  async function saveLayoutAs() {
+    if (!saveAs?.name.trim()) return;
+    setSaveAs({ ...saveAs, busy: true });
+    const r = await fetch(`/api/schedules/${schedule.id}/grid-layout`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: saveAs.name, allTypes: saveAs.allTypes, isDefault: saveAs.isDefault, config: configNow }) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { onBanner(d.error ?? "Could not save the layout."); setSaveAs({ ...saveAs, busy: false }); return; }
+    const made = d.layout as SavedGridLayout;
+    setSaved((x) => ({ ...x, layouts: [...x.layouts.filter((l) => l.id !== made.id).map((l) => (made.is_default && l.schedule_type === made.schedule_type ? { ...l, is_default: false } : l)), made].sort((a, b) => a.name.localeCompare(b.name)) }));
+    setLayout(made.name); store("cmi.schedgrid.layout", made.name);
+    setSaveAs(null);
+    onBanner(`Saved layout "${made.name}" for ${made.schedule_type ? `${typeLabel(made.schedule_type)} schedules` : "every schedule type"}.${made.is_default ? " Those schedules open with it." : ""}`);
+  }
+  async function toggleDefault(l: SavedGridLayout) {
+    const on = !l.is_default;
+    const r = await fetch(`/api/schedules/${schedule.id}/grid-layout`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ layoutId: l.id, isDefault: on }) });
+    if (!r.ok) { const d = await r.json().catch(() => ({})); onBanner(d.error ?? "Could not change the default."); return; }
+    setSaved((x) => ({ ...x, layouts: x.layouts.map((o) => (o.id === l.id ? { ...o, is_default: on } : on && o.schedule_type === l.schedule_type ? { ...o, is_default: false } : o)) }));
+  }
+  async function removeLayout(l: SavedGridLayout) {
+    if (!(await confirmAction({ title: `Delete layout "${l.name}"?`, body: "Only your saved layout is removed; the grid keeps its current columns.", tone: "danger", confirmLabel: "Delete" }))) return;
+    const r = await fetch(`/api/schedules/${schedule.id}/grid-layout?layoutId=${l.id}`, { method: "DELETE" });
+    if (!r.ok) { const d = await r.json().catch(() => ({})); onBanner(d.error ?? "Could not delete the layout."); return; }
+    setSaved((x) => ({ ...x, layouts: x.layouts.filter((o) => o.id !== l.id) }));
+    if (layout === l.name) { setLayout("Custom"); store("cmi.schedgrid.layout", "Custom"); }
+  }
+
   const togglePhase = (key: string) => setCollapsed((c) => { const n = new Set(c); if (n.has(key)) n.delete(key); else n.add(key); return n; });
 
   const menuItem = menu ? byId.get(menu.id) : null;
@@ -798,6 +872,32 @@ export function ScheduleGrid({
                         className={cn("truncate rounded px-2 py-1 text-left text-sm hover:bg-muted/50", layout === p.name && "bg-accent/12 font-medium text-accent")}>{p.name}</button>
                     ))}
                   </div>
+                  <div className="mt-1 flex items-center justify-between px-2 pb-0.5 pt-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    <span>My layouts</span>
+                    {!saved.missing && !saveAs ? <button type="button" onClick={() => setSaveAs({ name: "", allTypes: false, isDefault: false, busy: false })} className="flex items-center gap-1 normal-case tracking-normal text-accent hover:underline"><Save className="h-3 w-3" /> Save layout as…</button> : null}
+                  </div>
+                  {saved.missing ? <p className="px-2 pb-1 text-xs text-muted-foreground">Saving layouts needs a database update first; until then the grid remembers your columns in this browser.</p> : null}
+                  {saveAs ? (
+                    <form className="space-y-1.5 rounded-md border border-border bg-muted/30 p-2" onSubmit={(e) => { e.preventDefault(); void saveLayoutAs(); }}>
+                      <Input autoFocus value={saveAs.name} maxLength={60} placeholder="e.g. Ben – procurement" onChange={(e) => setSaveAs({ ...saveAs, name: e.target.value })} className="h-8 text-sm" aria-label="Layout name" />
+                      <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={saveAs.allTypes} onChange={(e) => setSaveAs({ ...saveAs, allTypes: e.target.checked })} className="h-3.5 w-3.5 accent-[var(--accent)]" /> For every schedule type{saved.type && !saveAs.allTypes ? <span className="text-muted-foreground"> (else {typeLabel(saved.type)} only)</span> : null}</label>
+                      <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={saveAs.isDefault} onChange={(e) => setSaveAs({ ...saveAs, isDefault: e.target.checked })} className="h-3.5 w-3.5 accent-[var(--accent)]" /> Open {saveAs.allTypes || !saved.type ? "schedules" : `${typeLabel(saved.type)} schedules`} with it</label>
+                      <div className="flex justify-end gap-1.5">
+                        <Button type="button" size="sm" variant="ghost" onClick={() => setSaveAs(null)}>Cancel</Button>
+                        <Button type="submit" size="sm" variant="accent" disabled={saveAs.busy || !saveAs.name.trim()}>{saveAs.busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null} Save</Button>
+                      </div>
+                    </form>
+                  ) : null}
+                  {saved.layouts.map((l) => (
+                    <div key={l.id} className={cn("group flex items-center gap-1 rounded px-2 py-0.5 text-sm hover:bg-muted/50", layout === l.name && "bg-accent/12")}>
+                      <button type="button" onClick={() => applyConfig(l, l.name)} className={cn("min-w-0 flex-1 truncate py-0.5 text-left", layout === l.name && "font-medium text-accent")} title={l.columns.map((c) => COLUMN[c.key as ColumnKey]?.label ?? c.key).join(", ")}>{l.name}</button>
+                      <span className="shrink-0 text-[10px] text-muted-foreground">{l.schedule_type ? typeLabel(l.schedule_type) : "All types"}</span>
+                      <button type="button" onClick={() => void toggleDefault(l)} aria-label={l.is_default ? "Stop opening schedules with it" : "Open schedules with it"} title={l.is_default ? `Opens ${l.schedule_type ? `${typeLabel(l.schedule_type)} schedules` : "schedules"} (click to stop)` : `Open ${l.schedule_type ? `${typeLabel(l.schedule_type)} schedules` : "schedules"} with it`}
+                        className={cn("shrink-0 p-0.5", l.is_default ? "text-accent" : "text-muted-foreground opacity-0 hover:text-foreground group-hover:opacity-100")}><Star className={cn("h-3.5 w-3.5", l.is_default && "fill-current")} /></button>
+                      <button type="button" onClick={() => void removeLayout(l)} aria-label={`Delete ${l.name}`} className="shrink-0 p-0.5 text-muted-foreground opacity-0 hover:text-destructive group-hover:opacity-100"><Trash2 className="h-3.5 w-3.5" /></button>
+                    </div>
+                  ))}
+                  {!saved.missing && saved.loaded && !saved.layouts.length && !saveAs ? <p className="px-2 pb-1 text-xs text-muted-foreground">None yet. Set the columns up, then Save layout as…</p> : null}
                 </div>
                 <div className="min-h-0 flex-1 overflow-y-auto p-1">
                   <div className="flex items-center justify-between px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -914,7 +1014,7 @@ export function ScheduleGrid({
 
       {/* Height follows the rows so the page scrolls grid and Gantt together. */}
       {/* Split / Grid / Gantt and the divider are remembered per schedule. */}
-      <ResizablePanelGroup direction="horizontal" autoSaveId={`cmi.schedgrid.panels.${schedule.id}`} style={{ height: "auto", overflow: "visible", ...(narrow ? { flexDirection: "column", gap: 12 } : {}) }} className="items-stretch">
+      <ResizablePanelGroup direction="horizontal" autoSaveId={`cmi.schedgrid.panels.${schedule.id}`} onLayout={(sizes) => { const g = sizes[0]; if (g > 5 && g < 95) setDivider(Math.round(g * 100) / 100); }} style={{ height: "auto", overflow: "visible", ...(narrow ? { flexDirection: "column", gap: 12 } : {}) }} className="items-stretch">
         <ResizablePanel ref={gridPanel} id="grid" order={1} defaultSize={58} minSize={20} collapsible collapsedSize={0}
           onCollapse={() => setHidden("grid")} onExpand={() => setHidden((h) => (h === "grid" ? null : h))} className={cn(hidden === "grid" ? undefined : !narrow && "pr-1.5", narrow && hidden === "grid" && "hidden")} style={stackStyle ?? { overflow: "clip" }}>
         {/* grid */}
@@ -1219,4 +1319,10 @@ function CellOptions({ options, value, onPick, onCancel }: { options: string[]; 
       ) : null}
     </div>
   );
+}
+
+/** "pre_construction" → "Pre-construction". */
+function typeLabel(t: string): string {
+  const s = t.replace(/_/g, " ").replace(/^pre /, "pre-");
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }

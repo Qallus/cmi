@@ -425,3 +425,58 @@ export function buildGridCtx(
     varianceOf,
   };
 }
+
+// ---- saved layouts (Grid Addendum §3.3) ----------------------------------------
+
+export type SplitChoice = "split" | "grid" | "gantt";
+export type GanttZoom = "day" | "week" | "month";
+/** What a layout holds: the columns (ordered, with widths), the split, the divider and the zoom. */
+export type GridLayoutConfig = {
+  layout_name: string | null;
+  columns: { key: string; width?: number | null; visible: boolean }[];
+  split: SplitChoice;
+  divider_pct: number | null;
+  gantt_zoom: GanttZoom | null;
+};
+export type SavedGridLayout = GridLayoutConfig & { id: string; name: string; schedule_type: string | null; is_default: boolean };
+
+/** The grid's state as a storable layout. Widths are kept only where they differ from the default. */
+export function layoutToConfig(s: {
+  name: string | null; cols: ColumnKey[]; widths: Partial<Record<ColumnKey, number>>;
+  split: SplitChoice; divider: number | null; zoom: GanttZoom | null;
+}): GridLayoutConfig {
+  return {
+    layout_name: s.name,
+    columns: normalizeColumns(s.cols).map((key) => ({ key, width: s.widths[key] ?? null, visible: true })),
+    split: s.split, divider_pct: s.divider == null ? null : Math.round(s.divider * 100) / 100, gantt_zoom: s.zoom,
+  };
+}
+
+/** A stored layout back into grid state (unknown columns dropped, ID and Task first). */
+export function configToLayout(c: Partial<GridLayoutConfig> | null | undefined): {
+  name: string | null; cols: ColumnKey[]; widths: Partial<Record<ColumnKey, number>>;
+  split: SplitChoice; divider: number | null; zoom: GanttZoom | null;
+} {
+  const shown = (c?.columns ?? []).filter((x) => x && x.visible !== false);
+  const cols = normalizeColumns(shown.map((x) => x.key));
+  const widths: Partial<Record<ColumnKey, number>> = {};
+  for (const x of shown) if (typeof x.width === "number" && x.width > 0 && (cols as string[]).includes(x.key)) widths[x.key as ColumnKey] = Math.round(x.width);
+  const split: SplitChoice = c?.split === "grid" || c?.split === "gantt" ? c.split : "split";
+  const zoom: GanttZoom | null = c?.gantt_zoom === "day" || c?.gantt_zoom === "week" || c?.gantt_zoom === "month" ? c.gantt_zoom : null;
+  const divider = typeof c?.divider_pct === "number" ? Number(c.divider_pct) : c?.divider_pct != null ? Number(c.divider_pct) : null;
+  return { name: c?.layout_name ?? null, cols, widths, split, divider: Number.isFinite(divider as number) ? divider : null, zoom };
+}
+
+/** Which layout a schedule opens with: the person's last one on this schedule →
+ *  their default for its type → their default for every type → the Default preset. */
+export function resolveLayout(
+  state: GridLayoutConfig | null | undefined, saved: SavedGridLayout[], scheduleType: string | null | undefined,
+): { source: "last" | "type_default" | "default" | "preset"; config: GridLayoutConfig } {
+  if (state && state.columns?.length) return { source: "last", config: state };
+  const typed = saved.find((l) => l.is_default && scheduleType && l.schedule_type === scheduleType);
+  if (typed) return { source: "type_default", config: { ...typed, layout_name: typed.name } };
+  const any = saved.find((l) => l.is_default && l.schedule_type == null);
+  if (any) return { source: "default", config: { ...any, layout_name: any.name } };
+  const p = GRID_PRESETS[0];
+  return { source: "preset", config: { layout_name: p.name, columns: p.columns.map((key) => ({ key, visible: true })), split: "split", divider_pct: null, gantt_zoom: null } };
+}

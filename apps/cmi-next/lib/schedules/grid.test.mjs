@@ -118,3 +118,27 @@ test("presets: Brandon's five, every one starts ID, Task; old names still open",
   assert.equal(presetNamed("PM view")?.name, "Default");
   assert.equal(presetNamed("Client print")?.clientOnly, true);
 });
+
+import { layoutToConfig, configToLayout, resolveLayout } from "./grid.ts";
+
+test("layouts: grid state round-trips through the stored shape", () => {
+  const cfg = layoutToConfig({ name: "Ben – procurement", cols: ["lead", "id", "name", "orderby"], widths: { lead: 90, notes: 300 }, split: "grid", divider: 61.234, zoom: "month" });
+  assert.deepEqual(cfg.columns.map((c) => c.key), ["id", "name", "lead", "orderby"]);
+  assert.equal(cfg.divider_pct, 61.23);
+  const back = configToLayout(cfg);
+  assert.deepEqual(back.cols, ["id", "name", "lead", "orderby"]);
+  assert.deepEqual(back.widths, { lead: 90 });
+  assert.equal(back.split, "grid");
+  assert.equal(back.zoom, "month");
+  assert.deepEqual(configToLayout({ columns: [{ key: "bogus", visible: true }, { key: "start", visible: false }] }).cols, ["id", "name"]);
+});
+
+test("layouts: last used → type default → all-types default → Default preset", () => {
+  const mk = (name, schedule_type, is_default) => ({ id: name, name, schedule_type, is_default, layout_name: null, columns: [{ key: "id", visible: true }], split: "split", divider_pct: null, gantt_zoom: null });
+  const saved = [mk("Field mine", null, true), mk("Construction mine", "construction", true), mk("Other", "design", false)];
+  const last = { layout_name: "Links", columns: [{ key: "id", visible: true }], split: "split", divider_pct: null, gantt_zoom: null };
+  assert.equal(resolveLayout(last, saved, "construction").source, "last");
+  assert.equal(resolveLayout(null, saved, "construction").config.layout_name, "Construction mine");
+  assert.equal(resolveLayout(null, saved, "design").config.layout_name, "Field mine");
+  assert.equal(resolveLayout(null, [], "design").config.layout_name, "Default");
+});
