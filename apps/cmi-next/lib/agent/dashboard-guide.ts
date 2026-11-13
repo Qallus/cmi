@@ -127,6 +127,7 @@ export const DASHBOARD_GUIDE: GuideEntry[] = [
     roles: "Super Admin, Admin, Project Manager, Estimator",
     summary: "Weekly workload meeting reports: sections of projects with status, dates, latest update and action items; Changes since last week; and open Action items. Each report has List, Table and Board views, checkboxes and quick actions (status, completion date, move, add action item, remove), PDF export and Mark final.",
     steps: [
+      "Move a project by hand: in the Kanban view, drag its card to any other stage column (check several cards and drag one to move them all), or check cards → quick action Stage → pick the stage. It moves even if that stage's required fields (e.g. Active Project's agreement status, start date and PM) aren't filled in yet: the card then shows an amber \"Missing: …\" tag, the message says what's still needed, and the stage history notes it. Open the card to fill them in and the tag clears. Reopening a Closed project is still admin-only. (Opening a card and using Move to next stage still prompts for those fields.)",
       "New report: Reporting → New report.",
       "Bring in past meetings: Reporting → Import a past meeting.",
       "Update many items at once: open a report → tick items (or Select all) → use the bar at the bottom.",

@@ -10,7 +10,7 @@ import { Select, Textarea, Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { CountPill, StatsToggle, TitleRow, useStatsVisible } from "@/components/ui/page-header-bits";
 import {
-  ALL_STAGES, ALLOWED_TRANSITIONS, STAGE_META, requiredFieldsForStage,
+  ALL_STAGES, ALLOWED_TRANSITIONS, STAGE_META, requiredFieldsForStage, missingForStage, FIELD_LABELS,
 } from "@/lib/pipeline/stages";
 import {
   BUDGET_STATUSES, FOLLOW_UP_FREQUENCIES, LONG_LEAD_REASONS, LOST_REASONS, PROJECT_TYPES,
@@ -133,6 +133,13 @@ export function PipelineClient({
   const [importOpen, setImportOpen] = React.useState(false);
   const { shown: showStats, toggle: toggleStats } = useStatsVisible("sales-pipeline");
   const [showArchived, setShowArchived] = React.useState(false);
+  // Board message after a drag: what moved, what's still missing, or why it didn't.
+  const [boardMsg, setBoardMsg] = React.useState<{ text: string; tone: "info" | "warn" | "error" } | null>(null);
+  React.useEffect(() => {
+    if (!boardMsg) return;
+    const t = window.setTimeout(() => setBoardMsg(null), 7000);
+    return () => window.clearTimeout(t);
+  }, [boardMsg]);
 
   // Refresh the list + report from the server after a mutation.
   const refresh = React.useCallback(async (archived = showArchived) => {
@@ -145,6 +152,47 @@ export function PipelineClient({
       if (repRes.ok) setReport(await repRes.json());
     } catch { /* keep local state */ }
   }, [showArchived]);
+
+  // Drag on the Kanban: move by hand to any stage, even with the new stage's
+  // fields empty (they're flagged on the card and in the stage history).
+  // Dragging a checked card moves every checked card with it.
+  async function moveCards(dragId: string, to: PipelineStage) {
+    const ids = selected.has(dragId) ? [...selected] : [dragId];
+    const moving = opps.filter((o) => ids.includes(o.id) && o.stage !== to);
+    if (!moving.length) return;
+    const before = opps;
+    setOpps((cur) => cur.map((o) => (moving.some((m) => m.id === o.id) ? { ...o, stage: to } : o)));
+    const label = STAGE_META[to].label;
+    const names = (ms: string[]) => [...new Set(ms)].map((m) => FIELD_LABELS[m] ?? m.replace(/_/g, " ")).join(", ");
+    try {
+      if (moving.length === 1) {
+        const res = await fetch(`/api/pipeline/${moving[0].id}/transition`, {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to, manual: true }),
+        });
+        const d = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(d.error ?? "Could not move it.");
+        const miss = (d.missing as string[] | undefined) ?? [];
+        setBoardMsg(miss.length
+          ? { tone: "warn", text: `${moving[0].opportunity_name} moved to ${label}. Still needs: ${names(miss)}.` }
+          : { tone: "info", text: `${moving[0].opportunity_name} moved to ${label}.` });
+      } else {
+        const res = await fetch("/api/pipeline/bulk", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ids: moving.map((m) => m.id), action: "stage", value: to }),
+        });
+        const d = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(d.error ?? "Could not move them.");
+        const failed = (d.failed as { id: string; error: string }[]) ?? [];
+        const warnings = (d.warnings as { id: string; missing: string[] }[]) ?? [];
+        const head = `${d.done} moved to ${label}.${failed.length ? ` ${failed.length} didn't: ${failed[0].error}` : ""}`;
+        setBoardMsg({ tone: failed.length ? "error" : warnings.length ? "warn" : "info", text: warnings.length ? `${head} ${warnings.length} still need: ${names(warnings.flatMap((w) => w.missing))}.` : head });
+      }
+      await refresh();
+    } catch (err) {
+      setOpps(before);
+      setBoardMsg({ tone: "error", text: err instanceof Error ? err.message : "Could not move it." });
+    }
+  }
 
   function toggleArchived(on: boolean) {
     setShowArchived(on);
@@ -340,11 +388,19 @@ export function PipelineClient({
         </div>
       </div>
 
+      {boardMsg ? (
+        <div role="status" className={cn("mx-4 mt-2 flex items-start gap-2 rounded-md border px-3 py-2 text-sm",
+          boardMsg.tone === "error" ? "border-destructive/40 bg-destructive/10 text-destructive" : boardMsg.tone === "warn" ? "border-warning/40 bg-warning/10" : "border-border bg-muted/40")}>
+          <span className="flex-1">{boardMsg.text}</span>
+          <button type="button" onClick={() => setBoardMsg(null)} className="text-muted-foreground hover:text-foreground" aria-label="Dismiss"><X className="h-3.5 w-3.5" /></button>
+        </div>
+      ) : null}
+
       {/* Body */}
       <div className="flex-1 overflow-auto">
         {view === "table"
           ? <TableView rows={filtered} onOpen={openView} onEdit={openEdit} selected={selected} setSelected={setSelected} />
-          : <KanbanView rows={filtered} onOpen={openView} selected={selected} setSelected={setSelected} />}
+          : <KanbanView rows={filtered} onOpen={openView} selected={selected} setSelected={setSelected} canWrite={canWrite} onMove={(id, to) => void moveCards(id, to)} />}
       </div>
 
       {/* View modal */}
@@ -555,39 +611,67 @@ function NextActionCell({ text, due }: { text: string | null; due: string | null
   );
 }
 
-function KanbanView({ rows, onOpen, selected, setSelected }: {
+function KanbanView({ rows, onOpen, selected, setSelected, canWrite = false, onMove }: {
   rows: Opportunity[];
   onOpen: (o: Opportunity) => void;
   selected: Set<string>;
   setSelected: React.Dispatch<React.SetStateAction<Set<string>>>;
+  canWrite?: boolean;
+  /** Drop a card on another column: move it there (and any checked cards with it). */
+  onMove?: (id: string, to: PipelineStage) => void;
 }) {
+  const [dragId, setDragId] = React.useState<string | null>(null);
+  const [over, setOver] = React.useState<PipelineStage | null>(null);
+  const dragStage = dragId ? rows.find((o) => o.id === dragId)?.stage : null;
+  const dragCount = dragId && selected.has(dragId) ? selected.size : 1;
   return (
     <div className="flex h-full gap-3 overflow-x-auto p-4">
       {ALL_STAGES.map((stage) => {
         const items = rows.filter((o) => o.stage === stage);
+        const target = !!dragId && stage !== dragStage;
         return (
-          <div key={stage} className="flex w-72 shrink-0 flex-col rounded-lg border border-border bg-card/50">
+          <div key={stage}
+            onDragOver={(e) => { if (canWrite && target) { e.preventDefault(); if (over !== stage) setOver(stage); } }}
+            onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setOver((s) => (s === stage ? null : s)); }}
+            onDrop={(e) => { e.preventDefault(); if (canWrite && dragId && target) onMove?.(dragId, stage); setDragId(null); setOver(null); }}
+            className={cn("flex w-72 shrink-0 flex-col rounded-lg border bg-card/50 transition-colors", over === stage ? "border-accent bg-accent/5 ring-1 ring-accent" : "border-border")}>
             <div className="flex items-center justify-between border-b border-border px-3 py-2">
               <div className="flex items-center gap-2 text-xs font-semibold"><StageBadge stage={stage} /></div>
               <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{items.length}</span>
             </div>
             <div className="flex-1 space-y-2 overflow-y-auto p-2">
-              {items.map((o) => (
-                <div key={o.id} role="button" tabIndex={0} onClick={() => onOpen(o)} onKeyDown={(e) => { if (e.key === "Enter") onOpen(o); }}
-                  className={cn("w-full cursor-pointer rounded-md border bg-background p-2.5 text-left transition hover:border-accent/50", selected.has(o.id) ? "border-accent" : "border-border")}>
-                  <div className="flex items-center gap-2">
-                    <input type="checkbox" checked={selected.has(o.id)} onClick={(e) => e.stopPropagation()}
-                      onChange={(e) => setSelected((prev) => { const n = new Set(prev); if (e.target.checked) n.add(o.id); else n.delete(o.id); return n; })} />
-                    <span className="font-mono text-[10px] text-muted-foreground">{o.job_number ?? "—"}</span>
+              {over === stage ? <div className="rounded-md border-2 border-dashed border-accent/50 px-2 py-3 text-center text-xs text-accent">Drop to move {dragCount > 1 ? `${dragCount} cards` : "here"}</div> : null}
+              {items.map((o) => {
+                // Required fields for the stage it's in that are still empty (moved by hand).
+                const missing = missingForStage(o);
+                return (
+                  <div key={o.id} role="button" tabIndex={0} onClick={() => onOpen(o)} onKeyDown={(e) => { if (e.key === "Enter") onOpen(o); }}
+                    draggable={canWrite}
+                    onDragStart={(e) => { setDragId(o.id); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", o.id); }}
+                    onDragEnd={() => { setDragId(null); setOver(null); }}
+                    title={canWrite ? "Click to open · drag to another stage" : undefined}
+                    className={cn("w-full rounded-md border bg-background p-2.5 text-left transition hover:border-accent/50", canWrite ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
+                      selected.has(o.id) ? "border-accent" : "border-border", dragId && (o.id === dragId || (selected.has(dragId) && selected.has(o.id))) && "opacity-40")}>
+                    <div className="flex items-center gap-2">
+                      <input type="checkbox" checked={selected.has(o.id)} onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => setSelected((prev) => { const n = new Set(prev); if (e.target.checked) n.add(o.id); else n.delete(o.id); return n; })} />
+                      <span className="font-mono text-[10px] text-muted-foreground">{o.job_number ?? "—"}</span>
+                    </div>
+                    <div className="mt-0.5 text-sm font-medium leading-tight">{o.opportunity_name}</div>
+                    <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
+                      <span>{money(o.estimated_project_value)}</span>
+                      <span>{o.assigned_owner ?? ""}</span>
+                    </div>
+                    {missing.length ? (
+                      <div className="mt-1.5 truncate rounded bg-warning/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:text-amber-300"
+                        title={`Still needed for ${STAGE_META[o.stage].label}: ${missing.map((m) => FIELD_LABELS[m] ?? m).join(", ")}`}>
+                        Missing: {missing.map((m) => SHORT_FIELD[m] ?? FIELD_LABELS[m] ?? m).join(", ")}
+                      </div>
+                    ) : null}
                   </div>
-                  <div className="mt-0.5 text-sm font-medium leading-tight">{o.opportunity_name}</div>
-                  <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
-                    <span>{money(o.estimated_project_value)}</span>
-                    <span>{o.assigned_owner ?? ""}</span>
-                  </div>
-                </div>
-              ))}
-              {items.length === 0 && <div className="px-2 py-6 text-center text-xs text-muted-foreground">Empty</div>}
+                );
+              })}
+              {items.length === 0 && over !== stage && <div className="px-2 py-6 text-center text-xs text-muted-foreground">{dragId && target ? "Drop here" : "Empty"}</div>}
             </div>
           </div>
         );
@@ -595,6 +679,13 @@ function KanbanView({ rows, onOpen, selected, setSelected }: {
     </div>
   );
 }
+
+// Short names for the card's "Missing" tag (the tooltip has the full ones).
+const SHORT_FIELD: Record<string, string> = {
+  construction_agreement_status: "Agreement", start_date: "Start date", project_manager: "PM",
+  actual_completion_date: "Completion date", warranty_start_date: "Warranty start", warranty_expiration_date: "Warranty end",
+  closed_date: "Closed date", long_lead_reason: "Reason", follow_up_date: "Follow-up", lost_reason: "Lost reason",
+};
 
 // ─── Detail modal (with guarded stage transitions) ─────────────
 

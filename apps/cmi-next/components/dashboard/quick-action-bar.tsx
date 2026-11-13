@@ -22,6 +22,13 @@ const SHARE_URL: Record<RecordTarget, (id: string) => string> = {
   jobs: (id) => `/api/jobs/${id}/share`,
 };
 
+// Friendly names for required fields a stage move left empty (Pre-Con).
+const MISSING_LABEL: Record<string, string> = {
+  construction_agreement_status: "Agreement status", start_date: "Start date", project_manager: "Project manager",
+  actual_completion_date: "Completion date", warranty_start_date: "Warranty start", warranty_expiration_date: "Warranty expiration",
+  closed_date: "Closed date", long_lead_reason: "Long-lead reason", follow_up_date: "Follow-up date", lost_reason: "Lost reason",
+};
+
 export function QuickActionBar({
   target, ids, stages, canWrite, canDelete, showingArchived, onEdit, onClear, onDone,
 }: {
@@ -62,9 +69,14 @@ export function QuickActionBar({
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error ?? "Something went wrong.");
       const failed = (json.failed as { id: string; error: string }[]) ?? [];
-      setToast(failed.length
+      // Stage moves go through even with the new stage's fields empty; say which.
+      const warnings = (json.warnings as { id: string; missing: string[] }[]) ?? [];
+      const stageLabel = action === "stage" ? stages.find((s) => s.value === value)?.label : null;
+      const head = failed.length
         ? `${json.done} of ${n} updated. ${failed.length} failed: ${failed[0].error}`
-        : `${json.done} updated.`);
+        : stageLabel ? `${json.done} moved to ${stageLabel}.` : `${json.done} updated.`;
+      const still = [...new Set(warnings.flatMap((w) => w.missing))].map((m) => MISSING_LABEL[m] ?? m.replace(/_/g, " "));
+      setToast(warnings.length ? `${head} ${warnings.length} still need: ${still.join(", ")}.` : head);
       setPanel(null);
       onDone();
     } catch (e) {

@@ -47,6 +47,8 @@ export async function handleBulk(target: RecordTarget, request: Request) {
 
     const actor = { id: staff.id, name: user.email };
     const failed: { id: string; error: string }[] = [];
+    // Moved, but the new stage's required fields are still empty (flagged, not blocked).
+    const warnings: { id: string; missing: string[] }[] = [];
     let done = 0;
 
     for (const id of ids) {
@@ -54,9 +56,13 @@ export async function handleBulk(target: RecordTarget, request: Request) {
         const nextAction = { next_action: (body?.value as string)?.trim() || null, next_action_due: body?.due || null };
         if (target === "precon") {
           switch (action) {
-            // Through the transition guard, so the path and required fields
-            // are checked and the stage history is written.
-            case "stage": await transitionStage(id, body!.value as PipelineStage, {}, actor, "Changed from the Pre-Con list"); break;
+            // A move by hand: any stage, and missing required fields are
+            // flagged (card tag + stage history) instead of blocking it.
+            case "stage": {
+              const r = await transitionStage(id, body!.value as PipelineStage, {}, actor, "Changed from the Pre-Con list", { manual: true, canReopen: ["super_admin", "admin"].includes(staff.role_slug) });
+              if (r.missing?.length) warnings.push({ id, missing: r.missing });
+              break;
+            }
             case "next_action": await updateOpportunity(id, nextAction, actor); break;
             case "archive": await setOpportunityArchived(id, true); break;
             case "restore": await setOpportunityArchived(id, false); break;
@@ -79,7 +85,7 @@ export async function handleBulk(target: RecordTarget, request: Request) {
         failed.push({ id, error: `${(err as Error).message}${missing}` });
       }
     }
-    return NextResponse.json({ done, failed });
+    return NextResponse.json({ done, failed, warnings });
   } catch (err) {
     return fail(err);
   }

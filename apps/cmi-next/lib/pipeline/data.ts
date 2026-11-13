@@ -2,7 +2,7 @@
 // service-role client (RLS is bypassed server-side; role gating lives in the
 // API routes / agent registry, matching the rest of the app).
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { validateTransition, derivedTransitionPatch, STAGE_META } from "./stages";
+import { validateTransition, derivedTransitionPatch, STAGE_META, FIELD_LABELS } from "./stages";
 import { notifyOpportunityOwner } from "@/lib/notifications/assignments";
 import type { Opportunity, OpportunityDraft, PipelineStage, StageHistoryRow, WarrantyRequest } from "./types";
 
@@ -118,19 +118,29 @@ export async function transitionStage(
   patch: Partial<Opportunity> = {},
   actor?: { name?: string | null; id?: string | null },
   note?: string | null,
-): Promise<Opportunity> {
+  // `manual`: moved by hand (Kanban drag, Stage quick action): any stage, and
+  // empty required fields don't block; they're noted in the stage history.
+  // `canReopen`: the caller is an admin, so a Closed project may be moved out of Closed.
+  opts: { manual?: boolean; canReopen?: boolean } = {},
+): Promise<Opportunity & { missing?: string[] }> {
   const current = await getOpportunity(id);
   if (!current) throw new TransitionError("Opportunity not found.", [], 404);
+  if (opts.manual && current.stage === "closed" && !opts.canReopen) throw new TransitionError("Only an admin can reopen a closed project.", [], 403);
 
-  const check = validateTransition(current, to, patch);
+  const check = validateTransition(current, to, patch, { manual: opts.manual });
   if (!check.ok) throw new TransitionError(check.error, check.missing);
+  const missing = check.missing ?? [];
+  if (missing.length) {
+    const flag = `Moved by hand; still missing: ${missing.map((m) => FIELD_LABELS[m] ?? m).join(", ")}.`;
+    note = note ? `${note}. ${flag}` : flag;
+  }
 
   const today = new Date().toISOString().slice(0, 10);
   const derived = derivedTransitionPatch(to, patch, today);
   const updated = await updateOpportunity(id, { ...sanitizeDraft(patch), ...derived, stage: to });
 
   await recordStageChange(id, updated.job_number, current.stage, to, actor, note);
-  return updated;
+  return missing.length ? { ...updated, missing } : updated;
 }
 
 async function recordStageChange(

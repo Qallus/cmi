@@ -93,16 +93,32 @@ export function requiredFieldsForStage(to: PipelineStage): (keyof Opportunity)[]
   return REQUIRED_FOR_STAGE[to] ?? [];
 }
 
-export type TransitionCheck = { ok: true } | { ok: false; error: string; missing: string[] };
+export type TransitionCheck = { ok: true; missing?: string[] } | { ok: false; error: string; missing: string[] };
+
+const isEmpty = (v: unknown) => v === null || v === undefined || v === "";
+
+/** Required fields for `stage` that `record` still leaves empty (the Kanban "Missing" tag). */
+export function missingForStage(record: Partial<Opportunity>, stage: PipelineStage = record.stage as PipelineStage): string[] {
+  return ((REQUIRED_FOR_STAGE[stage] ?? []) as string[]).filter((f) => isEmpty((record as Record<string, unknown>)[f]));
+}
 
 // Validate a proposed transition against the record as it WILL be after `patch`
 // is applied. Returns the list of still-missing required fields so the UI can
 // prompt for exactly those.
+// `manual` (drag on the Kanban, the Stage quick action): any other stage is
+// allowed and empty required fields don't block; they come back in `missing`
+// so the move can be flagged.
 export function validateTransition(
   current: Opportunity,
   to: PipelineStage,
   patch: Partial<Opportunity> = {},
+  opts: { manual?: boolean } = {},
 ): TransitionCheck {
+  if (opts.manual) {
+    if (!STAGE_META[to]) return { ok: false, error: "Unknown stage.", missing: [] };
+    if (current.stage === to) return { ok: false, error: `Already in "${STAGE_META[to].label}".`, missing: [] };
+    return { ok: true, missing: missingForStage({ ...current, ...patch }, to) };
+  }
   if (!canTransition(current.stage, to)) {
     return { ok: false, error: `Cannot move from "${STAGE_META[current.stage].label}" to "${STAGE_META[to].label}".`, missing: [] };
   }

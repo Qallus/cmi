@@ -1,4 +1,4 @@
-// Stage transition endpoint. Body: { to: PipelineStage, patch?: {...}, note?: string }.
+// Stage transition endpoint. Body: { to: PipelineStage, patch?: {...}, note?: string, manual?: boolean }.
 // Enforces: allowed-path map, required fields for the target stage, and the
 // admin-only guardrail for reopening a Closed project back into Warranty.
 import { NextResponse } from "next/server";
@@ -26,7 +26,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const { id } = await params;
   const body = await request.json().catch(() => null) as
-    | { to?: PipelineStage; patch?: Record<string, unknown>; note?: string }
+    | { to?: PipelineStage; patch?: Record<string, unknown>; note?: string; manual?: boolean }
     | null;
   const to = body?.to;
   if (!to) return NextResponse.json({ error: "Missing target stage `to`." }, { status: 400 });
@@ -38,7 +38,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   try {
-    const updated = await transitionStage(id, to, (body?.patch ?? {}) as never, { name: user.email, id: staff.id }, body?.note ?? null);
+    // manual = dragged on the Kanban: any stage, missing fields flagged rather than blocking.
+    const updated = await transitionStage(id, to, (body?.patch ?? {}) as never, { name: user.email, id: staff.id }, body?.note ?? (body?.manual ? "Moved on the Pre-Con board" : null), { manual: !!body?.manual, canReopen: ADMIN_ROLES.includes(staff.role_slug) });
     return NextResponse.json(updated);
   } catch (err) {
     if (err instanceof TransitionError) {
