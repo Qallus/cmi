@@ -3,6 +3,11 @@
 // Bolt see the same data with the same role rules. Every tool carries a risk
 // tier (lib/mcp/safety.ts): read runs at once, write runs at once with a
 // before/after audit, high returns a preview and waits for cmi_confirm.
+import { dashboardMoreTools } from "./tools-dashboard-more";
+import { commsMoreTools } from "./tools-comms-more";
+import { scheduleMoreTools } from "./tools-schedules-more";
+import { handoffTools } from "./tools-handoff";
+import { clientTools } from "./tools-clients";
 import { ENTITIES } from "@/lib/agent/entities";
 import { dispatchTool, toolDefsFor } from "@/lib/agent/tools";
 import { buildBriefing, loadBriefingStaff } from "@/lib/briefing/build";
@@ -305,6 +310,11 @@ export const MCP_TOOLS: McpTool[] = [
   ...financeTools(),
   ...siteTools(),
   ...selectionTools(),
+  ...clientTools(),
+  ...handoffTools(),
+  ...scheduleMoreTools(),
+  ...commsMoreTools(),
+  ...dashboardMoreTools(),
   ...inspectionTools(),
 ];
 

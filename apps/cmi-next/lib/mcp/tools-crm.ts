@@ -69,6 +69,33 @@ function gateMoney(c: McpCaller, data: Json | null | undefined) {
   if (keys.length) throw new Error(`Only roles that can see financials can change money fields (${keys.join(", ")}). Leave them out and try again.`);
 }
 
+/**
+ * The generic create/update tools never make something client-visible or public:
+ * that has to go through the dedicated tool, which previews and waits for
+ * cmi_confirm. Records with their own numbering or publishing flow are refused
+ * outright and pointed at their tool.
+ */
+const GENERIC_CREATE_BLOCKED: Record<string, string> = {
+  job: "cmi_job_create (numbers the job properly) or cmi_job_from_precon",
+  job_update: "cmi_job_update_post (previews first, then cmi_confirm)",
+  blog_post: "the site content tools (cmi_blog_* save / publish)",
+  portfolio_item: "the site content tools (cmi_portfolio_* save / publish)",
+  team_member: "the Team page (public website)",
+  user: "Settings → User Management",
+};
+const CLIENT_VISIBLE_KEYS = ["client_visible", "client_ok", "is_public", "published", "is_published", "portal_visible", "share_with_client"];
+function gateClientFacing(key: string, data: Json, mode: "create" | "update") {
+  if (mode === "create" && GENERIC_CREATE_BLOCKED[key]) throw new Error(`Create ${key.replace(/_/g, " ")} records with ${GENERIC_CREATE_BLOCKED[key]}, not the generic tool.`);
+  if (mode === "update" && (key === "job_update" || key === "blog_post" || key === "portfolio_item" || key === "team_member")) {
+    throw new Error(`${key.replace(/_/g, " ")} records are seen by clients or the public: change them with their dedicated tool, which previews first.`);
+  }
+  const on = CLIENT_VISIBLE_KEYS.filter((k) => data[k] === true || data[k] === "true");
+  const vis = typeof data.visibility === "string" && /client|public|shared/i.test(data.visibility) ? ["visibility"] : [];
+  const pub = typeof data.status === "string" && /^publish/i.test(data.status) ? ["status"] : [];
+  const hit = [...on, ...vis, ...pub];
+  if (hit.length) throw new Error(`Making a record visible to clients or the public (${hit.join(", ")}) needs a confirm step: use the dedicated tool for it (e.g. cmi_job_files_share, cmi_job_photos_update, cmi_selection_update) rather than the generic one.`);
+}
+
 function gateDeals(c: McpCaller) {
   if (!canWriteDeals(c.ctx.role)) throw new Error(`Your role (${c.ctx.role}) can't change deals.`);
 }
@@ -997,6 +1024,7 @@ const genericTools: McpTool[] = [
       gateEntity(c, key);
       const data = { ...((a.data as Json) ?? {}) };
       gateMoney(c, data);
+      gateClientFacing(key, data, "create");
       const out = await createRecord(key, data, c.ctx);
       if ("error" in out) return { result: out };
       const rec = (out.record ?? out) as Json;
@@ -1014,6 +1042,7 @@ const genericTools: McpTool[] = [
       gateEntity(c, key);
       const changes = { ...((a.changes as Json) ?? {}) };
       gateMoney(c, changes);
+      gateClientFacing(key, changes, "update");
       const prior = await getRecord(key, s(a.id));
       if ("error" in prior) return { result: prior };
       const out = await updateRecord(key, s(a.id), changes, c.ctx);
