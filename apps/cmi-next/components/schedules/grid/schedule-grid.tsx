@@ -7,7 +7,7 @@
 import * as React from "react";
 import { confirmAction } from "@/components/ui/confirm-action";
 import { createPortal } from "react-dom";
-import { ChevronDown, ChevronRight, ChevronLeft, GripVertical, Maximize2, Undo2, Redo2, Columns3, ListOrdered, Plus, History, Loader2, FlaskConical, Check, FileSpreadsheet, Download, FileUp, Spline } from "lucide-react";
+import { ChevronDown, ChevronRight, ChevronLeft, GripVertical, Maximize2, Undo2, Redo2, Columns3, ListOrdered, Plus, History, Loader2, FlaskConical, Check, FileSpreadsheet, Download, FileUp, Spline, Lock } from "lucide-react";
 import { ExcelImportDialog } from "./excel-import";
 import { RenumberDialog } from "../renumber-dialog";
 import { landingPhase } from "@/lib/schedules/id-order";
@@ -23,7 +23,7 @@ import { ResizablePanelGroup, ResizablePanel, ResizableHandle, type ImperativePa
 import { cn } from "@/lib/utils";
 import { GanttView, ROW_H, HEAD_H } from "../views/gantt-view";
 import {
-  GRID_COLUMNS, COLUMN, GRID_LAYOUTS, scheduleRows, cellText, parseCell, parseClipboard, headerMap,
+  GRID_COLUMNS, COLUMN, GRID_PRESETS, ALWAYS_COLUMNS, presetNamed, normalizeColumns, moveColumn, scheduleRows, cellText, parseCell, parseClipboard, headerMap,
   type ColumnKey, type GridCtx, type GridOps, type PredEdit, type CellChange,
 } from "@/lib/schedules/grid";
 import { idBetween, type LinkRef } from "@/lib/schedules/predecessors";
@@ -126,8 +126,12 @@ export function ScheduleGrid({
     return () => mq.removeEventListener("change", on);
   }, []);
   const stackStyle: React.CSSProperties | undefined = narrow ? { flex: "none", width: "100%", overflow: "clip" } : undefined;
-  const [layout, setLayout] = React.useState<string>(() => stored("cmi.schedgrid.layout", "PM view"));
-  const [cols, setCols] = React.useState<ColumnKey[]>(() => stored("cmi.schedgrid.columns", GRID_LAYOUTS["PM view"]));
+  // Column layout (Grid Addendum §3): a preset or "Custom", the columns in order, and any widths dragged by hand.
+  const [layout, setLayout] = React.useState<string>(() => { const n = stored<string>("cmi.schedgrid.layout", "Default"); return presetNamed(n)?.name ?? n; });
+  const [cols, setCols] = React.useState<ColumnKey[]>(() => normalizeColumns(stored<string[]>("cmi.schedgrid.columns", GRID_PRESETS[0].columns)));
+  const [widths, setWidths] = React.useState<Partial<Record<ColumnKey, number>>>(() => stored("cmi.schedgrid.widths", {}));
+  const colW = React.useCallback((k: ColumnKey) => widths[k] ?? COLUMN[k].width, [widths]);
+  const clientOnly = !!presetNamed(layout)?.clientOnly;
   const [collapsed, setCollapsed] = React.useState<Set<string>>(new Set());
   const [active, setActive] = React.useState<Cell | null>(null);
   const [anchor, setAnchor] = React.useState<Cell | null>(null);
@@ -189,7 +193,9 @@ export function ScheduleGrid({
     };
   }, [items, allItems, dependencies, wi, contractVariances, baselineVariances]);
 
-  const rows = React.useMemo(() => scheduleRows(items, phases, { collapsed }), [items, phases, collapsed]);
+  // Client print shows only the tasks the client can see (the rest keep their places).
+  const shownItems = React.useMemo(() => (clientOnly ? items.filter((i) => i.client_visible) : items), [items, clientOnly]);
+  const rows = React.useMemo(() => scheduleRows(shownItems, phases, { collapsed }), [shownItems, phases, collapsed]);
   const itemRows = React.useMemo(() => rows.flatMap((r) => (r.kind === "item" ? [r.item] : [])), [rows]);
   const rowIndex = React.useMemo(() => new Map(itemRows.map((it, i) => [it.id, i])), [itemRows]);
   // Every task in display order with its phase, collapsed or not (for moves and inserts).
@@ -216,7 +222,14 @@ export function ScheduleGrid({
     });
     return out;
   }, [items, dependencies, slots, byId, ctx]);
-  const width = GUTTER_W + cols.reduce((w, k) => w + COLUMN[k].width, 0);
+  const width = GUTTER_W + cols.reduce((w, k) => w + colW(k), 0);
+  // Row handle, ID and Task stay put while the grid scrolls sideways (Addendum §2.5).
+  const frozenLeft = React.useMemo(() => {
+    const m = new Map<ColumnKey, number>();
+    let x = GUTTER_W;
+    for (const k of cols) { if (!ALWAYS_COLUMNS.includes(k)) break; m.set(k, x); x += colW(k); }
+    return m;
+  }, [cols, colW]);
 
   const range = React.useMemo(() => {
     if (!active) return null;
@@ -713,12 +726,38 @@ export function ScheduleGrid({
     else if (which === "gantt") { ganttPanel.current?.expand(); gridPanel.current?.collapse(); }
     else { gridPanel.current?.expand(); ganttPanel.current?.expand(); }
   };
-  const chooseLayout = (name: string) => { setColMenu(false); setLayout(name); store("cmi.schedgrid.layout", name); if (GRID_LAYOUTS[name]) { setCols(GRID_LAYOUTS[name]); store("cmi.schedgrid.columns", GRID_LAYOUTS[name]); } };
+  const saveCols = (next: ColumnKey[], name = "Custom") => { const n = normalizeColumns(next); setCols(n); setLayout(name); store("cmi.schedgrid.columns", n); store("cmi.schedgrid.layout", name); };
+  const chooseLayout = (name: string) => { const p = presetNamed(name); if (p) saveCols(p.columns, p.name); };
   const toggleCol = (k: ColumnKey) => {
-    const next = cols.includes(k) ? cols.filter((c) => c !== k) : GRID_COLUMNS.map((c) => c.key).filter((c) => c === k || cols.includes(c));
-    if (!next.length) return;
-    setCols(next); setLayout("Custom"); store("cmi.schedgrid.columns", next); store("cmi.schedgrid.layout", "Custom");
+    if (ALWAYS_COLUMNS.includes(k)) return;
+    saveCols(cols.includes(k) ? cols.filter((c) => c !== k) : [...cols, k]);
   };
+  const [dragCol, setDragCol] = React.useState<ColumnKey | null>(null);
+  const setWidth = (k: ColumnKey, w: number | null) => setWidths((cur) => {
+    const next = { ...cur };
+    if (w == null) delete next[k]; else next[k] = Math.round(Math.min(600, Math.max(36, w)));
+    store("cmi.schedgrid.widths", next);
+    return next;
+  });
+  /** Drag a header's right edge to resize the column. */
+  function startResize(e: React.PointerEvent, k: ColumnKey) {
+    e.preventDefault(); e.stopPropagation();
+    const x0 = e.clientX, w0 = colW(k);
+    const move = (ev: PointerEvent) => setWidth(k, w0 + ev.clientX - x0);
+    const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
+    window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
+  }
+  /** Double-click a header's edge: fit the column to its longest value. */
+  function autoFit(k: ColumnKey) {
+    const ctx2d = document.createElement("canvas").getContext("2d");
+    if (!ctx2d) return;
+    const family = gridRef.current ? getComputedStyle(gridRef.current).fontFamily : "sans-serif";
+    ctx2d.font = `600 11px ${family}`;
+    let w = ctx2d.measureText(COLUMN[k].label.toUpperCase()).width * 1.1;
+    ctx2d.font = `14px ${family}`;
+    for (const it of shownItems) w = Math.max(w, ctx2d.measureText(cellText(it, k, ctx)).width + (k === "name" && it.kind === "milestone" ? 16 : 0));
+    setWidth(k, w + 20);
+  }
   const togglePhase = (key: string) => setCollapsed((c) => { const n = new Set(c); if (n.has(key)) n.delete(key); else n.add(key); return n; });
 
   const menuItem = menu ? byId.get(menu.id) : null;
@@ -746,19 +785,52 @@ export function ScheduleGrid({
           ))}
         </div>
         <div className="relative">
-          <Button size="sm" variant="ghost" onClick={() => setColMenu((o) => !o)}><Columns3 className="h-3.5 w-3.5" /> {layout}</Button>
+          <Button size="sm" variant="ghost" onClick={() => setColMenu((o) => !o)} aria-expanded={colMenu}><Columns3 className="h-3.5 w-3.5" /> Columns · {layout}</Button>
           {colMenu ? (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setColMenu(false)} />
-              <div className="absolute left-0 z-50 mt-1 w-56 rounded-lg border border-border bg-card p-1 shadow-lg">
-                <div className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Layouts</div>
-                {Object.keys(GRID_LAYOUTS).map((n) => <button key={n} type="button" onClick={() => chooseLayout(n)} className={cn("block w-full rounded px-2 py-1 text-left text-sm hover:bg-muted/50", layout === n && "text-accent")}>{n}</button>)}
-                <div className="mt-1 border-t border-border px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Columns</div>
-                {GRID_COLUMNS.map((c) => (
-                  <label key={c.key} className="flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-muted/50">
-                    <input type="checkbox" checked={cols.includes(c.key)} onChange={() => toggleCol(c.key)} className="h-3.5 w-3.5 accent-[var(--accent)]" />{c.label}
-                  </label>
-                ))}
+              <div className="absolute left-0 z-50 mt-1 flex max-h-[70vh] w-72 flex-col rounded-lg border border-border bg-card shadow-lg">
+                <div className="border-b border-border p-1">
+                  <div className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Layouts</div>
+                  <div className="grid grid-cols-2 gap-0.5">
+                    {GRID_PRESETS.map((p) => (
+                      <button key={p.name} type="button" onClick={() => chooseLayout(p.name)} title={p.clientOnly ? "Only tasks visible to the client" : p.columns.map((k) => COLUMN[k].label).join(", ")}
+                        className={cn("truncate rounded px-2 py-1 text-left text-sm hover:bg-muted/50", layout === p.name && "bg-accent/12 font-medium text-accent")}>{p.name}</button>
+                    ))}
+                  </div>
+                </div>
+                <div className="min-h-0 flex-1 overflow-y-auto p-1">
+                  <div className="flex items-center justify-between px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    <span>Shown · drag to reorder</span>
+                    {Object.keys(widths).length ? <button type="button" onClick={() => { setWidths({}); store("cmi.schedgrid.widths", {}); }} className="normal-case tracking-normal text-accent hover:underline">Reset widths</button> : null}
+                  </div>
+                  {cols.map((k) => {
+                    const locked = ALWAYS_COLUMNS.includes(k);
+                    return (
+                      <div key={k} draggable={!locked}
+                        onDragStart={(e) => { setDragCol(k); e.dataTransfer.effectAllowed = "move"; }} onDragEnd={() => setDragCol(null)}
+                        onDragOver={(e) => { if (dragCol && dragCol !== k) e.preventDefault(); }}
+                        onDrop={(e) => { e.preventDefault(); if (dragCol) saveCols(moveColumn(cols, dragCol, k)); setDragCol(null); }}
+                        className={cn("flex items-center gap-2 rounded px-2 py-1 text-sm", locked ? "text-muted-foreground" : "cursor-grab hover:bg-muted/50", dragCol === k && "opacity-40")}>
+                        {locked ? <Lock className="h-3 w-3" aria-label="Always shown" /> : <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />}
+                        <input type="checkbox" checked disabled={locked} onChange={() => toggleCol(k)} className="h-3.5 w-3.5 accent-[var(--accent)]" aria-label={`Show ${COLUMN[k].label}`} />
+                        <span className="flex-1 truncate">{COLUMN[k].label}</span>
+                        {!COLUMN[k].editable ? <span className="text-[10px] text-muted-foreground">read-only</span> : null}
+                      </div>
+                    );
+                  })}
+                  {/* Drop here to move a column to the end. */}
+                  <div onDragOver={(e) => { if (dragCol) e.preventDefault(); }} onDrop={(e) => { e.preventDefault(); if (dragCol) saveCols(moveColumn(cols, dragCol, null)); setDragCol(null); }} className={cn("h-2 rounded", dragCol && "bg-accent/20")} />
+                  <div className="mt-1 border-t border-border px-2 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Hidden</div>
+                  {GRID_COLUMNS.filter((c) => !cols.includes(c.key)).map((c) => (
+                    <label key={c.key} className="flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-muted/50">
+                      <span className="w-3.5" />
+                      <input type="checkbox" checked={false} onChange={() => toggleCol(c.key)} className="h-3.5 w-3.5 accent-[var(--accent)]" />
+                      <span className="flex-1 truncate">{c.label}</span>
+                      {!c.editable ? <span className="text-[10px] text-muted-foreground">read-only</span> : null}
+                    </label>
+                  ))}
+                </div>
               </div>
             </>
           ) : null}
@@ -794,7 +866,7 @@ export function ScheduleGrid({
             <>
               <div className="fixed inset-0 z-40" onClick={() => setXlMenu(false)} />
               <div role="menu" className="absolute left-0 z-50 mt-1 w-60 rounded-lg border border-border bg-card p-1 shadow-lg">
-                <a role="menuitem" href={`/api/schedules/${schedule.id}/excel`} onClick={() => setXlMenu(false)} className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted/50"><Download className="h-3.5 w-3.5 text-muted-foreground" /> Export to Excel</a>
+                <a role="menuitem" href={`/api/schedules/${schedule.id}/excel?cols=${cols.join(",")}${clientOnly ? "&client=1" : ""}`} onClick={() => setXlMenu(false)} className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted/50"><Download className="h-3.5 w-3.5 text-muted-foreground" /> Export to Excel</a>
                 <a role="menuitem" href={`/api/schedules/${schedule.id}/excel?kind=template`} onClick={() => setXlMenu(false)} className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted/50"><Download className="h-3.5 w-3.5 text-muted-foreground" /> Download blank template</a>
                 {canEdit ? (
                   <button role="menuitem" type="button" disabled={!!whatIf} onClick={() => { setXlMenu(false); setImporting(true); }} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-muted/50 disabled:opacity-50">
@@ -811,6 +883,7 @@ export function ScheduleGrid({
         {busy ? <span className="inline-flex items-center gap-1 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Saving…</span> : null}
         {errors.size ? <span className="text-xs text-destructive">{errors.size} cell{errors.size === 1 ? "" : "s"} need fixing</span> : null}
         <div className="flex-1" />
+        {clientOnly ? <span className="rounded bg-accent/12 px-2 py-0.5 text-[11px] font-medium text-accent">Client print: only tasks visible to the client ({shownItems.length} of {items.length})</span> : null}
         <span className="hidden text-[11px] text-muted-foreground xl:inline">Type to edit · Enter / Tab move · Ctrl+D fill down · Ctrl+Z undo · paste from Excel · Alt+Shift+↑↓ move rows · right-click for more · double-click opens the task</span>
       </div>
 
@@ -852,26 +925,38 @@ export function ScheduleGrid({
           {/* Column headers stay under the top bar while the rows scroll (same height as the Gantt's dates). */}
           <div ref={gridHead} className="sticky top-0 z-30 overflow-hidden border-b border-border bg-muted">
             <div className="flex text-[11px] font-semibold uppercase tracking-wide text-muted-foreground" style={{ width, height: HEAD_H - 1 }}>
-              <div className="shrink-0 border-r border-border/60" style={{ width: GUTTER_W }} />
-              {cols.map((k) => <div key={k} className={cn("flex shrink-0 items-end border-r border-border/60 px-1.5 pb-1.5", COLUMN[k].align === "right" && "justify-end")} style={{ width: COLUMN[k].width }}>{COLUMN[k].label}</div>)}
+              <div className="sticky left-0 z-10 shrink-0 border-r border-border/60 bg-muted" style={{ width: GUTTER_W }} />
+              {cols.map((k) => (
+                <div key={k} className={cn("relative flex shrink-0 items-end border-r border-border/60 px-1.5 pb-1.5", COLUMN[k].align === "right" && "justify-end", frozenLeft.has(k) && "sticky z-10 bg-muted")}
+                  style={{ width: colW(k), ...(frozenLeft.has(k) ? { left: frozenLeft.get(k) } : {}) }}>
+                  <span className="truncate">{COLUMN[k].label}</span>
+                  {/* Drag to resize; double-click to fit. */}
+                  <span role="separator" aria-orientation="vertical" aria-label={`Resize ${COLUMN[k].label}`} title="Drag to resize · double-click to fit"
+                    onPointerDown={(e) => startResize(e, k)} onDoubleClick={() => autoFit(k)}
+                    className="absolute -right-1 top-0 z-20 h-full w-2 cursor-col-resize hover:bg-accent/40" />
+                </div>
+              ))}
             </div>
           </div>
           <div ref={gridBody} onScroll={() => { if (gridHead.current && gridBody.current) gridHead.current.scrollLeft = gridBody.current.scrollLeft; }} className="overflow-x-auto">
           <div style={{ width }}>
             {rows.map((r) => r.kind === "group" ? (
-              <div key={r.key} className="flex items-center gap-1.5 border-b border-border bg-muted/30 px-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground" style={{ height: ROW_H }}
+              <div key={r.key} className="border-b border-border bg-muted/30 text-xs font-semibold uppercase tracking-wide text-muted-foreground" style={{ height: ROW_H }}
                 onDragOver={(e) => { if (dragId) e.preventDefault(); }} onDrop={() => dropOn(null, r.phaseId ?? null)}>
+                <div className="sticky left-0 flex h-full w-max max-w-[40rem] items-center gap-1.5 px-2">
                 {r.phaseId !== undefined ? (
                   <button type="button" onClick={() => togglePhase(r.phaseId ?? "none")} className="text-muted-foreground hover:text-foreground">{collapsed.has(r.phaseId ?? "none") ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}</button>
                 ) : null}
                 {r.color ? <span className="h-2.5 w-2.5 rounded-sm" style={{ background: r.color }} /> : null}
                 <span className="truncate">{r.label}</span>
+                </div>
               </div>
             ) : (
               <GridRowView
                 key={r.item.id} item={r.item} cols={cols} ctx={ctx} canEdit={canEdit}
                 rowIdx={rowIndex.get(r.item.id) ?? -1} active={active} inRange={inRange} editing={editing} pending={pending} errors={errors} flash={flash}
-                dragging={dragId === r.item.id} unlinked={unlinked.has(r.item.id)}
+                dragging={dragId === r.item.id} unlinked={unlinked.has(r.item.id)} colW={colW} frozenLeft={frozenLeft}
+                onSetCell={(col, text) => commitCell({ id: r.item.id, col }, text)}
                 onCellDown={(cell, shift) => { finishEdit(true); if (shift && active) { if (!anchor) setAnchor(active); } else setAnchor(null); setActive(cell); gridRef.current?.focus(); }}
                 onOpen={() => onOpenItem(r.item)}
                 onMenu={(x, y) => {
@@ -919,7 +1004,7 @@ export function ScheduleGrid({
 
         <ResizablePanel ref={ganttPanel} id="gantt" order={2} defaultSize={42} minSize={20} collapsible collapsedSize={0}
           onCollapse={() => setHidden("gantt")} onExpand={() => setHidden((h) => (h === "gantt" ? null : h))} className={cn(hidden === "gantt" ? undefined : !narrow && "pl-1.5", narrow && hidden === "gantt" && "hidden")} style={stackStyle ?? { overflow: "clip" }}>
-          <GanttView items={items} dependencies={dependencies} phases={phases} zoom={zoom} showBaseline={showBaseline} showLinks={showLinks} statusDate={statusDate} onStyleItem={whatIf ? undefined : onStyleItem} canEdit={canEdit} linkMode={linkMode}
+          <GanttView items={shownItems} dependencies={dependencies} phases={phases} zoom={zoom} showBaseline={showBaseline} showLinks={showLinks} statusDate={statusDate} onStyleItem={whatIf ? undefined : onStyleItem} canEdit={canEdit} linkMode={linkMode}
             onOpenItem={onOpenItem} onLink={whatIf ? undefined : onLink}
             onSelectItem={selectFromGantt} onDeleteLink={canEdit && !whatIf ? deleteLink : undefined}
             onDatesChange={whatIf ? (id, start, end, gesture) => tryOps({ updates: [{ id, patch: gesture === "move" ? { start_date: start } : { end_date: end } }] }) : onDatesChange}
@@ -1004,7 +1089,7 @@ function MenuButton({ children, onClick, danger }: { children: React.ReactNode; 
 }
 
 const GridRowView = React.memo(function GridRowView({
-  item, cols, ctx, canEdit, rowIdx, active, inRange, editing, pending, errors, flash, dragging, unlinked,
+  item, cols, ctx, canEdit, rowIdx, active, inRange, editing, pending, errors, flash, dragging, unlinked, colW, frozenLeft, onSetCell,
   onCellDown, onOpen, onMenu, onEditChange, onEditKey, onEditCommit, onDragStart, onDragEnd, onDrop,
 }: {
   item: ScheduleItem; cols: ColumnKey[]; ctx: GridCtx; canEdit: boolean; rowIdx: number;
@@ -1012,6 +1097,11 @@ const GridRowView = React.memo(function GridRowView({
   editing: { cell: Cell; value: string } | null; pending: Map<string, string>; errors: Map<string, string>; flash: Set<string>; dragging: boolean;
   /** No predecessor: flagged in Predecessors (or on the ID when that column is hidden). */
   unlinked: boolean;
+  colW: (k: ColumnKey) => number;
+  /** Columns pinned to the left, and where. */
+  frozenLeft: Map<ColumnKey, number>;
+  /** Set a cell straight away (the Client checkbox). */
+  onSetCell: (col: ColumnKey, text: string) => void;
   onCellDown: (cell: Cell, shift: boolean) => void; onOpen: () => void; onMenu: (x: number, y: number) => void;
   onEditChange: (v: string) => void; onEditKey: (e: React.KeyboardEvent) => void; onEditCommit: (value?: string) => void;
   onDragStart: () => void; onDragEnd: () => void; onDrop: () => void;
@@ -1022,7 +1112,7 @@ const GridRowView = React.memo(function GridRowView({
     <div className={cn("flex border-b border-border/60 text-sm", dragging && "opacity-40")} style={{ height: ROW_H }}
       onDoubleClick={onOpen} onContextMenu={(e) => { e.preventDefault(); onMenu(e.clientX, e.clientY); }}
       onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
-      <div className="flex shrink-0 items-center justify-center border-r border-border/60 text-muted-foreground" style={{ width: GUTTER_W }}>
+      <div className="sticky left-0 z-10 flex shrink-0 items-center justify-center border-r border-border/60 bg-card text-muted-foreground" style={{ width: GUTTER_W }}>
         {canEdit ? <Tooltip label="Drag to reorder" side="right"><span draggable onDragStart={onDragStart} onDragEnd={onDragEnd} className="cursor-grab" aria-label="Drag to reorder"><GripVertical className="h-3.5 w-3.5" /></span></Tooltip> : null}
       </div>
       {cols.map((k, c) => {
@@ -1046,11 +1136,11 @@ const GridRowView = React.memo(function GridRowView({
               isActive && "outline outline-2 -outline-offset-2 outline-accent",
               err && "bg-destructive/10 text-destructive",
               flash.has(key) && "bg-amber-200/70",
-              k === "float" && critical && "font-semibold text-foreground",
+              k === "float" && critical && "bg-foreground/5 font-semibold text-foreground",
               k === "float" && near && "text-amber-700 dark:text-amber-400",
               k === "name" && item.status === "complete" && "text-muted-foreground line-through",
             )}
-            style={{ width: COLUMN[k].width }}
+            style={{ width: colW(k), ...(frozenLeft.has(k) ? frozenStyle(frozenLeft.get(k)!, err ? "var(--destructive)" : flash.has(key) ? "#fbbf24" : inRange(rowIdx, c) ? "var(--accent)" : null) : {}) }}
           >
             {isEditing ? (
               SELECT_OPTIONS[k] ? (
@@ -1065,7 +1155,11 @@ const GridRowView = React.memo(function GridRowView({
                 {k === "start" && item.constraint_type === "snet" ? <span className="mr-0.5 text-[10px] text-muted-foreground">⇥</span> : null}
                 {k === "name" && critical ? <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-foreground align-middle" aria-label="Critical" /> : null}
                 {flagHere && k === "id" ? <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-amber-500 align-middle" aria-label="No predecessor" /> : null}
-                {flagHere && k === "preds" && !text ? <span className="text-xs italic text-amber-700 dark:text-amber-400">no predecessor</span> : text}
+                {k === "client" ? (
+                  <input type="checkbox" checked={item.client_visible} disabled={!canEdit} aria-label="Visible to the client"
+                    onMouseDown={(e) => e.stopPropagation()} onChange={(e) => onSetCell("client", e.target.checked ? "Yes" : "No")}
+                    className="h-3.5 w-3.5 align-middle accent-[var(--accent)]" />
+                ) : flagHere && k === "preds" && !text ? <span className="text-xs italic text-amber-700 dark:text-amber-400">no predecessor</span> : text}
               </>
             )}
           </div>
@@ -1075,6 +1169,14 @@ const GridRowView = React.memo(function GridRowView({
     </div>
   );
 });
+
+/** A frozen (sticky) cell needs a solid background; a tint for its state is laid over it. */
+function frozenStyle(left: number, tint: string | null): React.CSSProperties {
+  return {
+    position: "sticky", left, zIndex: 10, backgroundColor: "var(--card)",
+    ...(tint ? { boxShadow: `inset 0 0 0 999px color-mix(in oklch, ${tint} 14%, transparent)` } : {}),
+  };
+}
 
 /** Inline option list for Constraint, Milestone type and Calendar cells: themed
  *  (no native select), arrow keys + Enter, click to pick, Esc to cancel. */

@@ -58,7 +58,9 @@ export type ColumnKey =
   // Phase 2 progress:
   | "astart" | "afinish" | "remaining" | "bvar"
   // Phase 2 Step 8: work breakdown and where on site.
-  | "wbs" | "location" | "lead" | "orderby";
+  | "wbs" | "location" | "lead" | "orderby"
+  // Grid Addendum §3.2.
+  | "ffloat" | "client" | "bstart" | "bfinish" | "linked";
 
 export type Column = { key: ColumnKey; label: string; width: number; editable: boolean; align?: "right"; aliases?: string[] };
 
@@ -90,17 +92,53 @@ export const GRID_COLUMNS: Column[] = [
   { key: "location", label: "Location", width: 110, editable: true, aliases: ["location code", "area", "room"] },
   { key: "lead", label: "Lead (wd)", width: 72, editable: true, align: "right", aliases: ["lead time", "lead", "lead days"] },
   { key: "orderby", label: "Order by", width: 92, editable: false, aliases: ["order by", "order date"] },
+  { key: "ffloat", label: "Free float", width: 64, editable: false, align: "right", aliases: ["free float", "ff"] },
+  { key: "client", label: "Client", width: 56, editable: true, aliases: ["client visible", "visible to client", "client view"] },
+  { key: "bstart", label: "Baseline start", width: 100, editable: false, aliases: ["baseline start", "bl start"] },
+  { key: "bfinish", label: "Baseline finish", width: 100, editable: false, aliases: ["baseline finish", "bl finish", "baseline end"] },
+  { key: "linked", label: "Linked to", width: 130, editable: false, aliases: ["linked to", "linked record", "link"] },
 ];
 export const COLUMN = Object.fromEntries(GRID_COLUMNS.map((c) => [c.key, c])) as Record<ColumnKey, Column>;
 
-export const GRID_LAYOUTS: Record<string, ColumnKey[]> = {
-  "PM view": ["id", "wbs", "name", "duration", "start", "finish", "preds", "succs", "pct", "float", "constraint", "assigned", "notes"],
-  "Super view": ["id", "name", "location", "duration", "start", "finish", "pct", "float", "assigned", "notes"],
-  "Client print": ["name", "start", "finish", "pct"],
-  "Milestones": ["id", "name", "start", "mtype", "contract", "variance", "float", "notes"],
-  "Procurement": ["id", "name", "start", "finish", "lead", "orderby", "succs", "assigned", "notes"],
-  "Progress": ["id", "name", "duration", "start", "finish", "pct", "astart", "afinish", "remaining", "bvar", "float", "status"],
-};
+/** ID and Task are always shown, always first (Grid Addendum §3.1). */
+export const ALWAYS_COLUMNS: ColumnKey[] = ["id", "name"];
+
+export type GridPreset = { name: string; columns: ColumnKey[]; /** Only tasks marked visible to the client. */ clientOnly?: boolean };
+
+/** Built-in layouts: Brandon's five first (Addendum §3.1), then the CMI extras. */
+export const GRID_PRESETS: GridPreset[] = [
+  { name: "Default", columns: ["id", "name", "wbs", "duration", "start", "finish", "preds", "succs", "pct", "float", "constraint", "assigned", "notes"] },
+  { name: "Field", columns: ["id", "name", "duration", "start", "finish", "assigned", "pct"] },
+  { name: "Links", columns: ["id", "name", "preds", "succs", "float"] },
+  { name: "Client print", columns: ["id", "name", "start", "finish"], clientOnly: true },
+  { name: "Minimal", columns: ["id", "name"] },
+  { name: "Super", columns: ["id", "name", "location", "duration", "start", "finish", "pct", "float", "assigned", "notes"] },
+  { name: "Milestones", columns: ["id", "name", "start", "mtype", "contract", "variance", "float", "notes"] },
+  { name: "Procurement", columns: ["id", "name", "start", "finish", "lead", "orderby", "succs", "assigned", "notes"] },
+  { name: "Progress", columns: ["id", "name", "duration", "start", "finish", "pct", "astart", "afinish", "remaining", "bvar", "bstart", "bfinish", "float", "status"] },
+];
+export const GRID_LAYOUTS: Record<string, ColumnKey[]> = Object.fromEntries(GRID_PRESETS.map((p) => [p.name, p.columns]));
+/** Layout names from before the addendum, so a saved choice still opens. */
+const OLD_LAYOUT: Record<string, string> = { "PM view": "Default", "Super view": "Super" };
+export const presetNamed = (name: string | null | undefined): GridPreset | undefined =>
+  GRID_PRESETS.find((p) => p.name === (name && OLD_LAYOUT[name] ? OLD_LAYOUT[name] : name));
+
+/** Known columns only, no repeats, ID and Task first (whatever order was saved). */
+export function normalizeColumns(keys: readonly string[] | null | undefined): ColumnKey[] {
+  const known = new Set(GRID_COLUMNS.map((c) => c.key as string));
+  const rest = [...new Set(keys ?? [])].filter((k): k is ColumnKey => known.has(k) && !ALWAYS_COLUMNS.includes(k as ColumnKey));
+  return [...ALWAYS_COLUMNS, ...rest];
+}
+
+/** Move one column before another (drag to reorder); ID and Task stay put. */
+export function moveColumn(cols: ColumnKey[], key: ColumnKey, before: ColumnKey | null): ColumnKey[] {
+  if (ALWAYS_COLUMNS.includes(key)) return cols;
+  const rest = cols.filter((k) => k !== key);
+  let at = before ? rest.indexOf(before) : rest.length;
+  if (at < 0) at = rest.length;
+  at = Math.max(at, ALWAYS_COLUMNS.length);
+  return normalizeColumns([...rest.slice(0, at), key, ...rest.slice(at)]);
+}
 
 // ---- reading cells ----------------------------------------------------------
 
@@ -157,6 +195,11 @@ export function cellText(item: ScheduleItem, key: ColumnKey, ctx: GridCtx): stri
       const v = ctx.varianceOf?.(item.id);
       return v == null ? "" : v === 0 ? "on date" : `${v > 0 ? "+" : ""}${v} wd`;
     }
+    case "ffloat": return item.free_float != null ? String(item.free_float) : "";
+    case "client": return item.client_visible ? "Yes" : "";
+    case "bstart": return item.baseline_start ?? "";
+    case "bfinish": return item.baseline_end ?? "";
+    case "linked": return item.link_type ? `${LINK_TYPE_TEXT[item.link_type] ?? item.link_type}${item.link_label ? `: ${item.link_label}` : ""}` : "";
     case "astart": return item.actual_start ?? "";
     case "afinish": return item.actual_finish ?? "";
     case "remaining": return item.remaining_duration != null ? String(Number(item.remaining_duration)) : "";
@@ -166,6 +209,8 @@ export function cellText(item: ScheduleItem, key: ColumnKey, ctx: GridCtx): stri
     }
   }
 }
+
+export const LINK_TYPE_TEXT: Record<string, string> = { deal: "Deal", job: "Job", precon: "Pre-Con", company: "Trade partner", contact: "Contact", selection: "Selection", project: "Project", punch_list: "Punch list", schedule: "Schedule" };
 
 export const MILESTONE_TEXT: Record<string, string> = { contract: "Contract", inspection: "Inspection", client_decision: "Client decision", internal: "Internal" };
 
@@ -295,6 +340,12 @@ export function parseCell(item: ScheduleItem, key: ColumnKey, text: string, ctx:
       return d ? { patch: { contract_date: d } } : { error: `"${t}" isn't a date.` };
     }
     case "notes": return { patch: { internal_notes: t || null } };
+    case "client": {
+      const l = t.toLowerCase();
+      if (["", "no", "n", "false", "0", "hidden"].includes(l)) return { patch: { client_visible: false } };
+      if (["yes", "y", "true", "1", "x", "✓", "visible"].includes(l)) return { patch: { client_visible: true } };
+      return { error: "Client is Yes or No." };
+    }
     case "astart": case "afinish": {
       const f = key === "astart" ? "actual_start" : "actual_finish";
       if (!t) return { patch: { [f]: null } };

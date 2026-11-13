@@ -17,7 +17,7 @@ export const EXPORT_COLUMNS: ColumnKey[] = [
   "constraint", "cdate", "calendar", "mtype", "contract", "variance", "cost_code", "wbs", "location", "lead", "orderby", "assigned", "notes",
 ];
 /** What an upload may change (the rest is worked out or set elsewhere). */
-const IMPORTABLE = new Set<ColumnKey>(["id", "name", "duration", "start", "finish", "preds", "pct", "constraint", "cdate", "calendar", "mtype", "contract", "cost_code", "wbs", "location", "lead", "notes"]);
+const IMPORTABLE = new Set<ColumnKey>(["id", "name", "duration", "start", "finish", "preds", "pct", "constraint", "cdate", "calendar", "mtype", "contract", "cost_code", "wbs", "location", "lead", "notes", "client"]);
 
 export type ImportChange = { field: string; from: string; to: string };
 export type ImportRow = {

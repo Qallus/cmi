@@ -38,14 +38,18 @@ async function fileNameFor(scheduleId: string, kind: "export" | "template"): Pro
   return kind === "template" ? `${safe}_Blank_Schedule_Template.xlsx` : `${safe}_Schedule_${new Date().toISOString().slice(0, 10)}.xlsx`;
 }
 
-export async function exportScheduleXlsx(scheduleId: string): Promise<{ buffer: Buffer; fileName: string }> {
+/** `columns`: the grid layout's columns in order (Grid Addendum §3.1); the hidden
+ *  Task GUID and the Phase always come first so the file re-imports. `clientOnly`:
+ *  just the tasks the client can see (the Client print layout). */
+export async function exportScheduleXlsx(scheduleId: string, opts: { columns?: ColumnKey[]; clientOnly?: boolean } = {}): Promise<{ buffer: Buffer; fileName: string }> {
+  const COLS = opts.columns?.length ? opts.columns : EXPORT_COLUMNS;
   const [items, phases, deps, net] = await Promise.all([
     listItems({ scheduleId }), listPhases(scheduleId), listDependencies({ scheduleId }), loadNetwork(scheduleId),
   ]);
   const variance = new Map(items.map((i) => [i.id, contractVariance(net, i)]));
   const ctx = buildGridCtx(items, deps, (id) => variance.get(id));
   const phaseName = new Map(phases.map((p) => [p.id, p.name]));
-  const ordered = scheduleRows(items, phases).flatMap((r) => (r.kind === "item" ? [r.item] : []));
+  const ordered = scheduleRows(opts.clientOnly ? items.filter((i) => i.client_visible) : items, phases).flatMap((r) => (r.kind === "item" ? [r.item] : []));
 
   const wb = new ExcelJS.Workbook();
   wb.creator = "Constructed Matter, Inc.";
@@ -54,16 +58,16 @@ export async function exportScheduleXlsx(scheduleId: string): Promise<{ buffer: 
     views: [{ state: "frozen", xSplit: 4, ySplit: 1 }],
     pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0, paperSize: 1 as never /* Letter */ },
   });
-  const headers = [GUID_HEADER, PHASE_HEADER, ...EXPORT_COLUMNS.map(label)];
+  const headers = [GUID_HEADER, PHASE_HEADER, ...COLS.map(label)];
   ws.columns = headers.map((h, i) => ({
     header: h,
-    width: i === 0 ? 38 : i === 1 ? 22 : Math.max(10, Math.round((COLUMN[EXPORT_COLUMNS[i - 2]]?.width ?? 90) / 7)),
+    width: i === 0 ? 38 : i === 1 ? 22 : Math.max(10, Math.round((COLUMN[COLS[i - 2]]?.width ?? 90) / 7)),
   }));
   styleHeader(ws.getRow(1));
   ws.getColumn(1).hidden = true;
   for (const it of ordered) {
     const values: (string | number | Date | null)[] = [it.id, it.phase_id ? phaseName.get(it.phase_id) ?? "" : ""];
-    for (const k of EXPORT_COLUMNS) {
+    for (const k of COLS) {
       if (DATE_COLS.has(k)) { values.push(asDate(cellText(it, k, ctx) || null)); continue; }
       if (k === "id") { values.push(it.activity_id ?? null); continue; }
       if (k === "pct") { values.push(it.percent_complete ?? 0); continue; }
@@ -73,7 +77,7 @@ export async function exportScheduleXlsx(scheduleId: string): Promise<{ buffer: 
     }
     ws.addRow(values);
   }
-  EXPORT_COLUMNS.forEach((k, j) => { if (DATE_COLS.has(k)) ws.getColumn(j + 3).numFmt = "yyyy-mm-dd"; });
+  COLS.forEach((k, j) => { if (DATE_COLS.has(k)) ws.getColumn(j + 3).numFmt = "yyyy-mm-dd"; });
   ws.autoFilter = { from: { row: 1, column: 2 }, to: { row: 1, column: headers.length } };
 
   // Calendar in effect (read-only reference).
@@ -88,10 +92,14 @@ export async function exportScheduleXlsx(scheduleId: string): Promise<{ buffer: 
 
   // Weekly Gantt: bars are conditional formatting on dates pulled from the
   // Schedule sheet, so they follow any date edited in Excel.
+  // The Gantt sheet reads Task, Start and Finish from the Schedule sheet; a layout without them skips it.
+  if (!(["name", "start", "finish"] as ColumnKey[]).every((k) => COLS.includes(k))) {
+    return { buffer: Buffer.from(await wb.xlsx.writeBuffer()), fileName: await fileNameFor(scheduleId, "export") };
+  }
   const gs = wb.addWorksheet("Gantt", { views: [{ state: "frozen", xSplit: 3, ySplit: 1 }], pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0, paperSize: 17 as never /* 11x17 */ } });
-  const startCol = colLetter(3 + EXPORT_COLUMNS.indexOf("start"));
-  const finishCol = colLetter(3 + EXPORT_COLUMNS.indexOf("finish"));
-  const nameCol = colLetter(3 + EXPORT_COLUMNS.indexOf("name"));
+  const startCol = colLetter(3 + COLS.indexOf("start"));
+  const finishCol = colLetter(3 + COLS.indexOf("finish"));
+  const nameCol = colLetter(3 + COLS.indexOf("name"));
   const dated = ordered.filter((i) => i.start_date);
   const minStart = dated.reduce<string | null>((m, i) => (!m || i.start_date! < m ? i.start_date! : m), null);
   const maxEnd = dated.reduce<string | null>((m, i) => { const e = i.end_date ?? i.start_date!; return !m || e > m ? e : m; }, null);

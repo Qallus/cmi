@@ -96,3 +96,25 @@ test("milestone type, contract date and variance", () => {
   assert.equal(cellText(m, "variance", { ...c, varianceOf: () => 0 }), "on date");
   assert.equal(cellText(m, "variance", ctx([m])), "");
 });
+
+import { normalizeColumns, moveColumn, presetNamed, GRID_PRESETS } from "./grid.ts";
+
+test("columns: ID and Task always first, unknown and repeated keys dropped", () => {
+  assert.deepEqual(normalizeColumns(["start", "name", "bogus", "start", "preds"]), ["id", "name", "start", "preds"]);
+  assert.deepEqual(normalizeColumns([]), ["id", "name"]);
+});
+
+test("columns: drag to reorder never moves ID or Task", () => {
+  const cols = ["id", "name", "duration", "start", "finish"];
+  assert.deepEqual(moveColumn(cols, "finish", "duration"), ["id", "name", "finish", "duration", "start"]);
+  assert.deepEqual(moveColumn(cols, "duration", null), ["id", "name", "start", "finish", "duration"]);
+  assert.deepEqual(moveColumn(cols, "start", "id"), ["id", "name", "start", "duration", "finish"]);
+  assert.deepEqual(moveColumn(cols, "id", "finish"), cols);
+});
+
+test("presets: Brandon's five, every one starts ID, Task; old names still open", () => {
+  assert.deepEqual(GRID_PRESETS.slice(0, 5).map((p) => p.name), ["Default", "Field", "Links", "Client print", "Minimal"]);
+  for (const p of GRID_PRESETS) assert.deepEqual(p.columns.slice(0, 2), ["id", "name"]);
+  assert.equal(presetNamed("PM view")?.name, "Default");
+  assert.equal(presetNamed("Client print")?.clientOnly, true);
+});

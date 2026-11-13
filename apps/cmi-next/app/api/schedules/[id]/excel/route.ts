@@ -4,20 +4,25 @@ import { canEditSchedules, canViewSchedules } from "@/lib/schedules/permissions"
 import { isFeatureEnabled } from "@/lib/flags";
 import { ENGINE_FLAG } from "@/lib/schedules/engine";
 import { exportScheduleXlsx, templateXlsx, previewImport } from "@/lib/schedules/excel";
+import { normalizeColumns } from "@/lib/schedules/grid";
 
 export const runtime = "nodejs";
 const MAX_BYTES = 5 * 1024 * 1024;
 const XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
 // GET ?kind=export (default) | template: download the schedule, or a blank sheet.
+// Export takes ?cols= (layout columns) and ?client=1 (client-visible tasks only).
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { staff } = await requireAdmin(request);
     if (!canViewSchedules(staff.role_slug)) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
     if (!(await isFeatureEnabled(ENGINE_FLAG))) return NextResponse.json({ error: "The schedule engine is switched off." }, { status: 403 });
     const { id } = await params;
-    const kind = new URL(request.url).searchParams.get("kind") === "template" ? "template" : "export";
-    const { buffer, fileName } = kind === "template" ? await templateXlsx(id) : await exportScheduleXlsx(id);
+    const sp = new URL(request.url).searchParams;
+    const kind = sp.get("kind") === "template" ? "template" : "export";
+    // ?cols=id,name,start… : the grid's current layout (ID and Task always first).
+    const cols = sp.get("cols") ? normalizeColumns(sp.get("cols")!.split(",")) : undefined;
+    const { buffer, fileName } = kind === "template" ? await templateXlsx(id) : await exportScheduleXlsx(id, { columns: cols, clientOnly: sp.get("client") === "1" });
     return new NextResponse(new Uint8Array(buffer), {
       headers: { "Content-Type": XLSX, "Content-Disposition": `attachment; filename="${fileName}"`, "Cache-Control": "no-store" },
     });
