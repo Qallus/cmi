@@ -1,6 +1,6 @@
 import { loadQuotes } from "@/lib/quotes/data";
 import type { Quote } from "@/lib/quotes/types";
-import { loadOpportunities, loadStageHistory } from "@/lib/pipeline/data";
+import { loadOpportunities, loadStageHistory, liveJobOppIds } from "@/lib/pipeline/data";
 import { computeReport } from "@/lib/pipeline/reporting";
 import type { Opportunity, StageHistoryRow } from "@/lib/pipeline/types";
 import { SalesClient } from "./sales-client";
@@ -23,13 +23,16 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
   try {
     [quotes, opportunities, history] = await Promise.all([
       loadQuotes(),
-      loadOpportunities(),
+      loadOpportunities({ includeMovedOn: true }),
       loadStageHistory(),
     ]);
   } catch {
     // Fall back to empty datasets if anything is unreachable.
   }
-  const report = computeReport(opportunities, history, quotes.length);
+  // Records now in Jobs count toward conversion rates only; the board doesn't show them.
+  const movedOn = await liveJobOppIds().catch(() => new Set<string>());
+  const report = computeReport(opportunities, history, quotes.length, movedOn);
+  opportunities = opportunities.filter((o) => !movedOn.has(o.id));
   const staff = await getSessionStaff();
   return (
     <SalesClient

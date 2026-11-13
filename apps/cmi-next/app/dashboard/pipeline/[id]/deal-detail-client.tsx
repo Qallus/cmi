@@ -1,5 +1,6 @@
 "use client";
 
+import { PinControl } from "@/components/handoff/pins";
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -70,10 +71,13 @@ const ACTIONS: { key: ActionKey; label: string; icon: typeof Phone }[] = [
 ];
 
 export function DealDetailClient({
+  home = null,
   deal: initialDeal, contact: initialContact, owners, canWrite, initialActivities, initialTasks, initialHistory, initialChecklist, initialCustomItems,
   dealOrder,
 }: {
   deal: Deal; contact: DealContact | null; owners: OwnerOption[]; canWrite: boolean;
+  /** Where a won deal's project lives now (one home per project). */
+  home?: { area: "precon" | "jobs"; href: string; label: string } | null;
   initialActivities: Activity[]; initialTasks: DealTask[]; initialHistory: DealStageHistoryRow[]; initialChecklist: DealChecklistProgress[]; initialCustomItems: DealChecklistItem[];
   /** Board order, used for prev/next when the list did not hand one over. */
   dealOrder: string[];
@@ -359,6 +363,8 @@ export function DealDetailClient({
           <div className="flex items-center gap-2">
           {/* Self-hides unless the viewer can use Projections (Admin + flag). */}
           <ProjectionLinkButton kind={deal.opportunity_id ? "opportunity" : "deal"} id={deal.opportunity_id ?? deal.id} />
+          {/* Pin: also show it on the Pre-Con or Jobs board (while it lives in the Pipeline). */}
+          {deal.stage !== "closed_won" ? <PinControl recordType="deal" recordId={deal.id} /> : null}
           {canWrite && (
             <div className="flex items-center gap-2">
               <Button size="sm" variant="outline" disabled={busy || deal.stage === "closed_won"} onClick={() => changeStage("closed_won")}><Trophy className="h-4 w-4" /> Closed Won</Button>
@@ -367,6 +373,12 @@ export function DealDetailClient({
           )}
           </div>
         </div>
+        {home && deal.stage === "closed_won" ? (
+          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-accent/40 bg-accent/10 px-3 py-2 text-sm">
+            <span>Won: this project is in <strong>{home.area === "jobs" ? "Jobs" : "Pre-Con"}</strong> now ({home.label}), so it isn&apos;t on the Pipeline board.{home.area === "precon" ? " Picking an earlier stage moves it back to the Pipeline." : " To bring it back, move the Job back to Pre-Con first."}</span>
+            <a href={home.href} className="font-medium text-accent hover:underline">Open it</a>
+          </div>
+        ) : null}
         {/* Summary strip */}
         <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 rounded-lg border border-border p-4 md:grid-cols-4 lg:grid-cols-5">
           <Summary label="Account / Contact">{contact ? <a href={`/dashboard/contacts?id=${contact.id}`} className="hover:underline">{contact.name}</a> : "—"}</Summary>

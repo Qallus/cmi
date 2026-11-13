@@ -53,17 +53,22 @@ function pct(part: number, whole: number): number {
   return Math.round((part / whole) * 1000) / 10; // one decimal place
 }
 
+// `movedOn`: records that now live in Jobs (lib/handoff/home.ts). They still
+// count toward the conversion rates (they did reach those stages), but not
+// toward Pre-Con's counts and values, so nothing is counted in two places.
 export function computeReport(
-  opps: Opportunity[],
+  allOpps: Opportunity[],
   history: StageHistoryRow[],
   leadCount?: number,
+  movedOn?: ReadonlySet<string>,
 ): PipelineReport {
+  const opps = movedOn?.size ? allOpps.filter((o) => !movedOn.has(o.id)) : allOpps;
   const byStage = Object.fromEntries(
     (Object.keys(STAGE_META) as PipelineStage[]).map((s) => [s, 0]),
   ) as Record<PipelineStage, number>;
   for (const o of opps) byStage[o.stage] = (byStage[o.stage] ?? 0) + 1;
 
-  const reached = stagesReachedByOpp(opps, history);
+  const reached = stagesReachedByOpp(allOpps, history);
   const countReached = (stage: PipelineStage) =>
     [...reached.values()].filter((set) => set.has(stage)).length;
 

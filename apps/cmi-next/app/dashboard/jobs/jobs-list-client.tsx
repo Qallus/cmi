@@ -1,5 +1,6 @@
 "use client";
 
+import { PinnedStrip } from "@/components/handoff/pins";
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -276,6 +277,9 @@ export function JobsListClient({
           {checkboxes}
         </div>
       </div>
+
+      {/* Projects from Pipeline or Pre-Con pinned to Jobs (not counted in its totals). */}
+      <PinnedStrip area="jobs" className="mx-4 mt-2 md:mx-6" />
 
       {/* Body */}
       <div className="flex-1 overflow-auto">

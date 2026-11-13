@@ -1,5 +1,6 @@
 "use client";
 
+import { PinnedStrip } from "@/components/handoff/pins";
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -456,6 +457,8 @@ export function PipelineDealsClient({
 
       {/* View area */}
       <div className="flex-1 overflow-auto px-4 py-4 md:px-6">
+        {/* Projects from Pre-Con or Jobs pinned to the Pipeline (not counted in its totals). */}
+        <PinnedStrip area="pipeline" className="mb-3" />
         {filtered.length === 0 ? (
           <div className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
             {deals.length === 0 ? <>No deals yet. {canWrite && "Use “Add Deal” or “Add to Pipeline” to get started."}</> : "No deals match the current filters."}

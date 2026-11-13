@@ -1,5 +1,6 @@
 "use client";
 
+import { PinnedStrip } from "@/components/handoff/pins";
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -104,7 +105,10 @@ const EMPTY_DRAFT: OpportunityDraft = {
   notes: "",
 };
 
-const STAGE_OPTIONS = ALL_STAGES.map((s) => ({ value: s, label: STAGE_META[s].label }));
+// One home per project: Warranty and Closed are Job phases, so Pre-Con doesn't
+// show them; Active Project is where a project hands over to Jobs.
+const PRECON_STAGES = ALL_STAGES.filter((s) => s !== "warranty" && s !== "closed");
+const STAGE_OPTIONS = PRECON_STAGES.map((s) => ({ value: s, label: s === "active_project" ? "Active Project → Jobs" : STAGE_META[s].label }));
 
 export function PipelineClient({
   initialOpportunities,
@@ -134,7 +138,7 @@ export function PipelineClient({
   const { shown: showStats, toggle: toggleStats } = useStatsVisible("sales-pipeline");
   const [showArchived, setShowArchived] = React.useState(false);
   // Board message after a drag: what moved, what's still missing, or why it didn't.
-  const [boardMsg, setBoardMsg] = React.useState<{ text: string; tone: "info" | "warn" | "error" } | null>(null);
+  const [boardMsg, setBoardMsg] = React.useState<{ text: string; tone: "info" | "warn" | "error"; href?: string; hrefLabel?: string } | null>(null);
   React.useEffect(() => {
     if (!boardMsg) return;
     const t = window.setTimeout(() => setBoardMsg(null), 7000);
@@ -172,9 +176,15 @@ export function PipelineClient({
         const d = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(d.error ?? "Could not move it.");
         const miss = (d.missing as string[] | undefined) ?? [];
-        setBoardMsg(miss.length
-          ? { tone: "warn", text: `${moving[0].opportunity_name} moved to ${label}. Still needs: ${names(miss)}.` }
-          : { tone: "info", text: `${moving[0].opportunity_name} moved to ${label}.` });
+        const job = d.job as { id: string; job_name: string | null } | undefined;
+        if (job) {
+          // Handed to Jobs: it leaves Pre-Con.
+          setBoardMsg({ tone: "info", text: `${moving[0].opportunity_name} moved to Jobs${miss.length ? `. Still needs: ${names(miss)}` : ""}.`, href: `/dashboard/jobs/${job.id}/summary`, hrefLabel: "Open the job" });
+        } else {
+          setBoardMsg(miss.length
+            ? { tone: "warn", text: `${moving[0].opportunity_name} moved to ${label}. Still needs: ${names(miss)}.` }
+            : { tone: "info", text: `${moving[0].opportunity_name} moved to ${label}.` });
+        }
       } else {
         const res = await fetch("/api/pipeline/bulk", {
           method: "POST", headers: { "Content-Type": "application/json" },
@@ -184,7 +194,7 @@ export function PipelineClient({
         if (!res.ok) throw new Error(d.error ?? "Could not move them.");
         const failed = (d.failed as { id: string; error: string }[]) ?? [];
         const warnings = (d.warnings as { id: string; missing: string[] }[]) ?? [];
-        const head = `${d.done} moved to ${label}.${failed.length ? ` ${failed.length} didn't: ${failed[0].error}` : ""}`;
+        const head = `${d.done} moved to ${to === "active_project" ? "Jobs" : label}.${failed.length ? ` ${failed.length} didn't: ${failed[0].error}` : ""}`;
         setBoardMsg({ tone: failed.length ? "error" : warnings.length ? "warn" : "info", text: warnings.length ? `${head} ${warnings.length} still need: ${names(warnings.flatMap((w) => w.missing))}.` : head });
       }
       await refresh();
@@ -341,7 +351,7 @@ export function PipelineClient({
 
         {/* Stage tabs */}
         <div className="mt-3 flex flex-wrap gap-1.5">
-          {[{ key: "all", label: "All" }, ...ALL_STAGES.map((s) => ({ key: s, label: STAGE_META[s].label }))].map(({ key, label }) => (
+          {[{ key: "all", label: "All" }, ...PRECON_STAGES.filter((s) => s !== "active_project").map((s) => ({ key: s, label: STAGE_META[s].label }))].map(({ key, label }) => (
             <button
               key={key}
               type="button"
@@ -391,10 +401,13 @@ export function PipelineClient({
       {boardMsg ? (
         <div role="status" className={cn("mx-4 mt-2 flex items-start gap-2 rounded-md border px-3 py-2 text-sm",
           boardMsg.tone === "error" ? "border-destructive/40 bg-destructive/10 text-destructive" : boardMsg.tone === "warn" ? "border-warning/40 bg-warning/10" : "border-border bg-muted/40")}>
-          <span className="flex-1">{boardMsg.text}</span>
+          <span className="flex-1">{boardMsg.text}{boardMsg.href ? <> <Link href={boardMsg.href} className="font-medium text-accent hover:underline">{boardMsg.hrefLabel ?? "Open"}</Link></> : null}</span>
           <button type="button" onClick={() => setBoardMsg(null)} className="text-muted-foreground hover:text-foreground" aria-label="Dismiss"><X className="h-3.5 w-3.5" /></button>
         </div>
       ) : null}
+
+      {/* Projects from Pipeline or Jobs pinned to Pre-Con (not counted in its totals). */}
+      <PinnedStrip area="precon" className="mx-4 mt-2" />
 
       {/* Body */}
       <div className="flex-1 overflow-auto">
@@ -626,7 +639,7 @@ function KanbanView({ rows, onOpen, selected, setSelected, canWrite = false, onM
   const dragCount = dragId && selected.has(dragId) ? selected.size : 1;
   return (
     <div className="flex h-full gap-3 overflow-x-auto p-4">
-      {ALL_STAGES.map((stage) => {
+      {PRECON_STAGES.map((stage) => {
         const items = rows.filter((o) => o.stage === stage);
         const target = !!dragId && stage !== dragStage;
         return (
@@ -636,11 +649,11 @@ function KanbanView({ rows, onOpen, selected, setSelected, canWrite = false, onM
             onDrop={(e) => { e.preventDefault(); if (canWrite && dragId && target) onMove?.(dragId, stage); setDragId(null); setOver(null); }}
             className={cn("flex w-72 shrink-0 flex-col rounded-lg border bg-card/50 transition-colors", over === stage ? "border-accent bg-accent/5 ring-1 ring-accent" : "border-border")}>
             <div className="flex items-center justify-between border-b border-border px-3 py-2">
-              <div className="flex items-center gap-2 text-xs font-semibold"><StageBadge stage={stage} /></div>
-              <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{items.length}</span>
+              <div className="flex items-center gap-2 text-xs font-semibold"><StageBadge stage={stage} />{stage === "active_project" ? <span className="text-[11px] font-medium text-muted-foreground">→ Jobs</span> : null}</div>
+              {stage !== "active_project" ? <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{items.length}</span> : null}
             </div>
             <div className="flex-1 space-y-2 overflow-y-auto p-2">
-              {over === stage ? <div className="rounded-md border-2 border-dashed border-accent/50 px-2 py-3 text-center text-xs text-accent">Drop to move {dragCount > 1 ? `${dragCount} cards` : "here"}</div> : null}
+              {over === stage ? <div className="rounded-md border-2 border-dashed border-accent/50 px-2 py-3 text-center text-xs text-accent">{stage === "active_project" ? `Drop to move ${dragCount > 1 ? `${dragCount} projects` : "it"} to Jobs` : `Drop to move ${dragCount > 1 ? `${dragCount} cards` : "here"}`}</div> : null}
               {items.map((o) => {
                 // Required fields for the stage it's in that are still empty (moved by hand).
                 const missing = missingForStage(o);
@@ -671,7 +684,11 @@ function KanbanView({ rows, onOpen, selected, setSelected, canWrite = false, onM
                   </div>
                 );
               })}
-              {items.length === 0 && over !== stage && <div className="px-2 py-6 text-center text-xs text-muted-foreground">{dragId && target ? "Drop here" : "Empty"}</div>}
+              {items.length === 0 && over !== stage && (
+                <div className={cn("px-2 py-6 text-center text-xs text-muted-foreground", stage === "active_project" && "rounded-md border border-dashed border-border")}>
+                  {stage === "active_project" ? "Drop here to move it to Jobs" : dragId && target ? "Drop here" : "Empty"}
+                </div>
+              )}
             </div>
           </div>
         );

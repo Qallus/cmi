@@ -11,6 +11,15 @@ export const metadata = { title: "Deal — CMI Pipeline" };
 export const dynamic = "force-dynamic";
 
 
+// One home per project: a won deal's project lives in Pre-Con or Jobs now.
+async function dealHome(deal: Deal): Promise<{ area: "precon" | "jobs"; href: string; label: string } | null> {
+  if (deal.stage !== "closed_won" || !deal.opportunity_id) return null;
+  const sb = getSupabaseAdmin();
+  const { data: job } = await sb.from("jobs").select("id, job_number").eq("related_opportunity_id", deal.opportunity_id).is("archived_at", null).limit(1).maybeSingle();
+  if (job) return { area: "jobs", href: `/dashboard/jobs/${job.id}/summary`, label: (job.job_number as string | null) ?? "the job" };
+  return { area: "precon", href: `/dashboard/sales/${deal.opportunity_id}`, label: deal.job_number ?? "the Pre-Con record" };
+}
+
 export default async function DealDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const deal = await getDeal(id).catch(() => null);
@@ -66,6 +75,7 @@ export default async function DealDetailPage({ params }: { params: Promise<{ id:
 
   return (
     <DealDetailClient
+      home={await dealHome(deal as Deal)}
       deal={deal as Deal}
       contact={contact}
       owners={owners}

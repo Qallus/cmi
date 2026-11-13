@@ -476,6 +476,17 @@ export async function convertOpportunityToJob(
   // Reuse an already-linked job if one exists (idempotent promotion).
   const { data: existing } = await sb.from("jobs").select("*").eq("related_opportunity_id", opportunityId).is("archived_at", null).maybeSingle();
   if (existing) return existing as Job;
+  // Moved back to Pre-Con earlier: its Job was archived, so bring the same Job
+  // back (schedules, logs, files and all) rather than starting a new one.
+  const { data: archived } = await sb.from("jobs").select("*").eq("related_opportunity_id", opportunityId).not("archived_at", "is", null)
+    .order("archived_at", { ascending: false }).limit(1).maybeSingle();
+  if (archived) {
+    const status = opportunityStageToJobStatus(opp.stage);
+    await sb.from("jobs").update({ archived_at: null, ...(status ? { status } : {}) }).eq("id", archived.id);
+    await logJobActivity(archived.id, "restored", `Moved forward from Pre-Con again (${opp.job_number ?? "opportunity"})`, actor);
+    await seedJobContacts(archived.id as string, opportunityId, opp.contact_id ?? null);
+    return { ...(archived as Job), archived_at: null, ...(status ? { status } : {}) } as Job;
+  }
 
   const draft: JobDraft = {
     job_name: overrides.job_name || opp.opportunity_name || "New Job",
@@ -513,14 +524,35 @@ export async function convertOpportunityToJob(
     (job as Job).lead_number = opp.job_number;
   }
 
-  // Seed the client list from the opportunity's linked contact.
-  if (opp.contact_id) {
-    await sb.from("job_contacts").insert({ job_id: job.id, contact_id: opp.contact_id, role: "client", is_primary: true }).select("id").maybeSingle();
-  }
+  // Seed the client list from the opportunity's contact and every contact on its deal.
+  await seedJobContacts(job.id, opportunityId, opp.contact_id ?? null);
   await logJobActivity(job.id, "converted_from_opportunity", `Promoted from opportunity ${opp.job_number ?? opportunityId}`, actor);
   // An anticipated projection for this opportunity (or its deal) becomes the job's.
   await linkOpportunityToJob(opportunityId, job.id, job.contract_price ?? null, actor);
   return job;
+}
+
+/** Clients for a job promoted from Pre-Con: the Pre-Con record's contact (primary)
+ *  plus every contact on the deal it came from. Existing rows are left alone, so
+ *  nobody is added twice. */
+async function seedJobContacts(jobId: string, opportunityId: string, primaryContactId: string | null): Promise<void> {
+  const sb = getSupabaseAdmin();
+  const want = new Map<string, boolean>(); // contact id → primary
+  if (primaryContactId) want.set(primaryContactId, true);
+  const { data: deals } = await sb.from("deals").select("id, contact_id").eq("opportunity_id", opportunityId);
+  const dealIds = (deals ?? []).map((d) => d.id as string);
+  for (const d of deals ?? []) if (d.contact_id && !want.has(d.contact_id as string)) want.set(d.contact_id as string, !primaryContactId);
+  if (dealIds.length) {
+    const { data: dc } = await sb.from("deal_contacts").select("contact_id").in("deal_id", dealIds);
+    for (const r of dc ?? []) if (r.contact_id && !want.has(r.contact_id as string)) want.set(r.contact_id as string, false);
+  }
+  if (!want.size) return;
+  const { data: have } = await sb.from("job_contacts").select("contact_id, is_primary").eq("job_id", jobId);
+  const already = new Set((have ?? []).map((h) => h.contact_id as string));
+  const hasPrimary = (have ?? []).some((h) => h.is_primary);
+  const rows = [...want.entries()].filter(([id]) => !already.has(id))
+    .map(([contact_id, primary]) => ({ job_id: jobId, contact_id, role: "client", is_primary: primary && !hasPrimary }));
+  if (rows.length) await sb.from("job_contacts").insert(rows);
 }
 
 // ─── Create from template ──────────────────────────────────────

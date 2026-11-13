@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { validateTransition, derivedTransitionPatch, STAGE_META, FIELD_LABELS } from "./stages";
 import { notifyOpportunityOwner } from "@/lib/notifications/assignments";
 import type { Opportunity, OpportunityDraft, PipelineStage, StageHistoryRow, WarrantyRequest } from "./types";
+import { isJobPhaseStage, liveJobOppIdSet } from "@/lib/handoff/home";
 
 // job_number is intentionally NOT accepted from callers — the DB trigger owns it.
 function sanitizeDraft(draft: Partial<Opportunity>): Partial<Opportunity> {
@@ -19,13 +20,23 @@ function sanitizeDraft(draft: Partial<Opportunity>): Partial<Opportunity> {
 
 // Archived opportunities are left out unless asked for (only the list's
 // "Show archived" toggle does), so they drop out of reporting too.
-export async function loadOpportunities(opts?: { includeArchived?: boolean }): Promise<Opportunity[]> {
+// One home per project (lib/handoff/home.ts): a record that a live Job links to
+// has moved on to Jobs and is left out too, unless `includeMovedOn`.
+export async function loadOpportunities(opts?: { includeArchived?: boolean; includeMovedOn?: boolean }): Promise<Opportunity[]> {
   const supabase = getSupabaseAdmin();
   let q = supabase.from("pipeline_opportunities").select("*").order("created_at", { ascending: false });
   if (!opts?.includeArchived) q = q.is("archived_at", null);
-  const { data, error } = await q;
+  const [{ data, error }, movedOn] = await Promise.all([q, opts?.includeMovedOn ? Promise.resolve(new Set<string>()) : liveJobOppIds()]);
   if (error) throw new Error(error.message);
-  return (data ?? []) as Opportunity[];
+  return ((data ?? []) as Opportunity[]).filter((o) => !movedOn.has(o.id));
+}
+
+/** Pre-Con records a live (not archived) Job links to: they live in Jobs now. */
+export async function liveJobOppIds(): Promise<Set<string>> {
+  const { data, error } = await getSupabaseAdmin().from("jobs").select("related_opportunity_id, archived_at")
+    .not("related_opportunity_id", "is", null).is("archived_at", null);
+  if (error) throw new Error(error.message);
+  return liveJobOppIdSet((data ?? []) as { related_opportunity_id: string | null; archived_at: string | null }[]);
 }
 
 export async function getOpportunity(id: string): Promise<Opportunity | null> {
@@ -122,7 +133,7 @@ export async function transitionStage(
   // empty required fields don't block; they're noted in the stage history.
   // `canReopen`: the caller is an admin, so a Closed project may be moved out of Closed.
   opts: { manual?: boolean; canReopen?: boolean } = {},
-): Promise<Opportunity & { missing?: string[] }> {
+): Promise<Opportunity & { missing?: string[]; job?: { id: string; job_number: string | null; job_name: string | null } }> {
   const current = await getOpportunity(id);
   if (!current) throw new TransitionError("Opportunity not found.", [], 404);
   if (opts.manual && current.stage === "closed" && !opts.canReopen) throw new TransitionError("Only an admin can reopen a closed project.", [], 403);
@@ -140,7 +151,20 @@ export async function transitionStage(
   const updated = await updateOpportunity(id, { ...sanitizeDraft(patch), ...derived, stage: to });
 
   await recordStageChange(id, updated.job_number, current.stage, to, actor, note);
-  return missing.length ? { ...updated, missing } : updated;
+  // Active Project, Warranty and Closed are Job phases: the project moves on to
+  // Jobs (its Job is made, or the one it had is restored) and leaves Pre-Con.
+  let job: { id: string; job_number: string | null; job_name: string | null } | undefined;
+  if (isJobPhaseStage(to)) {
+    const { convertOpportunityToJob } = await import("@/lib/jobs/data");
+    const j = await convertOpportunityToJob(id, {}, actor);
+    job = { id: j.id, job_number: j.job_number ?? null, job_name: j.job_name ?? null };
+  }
+  return { ...updated, ...(missing.length ? { missing } : {}), ...(job ? { job } : {}) };
+}
+
+/** A line in a Pre-Con record's stage history for a move between areas (to / back from Pipeline or Jobs). */
+export async function notePreconMove(opportunityId: string, jobNumber: string | null, from: string | null, to: string, actor?: { name?: string | null; id?: string | null }, note?: string | null): Promise<void> {
+  await recordStageChange(opportunityId, jobNumber, from, to, actor, note);
 }
 
 async function recordStageChange(

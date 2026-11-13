@@ -4,13 +4,14 @@
 import { NextResponse } from "next/server";
 import { requireAdmin, AuthError } from "@/lib/auth/require-admin";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { loadOpportunities, loadStageHistory } from "@/lib/pipeline/data";
+import { loadOpportunities, loadStageHistory, liveJobOppIds } from "@/lib/pipeline/data";
 import { computeReport } from "@/lib/pipeline/reporting";
 
 export async function GET(request: Request) {
   try {
     await requireAdmin(request);
-    const [opps, history] = await Promise.all([loadOpportunities(), loadStageHistory()]);
+    // Every record for the conversion rates; those now in Jobs are kept out of the counts.
+    const [opps, history, movedOn] = await Promise.all([loadOpportunities({ includeMovedOn: true }), loadStageHistory(), liveJobOppIds()]);
 
     // Lead pool = CRM leads + open quotes (best-effort; failures fall back to null rate).
     let leadCount: number | undefined;
@@ -23,7 +24,7 @@ export async function GET(request: Request) {
       leadCount = (contactLeads ?? 0) + (openQuotes ?? 0);
     } catch { leadCount = undefined; }
 
-    return NextResponse.json(computeReport(opps, history, leadCount));
+    return NextResponse.json(computeReport(opps, history, leadCount, movedOn));
   } catch (err) {
     const e = err as AuthError;
     return NextResponse.json({ error: e.message }, { status: e.status ?? 500 });

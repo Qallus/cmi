@@ -4,6 +4,7 @@
 // framing task assigned to Ben. Each group opens its own page. Groups follow
 // the same roles as the sidebar; private daily logs only show to their author.
 // Dashboard pages ("Go to") are matched in the browser from the sidebar list.
+import { liveJobOppIds } from "@/lib/pipeline/data";
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { requireAdmin, AuthError } from "@/lib/auth/require-admin";
@@ -47,7 +48,8 @@ export async function GET(request: Request) {
   const [contacts, jobs, deals, precon, partners, selections, cos, invoices, tasks, logs, punch, cloud, docs] = await Promise.all([
     everyWord(sb.from("contacts").select("id, first_name, last_name, email, company"), ["first_name", "last_name", "email", "company", "phone"], words).limit(PER_GROUP),
     everyWord(sb.from("jobs").select("id, job_number, job_name, status, city").is("archived_at", null), ["job_name", "job_number", "city", "street_address"], words).limit(PER_GROUP),
-    sales ? everyWord(sb.from("deals").select("id, title, stage, job_number").is("archived_at", null), ["title", "job_number"], words).limit(PER_GROUP) : none,
+    // One home per project: a Closed Won deal lives in Pre-Con or Jobs now.
+    sales ? everyWord(sb.from("deals").select("id, title, stage, job_number").is("archived_at", null).neq("stage", "closed_won"), ["title", "job_number"], words).limit(PER_GROUP) : none,
     sales ? everyWord(sb.from("pipeline_opportunities").select("id, opportunity_name, job_number, stage").is("archived_at", null), ["opportunity_name", "job_number"], words).limit(PER_GROUP) : none,
     sales ? everyWord(sb.from("companies").select("id, name, trades").is("archived_at", null), ["name", "trades_other"], words).limit(PER_GROUP) : none,
     everyWord(sb.from("project_selections").select("id, name, category, status, job_id, job:jobs(job_number, job_name)"), ["name", "category", "client_name"], words).limit(PER_GROUP),
@@ -74,7 +76,9 @@ export async function GET(request: Request) {
     push({ id: c.id, group: "Contacts", title: name, subtitle: join(c.company, c.email), href: `/dashboard/contacts?focus=${c.id}` });
   }
   for (const d of (deals.data ?? []) as { id: string; title: string; stage: string | null; job_number: string | null }[]) push({ id: d.id, group: "Pipeline", title: d.title, subtitle: join(d.job_number, d.stage?.replace(/_/g, " ")), href: `/dashboard/pipeline/${d.id}` });
-  for (const o of (precon.data ?? []) as { id: string; opportunity_name: string | null; job_number: string | null; stage: string | null }[]) push({ id: o.id, group: "Pre-Con", title: o.opportunity_name || o.job_number || "Pre-Con project", subtitle: join(o.job_number, o.stage?.replace(/_/g, " ")), href: `/dashboard/sales/${o.id}` });
+  // Pre-Con records a live Job links to live in Jobs now (the Job is listed instead).
+  const movedOn = (precon.data ?? []).length ? await liveJobOppIds().catch(() => new Set<string>()) : new Set<string>();
+  for (const o of ((precon.data ?? []) as { id: string }[]).filter((o) => !movedOn.has(o.id)) as { id: string; opportunity_name: string | null; job_number: string | null; stage: string | null }[]) push({ id: o.id, group: "Pre-Con", title: o.opportunity_name || o.job_number || "Pre-Con project", subtitle: join(o.job_number, o.stage?.replace(/_/g, " ")), href: `/dashboard/sales/${o.id}` });
   for (const c of (partners.data ?? []) as { id: string; name: string; trades: string[] | null }[]) push({ id: c.id, group: "Trade Partners", title: c.name, subtitle: join((c.trades ?? []).slice(0, 3).join(", ")), href: `/dashboard/trade-partners?focus=${c.id}` });
   for (const s of (selections.data ?? []) as unknown as { id: string; name: string; category: string | null; status: string | null; job_id: string | null; job: JobRef }[]) push({ id: s.id, group: "Selections", title: s.name, subtitle: join(jobLabel(s.job), s.category, s.status), href: s.job_id ? `/dashboard/jobs/${s.job_id}/selections` : "/dashboard/selections" });
   for (const c of (cos.data ?? []) as unknown as { id: string; co_number: string | null; title: string; status: string | null; job_id: string; job: JobRef }[]) push({ id: c.id, group: "Change Orders", title: c.title, subtitle: join(c.co_number, jobLabel(c.job), c.status), href: `/dashboard/jobs/${c.job_id}/change-orders` });

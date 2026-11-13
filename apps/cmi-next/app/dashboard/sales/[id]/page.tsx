@@ -58,6 +58,14 @@ export default async function OpportunityPage({ params }: { params: Promise<{ id
     // Render with whatever loaded.
   }
 
+  // One home per project: if a live Job links to this record it lives in Jobs;
+  // if it was moved back, its deal is in the Pipeline.
+  const [{ data: liveJob }, { data: dealRows }] = await Promise.all([
+    supabase.from("jobs").select("id, job_number, job_name").eq("related_opportunity_id", id).is("archived_at", null).limit(1).maybeSingle(),
+    supabase.from("deals").select("id, title, stage").eq("opportunity_id", id).is("archived_at", null).order("updated_at", { ascending: false }).limit(1),
+  ]);
+  const deal = (dealRows ?? [])[0] as { id: string; title: string; stage: string } | undefined;
+
   return (
     <OpportunityDetailClient
       opportunity={opportunity as Opportunity}
@@ -67,6 +75,9 @@ export default async function OpportunityPage({ params }: { params: Promise<{ id
       siblingIds={siblingIds}
       canWrite={canWrite}
       isAdmin={["super_admin", "admin"].includes(staff.role_slug)}
+      canCreateJob={["super_admin", "admin", "project_manager"].includes(staff.role_slug)}
+      job={liveJob ? { id: liveJob.id as string, job_number: (liveJob.job_number as string | null) ?? null, job_name: (liveJob.job_name as string | null) ?? null } : null}
+      deal={deal ?? null}
     />
   );
 }

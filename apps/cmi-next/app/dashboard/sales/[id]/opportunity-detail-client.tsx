@@ -1,16 +1,21 @@
 "use client";
 
+import { PinControl } from "@/components/handoff/pins";
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { ClipboardCheck,
-  ArrowLeft, BriefcaseBusiness, ChevronLeft, ChevronRight, Clock, Loader2, Mail, MapPin, Phone,
+  ArrowLeft, ArrowRight, Undo2, BriefcaseBusiness, ChevronLeft, ChevronRight, Clock, Loader2, Mail, MapPin, Phone,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { PunchListPanel } from "@/components/punch/punch-list-panel";
 import { RecordSchedulesPanel } from "@/components/schedules/record-schedules-panel";
 import { ExecSummaryButton } from "@/components/exec-summary/exec-summary-button";
 import { cn } from "@/lib/utils";
 import { Input, Select, Textarea } from "@/components/ui/input";
 import { STAGE_META } from "@/lib/pipeline/stages";
+import { DEAL_STAGES, DEAL_STAGE_META } from "@/lib/deals/stages";
+import { confirmAction } from "@/components/ui/confirm-action";
+import Link from "next/link";
 import type { Opportunity, PipelineStage, StageHistoryRow } from "@/lib/pipeline/types";
 import { StageBadge, StageRail } from "./stage-rail";
 import { OpportunityMedia } from "./opportunity-media";
@@ -122,8 +127,14 @@ const when = (iso: string | null) =>
   iso ? new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—";
 
 export function OpportunityDetailClient({
-  opportunity: initial, contact, owners, history, siblingIds, canWrite, isAdmin,
+  opportunity: initial, contact, owners, history, siblingIds, canWrite, isAdmin, canCreateJob = false, job = null, deal = null,
 }: {
+  /** Can make the Job (Move to Jobs): admins and PMs. */
+  canCreateJob?: boolean;
+  /** The live Job this project lives in now, if any (one home per project). */
+  job?: { id: string; job_number: string | null; job_name: string | null } | null;
+  /** The deal it came from, if any. */
+  deal?: { id: string; title: string; stage: string } | null;
   opportunity: Opportunity;
   contact: OppContact | null;
   owners: OwnerOption[];
@@ -192,6 +203,29 @@ export function OpportunityDetailClient({
 
   const active = TABS.find((t) => t.key === tab) ?? TABS[0];
 
+  // Moves between areas: forward to Jobs, back to the Pipeline.
+  const [moving, setMoving] = React.useState(false);
+  const [backMenu, setBackMenu] = React.useState(false);
+  async function moveToJobs() {
+    if (!(await confirmAction({ title: "Move to Jobs?", body: `${opp.opportunity_name} becomes a Job and leaves Pre-Con. You can move it back from the Job if you need to.`, confirmLabel: "Move to Jobs" }))) return;
+    setMoving(true);
+    const res = await fetch("/api/jobs/convert", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ opportunity_id: opp.id }) });
+    const d = await res.json().catch(() => ({}));
+    setMoving(false);
+    if (!res.ok) { setToast(d.error ?? "Could not move it to Jobs."); return; }
+    router.push(`/dashboard/jobs/${d.id}/summary`);
+  }
+  async function moveBackToPipeline(stage: string, label: string) {
+    setBackMenu(false);
+    if (!(await confirmAction({ title: "Move back to the Pipeline?", body: `${opp.opportunity_name} goes back to the Pipeline at ${label} and leaves Pre-Con. Its Pre-Con details are kept and come back when the deal is Closed Won again.`, confirmLabel: "Move back" }))) return;
+    setMoving(true);
+    const res = await fetch(`/api/pipeline/${opp.id}/move-back`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ stage }) });
+    const d = await res.json().catch(() => ({}));
+    setMoving(false);
+    if (!res.ok) { setToast(d.error ?? "Could not move it back."); return; }
+    router.push(`/dashboard/pipeline/${d.dealId}`);
+  }
+
   return (
     <div className="min-h-[calc(100vh-56px)] bg-background">
       <div className="border-b border-border px-4 py-3 md:px-6">
@@ -237,10 +271,43 @@ export function OpportunityDetailClient({
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            {canWrite && !job && !opp.archived_at ? (
+              <>
+                <div className="relative">
+                  <Button size="sm" variant="outline" disabled={moving} onClick={() => setBackMenu((o) => !o)} title="Send it back to the Pipeline"><Undo2 className="h-3.5 w-3.5" /> Move back to Pipeline</Button>
+                  {backMenu ? (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setBackMenu(false)} />
+                      <div className="absolute right-0 z-50 mt-1 w-56 rounded-lg border border-border bg-card p-1 shadow-lg">
+                        <div className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Back to which stage?</div>
+                        {DEAL_STAGES.filter((s) => s !== "closed_won").map((s) => (
+                          <button key={s} type="button" onClick={() => void moveBackToPipeline(s, DEAL_STAGE_META[s].label)} className={cn("block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-muted/50", s === "negotiation" && "font-medium")}>{DEAL_STAGE_META[s].label}</button>
+                        ))}
+                      </div>
+                    </>
+                  ) : null}
+                </div>
+                {canCreateJob ? <Button size="sm" variant="accent" disabled={moving} onClick={() => void moveToJobs()} title="Make it a Job; it leaves Pre-Con"><ArrowRight className="h-3.5 w-3.5" /> Move to Jobs</Button> : null}
+              </>
+            ) : null}
+            {!job && !opp.archived_at ? <PinControl recordType="precon" recordId={opp.id} /> : null}
             <ExecSummaryButton target="precon" id={opp.id} name={opp.opportunity_name} />
             <StageBadge stage={opp.stage} />
           </div>
         </div>
+
+        {/* One home per project: say where it lives now. */}
+        {job ? (
+          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-accent/40 bg-accent/10 px-3 py-2 text-sm">
+            <span>This project is in <strong>Jobs</strong> now{job.job_number ? ` (${job.job_number})` : ""}, so it isn&apos;t on the Pre-Con board.</span>
+            <Link href={`/dashboard/jobs/${job.id}/summary`} className="font-medium text-accent hover:underline">Open the job</Link>
+          </div>
+        ) : opp.archived_at && deal && deal.stage !== "closed_won" ? (
+          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm">
+            <span>This project is back in the <strong>Pipeline</strong>. These Pre-Con details come back when the deal is Closed Won again.</span>
+            <Link href={`/dashboard/pipeline/${deal.id}`} className="font-medium text-accent hover:underline">Open the deal</Link>
+          </div>
+        ) : null}
 
         <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 rounded-lg border border-border p-4 md:grid-cols-4">
           <Summary label="Value">{money(opp.current_project_value ?? opp.contract_value ?? opp.estimated_project_value)}</Summary>
@@ -268,7 +335,8 @@ export function OpportunityDetailClient({
       </div>
 
       <div className="space-y-5 p-4 md:p-6">
-        <StageRail opportunity={opp} canWrite={canWrite} onAdvance={advance} />
+        {/* In Jobs now: stage moves happen on the Job, so no "Move this forward" here. */}
+        <StageRail opportunity={opp} canWrite={canWrite && !job && !opp.archived_at} onAdvance={advance} />
 
         <div className="flex flex-wrap gap-1 rounded-lg border border-border bg-card p-1 text-sm">
           {TABS.map((t) => {

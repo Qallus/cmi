@@ -3,7 +3,7 @@
 // the API routes), matching lib/pipeline/data.ts.
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { dealValueMid, formatDealRange, hasRange } from "./value";
-import { createOpportunity } from "@/lib/pipeline/data";
+import { createOpportunity, getOpportunity, setOpportunityArchived, notePreconMove, liveJobOppIds } from "@/lib/pipeline/data";
 import { linkDealToOpportunity } from "@/lib/projections/links";
 import { geocodeAddress } from "@/lib/jobs/geocode";
 import { notifyDealOwner, notifyTaskAssignee } from "@/lib/notifications/assignments";
@@ -252,13 +252,32 @@ export async function changeStage(
     );
   }
 
+  // One home per project (lib/handoff/home.ts). Moving a won deal back into the
+  // Pipeline takes its project out of Pre-Con, but not out of Jobs: that has to
+  // be moved back to Pre-Con first.
+  const leavingWon = current.stage === "closed_won" && to !== "closed_won" && !!current.opportunity_id;
+  const opp = leavingWon || (to === "closed_won" && current.opportunity_id) ? await getOpportunity(current.opportunity_id!) : null;
+  if (leavingWon && opp && !opp.archived_at && (await liveJobOppIds()).has(opp.id)) {
+    throw new StageChangeError("This project is in Jobs. Move it back to Pre-Con first, then back to the Pipeline.", [], 409);
+  }
+
   const from = current.stage;
   const updated = await updateDeal(id, { ...sanitizeDraft(patch), stage: to }, actor);
   await recordStageChange(id, updated.job_number, from, to, actor, note);
 
+  if (leavingWon && opp && !opp.archived_at) {
+    // Its Pre-Con record is put away (kept, with its number) until it's won again.
+    await setOpportunityArchived(opp.id, true);
+    await notePreconMove(opp.id, opp.job_number, opp.stage, opp.stage, actor, `Moved back to the Pipeline (${DEAL_STAGE_META[to].label})`);
+  }
   // Pre-Con handoff: first time a deal reaches closed_won, mint the opportunity.
   if (to === "closed_won" && !current.opportunity_id) {
     return closeWonToPreCon(updated, actor);
+  }
+  // Won again after a move back: the same Pre-Con record comes back.
+  if (to === "closed_won" && opp?.archived_at) {
+    await setOpportunityArchived(opp.id, false);
+    await notePreconMove(opp.id, opp.job_number, opp.stage, opp.stage, actor, "Back from the Pipeline (Closed Won again)");
   }
   return updated;
 }

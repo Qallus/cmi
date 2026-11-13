@@ -1,8 +1,10 @@
 "use client";
 
+import { PinControl } from "@/components/handoff/pins";
 import * as React from "react";
 import Link from "next/link";
-import { Trash2 } from "lucide-react";
+import { Trash2, Undo2 } from "lucide-react";
+import { confirmAction } from "@/components/ui/confirm-action";
 import { Button } from "@/components/ui/button";
 import { Select, Input, Textarea } from "@/components/ui/input";
 import { MoneyInput } from "@/components/ui/money-input";
@@ -101,16 +103,31 @@ function DetailsTab({ job, types, groups, inspections }: { job: JobWithRelations
     projected_completion_date: d.projected_completion_date || null, actual_completion_date: d.actual_completion_date || null,
   }));
 
+  // Jobs → Pre-Con: the Job is archived (everything kept) and its Pre-Con record comes back.
+  const [movingBack, setMovingBack] = React.useState(false);
+  async function moveBackToPrecon() {
+    if (!(await confirmAction({ title: "Move back to Pre-Con?", body: `${job.job_name} leaves Jobs and goes back to Pre-Con (Pre-Construction / Design). The Job is archived with its schedules, logs, files and selections kept, and comes back as it is when the project moves to Active Project again.`, confirmLabel: "Move back" }))) return;
+    setMovingBack(true);
+    const res = await fetch(`/api/jobs/${job.id}/move-back`, { method: "POST" });
+    const d = await res.json().catch(() => ({}));
+    setMovingBack(false);
+    if (!res.ok) { window.alert(d.error ?? "Could not move it back."); return; }
+    window.location.href = `/dashboard/sales/${d.opportunityId}`;
+  }
+
   return (
     <div className="space-y-5">
-      {(job.related_opportunity_id || job.related_lead_id) && (
-        <div className="rounded-lg border border-border bg-muted/20 px-4 py-2 text-sm">
-          <span className="text-muted-foreground">Linked from sales: </span>
-          {job.related_opportunity_id && <Link href="/dashboard/sales?tab=opportunities" className="font-medium text-accent hover:underline">View Opportunity</Link>}
-          {job.related_opportunity_id && job.related_lead_id && " · "}
-          {job.related_lead_id && <Link href="/dashboard/contacts" className="font-medium text-accent hover:underline">View Lead</Link>}
-        </div>
-      )}
+      {/* One home per project: this project lives in Jobs. It can go back to Pre-Con. */}
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/20 px-4 py-2 text-sm">
+        <span className="text-muted-foreground">Pipeline → Pre-Con → <strong className="text-foreground">Jobs</strong></span>
+        {job.related_opportunity_id && <Link href={`/dashboard/sales/${job.related_opportunity_id}`} className="font-medium text-accent hover:underline">Pre-Con record</Link>}
+        {job.related_lead_id && <Link href={`/dashboard/contacts?focus=${job.related_lead_id}`} className="font-medium text-accent hover:underline">Lead</Link>}
+        <div className="flex-1" />
+        <PinControl recordType="job" recordId={job.id} />
+        <Button size="sm" variant="outline" disabled={movingBack} onClick={() => void moveBackToPrecon()} title="Archive this Job and put the project back in Pre-Con">
+          <Undo2 className="h-3.5 w-3.5" /> {movingBack ? "Moving…" : "Move back to Pre-Con"}
+        </Button>
+      </div>
       <Section title="Job">
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Job Name" className="sm:col-span-2"><input className={input} value={d.job_name} onChange={(e) => setD({ ...d, job_name: e.target.value })} /></Field>

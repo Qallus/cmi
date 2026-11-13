@@ -46,7 +46,7 @@ function contactTypeFor(role: string | null | undefined): string {
 
 const clean = (v: unknown) => (typeof v === "string" ? v.trim() : "");
 
-export async function listDealContacts(dealId: string): Promise<DealContactRow[]> {
+export async function listDealContacts(dealId: string, healed = false): Promise<DealContactRow[]> {
   const { data, error } = await getSupabaseAdmin()
     .from("deal_contacts")
     .select("id, contact_id, role, is_primary, sort_order, contacts(first_name, last_name, email, phone, company)")
@@ -55,6 +55,16 @@ export async function listDealContacts(dealId: string): Promise<DealContactRow[]
     .order("sort_order", { ascending: true })
     .order("created_at", { ascending: true });
   if (error) throw new DealContactError(error.message, 500);
+  // A deal made from a Contact, Quote or form has its person on deals.contact_id
+  // but no contact row yet: add it as the primary, so the card isn't empty and
+  // nobody retypes the client (which used to create a duplicate Contact).
+  if (!(data ?? []).length && !healed) {
+    const { data: deal } = await getSupabaseAdmin().from("deals").select("contact_id").eq("id", dealId).maybeSingle();
+    if (deal?.contact_id) {
+      await getSupabaseAdmin().from("deal_contacts").insert({ deal_id: dealId, contact_id: deal.contact_id, role: "Homeowner", is_primary: true, sort_order: 0 });
+      return listDealContacts(dealId, true);
+    }
+  }
   type Row = { id: string; contact_id: string; role: string | null; is_primary: boolean; sort_order: number;
     contacts: { first_name: string; last_name: string; email: string | null; phone: string | null; company: string | null } | null };
   return ((data ?? []) as unknown as Row[]).map((r) => ({
@@ -130,6 +140,23 @@ export async function addDealContact(dealId: string, input: DealContactInput): P
       if (!e.company && company) fill.company = company;
       if (Object.keys(fill).length) await supabase.from("contacts").update(fill).eq("id", e.id);
     }
+  }
+  // No email match: the same phone, then the same full name, before making a new Contact.
+  if (!contactId && phone) {
+    const digits = phone.replace(/\D/g, "").slice(-10);
+    if (digits.length >= 7) {
+      // The same phone only counts when the name agrees too: the contact list has
+      // people sharing a number (mostly import mistakes), so phone alone isn't enough.
+      const { data: near } = await supabase.from("contacts").select("id, phone, first_name, last_name").ilike("phone", `%${digits.slice(-4)}%`).limit(50);
+      const same = (a: string | null | undefined, b: string) => !b || (a ?? "").trim().toLowerCase() === b.toLowerCase();
+      const hits = ((near ?? []) as { id: string; phone: string | null; first_name: string | null; last_name: string | null }[])
+        .filter((c) => (c.phone ?? "").replace(/\D/g, "").slice(-10) === digits && !!(first || last) && same(c.first_name, first) && same(c.last_name, last));
+      if (hits.length === 1) contactId = hits[0].id;
+    }
+  }
+  if (!contactId && first && last) {
+    const { data: same } = await supabase.from("contacts").select("id").ilike("first_name", first).ilike("last_name", last).limit(2);
+    if ((same ?? []).length === 1) contactId = (same![0] as { id: string }).id;
   }
   if (!contactId) {
     const { data, error } = await supabase.from("contacts").insert({
