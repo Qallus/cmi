@@ -3,6 +3,7 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 import { scheduleColor, fmtShort } from "../shared";
+import { barFill, nextUpId, phaseColors } from "@/lib/schedules/colors";
 import { AutoTooltip } from "@/components/ui/tooltip";
 import { scheduleRows, type GridRow } from "@/lib/schedules/grid";
 import type { ScheduleItem, ScheduleDependency, SchedulePhase, LineStyle } from "@/lib/schedules/types";
@@ -108,6 +109,13 @@ export function GanttView({ items, dependencies, phases, zoom, groupBySchedule, 
     () => scheduleRows(items, phases, { groupBySchedule, collapsed, scheduleColor }),
     [items, phases, groupBySchedule, collapsed],
   );
+
+  // Each phase its own colour (unless it has one set); past-due work in red; the next task up pulses.
+  const todayISO = fmtISO(new Date());
+  const phaseColorMap = React.useMemo(() => phaseColors(phases), [phases]);
+  const nextId = React.useMemo(() => nextUpId(items, todayISO), [items, todayISO]);
+  const fillFor = (it: ScheduleItem) => barFill(it, { today: todayISO, phases: phaseColorMap, scheduleColor: groupBySchedule && it.schedule_color ? scheduleColor(it.schedule_id, it.schedule_color) : null, fallback: "#9e6f2e" });
+  const groupColor = (r: Extract<GridRow, { kind: "group" }>) => (r.phaseId ? phaseColorMap.get(r.phaseId) : undefined) ?? r.color;
 
   const rowIndexOf = React.useMemo(() => { const m = new Map<string, number>(); rows.forEach((r, idx) => { if (r.kind === "item") m.set(r.item.id, idx); }); return m; }, [rows]);
 
@@ -253,14 +261,20 @@ export function GanttView({ items, dependencies, phases, zoom, groupBySchedule, 
         {/* Left labels */}
         <div className={cn("shrink-0 border-r border-border", hideLabels && "hidden")} style={{ width: LABEL_W }}>
           {rows.map((r, idx) => r.kind === "group" ? (
-            <div key={`g-${idx}`} className="flex items-center gap-2 border-b border-border bg-muted/30 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground" style={{ height: ROW_H }}>
-              {r.color ? <span className="h-2.5 w-2.5 rounded-sm" style={{ background: r.color }} /> : null}
+            <div key={`g-${idx}`} className="flex items-center gap-2 border-b border-l-4 border-border px-3 text-xs font-semibold uppercase tracking-wide"
+              style={{ height: ROW_H, borderLeftColor: groupColor(r) ?? "transparent", background: groupColor(r) ? `color-mix(in oklch, ${groupColor(r)} 14%, var(--card))` : undefined, color: groupColor(r) ? `color-mix(in oklch, ${groupColor(r)} 80%, var(--foreground))` : undefined }}>
+              {groupColor(r) ? <span className="h-2.5 w-2.5 rounded-sm" style={{ background: groupColor(r) }} /> : null}
               <span className="truncate">{r.label}</span>
             </div>
           ) : (
-            <button key={r.item.id} type="button" onClick={() => onOpenItem?.(r.item)} className="flex w-full items-center gap-1.5 border-b border-border px-3 text-left text-sm hover:bg-muted/40" style={{ height: ROW_H }}>
-              {r.item.kind === "milestone" ? <span className="text-accent">◆</span> : null}
-              <span className={cn("truncate", r.item.status === "complete" && "text-muted-foreground line-through")}>{r.item.title}</span>
+            <button key={r.item.id} type="button" onClick={() => onOpenItem?.(r.item)}
+              className={cn("relative flex w-full items-center gap-1.5 overflow-hidden border-b border-l-4 border-border px-3 text-left text-sm hover:bg-muted/40", fillFor(r.item).pastDue && "text-[#c2410c]")}
+              style={{ height: ROW_H, borderLeftColor: (r.item.phase_id && phaseColorMap.get(r.item.phase_id)) || "transparent" }}
+              title={fillFor(r.item).pastDue ? "Past due" : r.item.id === nextId ? "Up next" : undefined}>
+              {r.item.id === nextId ? <NextUpSweep /> : null}
+              {r.item.kind === "milestone" ? <span className="relative" style={{ color: fillFor(r.item).color }}>◆</span> : null}
+              <span className={cn("relative truncate", r.item.status === "complete" && "text-muted-foreground line-through", r.item.id === nextId && "font-semibold")}>{r.item.title}</span>
+              {fillFor(r.item).pastDue ? <span className="relative ml-auto shrink-0 rounded bg-[#c2410c]/10 px-1.5 text-[10px] font-semibold uppercase tracking-wide">Past due</span> : r.item.id === nextId ? <span className="relative ml-auto shrink-0 rounded bg-accent/15 px-1.5 text-[10px] font-semibold uppercase tracking-wide text-accent">Up next</span> : null}
             </button>
           ))}
         </div>
@@ -308,8 +322,8 @@ export function GanttView({ items, dependencies, phases, zoom, groupBySchedule, 
 
               {/* rows + bars */}
               {rows.map((r, idx) => (
-                <div key={r.kind === "item" ? r.item.id : `g-${idx}`} className={cn("absolute left-0 right-0 border-b border-border/60 transition-colors duration-700", r.kind === "group" && "bg-muted/20", r.kind === "item" && r.item.id === selectedId && "bg-accent/10", r.kind === "item" && flashIds?.has(r.item.id) && "bg-amber-200/40")} style={{ top: idx * ROW_H, height: ROW_H }}>
-                  {r.kind === "item" ? <Bar item={r.item} x={x} dayW={dayW} drag={drag} color={r.item.bar_color ?? (r.item.schedule_color ? scheduleColor(r.item.schedule_id, r.item.schedule_color) : "#9e6f2e")} showBaseline={showBaseline} linkSource={linkSource === r.item.id} onBody={(e) => startDrag(e, r.item, "move")} onResize={(e) => startDrag(e, r.item, "resize")} onClick={() => clickBar(r.item)} onDoubleClick={onStyleItem ? () => doubleClickBar(r.item) : undefined} /> : null}
+                <div key={r.kind === "item" ? r.item.id : `g-${idx}`} className={cn("absolute left-0 right-0 border-b border-border/60 transition-colors duration-700", r.kind === "group" && "bg-muted/20", r.kind === "item" && r.item.id === selectedId && "bg-accent/10", r.kind === "item" && flashIds?.has(r.item.id) && "bg-amber-200/40")} style={{ top: idx * ROW_H, height: ROW_H, background: r.kind === "group" && groupColor(r) ? `color-mix(in oklch, ${groupColor(r)} 9%, transparent)` : undefined }}>
+                  {r.kind === "item" ? <Bar item={r.item} x={x} dayW={dayW} drag={drag} color={fillFor(r.item).color} nextUp={r.item.id === nextId} showBaseline={showBaseline} linkSource={linkSource === r.item.id} onBody={(e) => startDrag(e, r.item, "move")} onResize={(e) => startDrag(e, r.item, "resize")} onClick={() => clickBar(r.item)} onDoubleClick={onStyleItem ? () => doubleClickBar(r.item) : undefined} /> : null}
                 </div>
               ))}
             </div>
@@ -321,9 +335,18 @@ export function GanttView({ items, dependencies, phases, zoom, groupBySchedule, 
   );
 }
 
-function Bar({ item, x, dayW, drag, color, showBaseline, linkSource, onBody, onResize, onClick, onDoubleClick }: {
+/** A soft light sweeping across the next task up (the row and its bar). */
+function NextUpSweep() {
+  return (
+    <span aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+      <span className="absolute inset-y-0 left-0 w-full animate-next-sweep bg-gradient-to-r from-transparent via-white/45 to-transparent motion-reduce:hidden dark:via-white/20" />
+    </span>
+  );
+}
+
+function Bar({ item, x, dayW, drag, color, nextUp, showBaseline, linkSource, onBody, onResize, onClick, onDoubleClick }: {
   item: ScheduleItem; x: (iso?: string | null, fb?: Date) => number; dayW: number;
-  drag: { id: string; mode: "move" | "resize"; deltaDays: number } | null; color: string; showBaseline?: boolean; linkSource?: boolean;
+  drag: { id: string; mode: "move" | "resize"; deltaDays: number } | null; color: string; nextUp?: boolean; showBaseline?: boolean; linkSource?: boolean;
   onBody: (e: React.MouseEvent) => void; onResize: (e: React.MouseEvent) => void; onClick: () => void; onDoubleClick?: () => void;
 }) {
   const hint = onDoubleClick ? "Double-click for colors" : undefined;
@@ -348,7 +371,7 @@ function Bar({ item, x, dayW, drag, color, showBaseline, linkSource, onBody, onR
         ) : null}
         <AutoTooltip prefer="horizontal" disabled={!!drag} content={<TipBody item={item} hint={hint} />}>
           <div className="absolute top-1/2 z-30 -translate-y-1/2" style={{ left: left - 7 }} onClick={onClick} onDoubleClick={onDoubleClick}>
-            <span onMouseDown={onBody} className={cn("block h-3.5 w-3.5 rotate-45 cursor-pointer border", item.status === "complete" ? "bg-accent" : "bg-card", linkSource ? "ring-2 ring-accent" : "")} style={{ borderColor: color }} />
+            <span onMouseDown={onBody} className={cn("block h-3.5 w-3.5 rotate-45 cursor-pointer border-2", item.status === "complete" ? "bg-accent" : "bg-card", linkSource ? "ring-2 ring-accent" : "", nextUp && "animate-next-glow motion-reduce:animate-none")} style={{ borderColor: color }} />
           </div>
         </AutoTooltip>
       </>
@@ -367,9 +390,10 @@ function Bar({ item, x, dayW, drag, color, showBaseline, linkSource, onBody, onR
         onDoubleClick={onDoubleClick}
         className={cn("group absolute top-1/2 z-30 flex h-5 -translate-y-1/2 cursor-pointer items-center overflow-hidden rounded text-[11px] text-white shadow-sm",
           // Engine-worked critical path in charcoal; a hand-ticked "critical" keeps the red ring.
-          item.is_critical && (item.total_float != null ? "ring-2 ring-foreground/80" : "ring-1 ring-destructive"), linkSource && "ring-2 ring-accent")}
+          item.is_critical && (item.total_float != null ? "ring-2 ring-foreground/80" : "ring-1 ring-destructive"), linkSource && "ring-2 ring-accent", nextUp && "animate-next-glow motion-reduce:animate-none")}
         style={{ left, width, background: item.status === "complete" ? `${color}aa` : color }}
       >
+        {nextUp ? <NextUpSweep /> : null}
         {item.percent_complete > 0 ? <span className="absolute inset-y-0 left-0 bg-black/20" style={{ width: `${item.percent_complete}%` }} /> : null}
         {item.constraint_type === "snet" ? <span className="relative z-10 pl-1 text-[10px] opacity-80" aria-label="Start No Earlier Than">⇥</span> : null}
         <span className="relative z-10 truncate px-1.5">{item.title}</span>

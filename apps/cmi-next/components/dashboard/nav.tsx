@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Tooltip } from "@/components/ui/tooltip";
+import { ShortScroll } from "@/components/ui/short-scroll";
 import { ClipboardCheck,
   ArrowLeft, BookOpen, BriefcaseBusiness, CalendarClock, CalendarRange, Cloud,
   CreditCard, FileText, FolderKanban, HardHat, Home, IdCard, Inbox, LayoutDashboard, LayoutGrid,
@@ -171,7 +172,8 @@ export function DashboardNav({ collapsed = false, role = "viewer" }: { collapsed
   }
 
   return (
-    <nav className="flex-1 space-y-1 overflow-y-auto px-2 py-4">
+    // Short, CMI-coloured scroll handle instead of the browser's full-length bar.
+    <ShortScroll className="flex-1"><nav className="space-y-1 px-2 py-4 pr-3">
       {NAV_ITEMS.map((item, i) => {
         if ("section" in item) {
           if (!canSee(item, role)) return null;
@@ -244,6 +246,6 @@ export function DashboardNav({ collapsed = false, role = "viewer" }: { collapsed
         if (!canSee(item, role) || !flagOk(item.flag) || !shown(item.href)) return null;
         return <LeafLink key={item.href} href={item.href} label={item.label} icon={item.icon} />;
       })}
-    </nav>
+    </nav></ShortScroll>
   );
 }

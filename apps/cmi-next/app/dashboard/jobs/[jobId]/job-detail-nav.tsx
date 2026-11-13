@@ -11,6 +11,7 @@ import {
   Layers, ListChecks, MessageSquare, MessagesSquare, NotebookPen, PanelLeftClose, PanelLeftOpen, Phone, Receipt, ShieldCheck, Sparkles, SquareKanban, UserRound,
 } from "lucide-react";
 import { Tooltip } from "@/components/ui/tooltip";
+import { ShortScroll } from "@/components/ui/short-scroll";
 import { SidePanel } from "@/components/ui/side-panel";
 import { ClientFeedList } from "@/components/jobs/client-feed-list";
 import { useSidebar } from "@/components/dashboard/sidebar-context";
@@ -169,7 +170,7 @@ export function JobDetailNav({ jobId, active }: { jobId: string; active: string 
             ? <Tooltip label="All jobs" side="right" className="inline-block"><Link href="/dashboard/jobs" aria-label="All jobs" className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground"><ArrowLeft className="h-4 w-4" /></Link></Tooltip>
             : <Link href="/dashboard/jobs" className="text-sm text-muted-foreground transition hover:text-foreground">← All jobs</Link>}
         </div>
-        <div className={cn("flex-1 overflow-y-auto", rail ? "space-y-0.5 px-1.5 py-2" : "p-2")}>
+        <ShortScroll className="flex-1" innerClassName={rail ? "space-y-0.5 px-1.5 py-2" : "p-2 pr-3"}>
           {tabs.map((t) => {
             const Icon = TAB_ICON[t.slug] ?? Circle;
             const n = badge(t.slug);
@@ -199,7 +200,7 @@ export function JobDetailNav({ jobId, active }: { jobId: string; active: string 
               <Sparkles className="h-4 w-4 text-accent" /> Executive Summary
             </button>
           )}
-        </div>
+        </ShortScroll>
         {/* Fold the job menu into icons, like the main sidebar. */}
         <div className={cn("border-t border-border p-2", rail ? "flex justify-center" : "flex justify-end")}>
           <Tooltip label={rail ? "Expand job menu" : "Collapse job menu"} side="right" className="inline-block">
