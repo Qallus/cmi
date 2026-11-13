@@ -6,6 +6,7 @@ import { runCpm } from "./cpm.ts";
 import { CALENDAR_DAYS, dayNum, spanW } from "./calendar.ts";
 import { buildInput, blockedMove, calendarFor, wouldLoop, type NetDep } from "./engine-core.ts";
 import { scheduleRows, type GridOps } from "./grid.ts";
+import { renumberPlan, type RenumberChange } from "./id-order.ts";
 import { ITEM_FIELDS, mapItem, logActivity, applyCascade, fieldChanges, syncScheduleProgress } from "./data";
 import { engineModeFor, loadNetwork, recalcSchedule, PROGRESS_FLAG } from "./engine";
 import { isFeatureEnabled } from "@/lib/flags";
@@ -20,7 +21,29 @@ export type GridResult = {
   created: Record<string, string>;
   refused: { id: string; message: string }[];
   moved: number;
+  /** Renumber by tens: every task's old → new ID. */
+  renumbered?: RenumberChange[];
+  /** Deleting left these tasks with no predecessor at all (Addendum §1.7). */
+  unlinked?: { id: string; title: string; activity_id: number | null }[];
 };
+
+/** Every task in schedule order (phases in order, then each phase's rows), as Renumber sees it. */
+async function documentOrder(scheduleId: string, items: ScheduleItem[]): Promise<ScheduleItem[]> {
+  const { data: phases } = await getSupabaseAdmin().from("schedule_phases").select("*").eq("schedule_id", scheduleId).order("sort_order");
+  return scheduleRows(items, (phases ?? []) as SchedulePhase[]).flatMap((r) => (r.kind === "item" ? [r.item] : []));
+}
+
+/** Renumber by tens, previewed: old → new for every task, nothing saved. */
+export async function renumberPreview(scheduleId: string): Promise<RenumberChange[]> {
+  const { data: rows, error } = await getSupabaseAdmin().from("schedule_items").select("*").eq("schedule_id", scheduleId);
+  if (error) throw new Error(error.message);
+  return renumberPlan(await documentOrder(scheduleId, (rows ?? []).map(mapItem)));
+}
+
+/** Run writes a few at a time (one round trip per row is slow on long schedules). */
+async function inChunks<T>(list: T[], fn: (x: T, i: number) => Promise<void>, size = 25): Promise<void> {
+  for (let i = 0; i < list.length; i += size) await Promise.all(list.slice(i, i + size).map((x, k) => fn(x, i + k)));
+}
 
 export async function applyGridOps(scheduleId: string, ops: GridOps, actor?: Actor): Promise<GridResult> {
   const sb = getSupabaseAdmin();
@@ -112,18 +135,30 @@ export async function applyGridOps(scheduleId: string, ops: GridOps, actor?: Act
 
   // ---- renumber by tens, in display order ----
   if (ops.renumber) {
-    const { data: phases } = await sb.from("schedule_phases").select("*").eq("schedule_id", scheduleId).order("sort_order");
-    const order = scheduleRows([...items.values()], (phases ?? []) as SchedulePhase[]).flatMap((r) => (r.kind === "item" ? [r.item.id] : []));
-    // Two steps so no ID clashes with another row's old one on the way.
-    for (const [i, id] of order.entries()) { const { error } = await sb.from("schedule_items").update({ activity_id: -(i + 1) }).eq("id", id); fail("renumber", error); }
-    for (const [i, id] of order.entries()) { const { error } = await sb.from("schedule_items").update({ activity_id: (i + 1) * 10, updated_at: now }).eq("id", id); fail("renumber", error); }
+    const plan = renumberPlan(await documentOrder(scheduleId, [...items.values()]));
+    const change = plan.filter((c) => c.from !== c.to);
+    // Two steps so no ID clashes with another row's old one on the way. Rows
+    // that keep their number are left alone: nobody else is given it.
+    await inChunks(change, async (c, i) => { const { error } = await sb.from("schedule_items").update({ activity_id: -(i + 1) }).eq("id", c.id); fail("renumber", error); });
+    await inChunks(change, async (c) => { const { error } = await sb.from("schedule_items").update({ activity_id: c.to, updated_at: now }).eq("id", c.id); fail("renumber", error); });
+    for (const c of change) { const it = items.get(c.id); if (it) it.activity_id = c.to; }
+    result.renumbered = plan;
   }
 
   // ---- deletes ----
   if (ops.deletes?.length) {
+    const gone = new Set(ops.deletes);
+    // Successors whose only predecessors are being deleted end up unlinked (§1.7).
+    const { data: outs } = await sb.from("schedule_dependencies").select("target_item_id").in("source_item_id", ops.deletes);
+    const targets = [...new Set((outs ?? []).map((d) => d.target_item_id as string))].filter((t) => !gone.has(t));
     const { error } = await sb.from("schedule_items").delete().in("id", ops.deletes).eq("schedule_id", scheduleId);
     fail("delete", error);
     for (const id of ops.deletes) items.delete(id);
+    if (targets.length) {
+      const { data: still } = await sb.from("schedule_dependencies").select("target_item_id").in("target_item_id", targets);
+      const linked = new Set((still ?? []).map((d) => d.target_item_id as string));
+      result.unlinked = targets.filter((t) => !linked.has(t) && items.has(t)).map((t) => { const it = items.get(t)!; return { id: t, title: it.title, activity_id: it.activity_id ?? null }; });
+    }
   }
 
   // ---- predecessors ----
@@ -174,7 +209,13 @@ export async function applyGridOps(scheduleId: string, ops: GridOps, actor?: Act
     if (Object.values(counts).some(Boolean)) {
       await logActivity({
         jobId: sched!.job_id, scheduleId, action: ops.source === "excel" ? "excel_import" : "grid_edit",
-        detail: { ...counts, moved: result.moved, refused: result.refused.length, ...(ops.fileName ? { file: ops.fileName.slice(0, 200) } : {}) }, actor,
+        detail: {
+          ...counts, moved: result.moved, refused: result.refused.length,
+          ...(ops.fileName ? { file: ops.fileName.slice(0, 200) } : {}),
+          // The full old → new map, so anyone holding an old printout can translate it.
+          ...(result.renumbered ? { renumber_map: Object.fromEntries(result.renumbered.filter((c) => c.from != null).map((c) => [String(c.from), c.to])) } : {}),
+          ...(result.unlinked?.length ? { left_without_predecessor: result.unlinked.map((u) => u.activity_id ?? u.title) } : {}),
+        }, actor,
       });
     }
     return result;

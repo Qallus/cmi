@@ -10,7 +10,8 @@ import { DEFAULT_WORKDAYS } from "./types";
 import { isFeatureEnabled } from "@/lib/flags";
 import { PROGRESS_FLAG } from "./engine";
 import { progressPatch, todayAZ, scheduleProgress } from "./progress.ts";
-import { placeByActivityId, type OrderRow } from "./id-order.ts";
+import { placeByActivityId, landingPhase, type OrderRow, type DocRow } from "./id-order.ts";
+import { scheduleRows } from "./grid.ts";
 import type {
   JobSchedule, SchedulePhase, ScheduleItem, ScheduleDependency, ScheduleParticipant,
   ScheduleBaseline, ScheduleActivity, ScheduleDraft, Workdays, DependencyType, Assignee,
@@ -269,13 +270,32 @@ function duplicateIdMessage(error: { code?: string; message?: string }, n: unkno
   return error.code === "23505" && /activity/i.test(error.message ?? "") ? `Activity ID ${n} is already used on this schedule. Pick another number, or Renumber by 10s.` : null;
 }
 
-/** Re-order the task's phase so it sits where its activity ID sorts (lib/schedules/id-order.ts). */
-async function placeItemByActivityId(itemId: string): Promise<void> {
+/** Re-order the task's phase so it sits where its activity ID sorts (lib/schedules/id-order.ts).
+ *  `crossPhase`: a new ID typed by hand can carry the task into another phase,
+ *  the one it lands inside (Grid Addendum §1.4); the grid does the same. */
+async function placeItemByActivityId(itemId: string, opts: { crossPhase?: boolean } = {}): Promise<void> {
   const sb = getSupabaseAdmin();
-  const { data: it } = await sb.from("schedule_items").select("schedule_id, phase_id").eq("id", itemId).maybeSingle();
+  const { data: it } = await sb.from("schedule_items").select("schedule_id, phase_id, activity_id").eq("id", itemId).maybeSingle();
   if (!it) return;
+  let phaseId = (it.phase_id as string | null) ?? null;
+  if (opts.crossPhase && it.activity_id != null) {
+    const [{ data: all }, { data: phases }] = await Promise.all([
+      sb.from("schedule_items").select("*").eq("schedule_id", it.schedule_id),
+      sb.from("schedule_phases").select("*").eq("schedule_id", it.schedule_id).order("sort_order"),
+    ]);
+    if (phases?.length) {
+      const order: DocRow[] = [];
+      let ph: string | null = null;
+      for (const r of scheduleRows((all ?? []).map(mapItem), phases as SchedulePhase[])) {
+        if (r.kind === "group") ph = r.phaseId ?? null;
+        else order.push({ id: r.item.id, activity_id: r.item.activity_id ?? null, phaseId: ph });
+      }
+      const to = landingPhase(order, itemId, it.activity_id as number);
+      if (to !== phaseId) { await sb.from("schedule_items").update({ phase_id: to }).eq("id", itemId); phaseId = to; }
+    }
+  }
   let q = sb.from("schedule_items").select("id, activity_id, sort_order").eq("schedule_id", it.schedule_id);
-  q = it.phase_id ? q.eq("phase_id", it.phase_id) : q.is("phase_id", null);
+  q = phaseId ? q.eq("phase_id", phaseId) : q.is("phase_id", null);
   const { data: rows } = await q;
   const moves = placeByActivityId((rows ?? []) as OrderRow[], itemId);
   for (const m of moves) await sb.from("schedule_items").update({ sort_order: m.sort_order }).eq("id", m.id);
@@ -335,7 +355,8 @@ export async function updateItem(id: string, patch: Partial<ScheduleItem>, actor
   if (error) throw new Error(duplicateIdMessage(error, clean.activity_id) ?? error.message);
   // A new activity ID (or a move to another phase) puts the task where that number sorts.
   if (prev && "activity_id" in clean && !("sort_order" in clean) && (clean.activity_id !== prev.activity_id || data.phase_id !== prev.phase_id)) {
-    await placeItemByActivityId(id);
+    // A phase picked by hand wins; a new ID alone can carry the task into the phase it lands in.
+    await placeItemByActivityId(id, { crossPhase: data.phase_id === prev.phase_id });
   }
   await logActivity({ jobId: data.job_id, scheduleId: data.schedule_id, itemId: id, action: "item_updated", detail: { fields: Object.keys(clean), title: data.title, changes: fieldChanges(prev, data) }, actor });
 

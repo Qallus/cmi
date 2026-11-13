@@ -22,6 +22,8 @@ import { ResourceView } from "./views/resource-view";
 import { ItemDrawer } from "./item-drawer";
 import { AddScheduleWizard, type ScheduleSource } from "./add-schedule-wizard";
 import { ShiftDialog } from "./shift-dialog";
+import { RenumberDialog } from "./renumber-dialog";
+import { finishOf, movedBanner } from "@/lib/schedules/move-banner";
 import { InspectionsDialog } from "./inspections-dialog";
 import { PermitDialog } from "./permit-dialog";
 import { EngineDialog } from "./engine-dialog";
@@ -92,6 +94,7 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
   const [pkgMenu, setPkgMenu] = React.useState(false);
   const [pkgStart, setPkgStart] = React.useState("");
   const [shiftOpen, setShiftOpen] = React.useState(false);
+  const [renumberId, setRenumberId] = React.useState<string | null>(null);
   const [inspectionsOpen, setInspectionsOpen] = React.useState(false);
   const [permitOpen, setPermitOpen] = React.useState(false);
   const [engineOpen, setEngineOpen] = React.useState(false);
@@ -219,7 +222,14 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
     const res = await fetch(`/api/schedule-items/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const d = await res.json().catch(() => ({}));
     if (!res.ok) setBanner(d.error ?? "Could not move the item.");
-    else if (d.cascaded?.length) setBanner(`${d.cascaded.length} downstream item${d.cascaded.length === 1 ? "" : "s"} ${onEngine ? "moved" : "shifted"}.`);
+    else if (d.cascaded?.length) {
+      // "3 tasks moved · finish now Mar 11, 2027" (Grid Addendum §2.4), from this schedule's rows as they now stand.
+      const sid = item?.schedule_id;
+      const mine = items.filter((i) => i.schedule_id === sid);
+      const moved = new Map<string, ScheduleItem>((d.cascaded as ScheduleItem[]).map((c) => [c.id, c]));
+      if (d.item) moved.set(d.item.id, d.item as ScheduleItem);
+      setBanner(movedBanner(d.cascaded.length, finishOf(mine), finishOf(mine.map((i) => moved.get(i.id) ?? i)), (iso) => fmtDate(iso)));
+    }
     await Promise.all(selectedIds.map(loadBundle));
     if (onEngine) void refreshEngine();
   }
@@ -347,16 +357,11 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
   const inspectionsButton = inspections && jobId && primarySchedule && canEdit && !overlay ? <AutoTooltip content="Load this job's inspection milestones from its jurisdiction's library, linked to the work around them"><Button size="sm" variant="ghost" onClick={() => setInspectionsOpen(true)}><ShieldCheck className="h-3.5 w-3.5" /> Inspections</Button></AutoTooltip> : null;
   const permitButton = inspectionsButton ? <AutoTooltip content="Check this schedule's inspections against the list printed on the permit (the permit wins)"><Button size="sm" variant="ghost" onClick={() => setPermitOpen(true)}><ClipboardList className="h-3.5 w-3.5" /> Permit list</Button></AutoTooltip> : null;
   // Activity IDs 10, 20, 30… in schedule order; predecessors follow (same op as the grid's button).
-  async function renumberByTens() {
-    if (!primarySchedule) return;
-    if (!(await confirmAction({ title: "Renumber activity IDs?", body: "Every ID on this schedule is renumbered by tens in schedule order (10, 20, 30…). Predecessors follow automatically.", confirmLabel: "Renumber" }))) return;
-    const res = await fetch(`/api/schedules/${primarySchedule.id}/grid`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ renumber: true }) });
-    const d = await res.json().catch(() => ({}));
-    if (!res.ok) { setBanner(d.error ?? "Could not renumber the activity IDs."); return; }
-    await loadBundle(primarySchedule.id); void refreshEngine();
-    setBanner("Activity IDs renumbered by tens.");
+  function renumberByTens() {
+    if (primarySchedule) setRenumberId(primarySchedule.id);
   }
-  const renumberButton = eng && primarySchedule && canEdit && !overlay ? <AutoTooltip content="Renumber activity IDs 10, 20, 30… in schedule order (predecessors follow)"><Button size="sm" variant="ghost" onClick={() => void renumberByTens()}><ListOrdered className="h-3.5 w-3.5" /> Renumber by 10s</Button></AutoTooltip> : null;
+
+  const renumberButton = eng && primarySchedule && canEdit && !overlay ? <AutoTooltip content="Renumber activity IDs 10, 20, 30… in schedule order (predecessors follow)"><Button size="sm" variant="ghost" onClick={renumberByTens}><ListOrdered className="h-3.5 w-3.5" /> Renumber by 10s</Button></AutoTooltip> : null;
   const shiftButton = primarySchedule && canEdit && !overlay ? <Button size="sm" variant="ghost" onClick={() => setShiftOpen(true)}><CalendarRange className="h-3.5 w-3.5" /> Shift dates</Button> : null;
   const pdfOptions = primarySchedule ? [
     { key: "list", label: "Schedule list (Letter)", href: `/api/schedules/${primarySchedule.id}/pdf` },
@@ -646,6 +651,13 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
       {permitOpen && primarySchedule ? <PermitDialog key={primarySchedule.id} scheduleId={primarySchedule.id} scheduleName={primarySchedule.name}
         onClose={() => setPermitOpen(false)}
         onApplied={async (r) => { setBanner(`Permit list applied: ${r.renamed} renamed, ${r.marked_na} N/A, ${r.added} added.`); await loadBundle(primarySchedule.id); void refreshEngine(); }} /> : null}
+      <RenumberDialog scheduleId={renumberId} scheduleName={primarySchedule?.name} onClose={() => setRenumberId(null)} onDone={async (changes) => {
+        const id = renumberId; setRenumberId(null);
+        if (id) await loadBundle(id);
+        void refreshEngine();
+        const n = changes.filter((c) => c.from !== c.to).length;
+        setBanner(`Renumbered ${n} task${n === 1 ? "" : "s"} by tens. The old → new list is in the schedule history.`);
+      }} />
       {shiftOpen ? <ShiftDialog key={primarySchedule?.id} open schedule={primarySchedule} onClose={() => setShiftOpen(false)} onShifted={async (p) => {
         setShiftOpen(false);
         setBanner(`${p.moved} item${p.moved === 1 ? "" : "s"} moved ${Math.abs(p.workdays)} working day${Math.abs(p.workdays) === 1 ? "" : "s"} ${p.workdays > 0 ? "later" : "earlier"}. Now ${fmtDate(p.to)} to ${fmtDate(p.finish)}.`);

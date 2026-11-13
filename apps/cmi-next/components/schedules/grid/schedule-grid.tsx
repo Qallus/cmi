@@ -9,6 +9,9 @@ import { confirmAction } from "@/components/ui/confirm-action";
 import { createPortal } from "react-dom";
 import { ChevronDown, ChevronRight, ChevronLeft, GripVertical, Maximize2, Undo2, Redo2, Columns3, ListOrdered, Plus, History, Loader2, FlaskConical, Check, FileSpreadsheet, Download, FileUp, Spline } from "lucide-react";
 import { ExcelImportDialog } from "./excel-import";
+import { RenumberDialog } from "../renumber-dialog";
+import { landingPhase } from "@/lib/schedules/id-order";
+import { finishOf, movedBanner } from "@/lib/schedules/move-banner";
 import { ResourcePicker } from "../resource-picker";
 import { orderByDate } from "@/lib/schedules/order-by";
 import { ScheduleModal } from "../schedule-modal";
@@ -114,6 +117,15 @@ export function ScheduleGrid({
   const gridPanel = React.useRef<ImperativePanelHandle>(null);
   const ganttPanel = React.useRef<ImperativePanelHandle>(null);
   const [hidden, setHidden] = React.useState<"grid" | "gantt" | null>(null);
+  // Below about 1100px the panes stack, grid above Gantt (Addendum §2.1).
+  const [narrow, setNarrow] = React.useState(false);
+  React.useEffect(() => {
+    const mq = window.matchMedia("(max-width: 1099px)");
+    const on = () => setNarrow(mq.matches);
+    on(); mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
+  const stackStyle: React.CSSProperties | undefined = narrow ? { flex: "none", width: "100%", overflow: "clip" } : undefined;
   const [layout, setLayout] = React.useState<string>(() => stored("cmi.schedgrid.layout", "PM view"));
   const [cols, setCols] = React.useState<ColumnKey[]>(() => stored("cmi.schedgrid.columns", GRID_LAYOUTS["PM view"]));
   const [collapsed, setCollapsed] = React.useState<Set<string>>(new Set());
@@ -132,6 +144,8 @@ export function ScheduleGrid({
   const [xlMenu, setXlMenu] = React.useState(false);
   const [importing, setImporting] = React.useState(false);
   const [dragId, setDragId] = React.useState<string | null>(null);
+  // Renumber by 10s preview; `note` says why it opened (no ID left to insert with).
+  const [renumbering, setRenumbering] = React.useState<{ note: string | null } | null>(null);
   const gridRef = React.useRef<HTMLDivElement>(null);
   const gridHead = React.useRef<HTMLDivElement>(null);
   const gridBody = React.useRef<HTMLDivElement>(null);
@@ -189,6 +203,19 @@ export function ScheduleGrid({
     return out;
   }, [items, phases]);
   const byId = React.useMemo(() => new Map(items.map((i) => [i.id, i])), [items]);
+  // Tasks with nothing before them (§1.7), on a schedule that uses links at all.
+  // The first task is the schedule's start, so it's never flagged.
+  const unlinked = React.useMemo(() => {
+    const out = new Set<string>();
+    const mine = new Set(items.map((i) => i.id));
+    if (!dependencies.some((d) => mine.has(d.target_item_id) && mine.has(d.source_item_id))) return out;
+    slots.forEach((s, i) => {
+      const it = byId.get(s.id);
+      if (i === 0 || !it || it.status === "complete" || it.status === "cancelled") return;
+      if (!ctx.predsOf(s.id).length && !ctx.otherPredCount(s.id)) out.add(s.id);
+    });
+    return out;
+  }, [items, dependencies, slots, byId, ctx]);
   const width = GUTTER_W + cols.reduce((w, k) => w + COLUMN[k].width, 0);
 
   const range = React.useMemo(() => {
@@ -208,14 +235,17 @@ export function ScheduleGrid({
     if (entry) { setPast((p) => [...p.slice(-(MAX_HISTORY - 1)), entry]); setFuture([]); }
     const next = queue.current.then(async () => {
       const before = new Map(itemsRef.current.map((i) => [i.id, sig(i)]));
+      const finishBefore = finishOf(itemsRef.current);
       setBusy(true);
       try {
         const res = await fetch(`/api/schedules/${schedule.id}/grid`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(ops) });
         const d = await res.json().catch(() => ({}));
         if (!res.ok) onBanner(d.error ?? "Could not save the grid.");
         else if (d.refused?.length) onBanner(`${d.refused[0].message}${d.refused.length > 1 ? ` (and ${d.refused.length - 1} more)` : ""}`);
-        else if (d.moved) onBanner(`${d.moved} task${d.moved === 1 ? "" : "s"} moved.`);
+        else if (d.unlinked?.length) onBanner(`No predecessor now: ${d.unlinked.slice(0, 4).map((u: { activity_id: number | null; title: string }) => `${u.activity_id ?? ""} ${u.title}`.trim()).join(", ")}${d.unlinked.length > 4 ? ` and ${d.unlinked.length - 4} more` : ""}. They start at the schedule start or their constraint until you link them.`);
         const fresh = await onReload();
+        // "3 tasks moved · finish now Mar 11, 2027" (Addendum §2.4).
+        if (res.ok && !d.refused?.length && !d.unlinked?.length && d.moved) onBanner(movedBanner(d.moved, finishBefore, fresh ? finishOf(fresh) : null, (iso) => fmtDate(iso)));
         setPending(new Map());
         if (fresh) {
           const cells = new Set<string>();
@@ -369,7 +399,7 @@ export function ScheduleGrid({
       const rest = slots.filter((s) => s.id !== idEdit.item.id);
       let at = rest.findIndex((s) => (byId.get(s.id)?.activity_id ?? Infinity) > n);
       if (at < 0) at = rest.length;
-      const phaseId = (rest[at - 1] ?? rest[at])?.phaseId ?? idEdit.item.phase_id ?? null;
+      const phaseId = landingPhase(slots.map((s) => ({ ...s, activity_id: byId.get(s.id)?.activity_id ?? null })), idEdit.item.id, n);
       const order = [...rest.slice(0, at), { id: idEdit.item.id, phaseId }, ...rest.slice(at)];
       ops.updates = mergeUpdates(ops.updates!, orderUpdates(order));
       undo.updates = mergeUpdates(undo.updates!, restoreOrder());
@@ -590,7 +620,8 @@ export function ScheduleGrid({
     const prev = slots[pos - 1] ? byId.get(slots[pos - 1].id) : null;
     const next = slots[pos] ? byId.get(slots[pos].id) : null;
     const newId = idBetween(prev?.activity_id ?? null, next?.activity_id ?? null, new Set(ctx.idByActivity.keys()));
-    if (newId == null) onBanner(`No activity ID free between ${prev?.activity_id} and ${next?.activity_id}; it goes at the end of the numbering. Renumber by tens to tidy up.`);
+    // No gap left (25 and 26): don't insert, offer Renumber by 10s instead (Addendum §1.3).
+    if (newId == null) { setRenumbering({ note: `No ID left between ${prev?.activity_id} and ${next?.activity_id}.` }); return; }
     const tempId = `new-${++tempSeq.current}`;
     const phaseId = slots[at].phaseId;
     const order = [...slots.slice(0, pos), { id: tempId, phaseId }, ...slots.slice(pos)];
@@ -599,7 +630,7 @@ export function ScheduleGrid({
       ? { title: `${copyOf.title} (copy)`, kind: copyOf.kind, start_date: copyOf.start_date, end_date: copyOf.end_date, duration_days: copyOf.duration_days, duration_unit: copyOf.duration_unit, internal_notes: copyOf.internal_notes, cost_code: copyOf.cost_code }
       : { title: "New Task", kind: "task", start_date: ref.start_date, end_date: ref.start_date, duration_days: 1 };
     const ops: GridOps = {
-      creates: [{ tempId, row: { ...row, phase_id: phaseId, sort_order: pos, activity_id: newId ?? undefined } }],
+      creates: [{ tempId, row: { ...row, phase_id: phaseId, sort_order: pos, activity_id: newId } }],
       updates: orderUpdates(order),
     };
     const entry: Entry = { label: copyOf ? `Duplicate ${copyOf.title}` : "Insert task", undo: { updates: restoreOrder() }, redo: null };
@@ -635,10 +666,28 @@ export function ScheduleGrid({
     void run({ deletes: ids }, { label: `Delete ${ids.length} task${ids.length === 1 ? "" : "s"}`, undo: null, redo: null });
     setActive(null); setAnchor(null);
   }
-  async function renumber() {
-    if (!(await confirmAction({ title: "Renumber activity IDs?", body: "Every ID is renumbered by tens in the order shown (10, 20, 30…). Predecessors follow automatically.", confirmLabel: "Renumber" }))) return;
-    void run({ renumber: true }, { label: "Renumber by tens", undo: null, redo: null });
+  // Click a bar: select its grid row and bring it into view (Addendum §2.2).
+  function selectFromGantt(item: ScheduleItem) {
+    finishEdit(true);
+    const col = active?.col && cols.includes(active.col) ? active.col : cols[0];
+    setAnchor(null); setActive({ id: item.id, col });
+    window.requestAnimationFrame(() => document.getElementById(`cell-${item.id}-${col}`)?.scrollIntoView({ block: "nearest", inline: "nearest" }));
+    gridRef.current?.focus({ preventScroll: true });
   }
+  // Delete a link picked on the Gantt: rewrite the successor's predecessors without it (undoable).
+  function deleteLink(dep: ScheduleDependency) {
+    const tgt = byId.get(dep.target_item_id), src = byId.get(dep.source_item_id);
+    if (!tgt || !src) { onBanner("That link joins another schedule. Remove it from the task's details instead."); return; }
+    const was = currentPreds(tgt.id);
+    const next: PredEdit = { itemId: tgt.id, links: was.links.filter((l) => l.sourceItemId !== src.id) };
+    const label = `Remove link ${src.activity_id ?? src.title} → ${tgt.activity_id ?? tgt.title}`;
+    void run({ predecessors: [next] }, { label, undo: { predecessors: [was] }, redo: { predecessors: [next] } });
+  }
+  function renumber() {
+    if (whatIf) { onBanner("Renumbering waits until you Apply or Discard the what-if."); return; }
+    setRenumbering({ note: null });
+  }
+
 
   // ---- history ----
   function undo() {
@@ -791,9 +840,10 @@ export function ScheduleGrid({
       })() : null}
 
       {/* Height follows the rows so the page scrolls grid and Gantt together. */}
-      <ResizablePanelGroup direction="horizontal" autoSaveId="cmi.schedgrid.panels" style={{ height: "auto", overflow: "visible" }} className="items-stretch">
+      {/* Split / Grid / Gantt and the divider are remembered per schedule. */}
+      <ResizablePanelGroup direction="horizontal" autoSaveId={`cmi.schedgrid.panels.${schedule.id}`} style={{ height: "auto", overflow: "visible", ...(narrow ? { flexDirection: "column", gap: 12 } : {}) }} className="items-stretch">
         <ResizablePanel ref={gridPanel} id="grid" order={1} defaultSize={58} minSize={20} collapsible collapsedSize={0}
-          onCollapse={() => setHidden("grid")} onExpand={() => setHidden((h) => (h === "grid" ? null : h))} className={hidden === "grid" ? undefined : "pr-1.5"} style={{ overflow: "clip" }}>
+          onCollapse={() => setHidden("grid")} onExpand={() => setHidden((h) => (h === "grid" ? null : h))} className={cn(hidden === "grid" ? undefined : !narrow && "pr-1.5", narrow && hidden === "grid" && "hidden")} style={stackStyle ?? { overflow: "clip" }}>
         {/* grid */}
         <div
           ref={gridRef} tabIndex={0} onKeyDown={onKeyDown} onPaste={onPaste}
@@ -821,7 +871,7 @@ export function ScheduleGrid({
               <GridRowView
                 key={r.item.id} item={r.item} cols={cols} ctx={ctx} canEdit={canEdit}
                 rowIdx={rowIndex.get(r.item.id) ?? -1} active={active} inRange={inRange} editing={editing} pending={pending} errors={errors} flash={flash}
-                dragging={dragId === r.item.id}
+                dragging={dragId === r.item.id} unlinked={unlinked.has(r.item.id)}
                 onCellDown={(cell, shift) => { finishEdit(true); if (shift && active) { if (!anchor) setAnchor(active); } else setAnchor(null); setActive(cell); gridRef.current?.focus(); }}
                 onOpen={() => onOpenItem(r.item)}
                 onMenu={(x, y) => {
@@ -847,7 +897,7 @@ export function ScheduleGrid({
 
         </ResizablePanel>
 
-        <ResizableHandle withHandle className="mx-0.5">
+        <ResizableHandle withHandle className={cn("mx-0.5", narrow && "hidden")}>
           {/* Collapse / reopen either side; stays in view while the rows scroll. */}
           <div className="pointer-events-none absolute inset-y-0 left-1/2 z-20 w-5 -translate-x-1/2">
           <div className="pointer-events-auto sticky top-16 mt-14 flex flex-col gap-1">
@@ -868,13 +918,23 @@ export function ScheduleGrid({
         </ResizableHandle>
 
         <ResizablePanel ref={ganttPanel} id="gantt" order={2} defaultSize={42} minSize={20} collapsible collapsedSize={0}
-          onCollapse={() => setHidden("gantt")} onExpand={() => setHidden((h) => (h === "gantt" ? null : h))} className={hidden === "gantt" ? undefined : "pl-1.5"} style={{ overflow: "clip" }}>
+          onCollapse={() => setHidden("gantt")} onExpand={() => setHidden((h) => (h === "gantt" ? null : h))} className={cn(hidden === "gantt" ? undefined : !narrow && "pl-1.5", narrow && hidden === "gantt" && "hidden")} style={stackStyle ?? { overflow: "clip" }}>
           <GanttView items={items} dependencies={dependencies} phases={phases} zoom={zoom} showBaseline={showBaseline} showLinks={showLinks} statusDate={statusDate} onStyleItem={whatIf ? undefined : onStyleItem} canEdit={canEdit} linkMode={linkMode}
             onOpenItem={onOpenItem} onLink={whatIf ? undefined : onLink}
+            onSelectItem={selectFromGantt} onDeleteLink={canEdit && !whatIf ? deleteLink : undefined}
             onDatesChange={whatIf ? (id, start, end, gesture) => tryOps({ updates: [{ id, patch: gesture === "move" ? { start_date: start } : { end_date: end } }] }) : onDatesChange}
-            hideLabels={hidden !== "grid"} collapsed={collapsed} selectedId={active?.id ?? null} flashIds={new Set([...flash].map((c) => c.split(":")[0]))} />
+            hideLabels={hidden !== "grid" && !narrow} collapsed={collapsed} selectedId={active?.id ?? null} flashIds={new Set([...flash].map((c) => c.split(":")[0]))} />
         </ResizablePanel>
       </ResizablePanelGroup>
+
+      <RenumberDialog scheduleId={renumbering ? schedule.id : null} scheduleName={schedule.name} note={renumbering?.note} onClose={() => setRenumbering(null)}
+        onDone={async (changes) => {
+          setRenumbering(null);
+          setPast((p) => [...p.slice(-(MAX_HISTORY - 1)), { label: "Renumber by tens", undo: null, redo: null }]); setFuture([]);
+          await onReload();
+          const n = changes.filter((c) => c.from !== c.to).length;
+          onBanner(`Renumbered ${n} task${n === 1 ? "" : "s"} by tens. The old → new list is in the schedule history.`);
+        }} />
 
       {importing ? (
         <ExcelImportDialog scheduleId={schedule.id} scheduleName={schedule.name} onClose={() => setImporting(false)}
@@ -905,6 +965,7 @@ export function ScheduleGrid({
           <div className="fixed inset-0 z-40" onClick={() => setMenu(null)} onContextMenu={(e) => { e.preventDefault(); setMenu(null); }} />
           <div className="fixed z-50 w-48 rounded-lg border border-border bg-card p-1 text-sm shadow-lg" style={{ left: menu.x, top: menu.y }}>
             <MenuButton onClick={() => { setMenu(null); onOpenItem(menuItem); }}><Maximize2 className="h-3.5 w-3.5" /> Open details</MenuButton>
+            {onStyleItem && !whatIf ? <MenuButton onClick={() => { setMenu(null); onStyleItem(menuItem); }}>Colors…</MenuButton> : null}
             {canEdit ? (
               <>
                 <MenuButton onClick={() => { setMenu(null); insertRow(menuItem.id, "above"); }}>Insert task above</MenuButton>
@@ -943,12 +1004,14 @@ function MenuButton({ children, onClick, danger }: { children: React.ReactNode; 
 }
 
 const GridRowView = React.memo(function GridRowView({
-  item, cols, ctx, canEdit, rowIdx, active, inRange, editing, pending, errors, flash, dragging,
+  item, cols, ctx, canEdit, rowIdx, active, inRange, editing, pending, errors, flash, dragging, unlinked,
   onCellDown, onOpen, onMenu, onEditChange, onEditKey, onEditCommit, onDragStart, onDragEnd, onDrop,
 }: {
   item: ScheduleItem; cols: ColumnKey[]; ctx: GridCtx; canEdit: boolean; rowIdx: number;
   active: Cell | null; inRange: (r: number, c: number) => boolean;
   editing: { cell: Cell; value: string } | null; pending: Map<string, string>; errors: Map<string, string>; flash: Set<string>; dragging: boolean;
+  /** No predecessor: flagged in Predecessors (or on the ID when that column is hidden). */
+  unlinked: boolean;
   onCellDown: (cell: Cell, shift: boolean) => void; onOpen: () => void; onMenu: (x: number, y: number) => void;
   onEditChange: (v: string) => void; onEditKey: (e: React.KeyboardEvent) => void; onEditCommit: (value?: string) => void;
   onDragStart: () => void; onDragEnd: () => void; onDrop: () => void;
@@ -969,7 +1032,9 @@ const GridRowView = React.memo(function GridRowView({
         const err = errors.get(key);
         let text = pending.get(key) ?? cellText(item, k, ctx);
         if (k === "preds" && ctx.otherPredCount(item.id)) text = `${text}${text ? " " : ""}(+${ctx.otherPredCount(item.id)} other)`;
-        const tip = err ?? (k === "start" && item.constraint_type === "snet" ? `Start No Earlier Than ${item.constraint_date}` : null);
+        const flagHere = unlinked && (k === "preds" || (k === "id" && !cols.includes("preds")));
+        const tip = err ?? (k === "start" && item.constraint_type === "snet" ? `Start No Earlier Than ${item.constraint_date}`
+          : flagHere ? "No predecessor: nothing is linked before this task, so it starts at the schedule start or its constraint. Add a predecessor to tie it in." : null);
         const cell = (
           <div key={k} id={`cell-${item.id}-${k}`}
             onMouseDown={(e) => { if (e.button === 0 && !isEditing) onCellDown({ id: item.id, col: k }, e.shiftKey); }}
@@ -999,7 +1064,8 @@ const GridRowView = React.memo(function GridRowView({
                 {k === "name" && item.kind === "milestone" ? <span className="mr-1 text-accent">◆</span> : null}
                 {k === "start" && item.constraint_type === "snet" ? <span className="mr-0.5 text-[10px] text-muted-foreground">⇥</span> : null}
                 {k === "name" && critical ? <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-foreground align-middle" aria-label="Critical" /> : null}
-                {text}
+                {flagHere && k === "id" ? <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-amber-500 align-middle" aria-label="No predecessor" /> : null}
+                {flagHere && k === "preds" && !text ? <span className="text-xs italic text-amber-700 dark:text-amber-400">no predecessor</span> : text}
               </>
             )}
           </div>

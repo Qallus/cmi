@@ -6,7 +6,7 @@ import { scheduleColor, fmtShort } from "../shared";
 import { barFill, nextUpId, phaseColors } from "@/lib/schedules/colors";
 import { AutoTooltip } from "@/components/ui/tooltip";
 import { scheduleRows, type GridRow } from "@/lib/schedules/grid";
-import type { ScheduleItem, ScheduleDependency, SchedulePhase, LineStyle } from "@/lib/schedules/types";
+import { DEPENDENCY_ABBR, type ScheduleItem, type ScheduleDependency, type SchedulePhase, type LineStyle } from "@/lib/schedules/types";
 import { dashFor } from "../item-colors-panel";
 
 type Zoom = "day" | "week" | "month";
@@ -51,6 +51,11 @@ type Props = {
   stickyTop?: number;
   /** Phase 2 status date: drawn as a dashed line at the end of that day. */
   statusDate?: string | null;
+  /** Split view (Grid Addendum §2.2): a click selects the task's grid row and a
+   *  double-click opens the task, instead of click = open, double-click = colours. */
+  onSelectItem?: (item: ScheduleItem) => void;
+  /** Click a link line to select it; Delete (or the chip's button) removes it (§2.4). */
+  onDeleteLink?: (dep: ScheduleDependency) => void;
 };
 
 // Link lines: how far a line runs out of a bar before it turns.
@@ -77,7 +82,7 @@ export function linkPath(type: string, src: { left: number; right: number; y: nu
   return `M ${sx} ${sy} H ${sx + out * LINK_GAP} V ${midY} H ${tx + into * LINK_GAP} V ${ty} H ${tx}`;
 }
 
-export function GanttView({ items, dependencies, phases, zoom, groupBySchedule, showBaseline, canEdit, linkMode, onOpenItem, onDatesChange, onLink, hideLabels, collapsed, selectedId, flashIds, showLinks = true, onStyleItem, stickyTop = 0, statusDate }: Props) {
+export function GanttView({ items, dependencies, phases, zoom, groupBySchedule, showBaseline, canEdit, linkMode, onOpenItem, onDatesChange, onLink, hideLabels, collapsed, selectedId, flashIds, showLinks = true, onStyleItem, stickyTop = 0, statusDate, onSelectItem, onDeleteLink }: Props) {
   const dayW = DAY_W[zoom];
   const [linkSource, setLinkSource] = React.useState<string | null>(null);
   // The sticky date header scrolls sideways with the timeline body.
@@ -85,6 +90,8 @@ export function GanttView({ items, dependencies, phases, zoom, groupBySchedule, 
   const bodyRef = React.useRef<HTMLDivElement>(null);
   const clickTimer = React.useRef<number | null>(null);
   const syncHead = () => { if (headRef.current && bodyRef.current) headRef.current.scrollLeft = bodyRef.current.scrollLeft; };
+  // A link line picked by clicking it, and where to show its chip.
+  const [pickedLink, setPickedLink] = React.useState<{ id: string; x: number; y: number } | null>(null);
   const [drag, setDrag] = React.useState<{ id: string; mode: "move" | "resize"; startX: number; origStart: Date; origEnd: Date; deltaDays: number } | null>(null);
 
   const dated = items.filter((i) => i.start_date);
@@ -191,11 +198,13 @@ export function GanttView({ items, dependencies, phases, zoom, groupBySchedule, 
   }
 
   function clickBar(item: ScheduleItem) {
+    setPickedLink(null);
     if (linkMode && onLink) {
       if (!linkSource) setLinkSource(item.id);
       else if (linkSource !== item.id) { onLink(linkSource, item.id); setLinkSource(null); }
       return;
     }
+    if (onSelectItem) { onSelectItem(item); return; }
     // With a double-click action, wait a moment so a double-click doesn't also open the task.
     if (!onStyleItem) { onOpenItem?.(item); return; }
     if (clickTimer.current) window.clearTimeout(clickTimer.current);
@@ -203,8 +212,27 @@ export function GanttView({ items, dependencies, phases, zoom, groupBySchedule, 
   }
   function doubleClickBar(item: ScheduleItem) {
     if (clickTimer.current) { window.clearTimeout(clickTimer.current); clickTimer.current = null; }
-    if (!linkMode) onStyleItem?.(item);
+    if (linkMode) return;
+    if (onSelectItem) onOpenItem?.(item);
+    else onStyleItem?.(item);
   }
+
+  // Delete removes the picked link; Esc lets it go.
+  const pickedDep = pickedLink ? dependencies.find((d) => d.id === pickedLink.id) ?? null : null;
+  React.useEffect(() => {
+    if (!pickedLink) return;
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      if (e.key === "Escape") setPickedLink(null);
+      else if ((e.key === "Delete" || e.key === "Backspace") && pickedDep && onDeleteLink) { e.preventDefault(); e.stopPropagation(); onDeleteLink(pickedDep); setPickedLink(null); }
+    };
+    // The chip sits where you clicked; scrolling moves the line away from it, so let it go.
+    const onScroll = () => setPickedLink(null);
+    window.addEventListener("keydown", onKey, true);
+    window.addEventListener("scroll", onScroll, true);
+    return () => { window.removeEventListener("keydown", onKey, true); window.removeEventListener("scroll", onScroll, true); };
+  }, [pickedLink, pickedDep, onDeleteLink]);
 
   // Link lines between bars (under the bars, over the gridlines).
   const connectors = React.useMemo(() => {
@@ -282,7 +310,7 @@ export function GanttView({ items, dependencies, phases, zoom, groupBySchedule, 
         {/* Right timeline (scrolls) */}
         <div ref={bodyRef} onScroll={syncHead} className="relative min-w-0 flex-1 overflow-x-auto">
           <div className="relative" style={{ width: boardW }}>
-            <div className="relative" style={{ height: rows.length * ROW_H }}>
+            <div className="relative" style={{ height: rows.length * ROW_H }} onClick={() => { if (pickedLink) setPickedLink(null); }}>
               {/* column gridlines (+ weekend shading on day zoom) */}
               {ticks.map((t, i) => (
                 <div key={`gl${i}`} className={cn("absolute top-0 border-l border-border/25", t.weekend && "bg-muted/20")} style={{ left: t.left, width: zoom === "day" && t.weekend ? dayW : undefined, height: rows.length * ROW_H }} />
@@ -307,18 +335,44 @@ export function GanttView({ items, dependencies, phases, zoom, groupBySchedule, 
                   </defs>
                   {connectors.map((c) => {
                     // A selected task's links stand out; the rest fade back.
-                    const lit = !!selectedId && c.touches.includes(selectedId);
-                    const dim = !!selectedId && !lit;
+                    const picked = pickedLink?.id === c.id;
+                    const lit = picked || (!!selectedId && c.touches.includes(selectedId));
+                    const dim = !!(selectedId || pickedLink) && !lit;
                     return (
-                      <path key={c.id} d={c.d} fill="none" strokeLinejoin="round"
-                        strokeWidth={lit ? 2 : c.critical ? 1.5 : 1.25}
-                        strokeDasharray={c.style ? dashFor(c.style) : c.critical || lit ? undefined : c.cross ? "5 3" : "2 2"}
-                        style={{ stroke: c.color ?? (c.critical ? "var(--foreground)" : LINK_COLOR), opacity: dim ? 0.35 : c.critical || lit || c.color ? 0.9 : 0.75 }}
+                      <React.Fragment key={c.id}>
+                      {/* A wide invisible stroke so a thin line is easy to click. */}
+                      {onDeleteLink && canEdit && !linkMode ? (
+                        <path d={c.d} fill="none" stroke="transparent" strokeWidth={9} style={{ pointerEvents: "stroke", cursor: "pointer" }}
+                          onClick={(e) => { e.stopPropagation(); setPickedLink({ id: c.id, x: e.clientX, y: e.clientY }); }}>
+                          <title>Click to select this link</title>
+                        </path>
+                      ) : null}
+                      <path d={c.d} fill="none" strokeLinejoin="round"
+                        strokeWidth={picked ? 2.5 : lit ? 2 : c.critical ? 1.5 : 1.25}
+                        strokeDasharray={picked ? undefined : c.style ? dashFor(c.style) : c.critical || lit ? undefined : c.cross ? "5 3" : "2 2"}
+                        style={picked ? { stroke: "var(--accent)", opacity: 1 } : { stroke: c.color ?? (c.critical ? "var(--foreground)" : LINK_COLOR), opacity: dim ? 0.35 : c.critical || lit || c.color ? 0.9 : 0.75 }}
                         markerEnd={c.color ? `url(#sched-arrow-${c.color.slice(1)})` : c.critical ? "url(#sched-arrow-crit)" : "url(#sched-arrow)"} />
+                      </React.Fragment>
                     );
                   })}
                 </svg>
               ) : null}
+
+              {/* the picked link: what it joins, and a Delete button */}
+              {pickedLink && pickedDep ? (() => {
+                const src = items.find((i) => i.id === pickedDep.source_item_id), tgt = items.find((i) => i.id === pickedDep.target_item_id);
+                const name = (i?: ScheduleItem) => (i ? `${i.activity_id != null ? `${i.activity_id} ` : ""}${i.title}` : "another schedule");
+                const lag = pickedDep.lag_days ? `${pickedDep.lag_days > 0 ? "+" : ""}${pickedDep.lag_days}` : "";
+                return (
+                  // Fixed to the screen beside the click, so the Gantt's edge never clips it.
+                  <div className="fixed z-[60] flex max-w-[22rem] items-center gap-2 rounded-md border border-border bg-popover px-2 py-1 text-xs text-popover-foreground shadow-md"
+                    style={{ left: Math.max(8, Math.min(pickedLink.x + 8, window.innerWidth - 360)), top: Math.min(pickedLink.y + 10, window.innerHeight - 44) }} onMouseDown={(e) => e.stopPropagation()}>
+                    <span className="truncate">{name(src)} → {name(tgt)} <span className="text-muted-foreground">{DEPENDENCY_ABBR[pickedDep.dependency_type]}{lag}</span></span>
+                    <button type="button" onClick={() => { onDeleteLink?.(pickedDep); setPickedLink(null); }} className="shrink-0 rounded px-1.5 py-0.5 font-medium text-destructive hover:bg-destructive/10">Delete</button>
+                    <button type="button" onClick={() => setPickedLink(null)} className="shrink-0 text-muted-foreground hover:text-foreground" aria-label="Close">×</button>
+                  </div>
+                );
+              })() : null}
 
               {/* rows + bars */}
               {rows.map((r, idx) => (
