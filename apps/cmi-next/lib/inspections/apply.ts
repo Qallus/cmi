@@ -112,7 +112,7 @@ export async function applyInspections(
   const activityIds = await nextActivityId(scheduleId, plan.milestones.length);
   const rowsToInsert = plan.milestones.map((m, i) => ({
     schedule_id: scheduleId, job_id: sched.job_id, phase_id: m.schedule_phase_id,
-    kind: "milestone", title: m.title, start_date: m.date, end_date: m.date, duration_days: null,
+    kind: "milestone", title: m.title, start_date: m.date, end_date: m.date, duration_days: null, duration_source: "template",
     milestone_type: m.milestone_type, master_display: "milestone_only", wbs: m.phase_id,
     internal_notes: m.hold_point ? `Hold point: the work after this waits for a pass.\n${m.internal_notes}` : m.internal_notes,
     inspection_step_id: m.step_id, inspection_phase_id: m.phase_id, inspection_code: m.code,

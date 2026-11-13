@@ -121,7 +121,7 @@ export async function applyPermit(scheduleId: string, body: PermitApply, actor: 
       const date = after?.end_date ?? today;
       return {
         schedule_id: scheduleId, job_id: sched.job_id, phase_id: after?.phase_id ?? null,
-        kind: "milestone", title: permitTitle("INSP · ", line), start_date: date, end_date: date, duration_days: null,
+        kind: "milestone", title: permitTitle("INSP · ", line), start_date: date, end_date: date, duration_days: null, duration_source: "template",
         milestone_type: "inspection", master_display: "milestone_only",
         internal_notes: `From the permit's inspection list: ${line.raw}`,
         inspection_step_id: permitStepId(line), inspection_code: line.code, inspection_status: "not_ready",

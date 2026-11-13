@@ -60,7 +60,7 @@ export type ColumnKey =
   // Phase 2 Step 8: work breakdown and where on site.
   | "wbs" | "location" | "lead" | "orderby"
   // Grid Addendum §3.2.
-  | "ffloat" | "client" | "bstart" | "bfinish" | "linked";
+  | "ffloat" | "client" | "bstart" | "bfinish" | "linked" | "source";
 
 export type Column = { key: ColumnKey; label: string; width: number; editable: boolean; align?: "right"; aliases?: string[] };
 
@@ -97,6 +97,7 @@ export const GRID_COLUMNS: Column[] = [
   { key: "bstart", label: "Baseline start", width: 100, editable: false, aliases: ["baseline start", "bl start"] },
   { key: "bfinish", label: "Baseline finish", width: 100, editable: false, aliases: ["baseline finish", "bl finish", "baseline end"] },
   { key: "linked", label: "Linked to", width: 130, editable: false, aliases: ["linked to", "linked record", "link"] },
+  { key: "source", label: "Source", width: 80, editable: false, aliases: ["duration source", "source"] },
 ];
 export const COLUMN = Object.fromEntries(GRID_COLUMNS.map((c) => [c.key, c])) as Record<ColumnKey, Column>;
 
@@ -195,6 +196,7 @@ export function cellText(item: ScheduleItem, key: ColumnKey, ctx: GridCtx): stri
       const v = ctx.varianceOf?.(item.id);
       return v == null ? "" : v === 0 ? "on date" : `${v > 0 ? "+" : ""}${v} wd`;
     }
+    case "source": return item.duration_source ? SOURCE_TEXT[item.duration_source] ?? item.duration_source : "";
     case "ffloat": return item.free_float != null ? String(item.free_float) : "";
     case "client": return item.client_visible ? "Yes" : "";
     case "bstart": return item.baseline_start ?? "";
@@ -209,6 +211,8 @@ export function cellText(item: ScheduleItem, key: ColumnKey, ctx: GridCtx): stri
     }
   }
 }
+
+export const SOURCE_TEXT: Record<string, string> = { template: "Template", history: "History", ai: "AI", user: "User" };
 
 export const LINK_TYPE_TEXT: Record<string, string> = { deal: "Deal", job: "Job", precon: "Pre-Con", company: "Trade partner", contact: "Contact", selection: "Selection", project: "Project", punch_list: "Punch list", schedule: "Schedule" };
 

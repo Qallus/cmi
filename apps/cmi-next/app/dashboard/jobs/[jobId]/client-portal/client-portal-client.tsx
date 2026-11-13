@@ -28,7 +28,9 @@ export function ClientPortalClient({ job, initialUpdates, clients }: { job: JobW
   const [inviting, setInviting] = React.useState<string | null>(null);
   const [inviteMsg, setInviteMsg] = React.useState<string | null>(null);
 
-  const clientUrl = typeof window !== "undefined" ? `${window.location.origin}/client/jobs/${job.id}` : `/client/jobs/${job.id}`;
+  // The full link needs the browser's origin; read it after hydration so the server and first client render match.
+  const origin = React.useSyncExternalStore(() => () => {}, () => window.location.origin, () => "");
+  const clientUrl = `${origin}/client/jobs/${job.id}`;
 
   async function saveSettings() {
     setSavingSettings(true); setSavedMsg(null);
@@ -71,7 +73,17 @@ export function ClientPortalClient({ job, initialUpdates, clients }: { job: JobW
   }
 
   return (
-    <JobModuleShell jobId={job.id} jobName={job.job_name} active="client-portal" title="Client Portal">
+    <JobModuleShell jobId={job.id} jobName={job.job_name} active="client-portal" title="Client Portal" action={
+      <>
+        {/* Read-only look at the portal as a client sees it (opens a new tab; nothing is sent). */}
+        <ClientPicker label="Preview Client Portal" icon={<Eye className="h-3.5 w-3.5" />} clients={clients.filter((c) => c.contact_id)}
+          empty="Add a client in Job Info → Clients to preview their portal."
+          href={(c) => `/api/jobs/${job.id}/client-preview?contact=${c.contact_id}`} />
+        <ClientPicker label="Invite" icon={<UserPlus className="h-3.5 w-3.5" />} clients={clients.filter((c) => c.contact?.email)} busy={!!inviting}
+          empty="Add a client with an email in Job Info → Clients to invite them."
+          onPick={(c) => void invite(c)} />
+      </>
+    }>
       <div className="space-y-6">
         {/* Enable + settings */}
         <Section title="Portal Settings">
@@ -296,6 +308,50 @@ function MessagesPanel({ jobId }: { jobId: string }) {
         </>
       )}
     </Section>
+  );
+}
+
+/** A header button that acts on the job's one client, or lets you pick when there are several. */
+function ClientPicker({ label, icon, clients, onPick, href, empty, busy }: {
+  label: string; icon: React.ReactNode; clients: JobContact[]; empty: string; busy?: boolean;
+  /** A button that does something… */
+  onPick?: (c: JobContact) => void;
+  /** …or a link that opens in a new tab (the portal preview). */
+  href?: (c: JobContact) => string;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const name = (c: JobContact) => `${c.contact?.first_name ?? ""} ${c.contact?.last_name ?? ""}`.trim() || c.contact?.email || "Client";
+  if (!clients.length) return <span title={empty}><Button size="sm" variant="outline" disabled>{icon} {label}</Button></span>;
+  const linkCls = "inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-background px-3 text-xs font-medium hover:bg-muted";
+  if (clients.length === 1) {
+    return href
+      ? <a href={href(clients[0])} target="_blank" rel="noreferrer" className={linkCls} title={`${label} as ${name(clients[0])} (read-only, 30 minutes)`}>{icon} {label}</a>
+      : <Button size="sm" variant="outline" disabled={busy} onClick={() => onPick?.(clients[0])} title={`${label}: ${name(clients[0])}`}>{icon} {label}</Button>;
+  }
+  return (
+    <div className="relative">
+      <Button size="sm" variant="outline" disabled={busy} onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open}>{icon} {label}</Button>
+      {open ? (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div role="menu" className="absolute right-0 z-50 mt-1 w-60 rounded-lg border border-border bg-card p-1 shadow-lg">
+            <div className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label} as…</div>
+            {clients.map((c) => {
+              const body = (
+                <>
+                  <span className="block truncate text-sm">{name(c)}</span>
+                  {c.contact?.email ? <span className="block truncate text-[11px] text-muted-foreground">{c.contact.email}</span> : null}
+                </>
+              );
+              const cls = "block w-full rounded px-2 py-1.5 text-left hover:bg-muted/50";
+              return href
+                ? <a key={c.id} role="menuitem" href={href(c)} target="_blank" rel="noreferrer" onClick={() => setOpen(false)} className={cls}>{body}</a>
+                : <button key={c.id} type="button" role="menuitem" onClick={() => { setOpen(false); onPick?.(c); }} className={cls}>{body}</button>;
+            })}
+          </div>
+        </>
+      ) : null}
+    </div>
   );
 }
 

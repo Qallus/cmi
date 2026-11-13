@@ -19,6 +19,11 @@ export const PHASE_PALETTE = [
 
 export const PAST_DUE_COLOR = "#c2410c";
 
+/** Two colour schemes for the Gantt: each phase its own colour, or Brandon's
+ *  spec (Addendum §2.3): tasks tan, critical charcoal, complete grey. */
+export type ColorScheme = "phase" | "classic";
+export const CLASSIC = { task: "#a8865a", critical: "#3f3f46", complete: "#9ca3af" } as const;
+
 export type ColorPhase = { id: string; color?: string | null };
 
 /** phase id → colour: its own colour, else the palette by position. */
@@ -30,6 +35,7 @@ export function phaseColors(phases: ColorPhase[] | undefined): Map<string, strin
 
 type ColorItem = {
   id: string; kind?: string | null; status?: string | null; percent_complete?: number | null;
+  total_float?: number | null; is_critical?: boolean | null; contract_date?: string | null;
   start_date?: string | null; end_date?: string | null; phase_id?: string | null; sort_order?: number;
 };
 
@@ -52,10 +58,20 @@ export function nextUpId(items: ColorItem[], today: string): string | null {
   return best?.id ?? null;
 }
 
-/** A bar's fill: the task's own colour, else (overlaying schedules) the schedule's, else its phase's; past due overrides. */
-export function barFill(i: ColorItem & { bar_color?: string | null }, opts: { today: string; phases: Map<string, string>; scheduleColor?: string | null; fallback?: string }): { color: string; pastDue: boolean } {
+/** Tan & charcoal: complete grey, critical (no float) charcoal, the rest tan. A milestone
+ *  turns charcoal when its forecast is past its contract date. */
+export function classicColor(i: ColorItem): string {
+  if (done(i)) return CLASSIC.complete;
+  if (i.kind === "milestone" && i.contract_date && (i.start_date ?? "") > i.contract_date) return CLASSIC.critical;
+  if ((i.total_float != null && i.total_float <= 0) || (i.total_float == null && i.is_critical)) return CLASSIC.critical;
+  return CLASSIC.task;
+}
+
+/** A bar's fill: the task's own colour, else (overlaying schedules) the schedule's, else its
+ *  phase's (or, in Tan & charcoal, tan / charcoal / grey); past due overrides. */
+export function barFill(i: ColorItem & { bar_color?: string | null }, opts: { today: string; phases: Map<string, string>; scheduleColor?: string | null; fallback?: string; scheme?: ColorScheme }): { color: string; pastDue: boolean } {
   const pastDue = isPastDue(i, opts.today);
   if (pastDue) return { color: PAST_DUE_COLOR, pastDue };
-  const color = i.bar_color || opts.scheduleColor || (i.phase_id ? opts.phases.get(i.phase_id) : undefined) || opts.fallback || PHASE_PALETTE[0];
-  return { color, pastDue };
+  const base = opts.scheme === "classic" ? classicColor(i) : (i.phase_id ? opts.phases.get(i.phase_id) : undefined) || opts.fallback || PHASE_PALETTE[0];
+  return { color: i.bar_color || opts.scheduleColor || base, pastDue };
 }

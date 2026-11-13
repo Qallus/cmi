@@ -23,6 +23,7 @@ import { ItemDrawer } from "./item-drawer";
 import { AddScheduleWizard, type ScheduleSource } from "./add-schedule-wizard";
 import { ShiftDialog } from "./shift-dialog";
 import { RenumberDialog } from "./renumber-dialog";
+import { ColorSchemePicker } from "./color-scheme";
 import { finishOf, movedBanner } from "@/lib/schedules/move-banner";
 import { InspectionsDialog } from "./inspections-dialog";
 import { PermitDialog } from "./permit-dialog";
@@ -412,9 +413,11 @@ export function SchedulesWorkspace({ scope, scopeLabel, initialSchedules, initia
           <div><div className="text-[10px] uppercase tracking-wide text-muted-foreground">Health</div><div className="mt-0.5"><HealthChip health={header.health as never} /></div></div>
           <Stat label="Projected completion" value={fmtDate(header.projected_completion)} />
           {header.next_milestone ? <Stat label="Next milestone" value={`◆ ${header.next_milestone.title}`} /> : null}
-          <div className="flex-1" />
-          {/* Phones and tablets: Package and Add Schedule are in the Tools menu (or the empty state). */}
-          <div className={cn("items-center gap-2", schedules.length ? "hidden lg:flex" : "flex")}>
+          {/* Phones and tablets: Package and Add Schedule are in the Tools menu (or the empty state).
+              ml-auto (not a spacer) pushes them right without spending another gap. */}
+          <div className={cn("ml-auto items-center gap-2", schedules.length ? "hidden lg:flex" : "flex")}>
+            {/* Gantt colours: phase colours or tan & charcoal (left of Package). */}
+            {schedules.length ? <ColorSchemePicker /> : null}
             {canEdit && packages.length ? (
               <div className="relative">
                 <Button size="sm" variant="outline" onClick={() => setPkgMenu((o) => !o)}><Layers className="h-3.5 w-3.5" /> Package <ChevronDown className="h-3 w-3 opacity-60" /></Button>

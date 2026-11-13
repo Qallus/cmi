@@ -208,6 +208,8 @@ export type ScheduleItem = {
   cost_code?: string | null;
   /** Working days to get the material (order-by dates, Phase 2). */
   lead_time_days?: number | null;
+  /** Where the duration came from (Grid Addendum §3.2); null = before this was tracked. */
+  duration_source?: "template" | "history" | "ai" | "user" | null;
   /** Gantt bar colour (#rrggbb); empty = the schedule's colour. */
   bar_color?: string | null;
   sort_order: number;

@@ -158,6 +158,7 @@ const scheduleTools: McpTool[] = [
           ...(staff ?? []).map((p) => ({ id: p.id as string, name: (p.display_name as string) || (p.email as string), type: "staff" as const }))];
       }
       if (!Object.keys(patch).length) return { result: { error: "Nothing to change." } };
+      if ("duration_days" in patch) patch.duration_source = "ai";
       const { item, cascaded } = await updateItem(before.id, patch as Partial<ScheduleItem>, actorOf(c));
       return { result: { updated: brief(item), cascaded: cascaded.map(brief) }, entity: "schedule_item", recordId: item.id, before, after: item };
     },
@@ -180,6 +181,7 @@ const scheduleTools: McpTool[] = [
         title: s(a.title), kind: a.kind === "milestone" ? "milestone" : "task", description: s(a.description) || null,
         start_date: s(a.start_date) || null, end_date: s(a.end_date) || s(a.start_date) || null,
         duration_days: typeof a.duration_days === "number" ? a.duration_days : null, client_visible: a.client_visible === true,
+        ...(typeof a.duration_days === "number" ? { duration_source: "ai" as const } : {}),
         assignees: (staff ?? []).map((p) => ({ id: p.id as string, name: (p.display_name as string) || (p.email as string), type: "staff" as const })),
       }, actorOf(c));
       return { result: { created: brief(item) }, entity: "schedule_item", recordId: item.id, before: null, after: item };

@@ -224,6 +224,8 @@ export const ITEM_FIELDS = [
   // Schedule engine (computed early/late dates and float are written by lib/schedules/engine.ts only):
   "activity_id", "wbs", "duration_unit", "constraint_type", "constraint_date", "actual_start", "actual_finish",
   "remaining_duration", "milestone_type", "contract_date", "cost_code", "lead_time_days",
+  // Where the duration came from (Grid Addendum §3.2 "Source"): template | history | ai | user.
+  "duration_source",
   // Gantt appearance:
   "bar_color",
 ] as const;
@@ -307,6 +309,8 @@ export async function createItem(scheduleId: string, input: Partial<ScheduleItem
   const row: Record<string, unknown> = { schedule_id: scheduleId, job_id: sched?.job_id ?? null, created_by: actor?.id ?? null, updated_by: actor?.id ?? null };
   for (const k of ITEM_FIELDS) if (k in input) row[k] = (input as Record<string, unknown>)[k];
   if (!row.title) row.title = input.kind === "milestone" ? "New Milestone" : "New Item";
+  // A duration given without saying where it came from was typed by someone.
+  if (row.duration_days != null && !row.duration_source) row.duration_source = "user";
   const typedId = row.activity_id != null;
   if (row.activity_id == null) row.activity_id = (await nextActivityId(scheduleId))[0];
   const { data, error } = await sb.from("schedule_items").insert(row).select("*").single();
@@ -351,6 +355,8 @@ export async function updateItem(id: string, patch: Partial<ScheduleItem>, actor
       clean.duration_days = await durationOnCalendar(prev.schedule_id, start, end, (clean.duration_unit ?? prev.duration_unit) as "workdays" | "calendar");
     }
   }
+  // A changed duration records where it came from: whoever called says so (Claude → ai), else a person typed it.
+  if (prev && !("duration_source" in patch) && "duration_days" in clean && (clean.duration_days ?? null) !== (prev.duration_days ?? null)) clean.duration_source = "user";
   const { data, error } = await sb.from("schedule_items").update(clean).eq("id", id).select("*").single();
   if (error) throw new Error(duplicateIdMessage(error, clean.activity_id) ?? error.message);
   // A new activity ID (or a move to another phase) puts the task where that number sorts.
@@ -662,6 +668,7 @@ export async function applyTemplate(scheduleId: string, templateId: string, acto
     return {
       schedule_id: scheduleId, job_id: sched.job_id ?? null, phase_id: it.phaseKey ? phaseIdByKey.get(it.phaseKey) ?? null : null,
       kind: it.kind ?? "task", title: it.title, start_date: start, end_date: end, duration_days: it.kind === "milestone" ? null : it.duration ?? null,
+      duration_source: "template",
       assignees: people.map((p) => ({ id: p.id, name: p.name, type: "staff" })),
       sort_order: firstSort + i, activity_id: activityIds[i], created_by: actor?.id ?? null, updated_by: actor?.id ?? null,
     };

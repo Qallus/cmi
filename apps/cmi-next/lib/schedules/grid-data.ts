@@ -80,6 +80,7 @@ export async function applyGridOps(scheduleId: string, ops: GridOps, actor?: Act
       const row: Record<string, unknown> = { schedule_id: scheduleId, job_id: sched.job_id ?? null, created_by: actor?.id ?? null, updated_by: actor?.id ?? null };
       for (const f of ITEM_FIELDS) if (f in c.row) row[f] = (c.row as Record<string, unknown>)[f];
       if (!row.title) row.title = c.row.kind === "milestone" ? "New Milestone" : "New Task";
+      if (row.duration_days != null && !row.duration_source) row.duration_source = "user";
       // An ID someone else already has (e.g. picked from a stale screen) falls back to a free one.
       if (row.activity_id == null || used.has(row.activity_id as number)) row.activity_id = fresh[k++];
       used.add(row.activity_id as number);
@@ -123,6 +124,8 @@ export async function applyGridOps(scheduleId: string, ops: GridOps, actor?: Act
       if (s) clean.duration_days = Math.max(1, spanW(unit === "calendar" ? CALENDAR_DAYS : cal, dayNum(s), dayNum(clean.end_date as string)));
     }
     if (!Object.keys(clean).length) continue;
+    // Someone typed (or pasted, or imported) a new duration.
+    if (!("duration_source" in u.patch) && "duration_days" in clean && (clean.duration_days ?? null) !== (prev.duration_days ?? null)) clean.duration_source = "user";
     const { data, error } = await sb.from("schedule_items").update({ ...clean, updated_by: actor?.id ?? null, updated_at: now }).eq("id", u.id).select("*").single();
     fail(prev.title, error);
     items.set(u.id, mapItem(data));

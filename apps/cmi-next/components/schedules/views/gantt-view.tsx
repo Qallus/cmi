@@ -4,6 +4,7 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 import { scheduleColor, fmtShort } from "../shared";
 import { barFill, nextUpId, phaseColors } from "@/lib/schedules/colors";
+import { useColorScheme } from "../color-scheme";
 import { AutoTooltip } from "@/components/ui/tooltip";
 import { scheduleRows, type GridRow } from "@/lib/schedules/grid";
 import { DEPENDENCY_ABBR, type ScheduleItem, type ScheduleDependency, type SchedulePhase, type LineStyle } from "@/lib/schedules/types";
@@ -119,9 +120,11 @@ export function GanttView({ items, dependencies, phases, zoom, groupBySchedule, 
 
   // Each phase its own colour (unless it has one set); past-due work in red; the next task up pulses.
   const todayISO = fmtISO(new Date());
-  const phaseColorMap = React.useMemo(() => phaseColors(phases), [phases]);
+  // Phase colours, or Tan & charcoal (the header's Colours picker).
+  const [scheme] = useColorScheme();
+  const phaseColorMap = React.useMemo(() => (scheme === "classic" ? new Map<string, string>() : phaseColors(phases)), [phases, scheme]);
   const nextId = React.useMemo(() => nextUpId(items, todayISO), [items, todayISO]);
-  const fillFor = (it: ScheduleItem) => barFill(it, { today: todayISO, phases: phaseColorMap, scheduleColor: groupBySchedule && it.schedule_color ? scheduleColor(it.schedule_id, it.schedule_color) : null, fallback: "#9e6f2e" });
+  const fillFor = (it: ScheduleItem) => barFill(it, { today: todayISO, phases: phaseColorMap, scheduleColor: groupBySchedule && it.schedule_color ? scheduleColor(it.schedule_id, it.schedule_color) : null, fallback: "#9e6f2e", scheme });
   const groupColor = (r: Extract<GridRow, { kind: "group" }>) => (r.phaseId ? phaseColorMap.get(r.phaseId) : undefined) ?? r.color;
 
   const rowIndexOf = React.useMemo(() => { const m = new Map<string, number>(); rows.forEach((r, idx) => { if (r.kind === "item") m.set(r.item.id, idx); }); return m; }, [rows]);
