@@ -157,10 +157,15 @@ export function SheetSelect({ row, col, label, disabled, value, options, save }:
     if (!open) return;
     const onDoc = (e: MouseEvent) => { const t = e.target as Node; if (!btn.current?.contains(t) && !list.current?.contains(t)) setOpen(false); };
     const close = () => setOpen(false);
+    // Scrolling the page or the table moves the cell away from the fixed list,
+    // so that closes it. Scrolling the list itself must not: long lists (Job
+    // type, Stage) overflow, and a wheel/trackpad scroll or the scroll-to-
+    // current-option on open used to close the list before a pick landed.
+    const onScroll = (e: Event) => { if (e.target instanceof Node && list.current?.contains(e.target)) return; close(); };
     document.addEventListener("mousedown", onDoc);
-    window.addEventListener("scroll", close, true);
+    window.addEventListener("scroll", onScroll, true);
     window.addEventListener("resize", close);
-    return () => { document.removeEventListener("mousedown", onDoc); window.removeEventListener("scroll", close, true); window.removeEventListener("resize", close); };
+    return () => { document.removeEventListener("mousedown", onDoc); window.removeEventListener("scroll", onScroll, true); window.removeEventListener("resize", close); };
   }, [open]);
   React.useEffect(() => { if (open) list.current?.querySelector<HTMLElement>(`[data-i="${hi}"]`)?.scrollIntoView({ block: "nearest" }); }, [open, hi]);
 

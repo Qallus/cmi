@@ -104,7 +104,7 @@ export const DASHBOARD_GUIDE: GuideEntry[] = [
       "Add people to a deal: open the deal → Lead / Contact details → type first/last name, phone, email and relation in the Primary contact block; use + Add contact for more. Fields save as you leave them; partial details are fine.",
       "Move a deal: open it → click the next stage in the stage bar (or Closed Won / Closed Lost at the top).",
       "List view: click a deal's row to open it. Edit there, or switch to the Table view.",
-      "Table view works like a spreadsheet: click a cell and type (deal name, stage, owner, job type, value, probability, close date, source, next action and due date). Tab / Shift+Tab move across, Enter or ↑/↓ move down and up, Esc undoes; each change saves when you leave the cell.",
+      "Table view works like a spreadsheet: click a cell and type (deal name, stage, owner, job type, value, probability, close date, source, next action and due date). Tab / Shift+Tab move across, Enter or ↑/↓ move down and up, Esc undoes; each change saves when you leave the cell. Drag a column header's right edge to make that column wider or narrower; double-click the edge to put that column back, or click Reset column widths above the table for all of them. Widths are remembered in this browser.",
       "Find a won deal: it leaves the Pipeline and lives in Pre-Con (Sidebar → Jobs → Pre-Con). On the kanban, drag a card onto Closed Won to send it there.",
       "Add a task: open the deal → Tasks → Add Task (the assignee gets an email with the deal, job number and due date).",
     ],

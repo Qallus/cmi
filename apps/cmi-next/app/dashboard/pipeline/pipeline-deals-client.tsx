@@ -22,6 +22,7 @@ import { DealActions, ShareDialog } from "./deal-actions";
 import { BulkBar } from "./bulk-bar";
 import type { CellEdit } from "./editable-cells";
 import { SheetInput, SheetSelect } from "./sheet-cells";
+import { ResizeHandle, useColumnWidths } from "./column-resize";
 import { PIPELINE_ORDER_KEY } from "@/lib/deals/order";
 import { DuplicateWarning, useDuplicateCheck } from "@/components/contacts/duplicate-warning";
 import { ViewOptions, ViewSwitcher, useColumnPrefs, type ColumnDef } from "@/components/ui/view-options";
@@ -605,19 +606,22 @@ export type Selection = {
  * row still reads as a header rather than a row of buttons.
  */
 function SortableTh({
-  label, sortKey, state, className, align = "left",
+  label, sortKey, state, className, align = "left", style, extra,
 }: {
   label: string;
   sortKey: SortKey;
   state?: SortState;
   className?: string;
   align?: "left" | "right";
+  style?: React.CSSProperties;
+  /** Rendered after the label, e.g. the Table view's column resize handle. */
+  extra?: React.ReactNode;
 }) {
-  if (!state) return <th className={cn("px-3 py-2 font-medium", className)}>{label}</th>;
+  if (!state) return <th className={cn("px-3 py-2 font-medium", className)} style={style}>{label}{extra}</th>;
   const active = state.key === sortKey;
   const Icon = !active ? ArrowUpDown : state.dir === "asc" ? ArrowUp : ArrowDown;
   return (
-    <th className={cn("px-3 py-2 font-medium", className)}>
+    <th className={cn("px-3 py-2 font-medium", className)} style={style}>
       <button
         type="button"
         onClick={() => state.onSort(sortKey)}
@@ -631,6 +635,7 @@ function SortableTh({
         {label}
         <Icon className={cn("h-3.5 w-3.5 shrink-0", active ? "text-accent" : "text-muted-foreground/60")} />
       </button>
+      {extra}
     </th>
   );
 }
@@ -749,6 +754,13 @@ function ListView({ deals, ownerName, onOpen, renderActions, reorder, sortState,
 // ─── Table view (a spreadsheet: edit in place, Tab between cells) ──
 const SOURCE_OPTIONS = [{ value: "", label: "—" }, ...DEAL_SOURCES.map((s) => ({ value: s, label: s.replace(/_/g, " ") }))];
 const JOB_TYPE_OPTIONS = [{ value: "", label: "—" }, ...JOB_TYPES.map((t) => ({ value: t, label: t }))];
+// Starting widths (px) for the Table view's resizable columns. "title" (Job
+// name) is left out on purpose: it takes the space the others leave.
+const TABLE_COL_WIDTHS: Record<string, number> = {
+  job_number: 96, stage: 160, owner: 160, job_type: 168, value: 128, value_low: 128, value_high: 128,
+  probability: 88, close: 144, source: 144, next_action: 220, due: 144,
+};
+const TABLE_COL_ORDER: TableCol[] = ["stage", "owner", "job_type", "value", "value_low", "value_high", "probability", "close", "source", "next_action", "due"];
 const STAGE_OPTIONS = DEAL_STAGES.map((st) => ({ value: st, label: DEAL_STAGE_META[st]?.label ?? st }));
 
 function TableView({ deals, ownerName, onOpen, renderActions, reorder, sortState, selection, edit, owners, columns }: { deals: Deal[]; ownerName: (id: string | null) => string; onOpen: (id: string) => void; renderActions: (d: Deal) => React.ReactNode; reorder: Reorder | null; sortState?: SortState; selection?: Selection; edit: CellEdit; owners: OwnerOption[]; columns: TableCol[] }) {
@@ -768,29 +780,46 @@ function TableView({ deals, ownerName, onOpen, renderActions, reorder, sortState
     }
     return edit.patch(d.id, { [field]: n } as Partial<Deal>);
   };
-  const th = "border-b border-r border-border px-2 py-2 font-medium last:border-r-0";
+  const th = "relative border-b border-r border-border px-2 py-2 font-medium last:border-r-0";
   const td = "border-b border-r border-border p-0 align-middle";
+  // Resizable columns: fixed layout, so a column is exactly as wide as set.
+  // "Job name" has no default and takes whatever space is left, at least 220px.
+  const widths = useColumnWidths("cmi:pipeline:table-widths", TABLE_COL_WIDTHS);
+  const shownKeys: string[] = ["job_number", "title", ...TABLE_COL_ORDER.filter((k) => show(k))];
+  const minTable = (selection ? 32 : 0) + (reorder ? 56 : 0) + 36 + 40
+    + shownKeys.reduce((sum, k) => sum + (widths.width(k) ?? 220), 0);
+  const w = (k: string): React.CSSProperties | undefined => { const px = widths.width(k); return px ? { width: px } : undefined; };
+  const handle = (k: string, label: string) => <ResizeHandle col={k} label={label} widths={widths} />;
+  // A plain (unsortable) header with a resize handle.
+  const plainTh = (k: TableCol, label: string, right?: boolean) => (
+    <th className={cn(th, right && "text-right")} style={w(k)}>{label}{handle(k, label)}</th>
+  );
   return (
     <div className="relative overflow-x-auto rounded-lg border border-border" data-sheet>
-      {edit.canWrite ? <div className="border-b border-border bg-muted/30 px-3 py-1.5 text-[11px] text-muted-foreground">Click a cell to edit. Tab / Shift+Tab move across, Enter or ↑/↓ move down and up, Esc undoes. Changes save when you leave the cell.</div> : null}
-      <table className={cn("w-full border-collapse text-sm", columns.length >= 7 ? "min-w-[1180px]" : "min-w-[720px]")}>
+      {edit.canWrite || widths.customized ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-muted/30 px-3 py-1.5 text-[11px] text-muted-foreground">
+          <span>{edit.canWrite ? "Click a cell to edit. Tab / Shift+Tab move across, Enter or ↑/↓ move down and up, Esc undoes. Changes save when you leave the cell. " : ""}Drag a column&apos;s edge to resize it.</span>
+          {widths.customized ? <button type="button" onClick={widths.resetAll} className="rounded px-1.5 py-0.5 font-medium text-accent transition hover:bg-accent/10">Reset column widths</button> : null}
+        </div>
+      ) : null}
+      <table className="w-full table-fixed border-collapse text-sm" style={{ minWidth: minTable }}>
         <thead className="bg-muted/50 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
           <tr>
             <HeadCheck selection={selection} />
             {reorder && <th className="w-14 px-2 py-2"><span className="sr-only">Reorder</span></th>}
-            <SortableTh label="Job #" sortKey="job_number" state={sortState} className={cn(th, "w-24")} />
-            <SortableTh label="Job name" sortKey="title" state={sortState} className={cn(th, "min-w-[220px]")} />
-            {show("stage") && <SortableTh label="Stage" sortKey="stage" state={sortState} className={cn(th, "w-40")} />}
-            {show("owner") && <SortableTh label="Owner" sortKey="owner" state={sortState} className={cn(th, "w-40")} />}
-            {show("job_type") && <th className={cn(th, "w-40")}>Job type</th>}
-            {show("value") && <SortableTh label="Value" sortKey="value" state={sortState} className={cn(th, "w-32 text-right")} align="right" />}
-            {show("value_low") && <th className={cn(th, "w-32 text-right")}>Est. low</th>}
-            {show("value_high") && <th className={cn(th, "w-32 text-right")}>Est. high</th>}
-            {show("probability") && <th className={cn(th, "w-20 text-right")}>Prob. %</th>}
-            {show("close") && <SortableTh label="Close" sortKey="close" state={sortState} className={cn(th, "w-36")} />}
-            {show("source") && <th className={cn(th, "w-36")}>Source</th>}
-            {show("next_action") && <th className={cn(th, "min-w-[180px]")}>Next action</th>}
-            {show("due") && <th className={cn(th, "w-36")}>Due</th>}
+            <SortableTh label="Job #" sortKey="job_number" state={sortState} className={th} style={w("job_number")} extra={handle("job_number", "Job #")} />
+            <SortableTh label="Job name" sortKey="title" state={sortState} className={th} style={w("title")} extra={handle("title", "Job name")} />
+            {show("stage") && <SortableTh label="Stage" sortKey="stage" state={sortState} className={th} style={w("stage")} extra={handle("stage", "Stage")} />}
+            {show("owner") && <SortableTh label="Owner" sortKey="owner" state={sortState} className={th} style={w("owner")} extra={handle("owner", "Owner")} />}
+            {show("job_type") && plainTh("job_type", "Job type")}
+            {show("value") && <SortableTh label="Value" sortKey="value" state={sortState} className={cn(th, "text-right")} align="right" style={w("value")} extra={handle("value", "Value")} />}
+            {show("value_low") && plainTh("value_low", "Est. low", true)}
+            {show("value_high") && plainTh("value_high", "Est. high", true)}
+            {show("probability") && plainTh("probability", "Prob. %", true)}
+            {show("close") && <SortableTh label="Close" sortKey="close" state={sortState} className={th} style={w("close")} extra={handle("close", "Close")} />}
+            {show("source") && plainTh("source", "Source")}
+            {show("next_action") && plainTh("next_action", "Next action")}
+            {show("due") && plainTh("due", "Due")}
             <th className="w-9 border-b border-border px-1 py-2"><span className="sr-only">Open</span></th>
             <th className="w-10 border-b border-border px-3 py-2"><span className="sr-only">Actions</span></th>
           </tr>
@@ -806,7 +835,7 @@ function TableView({ deals, ownerName, onOpen, renderActions, reorder, sortState
                 <td className={cn(td, "font-mono text-[11px]")}>
                   {edit.rename && d.job_number
                     ? <SheetInput {...base} col={12} label={`Job number, ${d.title}`} value={d.job_number} save={(raw) => edit.rename!(d.id, raw.trim(), dealName(d))} placeholder="26_058" />
-                    : <span className="px-2 text-muted-foreground">{d.job_number ?? "—"}</span>}
+                    : <span className="block truncate px-2 text-muted-foreground">{d.job_number ?? "—"}</span>}
                 </td>
                 <td className={td}>
                   {edit.rename && d.job_number
@@ -814,7 +843,7 @@ function TableView({ deals, ownerName, onOpen, renderActions, reorder, sortState
                     : <SheetInput {...base} col={0} label={`Deal name, ${d.title}`} value={d.title ?? ""} save={async (raw) => (raw.trim() ? edit.patch(d.id, { title: raw.trim() }) : "A deal needs a name.")} />}
                 </td>
                 {show("stage") && <td className={td}><SheetSelect {...base} col={1} label="Stage" value={d.stage} options={STAGE_OPTIONS} save={(raw) => edit.setStage(d.id, raw as DealStage)} /></td>}
-                {show("owner") && <td className={td}>{ro ? <span className="px-2 text-muted-foreground">{ownerName(d.owner_id)}</span> : <SheetSelect {...base} col={2} label="Owner" value={d.owner_id ?? ""} options={ownerOptions} save={(raw) => edit.patch(d.id, { owner_id: raw || null })} />}</td>}
+                {show("owner") && <td className={td}>{ro ? <span className="block truncate px-2 text-muted-foreground">{ownerName(d.owner_id)}</span> : <SheetSelect {...base} col={2} label="Owner" value={d.owner_id ?? ""} options={ownerOptions} save={(raw) => edit.patch(d.id, { owner_id: raw || null })} />}</td>}
                 {show("job_type") && <td className={td}><SheetSelect {...base} col={3} label="Job type" value={d.job_type ?? ""} options={JOB_TYPE_OPTIONS} save={(raw) => edit.patch(d.id, { job_type: raw || null })} /></td>}
                 {show("value") && <td className={td}><SheetInput {...base} col={4} label="Value" type="number" align="right" value={d.estimated_value == null ? "" : String(d.estimated_value)} save={num(d, "estimated_value")} placeholder="$" /></td>}
                 {show("value_low") && <td className={td}><SheetInput {...base} col={10} label="Estimated low" type="number" align="right" value={d.estimated_low_value == null ? "" : String(d.estimated_low_value)} save={num(d, "estimated_low_value")} placeholder="$" /></td>}
