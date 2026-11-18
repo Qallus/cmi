@@ -22,7 +22,7 @@ import { DealActions, ShareDialog } from "./deal-actions";
 import { BulkBar } from "./bulk-bar";
 import type { CellEdit } from "./editable-cells";
 import { SheetInput, SheetSelect } from "./sheet-cells";
-import { ResizeHandle, useColumnWidths } from "./column-resize";
+import { ResizeHandle, useColumnWidths, useElementWidth } from "./column-resize";
 import { PIPELINE_ORDER_KEY } from "@/lib/deals/order";
 import { DuplicateWarning, useDuplicateCheck } from "@/components/contacts/duplicate-warning";
 import { ViewOptions, ViewSwitcher, useColumnPrefs, type ColumnDef } from "@/components/ui/view-options";
@@ -754,10 +754,11 @@ function ListView({ deals, ownerName, onOpen, renderActions, reorder, sortState,
 // ─── Table view (a spreadsheet: edit in place, Tab between cells) ──
 const SOURCE_OPTIONS = [{ value: "", label: "—" }, ...DEAL_SOURCES.map((s) => ({ value: s, label: s.replace(/_/g, " ") }))];
 const JOB_TYPE_OPTIONS = [{ value: "", label: "—" }, ...JOB_TYPES.map((t) => ({ value: t, label: t }))];
-// Starting widths (px) for the Table view's resizable columns. "title" (Job
-// name) is left out on purpose: it takes the space the others leave.
+// Starting widths (px) for the Table view's resizable columns. They're also
+// the proportions: when there's spare room every column grows by the same
+// factor, so hiding columns widens all the rest rather than just Job name.
 const TABLE_COL_WIDTHS: Record<string, number> = {
-  job_number: 96, stage: 160, owner: 160, job_type: 168, value: 128, value_low: 128, value_high: 128,
+  job_number: 96, title: 240, stage: 160, owner: 160, job_type: 168, value: 128, value_low: 128, value_high: 128,
   probability: 88, close: 144, source: 144, next_action: 220, due: 144,
 };
 const TABLE_COL_ORDER: TableCol[] = ["stage", "owner", "job_type", "value", "value_low", "value_high", "probability", "close", "source", "next_action", "due"];
@@ -782,27 +783,29 @@ function TableView({ deals, ownerName, onOpen, renderActions, reorder, sortState
   };
   const th = "relative border-b border-r border-border px-2 py-2 font-medium last:border-r-0";
   const td = "border-b border-r border-border p-0 align-middle";
-  // Resizable columns: fixed layout, so a column is exactly as wide as set.
-  // "Job name" has no default and takes whatever space is left, at least 220px.
+  // Resizable columns, fixed layout: each column gets an exact pixel width.
+  // Resized columns keep their width; the rest share the spare room in
+  // proportion; if they don't fit, the table scrolls sideways.
   const widths = useColumnWidths("cmi:pipeline:table-widths", TABLE_COL_WIDTHS);
+  const [box, boxWidth] = useElementWidth<HTMLDivElement>();
   const shownKeys: string[] = ["job_number", "title", ...TABLE_COL_ORDER.filter((k) => show(k))];
-  const minTable = (selection ? 32 : 0) + (reorder ? 56 : 0) + 36 + 40
-    + shownKeys.reduce((sum, k) => sum + (widths.width(k) ?? 220), 0);
-  const w = (k: string): React.CSSProperties | undefined => { const px = widths.width(k); return px ? { width: px } : undefined; };
+  const fixedPx = (selection ? 32 : 0) + (reorder ? 56 : 0) + 36 + 40; // checkbox, reorder, open, actions
+  const sized = widths.layout(shownKeys, boxWidth > 0 ? Math.max(0, boxWidth - fixedPx) : 0);
+  const w = (k: string): React.CSSProperties => ({ width: sized.widths[k] });
   const handle = (k: string, label: string) => <ResizeHandle col={k} label={label} widths={widths} />;
   // A plain (unsortable) header with a resize handle.
   const plainTh = (k: TableCol, label: string, right?: boolean) => (
     <th className={cn(th, right && "text-right")} style={w(k)}>{label}{handle(k, label)}</th>
   );
   return (
-    <div className="relative overflow-x-auto rounded-lg border border-border" data-sheet>
+    <div ref={box} className="relative overflow-x-auto rounded-lg border border-border" data-sheet>
       {edit.canWrite || widths.customized ? (
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-muted/30 px-3 py-1.5 text-[11px] text-muted-foreground">
           <span>{edit.canWrite ? "Click a cell to edit. Tab / Shift+Tab move across, Enter or ↑/↓ move down and up, Esc undoes. Changes save when you leave the cell. " : ""}Drag a column&apos;s edge to resize it.</span>
           {widths.customized ? <button type="button" onClick={widths.resetAll} className="rounded px-1.5 py-0.5 font-medium text-accent transition hover:bg-accent/10">Reset column widths</button> : null}
         </div>
       ) : null}
-      <table className="w-full table-fixed border-collapse text-sm" style={{ minWidth: minTable }}>
+      <table className="table-fixed border-collapse text-sm" style={{ width: sized.total + fixedPx }}>
         <thead className="bg-muted/50 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
           <tr>
             <HeadCheck selection={selection} />
