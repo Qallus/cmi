@@ -37,9 +37,14 @@ export class DealContactError extends Error {
   constructor(message: string, public status = 400) { super(message); }
 }
 
-/** The contacts.type a new person gets, from their role on the deal. */
+/**
+ * The contacts.type a new person gets, from their role on the deal. Someone on
+ * a deal is past the lead stage, so a homeowner starts as a Prospect (the
+ * database also promotes existing Leads when they're linked: migration
+ * 2026-11-20_promote_linked_leads.sql).
+ */
 function contactTypeFor(role: string | null | undefined): string {
-  if (role === "Homeowner") return "Lead";
+  if (role === "Homeowner") return "Prospect";
   if (role === "Designer" || role === "Architect") return "Designer";
   return "Other";
 }

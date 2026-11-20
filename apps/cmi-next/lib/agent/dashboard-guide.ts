@@ -55,6 +55,7 @@ export const DASHBOARD_GUIDE: GuideEntry[] = [
       "Add a contact: Contacts → Add Contact → fill in name, email, phone, type → Save.",
       "Sort contacts: in the Table view click any column header (Name, Email, Company, Lead Owner, Status, …); click again to reverse. Choose columns with View options (right of the filters; Reset to default), and switch views with the icons on the far right.",
       "See leads: Contacts → the Leads tab.",
+      "Why a lead left the Leads tab: a Lead becomes a Prospect when they're put on a Pipeline deal or a Pre-Con record (a Designer if their role there is Designer or Architect), and a Client when they're put on a Job. This happens automatically, even for lost or on-hold deals, and never moves anyone backward. Find them under the Prospects, Designers or Clients tab.",
       "Assign a contact to an existing deal: open the contact → Pipeline deals → Assign to Pipeline → pick the deal and their role → Assign.",
       "Start a new deal from a contact: open the contact → More (…) → + Pipeline.",
       "Row actions: the ⋯ at the end of any contact row → Open, Copy link, Email, SMS, Message a teammate (sends them the contact card), Duplicate, Archive / Restore, Delete (Super Admin / Admin; permanent — Archive is reversible).",
