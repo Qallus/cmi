@@ -165,7 +165,7 @@ const READ_TOOLS: Omit<McpTool, "risk">[] = [
   {
     name: "cmi_list_pipeline",
     title: "Sales pipeline",
-    description: "The sales pipeline: early deals (New → Contacted → Qualified → Opportunity → Proposal → Negotiation → Closed Won/Lost) and Pre-Con projects after Closed Won. Optional stage and keyword filters.",
+    description: "The sales pipeline: early deals (New → Contacted → Qualified → Opportunity → Proposal → Negotiation → Closed Won/Lost) and Pre-Con projects after Closed Won. Optional stage and keyword filters. Archived deals are left out; find those with cmi_list_archived_deals.",
     inputSchema: () => obj({ stage: str("Deal or Pre-Con stage"), search: str("Keywords"), limit: int("Max rows per list (default 25)") }),
     run: async (a, c) => {
       const limit = Math.min(Number(a.limit) || 25, 100);

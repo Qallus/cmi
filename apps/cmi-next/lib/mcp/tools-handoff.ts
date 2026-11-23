@@ -21,6 +21,7 @@ import type { DealStage } from "@/lib/deals/types";
 import { convertSubmissionToContact, convertSubmissionToDeal, convertSubmissionToLead } from "@/lib/contact-submissions/data";
 import { createQuote } from "@/lib/quotes/data";
 import { WRITE_ROLES } from "@/lib/records-io/fields";
+import { findArchivedDeals } from "@/lib/agent/deal-archive";
 import type { McpCaller } from "./auth";
 import type { Preview } from "./actions";
 import { resolveJobId } from "./tools-crm";
@@ -286,9 +287,18 @@ const dealTools: McpTool[] = [
     run: async (a, c) => { const d = await duplicateDeal(s(a.deal_id), actorOf(c)); return { result: { deal: d }, entity: "deal", recordId: d.id, after: d }; },
   },
   {
+    name: "cmi_list_archived_deals",
+    title: "Find archived deals",
+    description: "Archived Pipeline deals, newest archive first, with who archived each and when. Optional search by title or number (e.g. \"26_048\" or \"Owen\"). Archived deals don't appear in cmi_list_pipeline; use this when a deal went missing or was archived by mistake, then cmi_deal_unarchive to bring it back.",
+    risk: "read",
+    available: dealWrite,
+    inputSchema: () => obj({ search: str("Part of the deal title or number"), limit: { type: "integer", description: "Max rows (default 10, max 50)" } }),
+    run: async (a) => ({ result: await findArchivedDeals({ search: a.search, limit: a.limit }) }),
+  },
+  {
     name: "cmi_deal_unarchive",
     title: "Restore an archived deal",
-    description: "Bring an archived deal back onto the Pipeline.",
+    description: "Bring an archived deal back onto the Pipeline at the stage it was in, with its contacts, activity and tasks. Find the id with cmi_list_archived_deals.",
     risk: "write",
     available: dealWrite,
     inputSchema: () => obj({ deal_id: str("Deal id") }, ["deal_id"]),
