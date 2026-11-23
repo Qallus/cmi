@@ -108,8 +108,9 @@ export const DASHBOARD_GUIDE: GuideEntry[] = [
       "Table view works like a spreadsheet: click a cell and type (deal name, stage, owner, job type, value, probability, close date, source, next action and due date). Tab / Shift+Tab move across, Enter or ↑/↓ move down and up, Esc undoes; each change saves when you leave the cell. Drag a column header's right edge to make that column wider or narrower; double-click the edge to put that column back, or click Reset column widths above the table for all of them. The columns always fill the table: hiding a column widens all the others in proportion, a column you resized keeps its width, and when the columns don't fit the table scrolls sideways. Widths are remembered in this browser.",
       "Find a won deal: it leaves the Pipeline and lives in Pre-Con (Sidebar → Jobs → Pre-Con). On the kanban, drag a card onto Closed Won to send it there.",
       "Add a task: open the deal → Tasks → Add Task (the assignee gets an email with the deal, job number and due date).",
+      "Restore an archived deal (e.g. archived by mistake): Pipeline → the filter button → Archived → turn on Show archived deals → the deal's ⋯ menu → Restore (or tick several and use Restore in the bulk bar). It comes back at the same stage with everything kept. Bolt can also do it: ask \"restore 26_048\" or \"what deals were archived today?\".",
     ],
-    keywords: ["pipeline", "deals", "sales", "crm", "opportunity", "stage", "closed won", "deal contacts", "tasks", "follow up"],
+    keywords: ["pipeline", "deals", "sales", "crm", "opportunity", "stage", "closed won", "deal contacts", "tasks", "follow up", "archive", "archived", "restore", "unarchive"],
   },
   {
     id: "precon", name: "Pre-Con", path: "/dashboard/sales", nav: "Sidebar → Jobs → Pre-Con (just above Jobs Map)",

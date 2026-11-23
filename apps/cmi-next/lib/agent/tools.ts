@@ -18,6 +18,7 @@ import { isFeatureEnabled } from "@/lib/flags";
 import { canUseProjections, PROJECTIONS_FLAG } from "@/lib/projections/access";
 import { loadBoard } from "@/lib/projections/data";
 import { monthLabel } from "@/lib/projections/calc";
+import { FIND_ARCHIVED_DEALS_DEF, RESTORE_DEAL_DEF, dealArchiveAllowed, findArchivedDeals, restoreDeal } from "./deal-archive";
 
 const entityEnum = ENTITIES.map((e) => e.key);
 
@@ -206,6 +207,7 @@ async function projectionsAllowed(ctx: StaffContext): Promise<boolean> {
 // Tool list for this staff member (adds role-gated tools).
 export async function toolDefsFor(ctx: StaffContext): Promise<any[]> {
   const defs = canWritePunch(ctx.role) ? [...TOOL_DEFS, PUNCH_TOOL_DEF] : [...TOOL_DEFS];
+  if (dealArchiveAllowed(ctx)) defs.push(FIND_ARCHIVED_DEALS_DEF, RESTORE_DEAL_DEF);
   return (await projectionsAllowed(ctx)) ? [...defs, PROJECTIONS_TOOL_DEF] : defs;
 }
 
@@ -252,6 +254,18 @@ export async function dispatchTool(name: string, args: Record<string, unknown>, 
       case "get_projections_summary": {
         if (!(await projectionsAllowed(ctx))) return { result: { error: "Projections are available to Admins only." }, activity: act("Projections: not permitted", false) };
         return { result: await projectionsSummary(), activity: act("Loaded the revenue forecast (Projections)") };
+      }
+
+      case "find_archived_deals": {
+        if (!dealArchiveAllowed(ctx)) return { result: { error: `Your role (${ctx.role}) can't manage Pipeline deals.` }, activity: act("Archived deals: not permitted", false) };
+        const r = await findArchivedDeals(args);
+        return { result: r, activity: act(`Found ${r.total} archived deal(s)`) };
+      }
+
+      case "restore_deal": {
+        if (!dealArchiveAllowed(ctx)) return { result: { error: `Your role (${ctx.role}) can't restore deals.` }, activity: act("Restore deal: not permitted", false) };
+        const r = await restoreDeal(String(args.deal_id ?? ""), ctx);
+        return { result: r, activity: act("error" in r ? String(r.error) : r.message, !("error" in r)) };
       }
 
       case "get_job_overview": {
