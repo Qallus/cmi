@@ -1,4 +1,5 @@
 import { EMAIL_DEFAULTS, LIST_MARKERS, type EmailBlock, type EmailSettings, type ColumnItem, type ListStyle } from "./types";
+import { heroRowsHtml } from "./hero";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://my.constructedmatter.com";
 
@@ -211,6 +212,9 @@ function renderBlock(block: EmailBlock): string {
   </table>
 </td></tr>`;
     }
+
+    case "hero":
+      return heroRowsHtml(block, APP_URL);
 
     case "list": {
       const pad = tdPad(block, 8, 40, 16);

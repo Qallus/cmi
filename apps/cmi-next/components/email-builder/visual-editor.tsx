@@ -4,7 +4,7 @@ import * as React from "react";
 import {
   GripVertical, Trash2, Plus, Type, AlignLeft, MousePointerClick,
   ImageIcon, Minus, SeparatorHorizontal, PanelBottom, LayoutTemplate,
-  Columns2, Upload as UploadIcon, Code2, List as ListIcon, Settings2, X as XIcon,
+  Columns2, Upload as UploadIcon, Code2, List as ListIcon, Settings2, X as XIcon, Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -15,11 +15,14 @@ import { blocksToHtml } from "./renderer";
 import { DynamicFieldsBar } from "@/components/ui/dynamic-fields-bar";
 import { useResizablePane } from "@/components/ui/resizable-pane";
 import { EmailPreview } from "./email-preview";
+import { heroInnerHtml } from "./hero";
+import { EVENT_THEMES } from "@/lib/events/themes";
 
 // -- Palette -------------------------------------------------------------------
 
 const PALETTE: { type: BlockType; label: string; icon: React.ElementType; desc: string }[] = [
   { type: "header",  label: "Header",   icon: LayoutTemplate,      desc: "Logo / brand bar" },
+  { type: "hero",    label: "Hero",     icon: Sparkles,            desc: "Animated banner with title" },
   { type: "columns", label: "Columns",  icon: Columns2,            desc: "2 or 3 column layout" },
   { type: "heading", label: "Heading",  icon: Type,                desc: "H1, H2 or H3 title" },
   { type: "text",    label: "Text",     icon: AlignLeft,           desc: "Body paragraph" },
@@ -61,6 +64,13 @@ function defaultBlock(type: BlockType): Omit<EmailBlock, "id"> {
       color: "#4b5563", font_size: 15, marker_color: "#C87A3A", item_spacing: 8,
     };
     case "html":    return { type, html: "<p style=\"font-family:Arial,sans-serif;font-size:15px;color:#111;\">Your custom HTML here.</p>" };
+    case "hero":    return {
+      type, hero_image: `${APP_URL}/events/themes/snowfall.gif`, bg_color: "#1b1b1b", logo_url: `${APP_URL}/brand/cmi_line_logo_white.png`, logo_width: 150,
+      eyebrow: "Constructed Matter · You're invited", text: "Your Event 2026", title_accent: "2026",
+      accent_color: "#e0392b", color: "#ffffff", muted_color: "#b89a74", align: "left",
+      hero_facts: [{ label: "When", value: "Friday, December 18 · 6:00 – 9:00 PM" }, { label: "Where", value: "Venue name" }],
+      stripe: ["#e0392b", "#b89a74", "#2f5a45"],
+    };
     case "footer":  return { type, company: "Constructed Matter, Inc.", address: "7314 E Osborn Dr Suite A - Scottsdale, AZ 85251", disclaimer: "If you weren't expecting this email, you can safely ignore it." };
     case "columns": return {
       type, col_count: 3,
@@ -184,6 +194,19 @@ function BlockPreview({ block }: { block: EmailBlock }) {
       );
     case "spacer":
       return <div style={{ height: block.height ?? 24, background: "repeating-linear-gradient(45deg,#f9f9f9,#f9f9f9 4px,#f3f4f6 4px,#f3f4f6 8px)" }} />;
+    case "hero": {
+      const origin = typeof window !== "undefined" ? window.location.origin : "";
+      const img = block.hero_image?.trim();
+      return (
+        <div>
+          <div
+            style={{ backgroundColor: block.bg_color ?? "#1b1b1b", backgroundImage: img ? `url("${img}")` : undefined, backgroundSize: "cover", backgroundPosition: "center", padding: "28px 32px 32px" }}
+            dangerouslySetInnerHTML={{ __html: heroInnerHtml(block, origin) }}
+          />
+          {block.stripe?.length ? <div style={{ display: "flex", height: 5 }}>{block.stripe.map((c, i) => <span key={i} style={{ flex: 1, background: c }} />)}</div> : null}
+        </div>
+      );
+    }
     case "html":
       return block.html?.trim()
         ? <div style={{ padding: previewPad(block, 8, 24, 8) }} dangerouslySetInnerHTML={{ __html: stripScripts(block.html) }} />
@@ -553,6 +576,35 @@ function BlockSettings({ block, onChange, onDelete }: {
         </NumberRow>
         <ColorField label="Bar Background" value={s.bg_color ?? "#111111"} onChange={v => onChange({ bg_color: v })} />
         <p className="text-[11px] leading-relaxed text-muted-foreground">Spacing around the bar is under Section below.</p>
+      </>}
+
+      {/* Hero */}
+      {s.type === "hero" && <>
+        <Field label="Theme">
+          <select className={inputCls} value="" onChange={e => {
+            const t = EVENT_THEMES.find(x => x.id === e.target.value);
+            if (!t) return;
+            const origin = typeof window !== "undefined" ? window.location.origin : "";
+            const solid = t.heroBg.match(/#[0-9a-f]{6}/i)?.[0] ?? "#111111";
+            onChange({ hero_image: `${origin}/events/themes/${t.id}.gif`, bg_color: solid, accent_color: t.accent, muted_color: t.heroMuted, color: t.heroInk, stripe: [...t.stripe] });
+          }}>
+            <option value="">Apply a theme…</option>
+            {EVENT_THEMES.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+        </Field>
+        <Field label="Background image or GIF"><ImageInput value={s.hero_image ?? ""} onChange={v => onChange({ hero_image: v })} placeholder="Image/GIF URL or upload" /></Field>
+        <p className="text-[11px] leading-relaxed text-muted-foreground">Animated GIFs play in Gmail, Apple Mail and most phones. Outlook for Windows shows the fallback colour instead.</p>
+        <ColorField label="Fallback Colour" value={s.bg_color ?? "#1b1b1b"} onChange={v => onChange({ bg_color: v })} />
+        <Field label="Eyebrow"><input className={inputCls} value={s.eyebrow ?? ""} onChange={e => onChange({ eyebrow: e.target.value })} /></Field>
+        <Field label="Title"><input className={inputCls} value={s.text ?? ""} onChange={e => onChange({ text: e.target.value })} /></Field>
+        <Field label="Accent words in the title"><input className={inputCls} value={s.title_accent ?? ""} onChange={e => onChange({ title_accent: e.target.value })} placeholder="2026" /></Field>
+        <ColorField label="Accent Colour" value={s.accent_color ?? "#e0392b"} onChange={v => onChange({ accent_color: v })} />
+        <ColorField label="Text Colour" value={s.color ?? "#ffffff"} onChange={v => onChange({ color: v })} />
+        <Field label="Facts (label | value, one per line)">
+          <HeroFactsField key={s.id} facts={s.hero_facts} onChange={facts => onChange({ hero_facts: facts })} />
+        </Field>
+        <Field label="Logo"><ImageInput value={s.logo_url ?? ""} onChange={v => onChange({ logo_url: v })} placeholder="Logo URL (white logo)" /></Field>
+        <Field label="Align"><AlignButtons value={s.align ?? "left"} onChange={v => onChange({ align: v as "left"|"center"|"right" })} /></Field>
       </>}
 
       {/* Heading */}
@@ -974,5 +1026,22 @@ export function VisualEditor({ blocks, onChange, pageWidth, settings, onSettings
         />
       )}
     </div>
+  );
+}
+
+// Typed as "Label | Value" lines. Keeps its own text so the cursor doesn't jump
+// while a line is half-written.
+function HeroFactsField({ facts, onChange }: { facts?: { label: string; value: string }[]; onChange: (f: { label: string; value: string }[]) => void }) {
+  const [text, setText] = React.useState(() => (facts ?? []).map(f => `${f.label} | ${f.value}`).join("\n"));
+  return (
+    <textarea
+      className={cn(inputCls, "min-h-[80px] resize-y")}
+      value={text}
+      onChange={e => {
+        setText(e.target.value);
+        onChange(e.target.value.split("\n").filter(l => l.trim()).map(l => { const [label, ...rest] = l.split("|"); return { label: (label ?? "").trim(), value: rest.join("|").trim() }; }));
+      }}
+      placeholder={"When | Friday, Dec 18 · 6–9 PM\nWhere | Rokerij, Phoenix"}
+    />
   );
 }

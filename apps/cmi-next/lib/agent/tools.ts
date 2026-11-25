@@ -19,6 +19,7 @@ import { canUseProjections, PROJECTIONS_FLAG } from "@/lib/projections/access";
 import { loadBoard } from "@/lib/projections/data";
 import { monthLabel } from "@/lib/projections/calc";
 import { FIND_ARCHIVED_DEALS_DEF, RESTORE_DEAL_DEF, dealArchiveAllowed, findArchivedDeals, restoreDeal } from "./deal-archive";
+import { EVENT_TOOL_DEFS, eventToolsAllowed, runEventTool } from "./event-tools";
 
 const entityEnum = ENTITIES.map((e) => e.key);
 
@@ -208,6 +209,7 @@ async function projectionsAllowed(ctx: StaffContext): Promise<boolean> {
 export async function toolDefsFor(ctx: StaffContext): Promise<any[]> {
   const defs = canWritePunch(ctx.role) ? [...TOOL_DEFS, PUNCH_TOOL_DEF] : [...TOOL_DEFS];
   if (dealArchiveAllowed(ctx)) defs.push(FIND_ARCHIVED_DEALS_DEF, RESTORE_DEAL_DEF);
+  if (await eventToolsAllowed(ctx)) defs.push(...EVENT_TOOL_DEFS);
   return (await projectionsAllowed(ctx)) ? [...defs, PROJECTIONS_TOOL_DEF] : defs;
 }
 
@@ -254,6 +256,15 @@ export async function dispatchTool(name: string, args: Record<string, unknown>, 
       case "get_projections_summary": {
         if (!(await projectionsAllowed(ctx))) return { result: { error: "Projections are available to Admins only." }, activity: act("Projections: not permitted", false) };
         return { result: await projectionsSummary(), activity: act("Loaded the revenue forecast (Projections)") };
+      }
+
+      case "list_events":
+      case "get_event_rsvps":
+      case "create_event_draft":
+      case "record_event_rsvp": {
+        const r = await runEventTool(name, args, ctx);
+        const ok = !("error" in r);
+        return { result: r, activity: act(ok ? `Events: ${name.replace(/_/g, " ")}` : String(r.error), ok) };
       }
 
       case "find_archived_deals": {

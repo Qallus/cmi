@@ -9,7 +9,7 @@ import { ClipboardCheck,
   ArrowLeft, BookOpen, BriefcaseBusiness, CalendarClock, CalendarRange, Cloud,
   CreditCard, FileText, FolderKanban, HardHat, Home, IdCard, Inbox, LayoutDashboard, LayoutGrid,
   BarChart3, FileBarChart, HandshakeIcon,
-  Megaphone, MessageCircle, MessagesSquare, Mic, Minus, Newspaper, Package, Plus, Settings, ShieldCheck,
+  Megaphone, MessageCircle, MessagesSquare, Mic, Minus, Newspaper, Package, PartyPopper, Plus, Settings, ShieldCheck,
   ListChecks, Ruler, Sparkles, SquarePen, Sun, NotebookPen, TrendingUp, User, UserRoundCog, Users, Workflow,
 } from "lucide-react";
 
@@ -71,7 +71,12 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard/take-off",       label: "Take-Off",       icon: Ruler, roles: ["super_admin", "admin", "project_manager", "staff", "estimator"], flag: "take_off" },
   { href: "/dashboard/cloud",          label: "Cloud",          icon: Cloud,          roles: ["super_admin", "admin", "project_manager", "estimator", "superintendent", "designer", "staff"] },
   { href: "/dashboard/billing",        label: "Billing",        icon: CreditCard,     roles: ["super_admin", "admin", "estimator", "client"] },
-  { href: "/dashboard/bookings",       label: "Bookings",       icon: CalendarRange,  roles: ["super_admin", "admin", "project_manager", "estimator", "client"] },
+  {
+    href: "/dashboard/bookings",       label: "Bookings",       icon: CalendarRange,  roles: ["super_admin", "admin", "project_manager", "estimator", "client"],
+    children: [
+      { href: "/dashboard/events",       label: "Events",         icon: PartyPopper, roles: ["super_admin", "admin", "project_manager", "estimator"], flag: "event_invitations" },
+    ],
+  },
   {
     href: "/dashboard/communications", label: "Communications", icon: MessageCircle,  roles: ["super_admin", "admin", "project_manager", "estimator"],
     children: [

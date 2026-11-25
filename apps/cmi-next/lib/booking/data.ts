@@ -44,7 +44,10 @@ export async function loadBookingData(): Promise<BookingData> {
       status: row.status,
       client_name: null
     })),
-    eventPages: eventPages.data || [],
+    // Invitations (Bookings → Events) have their own builder; keep them out of
+    // the registration event list. Filtered here, not in SQL, so this still
+    // works before the event_invitations migration adds the column.
+    eventPages: (eventPages.data || []).filter((page) => (page as { kind?: string }).kind !== "invitation"),
     calendarConnections: calendarConnections.data || []
   };
 }

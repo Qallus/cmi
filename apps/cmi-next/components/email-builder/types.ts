@@ -1,7 +1,7 @@
 export type BlockType =
   | "header" | "heading" | "text" | "button"
   | "image" | "divider" | "spacer" | "footer"
-  | "columns" | "list" | "html";
+  | "columns" | "list" | "html" | "hero";
 
 /** How a list marks its items. `icon` uses whatever character is set. */
 export type ListStyle = "bullet" | "number" | "check" | "dash" | "arrow" | "icon";
@@ -95,6 +95,15 @@ export interface EmailBlock {
   item_spacing?: number;
   // Raw HTML block
   html?: string;
+  // Hero (components/email-builder/hero.ts): background image/GIF over bg_color,
+  // plus logo_url, eyebrow, text (title), title_accent, colours and facts.
+  hero_image?: string;
+  eyebrow?: string;
+  title_accent?: string;
+  accent_color?: string;
+  muted_color?: string;
+  hero_facts?: { label: string; value: string }[];
+  stripe?: string[];
   // Section / spacing overrides (all blocks)
   section_bg?: string;
   pad_top?: number;
