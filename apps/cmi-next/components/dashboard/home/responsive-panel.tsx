@@ -2,7 +2,8 @@
 
 // A slide-out that's a side panel on desktop and a bottom sheet on a phone:
 // CMI's SidePanel (expandable, remembered width) and Drawer. Echo's
-// ResponsivePanel, built on CMI's own pieces.
+// ResponsivePanel, built on CMI's own pieces. On desktop it's resizable: drag
+// the left edge, or expand, and the content adds columns (useSidePanelWidth).
 import * as React from "react";
 import { SidePanel } from "@/components/ui/side-panel";
 import { Drawer } from "@/components/ui/drawer";
@@ -19,8 +20,10 @@ function useIsPhone() {
   return phone;
 }
 
-export function ResponsivePanel({ open, onOpenChange, title, description, footer, children }: {
+export function ResponsivePanel({ open, onOpenChange, title, description, footer, children, storageKey }: {
   open: boolean; onOpenChange: (o: boolean) => void; title: string; description?: string; footer?: React.ReactNode; children: React.ReactNode;
+  /** Remembers this panel's dragged width (desktop). */
+  storageKey?: string;
 }) {
   const phone = useIsPhone();
   if (phone) {
@@ -33,7 +36,7 @@ export function ResponsivePanel({ open, onOpenChange, title, description, footer
   }
   if (!open) return null;
   return (
-    <SidePanel title={title} subtitle={description} onClose={() => onOpenChange(false)} wide footer={footer}>
+    <SidePanel title={title} subtitle={description} onClose={() => onOpenChange(false)} wide footer={footer} resizable storageKey={storageKey}>
       <div className="space-y-4">{children}</div>
     </SidePanel>
   );

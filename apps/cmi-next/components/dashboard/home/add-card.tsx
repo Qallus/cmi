@@ -9,6 +9,7 @@ import { CARDS, CATEGORIES, CATEGORY_ICON, type Category } from "@/lib/dashboard
 import { CARD_TYPES, type CardType, type Layout } from "@/lib/dashboard/layout";
 import { cn } from "@/lib/utils";
 import { ResponsivePanel } from "./responsive-panel";
+import { panelColumns, useSidePanelWidth } from "@/components/ui/side-panel";
 
 export const NEW_SECTION = "__new__";
 
@@ -30,7 +31,7 @@ export function AddCardPanel({ open, onOpenChange, layout, target, onTarget, onA
   });
 
   return (
-    <ResponsivePanel open={open} onOpenChange={onOpenChange}
+    <ResponsivePanel open={open} onOpenChange={onOpenChange} storageKey="add-card"
       title="Add a card" description="Stats, tools, lists, calendars and charts. Move them anywhere with Customize."
       footer={
         <label className="flex items-center gap-2 text-sm">
@@ -60,7 +61,7 @@ export function AddCardPanel({ open, onOpenChange, layout, target, onTarget, onA
         })}
       </div>
       {list.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">No card matches.</p>}
-      <div className="grid gap-2">
+      <CardGrid>
         {list.map((t) => {
           const m = CARDS[t];
           const on = placed.get(t);
@@ -84,7 +85,13 @@ export function AddCardPanel({ open, onOpenChange, layout, target, onTarget, onA
             </div>
           );
         })}
-      </div>
+      </CardGrid>
     </ResponsivePanel>
   );
+}
+
+// More columns as the panel widens (one when narrow).
+function CardGrid({ children }: { children: React.ReactNode }) {
+  const cols = panelColumns(useSidePanelWidth(), 300);
+  return <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>{children}</div>;
 }

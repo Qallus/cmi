@@ -9,6 +9,7 @@ import { useMemo, useState } from "react";
 import { Check, ChevronDown, Copy, ExternalLink, Search } from "lucide-react";
 import { FEATURE_GROUPS, featureCatalog, visibleFeatures, type Feature } from "@/lib/features/catalog";
 import { cn } from "@/lib/utils";
+import { panelColumns, useSidePanelWidth } from "@/components/ui/side-panel";
 import { ResponsivePanel } from "./responsive-panel";
 
 export function FeatureMenu({ open, onOpenChange, role, flags, appUrl }: {
@@ -20,8 +21,19 @@ export function FeatureMenu({ open, onOpenChange, role, flags, appUrl }: {
   const close = () => { onOpenChange(false); setQ(""); };
 
   return (
-    <ResponsivePanel open={open} onOpenChange={(o) => (o ? onOpenChange(true) : close())}
-      title="All features" description="Everything CMI can do, and where to find it.">
+    <ResponsivePanel open={open} onOpenChange={(o) => (o ? onOpenChange(true) : close())} storageKey="all-features"
+      title="All features" description="Everything CMI can do, and where to find it. Drag the left edge to widen.">
+      <FeatureList list={list} q={q} setQ={setQ} onGo={close} />
+    </ResponsivePanel>
+  );
+}
+
+// Inside the panel, so it can read the panel's width and add columns.
+function FeatureList({ list, q, setQ, onGo }: { list: Feature[]; q: string; setQ: (v: string) => void; onGo: () => void }) {
+  const cols = panelColumns(useSidePanelWidth());
+  const close = onGo;
+  return (
+    <>
       <div className="relative">
         <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search features" aria-label="Search features"
@@ -34,13 +46,13 @@ export function FeatureMenu({ open, onOpenChange, role, flags, appUrl }: {
         return (
           <section key={g} className="space-y-2">
             <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{g}</h3>
-            <div className="grid gap-2 sm:grid-cols-2">
+            <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
               {items.map((f) => <FeatureTile key={`${f.group}-${f.title}`} f={f} onGo={close} />)}
             </div>
           </section>
         );
       })}
-    </ResponsivePanel>
+    </>
   );
 }
 
@@ -63,7 +75,7 @@ function FeatureTile({ f, onGo }: { f: Feature; onGo: () => void }) {
   const [copied, setCopied] = useState(false);
   if (f.steps) {
     return (
-      <div className={cn("rounded-xl border border-border bg-card sm:col-span-2", openSteps && "ring-1 ring-accent/40")}>
+      <div className={cn("rounded-xl border border-border bg-card", openSteps && "ring-1 ring-accent/40")} style={openSteps ? { gridColumn: "1 / -1" } : undefined}>
         <button type="button" onClick={() => setOpenSteps((v) => !v)} aria-expanded={openSteps} className={cn(tile, "w-full border-0")}>
           <TileBody f={f} trailing={<ChevronDown className={cn("ml-auto size-4 text-muted-foreground transition-transform", openSteps && "rotate-180")} />} />
         </button>
