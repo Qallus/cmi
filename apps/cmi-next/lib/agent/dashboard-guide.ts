@@ -37,8 +37,18 @@ export const DASHBOARD_GUIDE: GuideEntry[] = [
   // ── Everyday ──
   {
     id: "overview", name: "Overview", path: "/dashboard/overview", nav: "Sidebar → Overview",
-    summary: "A snapshot of the business: counts of contacts, projects, bookings, quotes, leads, documents and staff, recent activity, the revenue outlook and quick actions.",
-    keywords: ["overview", "home", "dashboard", "snapshot", "stats", "summary"],
+    summary: "Your own dashboard. When the customizable Overview is on (dashboard_v2): sections of cards you can drag into place, resize, hide and add, saved to your account. Standard has Get started, Search and status (search, All features, date and time, weather), Notifications (AI agents, next up, job alerts, latest notifications), My Tasks, Stats (calls, SMS, bookings, calendar, notifications, messages, alerts, emails, files), What's new and the company overview. Otherwise it's the classic snapshot: company counts, recent activity, the revenue outlook and quick actions.",
+    steps: [
+      "Start: the first time, pick Standard (everything laid out) or Blank (pick a focus and only the cards you want). ⋯ → Reset to Standard or Start from Blank switches later.",
+      "Add a card: Add card → search or pick a category → + . Choose which section it goes in at the bottom of the panel.",
+      "Move things: Customize → drag a card or a whole section by its handle; set a card's size from its menu; hide or remove it. Done saves. Each section can be a sliding row or a grid.",
+      "Hide: the eye icon on a section header hides that section; hover a card for its hide button. ⋯ lists what's hidden so you can show it again.",
+      "All features: the All features card (or ⋯ → All features) opens a panel listing every CMI feature you can use, with search; each one links to its page. The Claude connector entry shows how to connect Claude.",
+      "My Tasks: one sliding row of your due tasks (overdue, today, this week) from deals, schedules, punch lists and reports.",
+      "Tools you can add: dialpad (desktop, office line), recorder, notepad, to-do list with reminders, Ask Bolt, quick links, calendar, charts.",
+      "Company default (Super Admin): ⋯ → Make this the company default, or Settings → Dashboard. What's New entries are written in Settings → Dashboard.",
+    ],
+    keywords: ["overview", "home", "dashboard", "snapshot", "stats", "summary", "customize", "add card", "widgets", "all features", "my tasks", "weather", "what's new", "drag"],
   },
   {
     id: "today", name: "Today page & Morning Briefing", path: "/dashboard/today", nav: "Sidebar → Today",

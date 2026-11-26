@@ -23,7 +23,7 @@ function getSpeechCtor(): (new () => SpeechRec) | null {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
-export function BoltModal({ context, jobId, onClose }: { context?: string; jobId?: string | null; onClose: () => void }) {
+export function BoltModal({ context, jobId, onClose, initialPrompt }: { context?: string; jobId?: string | null; onClose: () => void; /** Sent once on open (the Overview's Ask Bolt card). */ initialPrompt?: string }) {
   const [messages, setMessages] = React.useState<Msg[]>([]);
   const [input, setInput] = React.useState("");
   const [loading, setLoading] = React.useState(false);
@@ -77,6 +77,14 @@ export function BoltModal({ context, jobId, onClose }: { context?: string; jobId
     } catch (err) { setError(err instanceof Error ? err.message : "Request failed."); }
     finally { setLoading(false); }
   }
+
+  const autoSent = React.useRef(false);
+  React.useEffect(() => {
+    if (!initialPrompt || autoSent.current) return;
+    autoSent.current = true;
+    void send(initialPrompt);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- send once, on open
+  }, [initialPrompt]);
 
   return (
     <div className="fixed inset-0 z-[60] flex items-end justify-end p-4 sm:items-center sm:justify-center">

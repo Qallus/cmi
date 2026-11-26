@@ -121,9 +121,6 @@ export function OverviewClient({ data, demoMode, outlookCard = null }: { data: O
         <div>
           <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Dashboard</div>
           <h1 className="mt-2 font-display text-2xl font-semibold tracking-tight">Overview</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            A snapshot of your business across all sections.
-          </p>
         </div>
         <StatsToggle shown={showStats} onToggle={toggleStats} />
       </div>

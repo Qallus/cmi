@@ -13,6 +13,7 @@ import { FeatureFlagsPanel } from "./features/feature-flags-panel";
 import { CalendarEditor } from "@/components/schedules/calendar-editor";
 import { InspectionSettingsPanel } from "@/components/inspections/inspection-settings-panel";
 import { SettingsTabs } from "./settings-tabs";
+import { DashboardSettingsPanel } from "@/components/dashboard/home/dashboard-settings-panel";
 
 export const metadata = { title: "Settings — CMI Dashboard" };
 export const dynamic = "force-dynamic";
@@ -227,7 +228,10 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight">Settings</h1>
         <p className="mt-1 text-sm text-muted-foreground">Credentials are managed in Coolify. Redeploy after changing them.</p>
       </div>
-      <SettingsTabs initialTab={tab} panels={{ general, features, scheduling, claude, sidebar, extension, credentials }} />
+      <SettingsTabs initialTab={tab} panels={{
+        general, features, scheduling, claude, sidebar, extension, credentials,
+        dashboard: <DashboardSettingsPanel flagOn={flags.some((f) => f.key === "dashboard_v2" && f.enabled)} canSetDefault={staff?.role_slug === "super_admin"} />,
+      }} />
     </div>
   );
 }

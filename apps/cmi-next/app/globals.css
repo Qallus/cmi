@@ -509,3 +509,13 @@
     background: transparent;
   }
 }
+
+/* Dashboard weather icons (components/dashboard/home/cards/weather.tsx). */
+@keyframes wx-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+@keyframes wx-drift { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(3px); } }
+@keyframes wx-drop { 0% { transform: translateY(-3px); opacity: 0; } 30% { opacity: 1; } 100% { transform: translateY(6px); opacity: 0; } }
+@keyframes wx-snow { 0% { transform: translateY(-3px); opacity: 0; } 30% { opacity: 1; } 100% { transform: translateY(7px); opacity: 0; } }
+@keyframes wx-flash { 0%, 70%, 100% { opacity: 1; } 75%, 85% { opacity: 0.2; } }
+@media (prefers-reduced-motion: reduce) {
+  .wx-anim, .wx-anim * { animation: none !important; }
+}

@@ -8,6 +8,7 @@ import { commsMoreTools } from "./tools-comms-more";
 import { scheduleMoreTools } from "./tools-schedules-more";
 import { handoffTools } from "./tools-handoff";
 import { eventTools } from "./tools-events";
+import { dashboardTools } from "./tools-dashboard";
 import { clientTools } from "./tools-clients";
 import { ENTITIES } from "@/lib/agent/entities";
 import { dispatchTool, toolDefsFor } from "@/lib/agent/tools";
@@ -318,6 +319,7 @@ export const MCP_TOOLS: McpTool[] = [
   ...dashboardMoreTools(),
   ...inspectionTools(),
   ...eventTools(),
+  ...dashboardTools(),
 ];
 
 /** The tools this caller may see and call: available to them, and within their app's tiers. */
